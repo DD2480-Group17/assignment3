@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StringMapTypeHandlerFactoryTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.coreTypes.factories</a> &gt; <span class="el_source">StringMapTypeHandlerFactoryTest.java</span></div><h1>StringMapTypeHandlerFactoryTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.coreTypes.factories;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.terasology.persistence.typeHandling.TypeHandler;
+import org.terasology.persistence.typeHandling.TypeHandlerContext;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.coreTypes.StringMapTypeHandler;
+import org.terasology.persistence.typeHandling.reflection.SerializationSandbox;
+import org.terasology.reflection.TypeInfo;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
+<span class="fc" id="L37">public class StringMapTypeHandlerFactoryTest {</span>
+<span class="fc" id="L38">    private final TypeHandlerLibrary typeHandlerLibrary = mock(TypeHandlerLibrary.class);</span>
+<span class="fc" id="L39">    private final StringMapTypeHandlerFactory typeHandlerFactory = new StringMapTypeHandlerFactory();</span>
+
+<span class="fc" id="L41">    private final TypeHandlerContext context =</span>
+<span class="fc" id="L42">            new TypeHandlerContext(typeHandlerLibrary, mock(SerializationSandbox.class));</span>
+
+    @Test
+    public void testStringMap() {
+<span class="fc" id="L46">        TypeInfo&lt;Map&lt;String, Integer&gt;&gt; listTypeInfo = new TypeInfo&lt;Map&lt;String, Integer&gt;&gt;() {};</span>
+
+<span class="fc" id="L48">        Optional&lt;TypeHandler&lt;Map&lt;String, Integer&gt;&gt;&gt; typeHandler =</span>
+<span class="fc" id="L49">                typeHandlerFactory.create(listTypeInfo, context);</span>
+
+<span class="fc" id="L51">        assertTrue(typeHandler.isPresent());</span>
+<span class="fc" id="L52">        assertTrue(typeHandler.get() instanceof StringMapTypeHandler);</span>
+
+        // Verify that the Integer TypeHandler was loaded from the TypeHandlerLibrary
+<span class="fc" id="L55">        verify(typeHandlerLibrary).getTypeHandler(ArgumentMatchers.eq(TypeInfo.of(Integer.class).getType()));</span>
+<span class="fc" id="L56">    }</span>
+
+    @Test
+    public void testNonStringMap() {
+<span class="fc" id="L60">        TypeInfo&lt;Set&lt;Integer&gt;&gt; listTypeInfo = new TypeInfo&lt;Set&lt;Integer&gt;&gt;() {};</span>
+
+<span class="fc" id="L62">        Optional&lt;TypeHandler&lt;Set&lt;Integer&gt;&gt;&gt; typeHandler =</span>
+<span class="fc" id="L63">                typeHandlerFactory.create(listTypeInfo, context);</span>
+
+<span class="fc" id="L65">        assertFalse(typeHandler.isPresent());</span>
+<span class="fc" id="L66">    }</span>
+
+    @Test
+    public void testNonGenericMap() {
+<span class="nc" id="L70">        class IntMap extends HashMap&lt;String, Integer&gt; {}</span>
+
+<span class="fc" id="L72">        Optional&lt;TypeHandler&lt;IntMap&gt;&gt; typeHandler =</span>
+<span class="fc" id="L73">                typeHandlerFactory.create(TypeInfo.of(IntMap.class), context);</span>
+
+<span class="fc" id="L75">        assertTrue(typeHandler.isPresent());</span>
+<span class="fc" id="L76">        assertTrue(typeHandler.get() instanceof StringMapTypeHandler);</span>
+
+        // Verify that the Integer TypeHandler was loaded from the TypeHandlerLibrary
+<span class="fc" id="L79">        verify(typeHandlerLibrary).getTypeHandler(ArgumentMatchers.eq(TypeInfo.of(Integer.class).getType()));</span>
+<span class="fc" id="L80">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

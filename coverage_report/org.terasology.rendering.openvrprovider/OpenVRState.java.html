@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenVRState.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.openvrprovider</a> &gt; <span class="el_source">OpenVRState.java</span></div><h1>OpenVRState.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.openvrprovider;
+
+import jopenvr.HmdMatrix34_t;
+import jopenvr.HmdMatrix44_t;
+import jopenvr.VRControllerAxis_t;
+import jopenvr.VRControllerState_t;
+import org.joml.Matrix4f;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/** Contains all of the information that the user will need from OpenVR without using any OpenVR data structures. The
+OpenVRProvider automatically updates this.
+ */
+public class OpenVRState {
+
+    // Controllers
+<span class="nc" id="L33">    private static Matrix4f[] controllerPose = new Matrix4f[2];</span>
+<span class="nc" id="L34">    private static VRControllerState_t[] lastControllerState = new VRControllerState_t[2];</span>
+
+<span class="nc" id="L36">    private List&lt;ControllerListener&gt; controllerListeners = new ArrayList&lt;&gt;();</span>
+
+    // In the head frame
+<span class="nc" id="L39">    private Matrix4f[] eyePoses = new Matrix4f[2];</span>
+<span class="nc" id="L40">    private Matrix4f[] projectionMatrices = new Matrix4f[2];</span>
+    private float groundPlaneYOffset;
+
+    // In the tracking system intertial frame
+<span class="nc" id="L44">    private Matrix4f headPose = OpenVRUtil.createIdentityMatrix4f();</span>
+
+<span class="nc" id="L46">    OpenVRState() {</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        for (int handIndex = 0; handIndex &lt; 2; handIndex++) {</span>
+<span class="nc" id="L48">            lastControllerState[handIndex] = new VRControllerState_t();</span>
+<span class="nc" id="L49">            controllerPose[handIndex] = OpenVRUtil.createIdentityMatrix4f();</span>
+<span class="nc" id="L50">            eyePoses[handIndex] = OpenVRUtil.createIdentityMatrix4f();</span>
+<span class="nc" id="L51">            projectionMatrices[handIndex] = OpenVRUtil.createIdentityMatrix4f();</span>
+
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            for (int i = 0; i &lt; 5; i++) {</span>
+<span class="nc" id="L54">                lastControllerState[handIndex].rAxis[i] = new VRControllerAxis_t();</span>
+            }
+        }
+<span class="nc" id="L57">    }</span>
+
+    /**
+     * Add a controller listener. This listener will receive pose and button state updates for the controller.
+     * @param listener - An object implementing the ControllerListener interface.
+     */
+    public void addControllerListener(ControllerListener listener) {
+<span class="nc" id="L64">        controllerListeners.add(listener);</span>
+<span class="nc" id="L65">    }</span>
+
+    /**
+     * Removes a controller listener.
+     * @param listener - An object implementing the ControllerListener interface.
+     */
+    public void removeControllerListener(ControllerListener listener) {
+<span class="nc" id="L72">        controllerListeners.remove(listener);</span>
+<span class="nc" id="L73">    }</span>
+
+    /**
+     * Get the pose of an eye.
+     * @param eyeIndex - An integer specifying the eye: 0 for the left eye, 1 for the right eye.
+     * @return the pose, as a Matrix4f
+     */
+    public Matrix4f getEyePose(int eyeIndex) {
+<span class="nc" id="L81">        Matrix4f matrixReturn = new Matrix4f(headPose);</span>
+<span class="nc" id="L82">        matrixReturn.mul(eyePoses[eyeIndex]);</span>
+<span class="nc" id="L83">        return matrixReturn;</span>
+    }
+
+    /**
+     * Get the projection matrix for an eye.
+     * @param eyeIndex - An integer specifying the eye: 0 for the left eye, 1 for the right eye.
+     * @return the projection matrix, as a Matrix4f.
+     */
+    public Matrix4f getEyeProjectionMatrix(int eyeIndex) {
+<span class="nc" id="L92">        return new Matrix4f(projectionMatrices[eyeIndex]);</span>
+    }
+
+    void setHeadPose(HmdMatrix34_t inputPose) {
+<span class="nc" id="L96">        OpenVRUtil.setSteamVRMatrix3ToMatrix4f(inputPose, headPose);</span>
+<span class="nc" id="L97">        headPose = new Matrix4f(</span>
+                1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                0, groundPlaneYOffset, 0, 1
+<span class="nc" id="L102">        ).mul(headPose);</span>
+<span class="nc" id="L103">    }</span>
+
+    void setEyePoseWRTHead(HmdMatrix34_t inputPose, int nIndex) {
+<span class="nc" id="L106">        OpenVRUtil.setSteamVRMatrix3ToMatrix4f(inputPose, eyePoses[nIndex]);</span>
+<span class="nc" id="L107">    }</span>
+
+    void setControllerPose(HmdMatrix34_t inputPose, int nIndex) {
+<span class="nc" id="L110">        OpenVRUtil.setSteamVRMatrix3ToMatrix4f(inputPose, controllerPose[nIndex]);</span>
+<span class="nc" id="L111">        controllerPose[nIndex] = new Matrix4f(</span>
+                1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                0, groundPlaneYOffset, 0, 1
+<span class="nc" id="L116">        ).mul(controllerPose[nIndex]);</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        for (ControllerListener listener : controllerListeners) {</span>
+<span class="nc" id="L118">            listener.poseChanged(controllerPose[nIndex], nIndex);</span>
+<span class="nc" id="L119">        }</span>
+<span class="nc" id="L120">    }</span>
+
+    void updateControllerButtonState(
+            VRControllerState_t[] controllerStateReference) {
+        // each controller{
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        for (int handIndex = 0; handIndex &lt; 2; handIndex++) {</span>
+            // store previous state
+<span class="nc bnc" id="L127" title="All 2 branches missed.">            if (lastControllerState[handIndex].ulButtonPressed != controllerStateReference[handIndex].ulButtonPressed) {</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                for (ControllerListener listener : controllerListeners) {</span>
+<span class="nc" id="L129">                    listener.buttonStateChanged(lastControllerState[handIndex], controllerStateReference[handIndex], handIndex);</span>
+<span class="nc" id="L130">                }</span>
+            }
+<span class="nc" id="L132">            lastControllerState[handIndex].unPacketNum = controllerStateReference[handIndex].unPacketNum;</span>
+<span class="nc" id="L133">            lastControllerState[handIndex].ulButtonPressed = controllerStateReference[handIndex].ulButtonPressed;</span>
+<span class="nc" id="L134">            lastControllerState[handIndex].ulButtonTouched = controllerStateReference[handIndex].ulButtonTouched;</span>
+
+            // 5 axes but only [0] and [1] is anything, trigger and touchpad
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            for (int i = 0; i &lt; 5; i++) {</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                if (controllerStateReference[handIndex].rAxis[i] != null) {</span>
+<span class="nc" id="L139">                    lastControllerState[handIndex].rAxis[i].x = controllerStateReference[handIndex].rAxis[i].x;</span>
+<span class="nc" id="L140">                    lastControllerState[handIndex].rAxis[i].y = controllerStateReference[handIndex].rAxis[i].y;</span>
+                }
+            }
+        }
+<span class="nc" id="L144">    }</span>
+
+    /**
+     * Set the offset of the default head pose from the ground (along the y axis). This is useful if there is some
+     * built-in &quot;rest&quot; camera position (i.e. some games will default to the height of a standing player).
+     * @param inputOffset - the height (in meters) by which to raise the camera.
+     */
+    public void setGroundPlaneYOffset(float inputOffset) {
+<span class="nc" id="L152">        groundPlaneYOffset = inputOffset;</span>
+<span class="nc" id="L153">    }</span>
+
+    void setProjectionMatrix(
+            HmdMatrix44_t inputPose,
+            int eyeIndex) {
+<span class="nc" id="L158">        OpenVRUtil.setSteamVRMatrix44ToMatrix4f(inputPose, projectionMatrices[eyeIndex]);</span>
+<span class="nc" id="L159">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

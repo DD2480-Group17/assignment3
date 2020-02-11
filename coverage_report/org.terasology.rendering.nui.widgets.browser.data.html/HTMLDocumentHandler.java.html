@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HTMLDocumentHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets.browser.data.html</a> &gt; <span class="el_source">HTMLDocumentHandler.java</span></div><h1>HTMLDocumentHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets.browser.data.html;
+
+import org.terasology.rendering.nui.widgets.browser.data.DocumentData;
+import org.xml.sax.Attributes;
+import org.xml.sax.helpers.DefaultHandler;
+
+public class HTMLDocumentHandler extends DefaultHandler {
+    private HTMLDocumentBuilderFactory htmlDocumentBuilderFactory;
+
+    private HTMLDocumentBuilder currentDocumentBuilder;
+    private HTMLDocument currentDocument;
+
+    private DocumentData resultDocument;
+
+    private HTMLBlockBuilder currentParagraphBuilder;
+    private String currentParagraphTag;
+    private int level;
+
+<span class="fc" id="L34">    public HTMLDocumentHandler(HTMLDocumentBuilderFactory htmlDocumentBuilderFactory) {</span>
+<span class="fc" id="L35">        this.htmlDocumentBuilderFactory = htmlDocumentBuilderFactory;</span>
+<span class="fc" id="L36">    }</span>
+
+    @Override
+    public void startDocument() {
+<span class="fc" id="L40">    }</span>
+
+    @Override
+    public void endDocument() {
+<span class="fc" id="L44">    }</span>
+
+    @Override
+    public void startElement(String uri, String localName, String qName, Attributes attributes) {
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (currentDocumentBuilder == null) {</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">            if (!qName.equalsIgnoreCase(&quot;body&quot;)) {</span>
+<span class="nc" id="L50">                throw new HTMLParseException(&quot;Expected &lt;body&gt; tag&quot;);</span>
+            }
+        }
+<span class="fc" id="L53">        processStartTag(qName, attributes);</span>
+<span class="fc" id="L54">    }</span>
+
+    private void processStartTag(String tag, Attributes attributes) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (tag.equalsIgnoreCase(&quot;body&quot;)) {</span>
+<span class="fc" id="L58">            processBodyStart(attributes);</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        } else if (currentParagraphBuilder != null) {</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">            if (!currentParagraphBuilder.startTag(tag, attributes)) {</span>
+<span class="nc" id="L61">                throw new HTMLParseException(&quot;Unknown tag - &quot; + tag);</span>
+            }
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            if (currentParagraphTag.equalsIgnoreCase(tag)) {</span>
+<span class="nc" id="L64">                level++;</span>
+            }
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        } else if (currentDocumentBuilder != null) {</span>
+<span class="fc" id="L67">            currentParagraphBuilder = currentDocumentBuilder.startTag(tag, attributes);</span>
+<span class="fc" id="L68">            currentParagraphTag = tag;</span>
+        } else {
+<span class="nc" id="L70">            throw new HTMLParseException(&quot;Unexpected document structure&quot;);</span>
+        }
+<span class="fc" id="L72">    }</span>
+
+    private void processEndTag(String tag) {
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (tag.equalsIgnoreCase(&quot;body&quot;)) {</span>
+<span class="fc" id="L76">            processBodyEnd();</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">        } else if (currentParagraphBuilder != null) {</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">            if (currentParagraphTag.equalsIgnoreCase(tag)) {</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">                if (level == 0) {</span>
+<span class="fc" id="L80">                    currentDocument.addParagraph(currentParagraphBuilder.build());</span>
+<span class="fc" id="L81">                    currentParagraphBuilder = null;</span>
+<span class="fc" id="L82">                    currentParagraphTag = null;</span>
+                } else {
+<span class="nc" id="L84">                    currentParagraphBuilder.endTag(tag);</span>
+<span class="nc" id="L85">                    level--;</span>
+                }
+            } else {
+<span class="nc" id="L88">                currentParagraphBuilder.endTag(tag);</span>
+            }
+        } else {
+<span class="nc" id="L91">            throw new HTMLParseException(&quot;Unexpected document structure&quot;);</span>
+        }
+<span class="fc" id="L93">    }</span>
+
+    private void processBodyStart(Attributes attributes) {
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">        if (currentDocumentBuilder != null) {</span>
+<span class="nc" id="L97">            throw new HTMLParseException(&quot;Unexpected document structure&quot;);</span>
+        }
+<span class="fc" id="L99">        currentDocumentBuilder = htmlDocumentBuilderFactory.create(attributes);</span>
+<span class="fc" id="L100">        currentDocument = currentDocumentBuilder.createDocument();</span>
+<span class="fc" id="L101">    }</span>
+
+    @Override
+    public void endElement(String uri, String localName, String qName) {
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        if (currentDocumentBuilder == null) {</span>
+<span class="nc" id="L106">            throw new HTMLParseException(&quot;End element outside of &lt;body&gt; tag&quot;);</span>
+        }
+<span class="fc" id="L108">        processEndTag(qName);</span>
+<span class="fc" id="L109">    }</span>
+
+    private void processBodyEnd() {
+<span class="pc bpc" id="L112" title="2 of 4 branches missed.">        if (currentParagraphBuilder != null || currentDocumentBuilder == null) {</span>
+<span class="nc" id="L113">            throw new HTMLParseException(&quot;Unexpected document structure&quot;);</span>
+        }
+<span class="fc" id="L115">        currentDocumentBuilder = null;</span>
+<span class="fc" id="L116">        resultDocument = currentDocument;</span>
+<span class="fc" id="L117">    }</span>
+
+    @Override
+    public void characters(char[] ch, int start, int length) {
+<span class="fc" id="L121">        String text = new String(ch, start, length);</span>
+<span class="pc bpc" id="L122" title="1 of 4 branches missed.">        if (currentParagraphBuilder == null &amp;&amp; !text.trim().isEmpty()) {</span>
+<span class="fc" id="L123">            throw new HTMLParseException(&quot;Characters outside of &lt;body&gt; tag&quot;);</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        } else if (currentParagraphBuilder != null) {</span>
+<span class="fc" id="L125">            currentParagraphBuilder.text(text);</span>
+        }
+<span class="fc" id="L127">    }</span>
+
+    public DocumentData getDocument() {
+<span class="fc" id="L130">        return resultDocument;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

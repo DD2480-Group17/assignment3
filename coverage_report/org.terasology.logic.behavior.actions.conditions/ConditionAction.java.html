@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConditionAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.actions.conditions</a> &gt; <span class="el_source">ConditionAction.java</span></div><h1>ConditionAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.actions.conditions;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.logic.behavior.BehaviorAction;
+import org.terasology.logic.behavior.core.Actor;
+import org.terasology.logic.behavior.core.BaseAction;
+import org.terasology.logic.behavior.core.BehaviorState;
+import org.terasology.registry.In;
+
+import java.util.Collection;
+
+/**
+ * Condition leaf node.
+ * &lt;p&gt;
+ * Checks for specific conditions on Components of a given Entity.
+ * If componentPresent is specified, checks that the component is present.
+ * If componentAbsent is specified, checks that the component is absent.
+ * if the 'values' field is specified, checks the values
+ * &lt;p&gt;
+ * Returns SUCCESS if all conditions checked against are true; FAILURE if not.
+ */
+@BehaviorAction(name = &quot;condition&quot;)
+<span class="nc" id="L43">public class ConditionAction extends BaseAction {</span>
+<span class="nc" id="L44">    private static final Logger logger = LoggerFactory.getLogger(ConditionAction.class);</span>
+
+    protected String componentPresent;
+
+    protected String componentAbsent;
+
+    protected String[] values;
+
+    @In
+    private ModuleManager moduleManager;
+
+    @In
+    private ComponentLibrary componentLibrary;
+
+    @Override
+    public void construct(Actor actor) {
+
+<span class="nc" id="L61">    }</span>
+
+    @Override
+    public BehaviorState modify(Actor actor, BehaviorState result) {
+        try {
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (!condition(actor)) {</span>
+<span class="nc" id="L67">                return BehaviorState.FAILURE;</span>
+            }
+<span class="nc" id="L69">            return BehaviorState.SUCCESS;</span>
+<span class="nc" id="L70">        } catch (ClassNotFoundException e) {</span>
+<span class="nc" id="L71">            logger.error(&quot;Class not found. Does the Component specified exist?&quot;, e);</span>
+<span class="nc" id="L72">        } catch (NoSuchFieldException e) {</span>
+<span class="nc" id="L73">            logger.error(&quot;Field not found. Does the field specified in 'values' (publicly) exist in the Component specified in 'componentPresent'?&quot;, e);</span>
+<span class="nc" id="L74">        } catch (IllegalAccessException e) {</span>
+<span class="nc" id="L75">            logger.error(&quot;Illegal access. Do we have access to the Component in question?&quot;, e);</span>
+<span class="nc" id="L76">        }</span>
+<span class="nc" id="L77">        return BehaviorState.FAILURE;</span>
+    }
+
+    protected boolean condition(Actor actor) throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException {
+<span class="nc" id="L81">        boolean passing = true;</span>
+
+<span class="nc bnc" id="L83" title="All 4 branches missed.">        if (componentAbsent != null &amp;&amp; actor.hasComponent(componentLibrary.resolve(componentAbsent).getType())) {</span>
+<span class="nc" id="L84">            passing = false;</span>
+        }
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (componentPresent != null) {</span>
+
+<span class="nc" id="L88">            Component component = actor.getComponent(componentLibrary.resolve(componentPresent).getType());</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            if (component == null) {</span>
+<span class="nc" id="L90">                passing = false;</span>
+            } else {
+                // Check values
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                if (values != null) {</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                    for (String value : values) {</span>
+<span class="nc" id="L95">                        String[] tokens = value.split(&quot; &quot;);</span>
+<span class="nc" id="L96">                        Object fieldValue = component.getClass().getDeclaredField(tokens[1]).get(component);</span>
+
+                        String secondValue;
+<span class="nc bnc" id="L99" title="All 4 branches missed.">                        switch (tokens[0]) {</span>
+                            // Read second value from the definition
+                            case &quot;V&quot;:
+<span class="nc" id="L102">                                secondValue = tokens[3];</span>
+<span class="nc" id="L103">                                break;</span>
+                            // Read second value from a field of the component
+                            case &quot;F&quot;:
+<span class="nc" id="L106">                                secondValue = component.getClass().getDeclaredField(tokens[3]).get(component).toString();</span>
+<span class="nc" id="L107">                                break;</span>
+                            // No second value needed.
+                            case &quot;N&quot;:
+<span class="nc" id="L110">                                secondValue = &quot;&quot;;</span>
+<span class="nc" id="L111">                                break;</span>
+                            default:
+<span class="nc" id="L113">                                logger.error(&quot;Unsupported guard value type: {}&quot;, tokens[0]);</span>
+<span class="nc" id="L114">                                secondValue = &quot;&quot;;</span>
+
+                        }
+
+                        // Can't use a switch for this :(
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                        if (fieldValue instanceof Boolean) {</span>
+<span class="nc bnc" id="L120" title="All 3 branches missed.">                            switch (tokens[2]) {</span>
+                                case &quot;=&quot;:
+                                case &quot;==&quot;:
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                                    passing = (Boolean) fieldValue == Boolean.parseBoolean(secondValue);</span>
+<span class="nc" id="L124">                                    break;</span>
+                                case &quot;!&quot;:
+                                case &quot;!=&quot;:
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                                    passing = (Boolean) fieldValue != Boolean.parseBoolean(secondValue);</span>
+<span class="nc" id="L128">                                    break;</span>
+                                default:
+<span class="nc" id="L130">                                    logger.error(&quot;Unsupported operation for boolean values: {}&quot;, tokens[2]);</span>
+
+                            }
+
+<span class="nc bnc" id="L134" title="All 2 branches missed.">                        } else if (fieldValue instanceof Number) {</span>
+<span class="nc bnc" id="L135" title="All 7 branches missed.">                            switch (tokens[2]) {</span>
+                                case &quot;=&quot;:
+                                case &quot;==&quot;:
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                                    passing = (Double) fieldValue == Double.parseDouble(secondValue);</span>
+<span class="nc" id="L139">                                    break;</span>
+                                case &quot;!&quot;:
+                                case &quot;!=&quot;:
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                                    passing = (Double) fieldValue == Double.parseDouble(secondValue);</span>
+<span class="nc" id="L143">                                    break;</span>
+                                case &quot;&lt;=&quot;:
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                                    passing = ((Number) fieldValue).doubleValue() &lt;= Double.parseDouble(secondValue);</span>
+<span class="nc" id="L146">                                    break;</span>
+                                case &quot;&gt;=&quot;:
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                                    passing = ((Number) fieldValue).doubleValue() &gt;= Double.parseDouble(secondValue);</span>
+<span class="nc" id="L149">                                    break;</span>
+                                case &quot;&gt;&quot;:
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                                    passing = ((Number) fieldValue).doubleValue() &gt; Double.parseDouble(secondValue);</span>
+<span class="nc" id="L152">                                    break;</span>
+                                case &quot;&lt;&quot;:
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                                    passing = ((Number) fieldValue).doubleValue() &lt; Double.parseDouble(secondValue);</span>
+<span class="nc" id="L155">                                    break;</span>
+                                default:
+<span class="nc" id="L157">                                    logger.error(&quot;Unsupported operation for numeric values: {}&quot;, tokens[2]);</span>
+
+                            }
+
+<span class="nc bnc" id="L161" title="All 2 branches missed.">                        } else if (fieldValue instanceof String) {</span>
+<span class="nc bnc" id="L162" title="All 3 branches missed.">                            switch (tokens[2]) {</span>
+                                case &quot;=&quot;:
+                                case &quot;==&quot;:
+<span class="nc" id="L165">                                    passing = fieldValue.equals(secondValue);</span>
+<span class="nc" id="L166">                                    break;</span>
+                                case &quot;!&quot;:
+                                case &quot;!=&quot;:
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                                    passing = !fieldValue.equals(secondValue);</span>
+<span class="nc" id="L170">                                    break;</span>
+                                default:
+<span class="nc" id="L172">                                    logger.error(&quot;Unsupported operation for strings: {}&quot;, tokens[2]);</span>
+
+                            }
+                        } else {
+                            // Assume it's a nullable Object
+
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                            if (fieldValue == null) {</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">                                if (!tokens[2].equals(&quot;null&quot;)) {</span>
+                                    // If a more complex check is requested and the field is null, fail
+<span class="nc" id="L181">                                    passing = false;</span>
+                                }
+                            } else {
+<span class="nc bnc" id="L184" title="All 4 branches missed.">                                switch (tokens[2]) {</span>
+
+                                    // Null check
+                                    case &quot;exists&quot;:
+<span class="nc bnc" id="L188" title="All 4 branches missed.">                                        if (fieldValue instanceof EntityRef &amp;&amp; fieldValue == EntityRef.NULL) {</span>
+<span class="nc" id="L189">                                            passing = false;</span>
+                                        }
+                                        break;
+                                    // Collection checks
+                                    case &quot;empty&quot;:
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                                        if (fieldValue instanceof Collection) {</span>
+<span class="nc" id="L195">                                            passing = ((Collection&lt;?&gt;) fieldValue).isEmpty();</span>
+                                        }
+                                        break;
+                                    case &quot;nonEmpty&quot;:
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                                        if (fieldValue instanceof Collection) {</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                                            passing = !((Collection&lt;?&gt;) fieldValue).isEmpty();</span>
+                                        }
+                                        break;
+
+                                    default:
+<span class="nc" id="L205">                                        logger.error(&quot;Unknown field type or operation: {} {}&quot;, fieldValue.getClass(), tokens[2]);</span>
+                                }
+                            }
+                        }
+
+                    }
+
+                }
+
+            }
+        }
+<span class="nc" id="L216">        return passing;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

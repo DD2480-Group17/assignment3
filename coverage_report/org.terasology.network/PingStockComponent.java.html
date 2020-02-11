@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PingStockComponent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.network</a> &gt; <span class="el_source">PingStockComponent.java</span></div><h1>PingStockComponent.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.network;
+
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * PingStockComponent stock the ping information of one user.
+ * &lt;p&gt;
+ * Might be used to stock ping information and display it in future.
+ */
+<span class="nc" id="L31">public final class PingStockComponent implements Component {</span>
+
+    // TODO Map&lt;EntityRef,Long&gt; is not supported for replication (no type handler),
+    // therefore keys and values are replicated via lists.
+    // Not the best solution for performance but for &lt;100 players and low update rates it should do the job
+
+<span class="nc" id="L37">    @Replicate</span>
+    private List&lt;EntityRef&gt; pingKeys = new ArrayList&lt;&gt;();
+<span class="nc" id="L39">    @Replicate</span>
+    private List&lt;Long&gt; pingValues = new ArrayList&lt;&gt;();
+
+    public void setValues(Map&lt;EntityRef, Long&gt; values) {
+<span class="nc" id="L43">        pingKeys.clear();</span>
+<span class="nc" id="L44">        pingValues.clear();</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        for (Map.Entry&lt;EntityRef, Long&gt; entry : values.entrySet()) {</span>
+<span class="nc" id="L46">            pingKeys.add(entry.getKey());</span>
+<span class="nc" id="L47">            pingValues.add(entry.getValue());</span>
+<span class="nc" id="L48">        }</span>
+<span class="nc" id="L49">    }</span>
+
+    public Map&lt;EntityRef, Long&gt; getValues() {
+<span class="nc" id="L52">        Map&lt;EntityRef, Long&gt; returnValues = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">        for (int i = 0; i &lt; pingKeys.size(); i++) {</span>
+<span class="nc" id="L54">            returnValues.put(pingKeys.get(i), pingValues.get(i));</span>
+        }
+<span class="nc" id="L56">        return returnValues;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

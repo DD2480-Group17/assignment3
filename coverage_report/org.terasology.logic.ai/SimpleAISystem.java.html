@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SimpleAISystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.ai</a> &gt; <span class="el_source">SimpleAISystem.java</span></div><h1>SimpleAISystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.ai;
+
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.characters.CharacterMoveInputEvent;
+import org.terasology.logic.characters.CharacterMovementComponent;
+import org.terasology.logic.characters.events.HorizontalCollisionEvent;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.registry.In;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.utilities.random.Random;
+import org.terasology.world.WorldProvider;
+
+/**
+ */
+@RegisterSystem(RegisterMode.AUTHORITY)
+<span class="nc" id="L40">public class SimpleAISystem extends BaseComponentSystem implements UpdateSubscriberSystem {</span>
+
+    @In
+    private WorldProvider worldProvider;
+    @In
+    private EntityManager entityManager;
+<span class="nc" id="L46">    private Random random = new FastRandom();</span>
+    @In
+    private Time time;
+    @In
+    private LocalPlayer localPlayer;
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        for (EntityRef entity : entityManager.getEntitiesWith(SimpleAIComponent.class, CharacterMovementComponent.class, LocationComponent.class)) {</span>
+<span class="nc" id="L55">            LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L56">            Vector3f worldPos = location.getWorldPosition();</span>
+
+            // Skip this AI if not in a loaded chunk
+<span class="nc bnc" id="L59" title="All 2 branches missed.">            if (!worldProvider.isBlockRelevant(worldPos)) {</span>
+<span class="nc" id="L60">                continue;</span>
+            }
+<span class="nc" id="L62">            SimpleAIComponent ai = entity.getComponent(SimpleAIComponent.class);</span>
+
+<span class="nc" id="L64">            Vector3f drive = new Vector3f();</span>
+            // TODO: shouldn't use local player, need some way to find nearest player
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (localPlayer != null) {</span>
+<span class="nc" id="L67">                Vector3f dist = new Vector3f(worldPos);</span>
+<span class="nc" id="L68">                dist.sub(localPlayer.getPosition());</span>
+<span class="nc" id="L69">                double distanceToPlayer = dist.lengthSquared();</span>
+
+<span class="nc bnc" id="L71" title="All 4 branches missed.">                if (distanceToPlayer &gt; 6 &amp;&amp; distanceToPlayer &lt; 16) {</span>
+                    // Head to player
+<span class="nc" id="L73">                    ai.movementTarget.set(localPlayer.getPosition());</span>
+<span class="nc" id="L74">                    ai.followingPlayer = true;</span>
+<span class="nc" id="L75">                    entity.saveComponent(ai);</span>
+                } else {
+                    // Random walk
+<span class="nc bnc" id="L78" title="All 4 branches missed.">                    if (time.getGameTimeInMs() - ai.lastChangeOfDirectionAt &gt; 12000 || ai.followingPlayer) {</span>
+<span class="nc" id="L79">                        ai.movementTarget.set(worldPos.x + random.nextFloat(-500.0f, 500.0f), worldPos.y, worldPos.z + random.nextFloat(-500.0f, 500.0f));</span>
+<span class="nc" id="L80">                        ai.lastChangeOfDirectionAt = time.getGameTimeInMs();</span>
+<span class="nc" id="L81">                        ai.followingPlayer = false;</span>
+<span class="nc" id="L82">                        entity.saveComponent(ai);</span>
+                    }
+                }
+
+<span class="nc" id="L86">                Vector3f targetDirection = new Vector3f();</span>
+<span class="nc" id="L87">                targetDirection.sub(ai.movementTarget, worldPos);</span>
+<span class="nc" id="L88">                targetDirection.normalize();</span>
+<span class="nc" id="L89">                drive.set(targetDirection);</span>
+
+<span class="nc" id="L91">                float yaw = (float) Math.atan2(targetDirection.x, targetDirection.z);</span>
+<span class="nc" id="L92">                location.getLocalRotation().set(new Vector3f(0, 1, 0), yaw);</span>
+<span class="nc" id="L93">                entity.saveComponent(location);</span>
+            }
+<span class="nc" id="L95">            entity.send(new CharacterMoveInputEvent(0, 0, 0, drive, false, false, time.getGameDeltaInMs()));</span>
+<span class="nc" id="L96">        }</span>
+<span class="nc" id="L97">    }</span>
+
+    @ReceiveEvent(components = {SimpleAIComponent.class})
+    public void onBump(HorizontalCollisionEvent event, EntityRef entity) {
+<span class="nc" id="L101">        CharacterMovementComponent moveComp = entity.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L102" title="All 4 branches missed.">        if (moveComp != null &amp;&amp; moveComp.grounded) {</span>
+<span class="nc" id="L103">            moveComp.jump = true;</span>
+<span class="nc" id="L104">            entity.saveComponent(moveComp);</span>
+        }
+<span class="nc" id="L106">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

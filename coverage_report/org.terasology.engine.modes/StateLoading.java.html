@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StateLoading.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.modes</a> &gt; <span class="el_source">StateLoading.java</span></div><h1>StateLoading.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.engine.modes;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Queues;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.engine.EngineTime;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.Time;
+import org.terasology.engine.modes.loadProcesses.AwaitCharacterSpawn;
+import org.terasology.engine.modes.loadProcesses.CreateRemoteWorldEntity;
+import org.terasology.engine.modes.loadProcesses.CreateWorldEntity;
+import org.terasology.engine.modes.loadProcesses.EnsureSaveGameConsistency;
+import org.terasology.engine.modes.loadProcesses.InitialiseBlockTypeEntities;
+import org.terasology.engine.modes.loadProcesses.InitialiseCommandSystem;
+import org.terasology.engine.modes.loadProcesses.InitialiseComponentSystemManager;
+import org.terasology.engine.modes.loadProcesses.InitialiseEntitySystem;
+import org.terasology.engine.modes.loadProcesses.InitialiseGraphics;
+import org.terasology.engine.modes.loadProcesses.InitialisePhysics;
+import org.terasology.engine.modes.loadProcesses.InitialiseRecordAndReplay;
+import org.terasology.engine.modes.loadProcesses.InitialiseRemoteWorld;
+import org.terasology.engine.modes.loadProcesses.InitialiseSystems;
+import org.terasology.engine.modes.loadProcesses.InitialiseWorld;
+import org.terasology.engine.modes.loadProcesses.InitialiseWorldGenerator;
+import org.terasology.engine.modes.loadProcesses.JoinServer;
+import org.terasology.engine.modes.loadProcesses.LoadEntities;
+import org.terasology.engine.modes.loadProcesses.LoadExtraBlockData;
+import org.terasology.engine.modes.loadProcesses.LoadPrefabs;
+import org.terasology.engine.modes.loadProcesses.PostBeginSystems;
+import org.terasology.engine.modes.loadProcesses.PreBeginSystems;
+import org.terasology.engine.modes.loadProcesses.PrepareWorld;
+import org.terasology.engine.modes.loadProcesses.ProcessBlockPrefabs;
+import org.terasology.engine.modes.loadProcesses.RegisterBlockFamilies;
+import org.terasology.engine.modes.loadProcesses.RegisterBlocks;
+import org.terasology.engine.modes.loadProcesses.RegisterInputSystem;
+import org.terasology.engine.modes.loadProcesses.RegisterMods;
+import org.terasology.engine.modes.loadProcesses.RegisterSystems;
+import org.terasology.engine.modes.loadProcesses.SetupLocalPlayer;
+import org.terasology.engine.modes.loadProcesses.SetupRemotePlayer;
+import org.terasology.engine.modes.loadProcesses.StartServer;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.game.Game;
+import org.terasology.game.GameManifest;
+import org.terasology.network.JoinStatus;
+import org.terasology.network.NetworkMode;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.internal.CanvasRenderer;
+import org.terasology.rendering.nui.internal.NUIManagerInternal;
+import org.terasology.rendering.nui.layers.mainMenu.loadingScreen.LoadingScreen;
+import org.terasology.world.chunks.event.OnChunkLoaded;
+
+import java.util.Queue;
+
+public class StateLoading implements GameState {
+
+<span class="nc" id="L75">    private static final Logger logger = LoggerFactory.getLogger(StateLoading.class);</span>
+
+    private Context context;
+    private GameManifest gameManifest;
+    private NetworkMode netMode;
+<span class="nc" id="L80">    private Queue&lt;LoadProcess&gt; loadProcesses = Queues.newArrayDeque();</span>
+    private LoadProcess current;
+    private JoinStatus joinStatus;
+
+    private NUIManager nuiManager;
+
+    private LoadingScreen loadingScreen;
+
+    private Config config;
+
+    private int progress;
+    private int maxProgress;
+
+    private boolean chunkGenerationStarted;
+    private long timeLastChunkGenerated;
+
+    /**
+     * Constructor for server or single player games
+     */
+<span class="nc" id="L99">    public StateLoading(GameManifest gameManifest, NetworkMode netMode) {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        Preconditions.checkArgument(netMode != NetworkMode.CLIENT);</span>
+
+<span class="nc" id="L102">        this.gameManifest = gameManifest;</span>
+<span class="nc" id="L103">        this.netMode = netMode;</span>
+<span class="nc" id="L104">    }</span>
+
+    /**
+     * Constructor for client of multiplayer game
+     */
+<span class="nc" id="L109">    public StateLoading(JoinStatus joinStatus) {</span>
+<span class="nc" id="L110">        this.gameManifest = new GameManifest();</span>
+<span class="nc" id="L111">        this.netMode = NetworkMode.CLIENT;</span>
+<span class="nc" id="L112">        this.joinStatus = joinStatus;</span>
+<span class="nc" id="L113">    }</span>
+
+    @Override
+    public void init(GameEngine engine) {
+<span class="nc" id="L117">        this.context = engine.createChildContext();</span>
+<span class="nc" id="L118">        CoreRegistry.setContext(context);</span>
+
+<span class="nc" id="L120">        config = context.get(Config.class);</span>
+
+<span class="nc" id="L122">        this.nuiManager = new NUIManagerInternal(context.get(CanvasRenderer.class), context);</span>
+<span class="nc" id="L123">        context.put(NUIManager.class, nuiManager);</span>
+
+<span class="nc" id="L125">        EngineTime time = (EngineTime) context.get(Time.class);</span>
+<span class="nc" id="L126">        time.setPaused(true);</span>
+<span class="nc" id="L127">        time.setGameTime(gameManifest.getTime());</span>
+
+<span class="nc" id="L129">        context.get(Game.class).load(gameManifest);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        switch (netMode) {</span>
+            case CLIENT:
+<span class="nc" id="L132">                initClient();</span>
+<span class="nc" id="L133">                break;</span>
+            default:
+<span class="nc" id="L135">                initHost();</span>
+                break;
+        }
+
+<span class="nc" id="L139">        progress = 0;</span>
+<span class="nc" id="L140">        maxProgress = 0;</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        for (LoadProcess process : loadProcesses) {</span>
+<span class="nc" id="L142">            maxProgress += process.getExpectedCost();</span>
+<span class="nc" id="L143">        }</span>
+
+<span class="nc" id="L145">        popStep();</span>
+<span class="nc" id="L146">        loadingScreen = nuiManager.pushScreen(&quot;engine:loadingScreen&quot;, LoadingScreen.class);</span>
+<span class="nc" id="L147">        loadingScreen.updateStatus(current.getMessage(), current.getProgress());</span>
+
+<span class="nc" id="L149">        chunkGenerationStarted = false;</span>
+<span class="nc" id="L150">    }</span>
+
+    private void initClient() {
+<span class="nc" id="L153">        loadProcesses.add(new JoinServer(context, gameManifest, joinStatus));</span>
+<span class="nc" id="L154">        loadProcesses.add(new InitialiseEntitySystem(context));</span>
+<span class="nc" id="L155">        loadProcesses.add(new RegisterBlocks(context, gameManifest));</span>
+<span class="nc" id="L156">        loadProcesses.add(new InitialiseGraphics(context));</span>
+<span class="nc" id="L157">        loadProcesses.add(new LoadPrefabs(context));</span>
+<span class="nc" id="L158">        loadProcesses.add(new ProcessBlockPrefabs(context));</span>
+<span class="nc" id="L159">        loadProcesses.add(new LoadExtraBlockData(context));</span>
+<span class="nc" id="L160">        loadProcesses.add(new InitialiseComponentSystemManager(context));</span>
+<span class="nc" id="L161">        loadProcesses.add(new RegisterInputSystem(context));</span>
+<span class="nc" id="L162">        loadProcesses.add(new RegisterSystems(context, netMode));</span>
+<span class="nc" id="L163">        loadProcesses.add(new InitialiseCommandSystem(context));</span>
+<span class="nc" id="L164">        loadProcesses.add(new InitialiseRemoteWorld(context, gameManifest));</span>
+<span class="nc" id="L165">        loadProcesses.add(new InitialisePhysics(context));</span>
+<span class="nc" id="L166">        loadProcesses.add(new InitialiseSystems(context));</span>
+<span class="nc" id="L167">        loadProcesses.add(new PreBeginSystems(context));</span>
+<span class="nc" id="L168">        loadProcesses.add(new CreateRemoteWorldEntity(context));</span>
+<span class="nc" id="L169">        loadProcesses.add(new PostBeginSystems(context));</span>
+<span class="nc" id="L170">        loadProcesses.add(new SetupRemotePlayer(context));</span>
+<span class="nc" id="L171">        loadProcesses.add(new AwaitCharacterSpawn(context));</span>
+<span class="nc" id="L172">        loadProcesses.add(new RegisterBlockFamilies(context));</span>
+<span class="nc" id="L173">        loadProcesses.add(new PrepareWorld(context));</span>
+<span class="nc" id="L174">    }</span>
+
+    private void initHost() {
+<span class="nc" id="L177">        loadProcesses.add(new RegisterMods(context, gameManifest));</span>
+<span class="nc" id="L178">        loadProcesses.add(new InitialiseEntitySystem(context));</span>
+<span class="nc" id="L179">        loadProcesses.add(new RegisterBlocks(context, gameManifest));</span>
+<span class="nc" id="L180">        loadProcesses.add(new InitialiseGraphics(context));</span>
+<span class="nc" id="L181">        loadProcesses.add(new LoadPrefabs(context));</span>
+<span class="nc" id="L182">        loadProcesses.add(new ProcessBlockPrefabs(context));</span>
+<span class="nc" id="L183">        loadProcesses.add(new InitialiseComponentSystemManager(context));</span>
+<span class="nc" id="L184">        loadProcesses.add(new RegisterInputSystem(context));</span>
+<span class="nc" id="L185">        loadProcesses.add(new RegisterSystems(context, netMode));</span>
+<span class="nc" id="L186">        loadProcesses.add(new InitialiseCommandSystem(context));</span>
+<span class="nc" id="L187">        loadProcesses.add(new LoadExtraBlockData(context));</span>
+<span class="nc" id="L188">        loadProcesses.add(new InitialiseWorld(gameManifest, context));</span>
+<span class="nc" id="L189">        loadProcesses.add(new RegisterBlockFamilies(context));</span>
+<span class="nc" id="L190">        loadProcesses.add(new EnsureSaveGameConsistency(context));</span>
+<span class="nc" id="L191">        loadProcesses.add(new InitialisePhysics(context));</span>
+<span class="nc" id="L192">        loadProcesses.add(new InitialiseSystems(context));</span>
+<span class="nc" id="L193">        loadProcesses.add(new PreBeginSystems(context));</span>
+<span class="nc" id="L194">        loadProcesses.add(new LoadEntities(context));</span>
+<span class="nc" id="L195">        loadProcesses.add(new InitialiseBlockTypeEntities(context));</span>
+<span class="nc" id="L196">        loadProcesses.add(new CreateWorldEntity(context, gameManifest));</span>
+<span class="nc" id="L197">        loadProcesses.add(new InitialiseWorldGenerator(context));</span>
+<span class="nc" id="L198">        loadProcesses.add(new InitialiseRecordAndReplay(context));</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        if (netMode.isServer()) {</span>
+            boolean dedicated;
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            if (netMode == NetworkMode.DEDICATED_SERVER) {</span>
+<span class="nc" id="L202">                dedicated = true;</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">            } else if (netMode == NetworkMode.LISTEN_SERVER) {</span>
+<span class="nc" id="L204">                dedicated = false;</span>
+            } else {
+<span class="nc" id="L206">                throw new IllegalStateException(&quot;Invalid server mode: &quot; + netMode);</span>
+            }
+<span class="nc" id="L208">            loadProcesses.add(new StartServer(context, dedicated));</span>
+        }
+<span class="nc" id="L210">        loadProcesses.add(new PostBeginSystems(context));</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        if (netMode.hasLocalClient()) {</span>
+<span class="nc" id="L212">            loadProcesses.add(new SetupLocalPlayer(context));</span>
+<span class="nc" id="L213">            loadProcesses.add(new AwaitCharacterSpawn(context));</span>
+        }
+<span class="nc" id="L215">        loadProcesses.add(new PrepareWorld(context));</span>
+<span class="nc" id="L216">    }</span>
+
+    private void popStep() {
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        if (current != null) {</span>
+<span class="nc" id="L220">            progress += current.getExpectedCost();</span>
+        }
+<span class="nc" id="L222">        current = null;</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        if (!loadProcesses.isEmpty()) {</span>
+<span class="nc" id="L224">            current = loadProcesses.remove();</span>
+<span class="nc" id="L225">            logger.debug(current.getMessage());</span>
+<span class="nc" id="L226">            current.begin();</span>
+        }
+<span class="nc" id="L228">    }</span>
+
+    @Override
+    public void dispose(boolean shuttingDown) {
+<span class="nc" id="L232">        EngineTime time = (EngineTime) context.get(Time.class);</span>
+<span class="nc" id="L233">        time.setPaused(false);</span>
+<span class="nc" id="L234">    }</span>
+
+    @Override
+    public void handleInput(float delta) {
+<span class="nc" id="L238">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L242">        GameEngine gameEngine = context.get(GameEngine.class);</span>
+<span class="nc" id="L243">        EngineTime time = (EngineTime) context.get(Time.class);</span>
+<span class="nc" id="L244">        long startTime = time.getRealTimeInMs();</span>
+<span class="nc bnc" id="L245" title="All 6 branches missed.">        while (current != null &amp;&amp; time.getRealTimeInMs() - startTime &lt; 20 &amp;&amp; !gameEngine.hasPendingState()) {</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">            if (current.step()) {</span>
+<span class="nc" id="L247">                popStep();</span>
+            }
+        }
+<span class="nc bnc" id="L250" title="All 2 branches missed.">        if (current == null) {</span>
+<span class="nc" id="L251">            nuiManager.closeScreen(loadingScreen);</span>
+<span class="nc" id="L252">            nuiManager.setHUDVisible(true);</span>
+<span class="nc" id="L253">            context.get(GameEngine.class).changeState(new StateIngame(gameManifest, context));</span>
+        } else {
+<span class="nc" id="L255">            float progressValue = (progress + current.getExpectedCost() * current.getProgress()) / maxProgress;</span>
+<span class="nc" id="L256">            loadingScreen.updateStatus(current.getMessage(), progressValue);</span>
+<span class="nc" id="L257">            nuiManager.update(delta);</span>
+
+            // chunk generation begins at the AwaitCharacterSpawn step
+<span class="nc bnc" id="L260" title="All 4 branches missed.">            if (current instanceof AwaitCharacterSpawn &amp;&amp; !chunkGenerationStarted) {</span>
+<span class="nc" id="L261">                chunkGenerationStarted = true;</span>
+                // in case no chunks generate, this should be set for a basis
+<span class="nc" id="L263">                timeLastChunkGenerated = time.getRealTimeInMs();</span>
+            }
+
+<span class="nc bnc" id="L266" title="All 2 branches missed.">            if (chunkGenerationStarted) {</span>
+<span class="nc" id="L267">                long timeSinceLastChunk = time.getRealTimeInMs() - timeLastChunkGenerated;</span>
+<span class="nc" id="L268">                long chunkGenerationTimeout = config.getSystem().getChunkGenerationFailTimeoutInMs();</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">                if (timeSinceLastChunk &gt; chunkGenerationTimeout) {</span>
+<span class="nc" id="L270">                    String errorMessage = &quot;World generation timed out, check the log for more info&quot;;</span>
+<span class="nc" id="L271">                    gameEngine.changeState(new StateMainMenu(errorMessage));</span>
+                }
+            }
+        }
+<span class="nc" id="L275">    }</span>
+
+    @Override
+    public void render() {
+<span class="nc" id="L279">        nuiManager.render();</span>
+<span class="nc" id="L280">    }</span>
+
+    @Override
+    public boolean isHibernationAllowed() {
+<span class="nc" id="L284">        return false;</span>
+    }
+
+    @Override
+    public String getLoggingPhase() {
+<span class="nc" id="L289">        return gameManifest.getTitle();</span>
+    }
+
+    @Override
+    public Context getContext() {
+<span class="nc" id="L294">        return context;</span>
+    }
+
+    @Override
+    public void onChunkLoaded(OnChunkLoaded chunkAvailable, EntityRef worldEntity) {
+<span class="nc" id="L299">        EngineTime time = (EngineTime) context.get(Time.class);</span>
+<span class="nc" id="L300">        timeLastChunkGenerated = time.getRealTimeInMs();</span>
+<span class="nc" id="L301">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DistanceComparator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.location</a> &gt; <span class="el_source">DistanceComparator.java</span></div><h1>DistanceComparator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.location;
+
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.math.geom.Vector3f;
+
+import java.util.Comparator;
+
+/**
+ * Comparator that compares the distances to a location of two Entities.
+ * Closer is smaller, hence return -1, which results in lower index for
+ * closer the object when sorting.
+ * Entities without a location component are assumed to be infinitely far
+ * away from the location.
+ * The location can be given in the constructor and set to a different value
+ * afterwards.
+ */
+public class DistanceComparator implements Comparator&lt;EntityRef&gt; {
+    /**
+     * The distance to this point is taken for the comparison of
+     * distances.
+     */
+    private final Vector3f origin;
+    /**
+     * Used to store the location of Entities temporarily. Having
+     * this vector pre-allocated saves a lot of memory allocations for new
+     * vectors.
+     */
+<span class="nc" id="L43">    private final Vector3f temp = new Vector3f();</span>
+
+    /**
+     * The default constructor will set the location to calculate the
+     * distances from to {0, 0, 0}.
+     */
+    /**
+     * The default constructor will set the location to calculate the
+     * distances from to {0, 0, 0}.
+     */
+<span class="nc" id="L53">    public DistanceComparator() {</span>
+<span class="nc" id="L54">        origin = new Vector3f();</span>
+<span class="nc" id="L55">    }</span>
+
+    /**
+     * Creates this Distance comparator and sets the temp to the
+     * given parameter.
+     * The temp is used to calculate distances from.
+     *
+     * @param origin used to calculate distances from when comparing entities.
+     */
+<span class="nc" id="L64">    public DistanceComparator(Vector3f origin) {</span>
+<span class="nc" id="L65">        this.origin = new Vector3f(origin);</span>
+<span class="nc" id="L66">    }</span>
+
+    @Override
+    public int compare(EntityRef o1, EntityRef o2) {
+<span class="nc" id="L70">        LocationComponent loc1 = o1.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L71">        LocationComponent loc2 = o2.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L72" title="All 4 branches missed.">        if (loc1 == null &amp;&amp; loc2 == null) {</span>
+<span class="nc" id="L73">            return 0;</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        } else if (loc1 == null) {</span>
+<span class="nc" id="L75">            return 1;</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        } else if (loc2 == null) {</span>
+<span class="nc" id="L77">            return -1;</span>
+        }
+<span class="nc" id="L79">        loc1.getWorldPosition(temp);</span>
+<span class="nc" id="L80">        temp.sub(origin);</span>
+<span class="nc" id="L81">        float dis1 = temp.lengthSquared();</span>
+<span class="nc" id="L82">        loc2.getWorldPosition(temp);</span>
+<span class="nc" id="L83">        temp.sub(origin);</span>
+<span class="nc" id="L84">        float dis2 = temp.lengthSquared();</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (dis1 &lt; dis2) {</span>
+<span class="nc" id="L86">            return -1;</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        } else if (dis2 &lt; dis1) {</span>
+<span class="nc" id="L88">            return 1;</span>
+        } else {
+            //dis1 == dis2
+<span class="nc" id="L91">            return 0;</span>
+        }
+    }
+
+    /**
+     * Sets the origin, which is used to calculate the distance from.
+     * This method should not be called while sorting. If done anyway, the
+     * contract of compare method will be broken and the sorting results
+     * are undefined, if by chance no Exception is thrown.
+     *
+     * @param newOrigin the new location to calculate distances from.
+     */
+    public void setOrigin(Vector3f newOrigin) {
+<span class="nc" id="L104">        origin.set(newOrigin);</span>
+<span class="nc" id="L105">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

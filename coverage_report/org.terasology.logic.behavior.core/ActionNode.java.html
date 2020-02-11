@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActionNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.core</a> &gt; <span class="el_source">ActionNode.java</span></div><h1>ActionNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.core;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.rendering.nui.properties.PropertyProvider;
+
+/**
+ * An action node uses a associated Action to control the result state.
+ * It is a leaf node - it cannot have any children.
+ */
+public class ActionNode implements BehaviorNode {
+<span class="fc" id="L27">    private static final Logger logger = LoggerFactory.getLogger(ActionNode.class);</span>
+    protected Action action;
+
+<span class="fc" id="L30">    public ActionNode() {</span>
+<span class="fc" id="L31">    }</span>
+
+<span class="fc" id="L33">    public ActionNode(Action action) {</span>
+<span class="fc" id="L34">        this.action = action;</span>
+<span class="fc" id="L35">    }</span>
+
+    @Override
+    public PropertyProvider getProperties() {
+
+<span class="nc" id="L40">        PropertyProvider provider = new PropertyProvider();</span>
+<span class="nc" id="L41">        provider.createProperties(action);</span>
+<span class="nc" id="L42">        return provider;</span>
+    }
+
+    public Action getAction() {
+<span class="nc" id="L46">        return action;</span>
+    }
+
+    public void setAction(Action action) {
+<span class="fc" id="L50">        this.action = action;</span>
+<span class="fc" id="L51">    }</span>
+
+    @Override
+    public String getName() {
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        return action != null ? action.getName() : &quot;action&quot;;</span>
+    }
+
+    @Override
+    public &lt;T&gt; T visit(T item, Visitor&lt;T&gt; visitor) {
+<span class="nc" id="L60">        return visitor.visit(item, this);</span>
+    }
+
+    @Override
+    public void construct(Actor actor) {
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (action != null) {</span>
+            try {
+<span class="fc" id="L67">                action.construct(actor);</span>
+<span class="nc" id="L68">            } catch (Exception e) {</span>
+<span class="nc" id="L69">                logger.info(&quot;Exception while running construct() of action {} from entity {}:&quot;, action, actor.getEntity());</span>
+<span class="fc" id="L70">            }</span>
+        }
+<span class="fc" id="L72">    }</span>
+
+    @Override
+    public BehaviorState execute(Actor actor) {
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">        if (action != null) {</span>
+            try {
+<span class="fc" id="L78">                return action.modify(actor, BehaviorState.UNDEFINED);</span>
+<span class="nc" id="L79">            } catch (Exception e) {</span>
+<span class="nc" id="L80">                logger.info(&quot;Exception while running action {} from entity {}: &quot;, action, actor.getEntity(), e);</span>
+                // TODO maybe returning UNDEFINED would be more fitting?
+<span class="nc" id="L82">                return BehaviorState.FAILURE;</span>
+            }
+
+        }
+<span class="nc" id="L86">        return BehaviorState.UNDEFINED;</span>
+    }
+
+    @Override
+    public void destruct(Actor actor) {
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        if (action != null) {</span>
+<span class="fc" id="L92">            action.destruct(actor);</span>
+        }
+<span class="fc" id="L94">    }</span>
+
+    @Override
+    public BehaviorNode deepCopy() {
+<span class="fc" id="L98">        return new ActionNode(action);</span>
+    }
+
+    @Override
+    public void insertChild(int index, BehaviorNode child) {
+<span class="nc" id="L103">        throw new IllegalArgumentException(&quot;ActionNodes can't have any children&quot;);</span>
+    }
+
+    @Override
+    public void replaceChild(int index, BehaviorNode child) {
+<span class="nc" id="L108">        throw new IllegalArgumentException(&quot;ActionNodes can't have any children&quot;);</span>
+    }
+
+    @Override
+    public BehaviorNode removeChild(int index) {
+<span class="nc" id="L113">        throw new IllegalArgumentException(&quot;ActionNodes can't have any children&quot;);</span>
+    }
+
+    @Override
+    public BehaviorNode getChild(int index) {
+<span class="nc" id="L118">        throw new IllegalArgumentException(&quot;ActionNodes can't have any children&quot;);</span>
+    }
+
+    @Override
+    public int getChildrenCount() {
+<span class="nc" id="L123">        return 0;</span>
+    }
+
+    @Override
+    public int getMaxChildren() {
+<span class="nc" id="L128">        return 0;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

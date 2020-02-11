@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MainMenuScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">MainMenuScreen.java</span></div><h1>MainMenuScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.NonNativeJVMDetector;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.identity.storageServiceClient.StorageServiceWorker;
+import org.terasology.identity.storageServiceClient.StorageServiceWorkerStatus;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.layers.mainMenu.settings.PlayerSettingsScreen;
+import org.terasology.rendering.nui.layers.mainMenu.settings.SettingsMenuScreen;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.version.TerasologyVersion;
+
+import static org.terasology.identity.storageServiceClient.StatusMessageTranslator.getLocalizedStatusMessage;
+
+<span class="nc" id="L35">public class MainMenuScreen extends CoreScreenLayer {</span>
+
+    @In
+    private GameEngine engine;
+
+    @In
+    private StorageServiceWorker storageService;
+
+    @In
+    private TranslationSystem translationSystem;
+
+    private UILabel storageServiceStatus;
+    private StorageServiceWorkerStatus storageServiceWorkerStatus; //keep track of previous status to avoid performance drop due to updating UI when no change happened
+
+    @Override
+    public void initialise() {
+
+<span class="nc" id="L52">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L54">        storageServiceStatus = find(&quot;storageServiceStatus&quot;, UILabel.class);</span>
+<span class="nc" id="L55">        updateStorageServiceStatus();</span>
+
+<span class="nc" id="L57">        UILabel versionLabel = find(&quot;version&quot;, UILabel.class);</span>
+<span class="nc" id="L58">        versionLabel.setText(TerasologyVersion.getInstance().getHumanVersion());</span>
+
+<span class="nc" id="L60">        UILabel jvmWarningLabel = find(&quot;nonNativeJvmWarning&quot;, UILabel.class);</span>
+<span class="nc" id="L61">        jvmWarningLabel.setVisible(NonNativeJVMDetector.JVM_ARCH_IS_NONNATIVE);</span>
+
+<span class="nc" id="L63">        SelectGameScreen selectScreen = getManager().createScreen(SelectGameScreen.ASSET_URI, SelectGameScreen.class);</span>
+      
+<span class="nc" id="L65">        UniverseWrapper universeWrapper = new UniverseWrapper();</span>
+      
+<span class="nc" id="L67">        WidgetUtil.trySubscribe(this, &quot;singleplayer&quot;, button -&gt; {</span>
+<span class="nc" id="L68">            universeWrapper.setLoadingAsServer(false);</span>
+<span class="nc" id="L69">            selectScreen.setUniverseWrapper(universeWrapper);</span>
+<span class="nc" id="L70">            triggerForwardAnimation(selectScreen);</span>
+<span class="nc" id="L71">        });</span>
+<span class="nc" id="L72">        WidgetUtil.trySubscribe(this, &quot;multiplayer&quot;, button -&gt; {</span>
+<span class="nc" id="L73">            universeWrapper.setLoadingAsServer(true);</span>
+<span class="nc" id="L74">            selectScreen.setUniverseWrapper(universeWrapper);</span>
+<span class="nc" id="L75">            triggerForwardAnimation(selectScreen);</span>
+<span class="nc" id="L76">        });</span>
+<span class="nc" id="L77">        WidgetUtil.trySubscribe(this, &quot;join&quot;, button -&gt; {</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if (storageService.getStatus() == StorageServiceWorkerStatus.WORKING) {</span>
+<span class="nc" id="L79">                ConfirmPopup confirmPopup = getManager().pushScreen(ConfirmPopup.ASSET_URI, ConfirmPopup.class);</span>
+<span class="nc" id="L80">                confirmPopup.setMessage(translationSystem.translate(&quot;${engine:menu#warning}&quot;), translationSystem.translate(&quot;${engine:menu#storage-service-working}&quot;));</span>
+<span class="nc" id="L81">                confirmPopup.setOkHandler(() -&gt; triggerForwardAnimation(JoinGameScreen.ASSET_URI));</span>
+<span class="nc" id="L82">            } else {</span>
+<span class="nc" id="L83">                triggerForwardAnimation(JoinGameScreen.ASSET_URI);</span>
+            }
+<span class="nc" id="L85">        });</span>
+<span class="nc" id="L86">        WidgetUtil.trySubscribe(this, &quot;settings&quot;, button -&gt; triggerForwardAnimation(SettingsMenuScreen.ASSET_URI));</span>
+<span class="nc" id="L87">        WidgetUtil.trySubscribe(this, &quot;extras&quot;, button-&gt;triggerForwardAnimation(ExtrasMenuScreen.ASSET_URI));</span>
+<span class="nc" id="L88">        WidgetUtil.trySubscribe(this, &quot;exit&quot;, button -&gt; engine.shutdown());</span>
+<span class="nc" id="L89">        WidgetUtil.trySubscribe(this, &quot;storageServiceAction&quot;, widget -&gt; triggerForwardAnimation(PlayerSettingsScreen.ASSET_URI));</span>
+<span class="nc" id="L90">    }</span>
+
+    private void updateStorageServiceStatus() {
+<span class="nc" id="L93">        StorageServiceWorkerStatus stat = storageService.getStatus();</span>
+<span class="nc" id="L94">        storageServiceStatus.setText(translationSystem.translate(&quot;${engine:menu#storage-service}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L95">                getLocalizedStatusMessage(stat, translationSystem, storageService.getLoginName()));</span>
+<span class="nc" id="L96">        storageServiceWorkerStatus = stat;</span>
+<span class="nc" id="L97">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L101">        super.onOpened();</span>
+<span class="nc" id="L102">        getAnimationSystem().skip();</span>
+<span class="nc" id="L103">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L107">        super.update(delta);</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (storageService.getStatus() != storageServiceWorkerStatus) {</span>
+<span class="nc" id="L109">            updateStorageServiceStatus();</span>
+        }
+<span class="nc" id="L111">    }</span>
+
+    @Override
+    protected boolean isEscapeToCloseAllowed() {
+<span class="nc" id="L115">        return false;</span>
+    }
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L120">        return false;</span>
+    }
+}
+
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

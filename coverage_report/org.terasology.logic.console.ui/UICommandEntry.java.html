@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UICommandEntry.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.console.ui</a> &gt; <span class="el_source">UICommandEntry.java</span></div><h1>UICommandEntry.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.console.ui;
+
+import com.google.common.collect.Lists;
+import org.terasology.input.Keyboard;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.widgets.UIText;
+
+import java.util.List;
+
+/**
+ */
+public class UICommandEntry extends UIText {
+
+<span class="nc" id="L31">    private Binding&lt;List&lt;String&gt;&gt; commandHistory = new DefaultBinding&lt;&gt;(Lists.&lt;String&gt;newArrayList());</span>
+    private int index;
+    private TabCompletionEngine tabCompletionEngine;
+
+<span class="nc" id="L35">    public UICommandEntry() {</span>
+<span class="nc" id="L36">        subscribe((int oldPosition, int newPosition) -&gt; {</span>
+<span class="nc bnc" id="L37" title="All 2 branches missed.">            if (tabCompletionEngine == null) {</span>
+<span class="nc" id="L38">                return;</span>
+            }
+
+<span class="nc" id="L41">            tabCompletionEngine.reset();</span>
+<span class="nc" id="L42">        });</span>
+<span class="nc" id="L43">    }</span>
+
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        if (event.isDown()) {</span>
+<span class="nc" id="L48">            int id = event.getKey().getId();</span>
+            
+<span class="nc bnc" id="L50" title="All 4 branches missed.">            if (id != Keyboard.KeyId.TAB &amp;&amp; tabCompletionEngine != null) {</span>
+<span class="nc" id="L51">                tabCompletionEngine.reset();</span>
+            }
+            
+<span class="nc bnc" id="L54" title="All 5 branches missed.">            switch (id) {</span>
+                case Keyboard.KeyId.UP:
+<span class="nc bnc" id="L56" title="All 2 branches missed.">                    if (index &gt; 0) {</span>
+<span class="nc" id="L57">                        index--;</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                        if (getCommandHistory().size() &gt; index) {</span>
+<span class="nc" id="L59">                            setText(getCommandHistory().get(index));</span>
+                        }
+<span class="nc" id="L61">                        setCursorPosition(getText().length());</span>
+                    }
+<span class="nc" id="L63">                    return true;</span>
+                case Keyboard.KeyId.DOWN:
+<span class="nc bnc" id="L65" title="All 2 branches missed.">                    if (index &lt; getCommandHistory().size()) {</span>
+<span class="nc" id="L66">                        index++;</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">                        if (index == getCommandHistory().size()) {</span>
+<span class="nc" id="L68">                            setText(&quot;&quot;);</span>
+                        } else {
+<span class="nc" id="L70">                            setText(getCommandHistory().get(index));</span>
+<span class="nc" id="L71">                            setCursorPosition(getText().length());</span>
+                        }
+                    }
+<span class="nc" id="L74">                    return true;</span>
+                case Keyboard.KeyId.TAB:
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                    if (tabCompletionEngine != null) {</span>
+<span class="nc" id="L77">                        setText(tabCompletionEngine.complete(getText()));</span>
+<span class="nc" id="L78">                        setCursorPosition(getText().length(), true, false);</span>
+<span class="nc" id="L79">                        return true;</span>
+                    }
+                    break;
+                case Keyboard.KeyId.ENTER:
+<span class="nc" id="L83">                    boolean consumed = super.onKeyEvent(event);</span>
+<span class="nc" id="L84">                    setText(&quot;&quot;);</span>
+<span class="nc" id="L85">                    index = getCommandHistory().size();</span>
+<span class="nc" id="L86">                    return consumed;</span>
+                default:
+<span class="nc" id="L88">                    return super.onKeyEvent(event);</span>
+            }
+        }
+<span class="nc" id="L91">        return false;</span>
+    }
+
+    public void bindCommandHistory(Binding&lt;List&lt;String&gt;&gt; binding) {
+<span class="nc" id="L95">        commandHistory = binding;</span>
+<span class="nc" id="L96">        index = commandHistory.get().size();</span>
+<span class="nc" id="L97">    }</span>
+
+    public List&lt;String&gt; getCommandHistory() {
+<span class="nc" id="L100">        return commandHistory.get();</span>
+    }
+
+    public void setCommandHistory(List&lt;String&gt; val) {
+<span class="nc" id="L104">        commandHistory.set(val);</span>
+<span class="nc" id="L105">    }</span>
+
+    public TabCompletionEngine getTabCompletionEngine() {
+<span class="nc" id="L108">        return tabCompletionEngine;</span>
+    }
+
+    public void setTabCompletionEngine(TabCompletionEngine tabCompletionEngine) {
+<span class="nc" id="L112">        this.tabCompletionEngine = tabCompletionEngine;</span>
+<span class="nc" id="L113">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Skysphere.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.backdrop</a> &gt; <span class="el_source">Skysphere.java</span></div><h1>Skysphere.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.backdrop;
+
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.util.glu.Sphere;
+import org.terasology.context.Context;
+import org.terasology.utilities.Assets;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.world.sun.CelestialSystem;
+
+import static org.lwjgl.opengl.GL11.GL_BACK;
+import static org.lwjgl.opengl.GL11.GL_FRONT;
+import static org.lwjgl.opengl.GL11.glCallList;
+import static org.lwjgl.opengl.GL11.glCullFace;
+import static org.lwjgl.opengl.GL11.glDepthMask;
+import static org.lwjgl.opengl.GL11.glEndList;
+import static org.lwjgl.opengl.GL11.glGenLists;
+import static org.lwjgl.opengl.GL11.glNewList;
+
+/**
+ * Skysphere based on the Perez all weather luminance model.
+ */
+public class Skysphere implements BackdropProvider, BackdropRenderer {
+
+<span class="nc" id="L43">    private static int displayListSphere = -1;</span>
+
+<span class="nc" id="L45">    @Range(min = 0.01f, max = 100.0f)</span>
+    private float colorExp = 0.01f;
+<span class="nc" id="L47">    @Range(min = 2.0f, max = 32.0f)</span>
+    private float turbidity = 9.0f;
+
+    private final CelestialSystem celSystem;
+
+<span class="nc" id="L52">    public Skysphere(Context context) {</span>
+<span class="nc" id="L53">        celSystem = context.get(CelestialSystem.class);</span>
+<span class="nc" id="L54">    }</span>
+
+    @Override
+    public void render(Camera camera) {
+<span class="nc" id="L58">        glDepthMask(false);</span>
+
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        if (camera.isReflected()) {</span>
+<span class="nc" id="L61">            glCullFace(GL_BACK);</span>
+        } else {
+<span class="nc" id="L63">            glCullFace(GL_FRONT);</span>
+        }
+
+<span class="nc" id="L66">        Material shader = Assets.getMaterial(&quot;engine:prog.sky&quot;).get();</span>
+<span class="nc" id="L67">        shader.enable();</span>
+
+        // Draw the skysphere
+<span class="nc" id="L70">        drawSkysphere(camera.getzFar());</span>
+
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        if (camera.isReflected()) {</span>
+<span class="nc" id="L73">            glCullFace(GL_FRONT);</span>
+        } else {
+<span class="nc" id="L75">            glCullFace(GL_BACK);</span>
+        }
+
+<span class="nc" id="L78">        glDepthMask(true);</span>
+<span class="nc" id="L79">    }</span>
+
+    private void drawSkysphere(float zFar) {
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        if (displayListSphere == -1) {</span>
+<span class="nc" id="L83">            displayListSphere = glGenLists(1);</span>
+
+<span class="nc" id="L85">            Sphere sphere = new Sphere();</span>
+<span class="nc" id="L86">            sphere.setTextureFlag(true);</span>
+
+<span class="nc" id="L88">            glNewList(displayListSphere, GL11.GL_COMPILE);</span>
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            float skyBoxDistance = (zFar &gt; 1024 ? 1024.0f : zFar * 0.95f);</span>
+<span class="nc" id="L91">            sphere.draw(skyBoxDistance, 16, 128);</span>
+
+<span class="nc" id="L93">            glEndList();</span>
+        }
+
+<span class="nc" id="L96">        glCallList(displayListSphere);</span>
+<span class="nc" id="L97">    }</span>
+
+    @Override
+    public float getSunPositionAngle() {
+<span class="nc" id="L101">        return celSystem.getSunPosAngle();</span>
+    }
+
+    @Override
+    public float getDaylight() {
+<span class="nc" id="L106">        float angle = (float) Math.toDegrees(TeraMath.clamp(Math.cos(getSunPositionAngle())));</span>
+<span class="nc" id="L107">        float daylight = 1.0f;</span>
+
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        if (angle &lt; 24.0f) {</span>
+<span class="nc" id="L110">            daylight = 1.0f - (24.0f - angle) / 24.0f;</span>
+        }
+
+<span class="nc" id="L113">        return daylight;</span>
+    }
+
+    @Override
+    public float getTurbidity() {
+<span class="nc" id="L118">        return turbidity;</span>
+    }
+
+    @Override
+    public float getColorExp() {
+<span class="nc" id="L123">        return colorExp;</span>
+    }
+
+    @Override
+    public Vector3f getSunDirection(boolean moonlightFlip) {
+<span class="nc" id="L128">        float sunAngle = getSunPositionAngle() + 0.0001f;</span>
+<span class="nc" id="L129">        Vector3f sunDirection = new Vector3f(0.0f, (float) Math.cos(sunAngle), (float) Math.sin(sunAngle));</span>
+
+        // Moonlight flip
+<span class="nc bnc" id="L132" title="All 4 branches missed.">        if (moonlightFlip &amp;&amp; sunDirection.y &lt; 0.0f) {</span>
+<span class="nc" id="L133">            sunDirection.scale(-1.0f);</span>
+        }
+
+<span class="nc" id="L136">        return sunDirection;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

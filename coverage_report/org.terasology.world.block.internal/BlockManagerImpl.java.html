@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockManagerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.internal</a> &gt; <span class="el_source">BlockManagerImpl.java</span></div><h1>BlockManagerImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.internal;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import gnu.trove.iterator.TObjectShortIterator;
+import gnu.trove.map.TObjectShortMap;
+import gnu.trove.map.TShortObjectMap;
+import gnu.trove.map.hash.TObjectShortHashMap;
+import gnu.trove.map.hash.TShortObjectHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.BlockUri;
+import org.terasology.world.block.BlockUriParseException;
+import org.terasology.world.block.family.BlockFamily;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.tiles.WorldAtlas;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class BlockManagerImpl extends BlockManager {
+
+<span class="fc" id="L53">    private static final Logger logger = LoggerFactory.getLogger(BlockManagerImpl.class);</span>
+
+    // This is the id we assign to blocks whose mappings are missing. This shouldn't happen, but in case it does
+    // we set them to the last id (don't want to use 0 as they would override air)
+    private static final short UNKNOWN_ID = (short) 65535;
+    private static final int MAX_ID = 65534;
+<span class="fc" id="L59">    private static final ResourceUrn CUBE_SHAPE_URN = new ResourceUrn(&quot;engine:cube&quot;);</span>
+
+    private AssetManager assetManager;
+
+    private BlockBuilder blockBuilder;
+
+<span class="fc" id="L65">    private ReentrantLock lock = new ReentrantLock();</span>
+
+<span class="fc" id="L67">    private AtomicReference&lt;RegisteredState&gt; registeredBlockInfo = new AtomicReference&lt;&gt;(new RegisteredState());</span>
+
+<span class="fc" id="L69">    private Set&lt;BlockRegistrationListener&gt; listeners = Sets.newLinkedHashSet();</span>
+
+
+    private boolean generateNewIds;
+<span class="fc" id="L73">    private AtomicInteger nextId = new AtomicInteger(1);</span>
+
+    // Cache this for performance reasons because a lookup by BlockURI happens the first time a block is set when getting the previous block.
+    // This causes performance problems eventually down the line when it then uses the ResourceUrn's hashcode to do a lookup into the block map.
+    private Block airBlock;
+
+    public BlockManagerImpl(WorldAtlas atlas, AssetManager assetManager) {
+<span class="fc" id="L80">        this(atlas, assetManager, true);</span>
+<span class="fc" id="L81">    }</span>
+
+    public BlockManagerImpl(WorldAtlas atlas,
+                            AssetManager assetManager,
+<span class="fc" id="L85">                            boolean generateNewIds) {</span>
+<span class="fc" id="L86">        this.generateNewIds = generateNewIds;</span>
+<span class="fc" id="L87">        this.assetManager = assetManager;</span>
+<span class="fc" id="L88">        this.blockBuilder = new BlockBuilder(atlas);</span>
+<span class="fc" id="L89">    }</span>
+
+    public void initialise(List&lt;String&gt; registeredBlockFamilies,
+                           Map&lt;String, Short&gt; knownBlockMappings) {
+
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (knownBlockMappings.size() &gt;= MAX_ID) {</span>
+<span class="nc" id="L95">            nextId.set(UNKNOWN_ID);</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        } else if (knownBlockMappings.size() &gt; 0) {</span>
+<span class="nc" id="L97">            nextId.set(knownBlockMappings.values().stream().max(Short::compareTo).orElse((short) 0) + 1);</span>
+        }
+<span class="nc" id="L99">        registeredBlockInfo.set(new RegisteredState());</span>
+
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        for (String rawFamilyUri : registeredBlockFamilies) {</span>
+            try {
+<span class="nc" id="L103">                BlockUri familyUri = new BlockUri(rawFamilyUri);</span>
+<span class="nc" id="L104">                Optional&lt;BlockFamily&gt; family = loadFamily(familyUri);</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                if (family.isPresent()) {</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                    for (Block block : family.get().getBlocks()) {</span>
+<span class="nc" id="L107">                        Short id = knownBlockMappings.get(block.getURI().toString());</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                        if (id != null) {</span>
+<span class="nc" id="L109">                            block.setId(id);</span>
+                        } else {
+<span class="nc" id="L111">                            logger.error(&quot;Missing id for block {} in provided family {}&quot;, block.getURI(), family.get().getURI());</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                            if (generateNewIds) {</span>
+<span class="nc" id="L113">                                block.setId(getNextId());</span>
+                            } else {
+<span class="nc" id="L115">                                block.setId(UNKNOWN_ID);</span>
+                            }
+                        }
+<span class="nc" id="L118">                    }</span>
+<span class="nc" id="L119">                    registerFamily(family.get());</span>
+                }
+<span class="nc" id="L121">            } catch (BlockUriParseException e) {</span>
+<span class="nc" id="L122">                logger.error(&quot;Failed to parse block family, skipping&quot;, e);</span>
+<span class="nc" id="L123">            }</span>
+<span class="nc" id="L124">        }</span>
+<span class="nc" id="L125">    }</span>
+
+    public void dispose() {
+
+<span class="nc" id="L129">    }</span>
+
+    private short getNextId() {
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">        if (nextId.get() &gt; MAX_ID) {</span>
+<span class="nc" id="L133">            return UNKNOWN_ID;</span>
+        }
+<span class="fc" id="L135">        return (short) nextId.getAndIncrement();</span>
+    }
+
+    private Block getAirBlock() {
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (airBlock == null) {</span>
+<span class="fc" id="L140">            airBlock = getBlock(AIR_ID);</span>
+        }
+<span class="fc" id="L142">        return airBlock;</span>
+    }
+
+    public void subscribe(BlockRegistrationListener listener) {
+<span class="nc" id="L146">        this.listeners.add(listener);</span>
+<span class="nc" id="L147">    }</span>
+
+    public void unsubscribe(BlockRegistrationListener listener) {
+<span class="nc" id="L150">        this.listeners.remove(listener);</span>
+<span class="nc" id="L151">    }</span>
+
+    public void receiveFamilyRegistration(BlockUri familyUri, Map&lt;String, Integer&gt; registration) {
+<span class="nc" id="L154">        Optional&lt;BlockFamily&gt; family = loadFamily(familyUri);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (family.isPresent()) {</span>
+<span class="nc" id="L156">            lock.lock();</span>
+            try {
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                for (Block block : family.get().getBlocks()) {</span>
+<span class="nc" id="L159">                    Integer id = registration.get(block.getURI().toString());</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                    if (id != null) {</span>
+<span class="nc" id="L161">                        block.setId((short) id.intValue());</span>
+                    } else {
+<span class="nc" id="L163">                        logger.error(&quot;Missing id for block {} in registered family {}&quot;, block.getURI(), familyUri);</span>
+<span class="nc" id="L164">                        block.setId(UNKNOWN_ID);</span>
+                    }
+<span class="nc" id="L166">                }</span>
+<span class="nc" id="L167">                registerFamily(family.get());</span>
+            } finally {
+<span class="nc" id="L169">                lock.unlock();</span>
+            }
+        }
+<span class="nc" id="L172">    }</span>
+
+    @VisibleForTesting
+    protected void registerFamily(BlockFamily family) {
+<span class="fc" id="L176">        Preconditions.checkNotNull(family);</span>
+<span class="fc" id="L177">        logger.info(&quot;Registered {}&quot;, family);</span>
+<span class="fc" id="L178">        lock.lock();</span>
+        try {
+<span class="fc" id="L180">            RegisteredState newState = new RegisteredState(registeredBlockInfo.get());</span>
+<span class="fc" id="L181">            newState.registeredFamilyByUri.put(family.getURI(), family);</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            for (Block block : family.getBlocks()) {</span>
+<span class="fc" id="L183">                registerBlock(block, newState);</span>
+<span class="fc" id="L184">            }</span>
+<span class="fc" id="L185">            registeredBlockInfo.set(newState);</span>
+        } finally {
+<span class="fc" id="L187">            lock.unlock();</span>
+        }
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">        for (BlockRegistrationListener listener : listeners) {</span>
+<span class="nc" id="L190">            listener.onBlockFamilyRegistered(family);</span>
+<span class="nc" id="L191">        }</span>
+<span class="fc" id="L192">    }</span>
+
+    private void registerBlock(Block block, RegisteredState newState) {
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">        if (block.getId() != UNKNOWN_ID) {</span>
+<span class="fc" id="L196">            logger.info(&quot;Registered Block {} with id {}&quot;, block, block.getId());</span>
+<span class="fc" id="L197">            newState.blocksById.put(block.getId(), block);</span>
+<span class="fc" id="L198">            newState.idByUri.put(block.getURI(), block.getId());</span>
+        } else {
+<span class="nc" id="L200">            logger.info(&quot;Failed to register block {} - no id&quot;, block);</span>
+        }
+<span class="fc" id="L202">        newState.blocksByUri.put(block.getURI(), block);</span>
+<span class="fc" id="L203">    }</span>
+
+    @Override
+    public Map&lt;String, Short&gt; getBlockIdMap() {
+<span class="fc" id="L207">        Map&lt;String, Short&gt; result = Maps.newHashMapWithExpectedSize(registeredBlockInfo.get().idByUri.size());</span>
+<span class="fc" id="L208">        TObjectShortIterator&lt;BlockUri&gt; iterator = registeredBlockInfo.get().idByUri.iterator();</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">        while (iterator.hasNext()) {</span>
+<span class="fc" id="L210">            iterator.advance();</span>
+<span class="fc" id="L211">            result.put(iterator.key().toString(), iterator.value());</span>
+        }
+<span class="fc" id="L213">        return result;</span>
+    }
+
+    @Override
+    public BlockFamily getBlockFamily(String uri) {
+<span class="pc bpc" id="L218" title="1 of 2 branches missed.">        if (!uri.contains(&quot;:&quot;)) {</span>
+<span class="nc" id="L219">            Set&lt;ResourceUrn&gt; resourceUrns = assetManager.resolve(uri, BlockFamilyDefinition.class);</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            if (resourceUrns.size() == 1) {</span>
+<span class="nc" id="L221">                return getBlockFamily(new BlockUri(resourceUrns.iterator().next()));</span>
+            } else {
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                if (resourceUrns.size() &gt; 0) {</span>
+<span class="nc" id="L224">                    logger.error(&quot;Failed to resolve block family '{}', too many options - {}&quot;, uri, resourceUrns);</span>
+                } else {
+<span class="nc" id="L226">                    logger.error(&quot;Failed to resolve block family '{}'&quot;, uri);</span>
+                }
+            }
+<span class="nc" id="L229">        } else {</span>
+            try {
+<span class="fc" id="L231">                BlockUri blockUri = new BlockUri(uri);</span>
+<span class="fc" id="L232">                return getBlockFamily(blockUri);</span>
+<span class="nc" id="L233">            } catch (BlockUriParseException e) {</span>
+<span class="nc" id="L234">                logger.error(&quot;Failed to resolve block family '{}', invalid uri&quot;, uri);</span>
+            }
+        }
+<span class="nc" id="L237">        return getBlockFamily(AIR_ID);</span>
+    }
+
+    @Override
+    public BlockFamily getBlockFamily(BlockUri uri) {
+<span class="pc bpc" id="L242" title="3 of 4 branches missed.">        if (uri.getShapeUrn().isPresent() &amp;&amp; uri.getShapeUrn().get().equals(CUBE_SHAPE_URN)) {</span>
+<span class="nc" id="L243">            return getBlockFamily(uri.getShapelessUri());</span>
+        }
+<span class="fc" id="L245">        BlockFamily family = registeredBlockInfo.get().registeredFamilyByUri.get(uri);</span>
+<span class="pc bpc" id="L246" title="1 of 4 branches missed.">        if (family == null &amp;&amp; generateNewIds) {</span>
+<span class="fc" id="L247">            Optional&lt;BlockFamily&gt; newFamily = loadFamily(uri);</span>
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">            if (newFamily.isPresent()) {</span>
+<span class="fc" id="L249">                lock.lock();</span>
+                try {
+<span class="fc bfc" id="L251" title="All 2 branches covered.">                    for (Block block : newFamily.get().getBlocks()) {</span>
+<span class="fc" id="L252">                        block.setId(getNextId());</span>
+<span class="fc" id="L253">                    }</span>
+<span class="fc" id="L254">                    registerFamily(newFamily.get());</span>
+
+<span class="nc" id="L256">                } catch (Exception ex) {</span>
+                    // A family can fail to register if the block is missing uri or list of categories,
+                    // but can fail to register if the family throws an error for any reason
+<span class="nc" id="L259">                    logger.error(&quot;Failed to register block familiy '{}'&quot;, newFamily, ex);</span>
+                } finally {
+<span class="fc" id="L261">                    lock.unlock();</span>
+                }
+<span class="fc" id="L263">                return newFamily.get();</span>
+            }
+        }
+<span class="fc" id="L266">        return family;</span>
+    }
+
+    private Optional&lt;BlockFamily&gt; loadFamily(BlockUri uri) {
+<span class="fc" id="L270">        Optional&lt;BlockFamilyDefinition&gt; familyDef = assetManager.getAsset(uri.getBlockFamilyDefinitionUrn(), BlockFamilyDefinition.class);</span>
+<span class="pc bpc" id="L271" title="2 of 4 branches missed.">        if (familyDef.isPresent() &amp;&amp; familyDef.get().isLoadable()) {</span>
+<span class="pc bpc" id="L272" title="1 of 2 branches missed.">            if (familyDef.get().isFreeform()) {</span>
+                ResourceUrn shapeUrn;
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                if (uri.getShapeUrn().isPresent()) {</span>
+<span class="nc" id="L275">                    shapeUrn = uri.getShapeUrn().get();</span>
+                } else {
+<span class="nc" id="L277">                    shapeUrn = CUBE_SHAPE_URN;</span>
+                }
+<span class="nc" id="L279">                Optional&lt;BlockShape&gt; shape = assetManager.getAsset(shapeUrn, BlockShape.class);</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">                if (shape.isPresent()) {</span>
+<span class="nc" id="L281">                    return Optional.of(familyDef.get().createFamily(shape.get(), blockBuilder));</span>
+                }
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">            } else if (!familyDef.get().isFreeform()) {</span>
+<span class="fc" id="L284">                return Optional.of(familyDef.get().createFamily(blockBuilder));</span>
+            }
+        } else {
+<span class="nc" id="L287">            logger.error(&quot;Family not available: {}&quot;, uri);</span>
+        }
+<span class="nc" id="L289">        return Optional.empty();</span>
+    }
+
+    @Override
+    public Block getBlock(String uri) {
+        try {
+<span class="fc" id="L295">            return getBlock(new BlockUri(uri));</span>
+<span class="nc" id="L296">        } catch (BlockUriParseException e) {</span>
+<span class="nc" id="L297">            logger.error(&quot;Attempt to fetch block with illegal uri '{}'&quot;, uri);</span>
+<span class="nc" id="L298">            return getAirBlock();</span>
+        }
+    }
+
+    @Override
+    public Block getBlock(BlockUri uri) {
+<span class="pc bpc" id="L304" title="3 of 4 branches missed.">        if (uri.getShapeUrn().isPresent() &amp;&amp; uri.getShapeUrn().get().equals(CUBE_SHAPE_URN)) {</span>
+<span class="nc" id="L305">            return getBlock(uri.getShapelessUri());</span>
+        }
+<span class="fc" id="L307">        Block block = registeredBlockInfo.get().blocksByUri.get(uri);</span>
+<span class="fc bfc" id="L308" title="All 2 branches covered.">        if (block == null) {</span>
+            // Check if partially registered by getting the block family
+<span class="fc" id="L310">            BlockFamily family = getBlockFamily(uri.getFamilyUri());</span>
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">            if (family != null) {</span>
+<span class="fc" id="L312">                block = family.getBlockFor(uri);</span>
+            }
+<span class="pc bpc" id="L314" title="1 of 2 branches missed.">            if (block == null) {</span>
+<span class="nc" id="L315">                return getAirBlock();</span>
+            }
+        }
+<span class="fc" id="L318">        return block;</span>
+    }
+
+    @Override
+    public Block getBlock(short id) {
+<span class="fc" id="L323">        Block result = registeredBlockInfo.get().blocksById.get(id);</span>
+<span class="fc bfc" id="L324" title="All 2 branches covered.">        if (result == null) {</span>
+<span class="fc" id="L325">            return getAirBlock();</span>
+        }
+<span class="fc" id="L327">        return result;</span>
+    }
+
+    @Override
+    public Collection&lt;BlockUri&gt; listRegisteredBlockUris() {
+<span class="nc" id="L332">        return Collections.unmodifiableCollection(registeredBlockInfo.get().registeredFamilyByUri.keySet());</span>
+    }
+
+    @Override
+    public Collection&lt;BlockFamily&gt; listRegisteredBlockFamilies() {
+<span class="fc" id="L337">        return Collections.unmodifiableCollection(registeredBlockInfo.get().registeredFamilyByUri.values());</span>
+    }
+
+    @Override
+    public int getBlockFamilyCount() {
+<span class="nc" id="L342">        return registeredBlockInfo.get().registeredFamilyByUri.size();</span>
+    }
+
+    @Override
+    public Collection&lt;Block&gt; listRegisteredBlocks() {
+<span class="fc" id="L347">        return ImmutableList.copyOf(registeredBlockInfo.get().blocksById.valueCollection());</span>
+    }
+
+    private static class RegisteredState {
+        private final Map&lt;BlockUri, BlockFamily&gt; registeredFamilyByUri;
+
+        /* Blocks */
+        private final Map&lt;BlockUri, Block&gt; blocksByUri;
+        private final TShortObjectMap&lt;Block&gt; blocksById;
+        private final TObjectShortMap&lt;BlockUri&gt; idByUri;
+
+<span class="fc" id="L358">        RegisteredState() {</span>
+<span class="fc" id="L359">            this.registeredFamilyByUri = Maps.newHashMap();</span>
+<span class="fc" id="L360">            this.blocksByUri = Maps.newHashMap();</span>
+<span class="fc" id="L361">            this.blocksById = new TShortObjectHashMap&lt;&gt;();</span>
+<span class="fc" id="L362">            this.idByUri = new TObjectShortHashMap&lt;&gt;();</span>
+<span class="fc" id="L363">        }</span>
+
+<span class="fc" id="L365">        RegisteredState(RegisteredState oldState) {</span>
+<span class="fc" id="L366">            this.registeredFamilyByUri = Maps.newHashMap(oldState.registeredFamilyByUri);</span>
+<span class="fc" id="L367">            this.blocksByUri = Maps.newHashMap(oldState.blocksByUri);</span>
+<span class="fc" id="L368">            this.blocksById = new TShortObjectHashMap&lt;&gt;(oldState.blocksById);</span>
+<span class="fc" id="L369">            this.idByUri = new TObjectShortHashMap&lt;&gt;(oldState.idByUri);</span>
+<span class="fc" id="L370">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

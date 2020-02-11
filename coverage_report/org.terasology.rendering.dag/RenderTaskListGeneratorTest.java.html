@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RenderTaskListGeneratorTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag</a> &gt; <span class="el_source">RenderTaskListGeneratorTest.java</span></div><h1>RenderTaskListGeneratorTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import org.junit.jupiter.api.Test;
+import org.terasology.engine.SimpleUri;
+
+import java.util.List;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+<span class="fc" id="L28">public class RenderTaskListGeneratorTest {</span>
+
+    @Test
+    public void testSimpleReducePersistingStateChanges() {
+
+<span class="fc" id="L33">        RenderTaskListGenerator renderTaskListGenerator = new RenderTaskListGenerator();</span>
+<span class="fc" id="L34">        List&lt;Node&gt; orderedNodes = Lists.newArrayList();</span>
+<span class="fc" id="L35">        Node alphaNode = new AlphaNode(&quot;alphaNode&quot;);</span>
+<span class="fc" id="L36">        orderedNodes.add(alphaNode);</span>
+<span class="fc" id="L37">        Node bravoNode = new BravoNode(&quot;bravoNode&quot;);</span>
+<span class="fc" id="L38">        orderedNodes.add(bravoNode);</span>
+<span class="fc" id="L39">        Node charlieNode = new CharlieNode(&quot;charlieNode&quot;);</span>
+<span class="fc" id="L40">        orderedNodes.add(charlieNode);</span>
+
+<span class="fc" id="L42">        List&lt;RenderPipelineTask&gt; taskList = renderTaskListGenerator.generateFrom(orderedNodes);</span>
+
+<span class="fc" id="L44">        assertEquals(&quot;SetName: foo&quot;,       taskList.get(0).toString().trim()); // trimming MarkerTask.toString(),</span>
+<span class="fc" id="L45">        assertEquals(&quot;test:alphaNode (AlphaNode)&quot;,   taskList.get(1).toString().trim()); // resulting in &quot;----- &lt;NodeName&gt;&quot;</span>
+<span class="fc" id="L46">        assertEquals(&quot;test:bravoNode (BravoNode)&quot;,   taskList.get(2).toString().trim()); // too much attention to it.</span>
+<span class="fc" id="L47">        assertEquals(&quot;test:charlieNode (CharlieNode)&quot;, taskList.get(3).toString().trim());</span>
+<span class="fc" id="L48">        assertEquals(&quot;SetName: bar&quot;,       taskList.get(4).toString().trim());</span>
+<span class="fc" id="L49">    }</span>
+
+    @Test
+    public void testReducePersistingStateChanges() {
+<span class="fc" id="L53">        RenderTaskListGenerator renderTaskListGenerator = new RenderTaskListGenerator();</span>
+<span class="fc" id="L54">        List&lt;Node&gt; orderedNodes = Lists.newArrayList();</span>
+<span class="fc" id="L55">        Node alphaNode = new AlphaNode(&quot;alphaNode&quot;);</span>
+<span class="fc" id="L56">        orderedNodes.add(alphaNode);</span>
+<span class="fc" id="L57">        Node bravoNode = new BravoNode(&quot;bravoNode&quot;);</span>
+<span class="fc" id="L58">        orderedNodes.add(bravoNode);</span>
+<span class="fc" id="L59">        Node charlieNode = new CharlieNode(&quot;charlieNode&quot;);</span>
+<span class="fc" id="L60">        orderedNodes.add(charlieNode);</span>
+<span class="fc" id="L61">        Node deltaNode = new DeltaNode(&quot;deltaNode&quot;);</span>
+<span class="fc" id="L62">        orderedNodes.add(deltaNode);</span>
+
+<span class="fc" id="L64">        List&lt;RenderPipelineTask&gt; taskList = renderTaskListGenerator.generateFrom(orderedNodes);</span>
+
+<span class="fc" id="L66">        assertEquals(&quot;SetName: foo&quot;,       taskList.get(0).toString().trim());</span>
+<span class="fc" id="L67">        assertEquals(&quot;test:alphaNode (AlphaNode)&quot;,   taskList.get(1).toString().trim());</span>
+<span class="fc" id="L68">        assertEquals(&quot;test:bravoNode (BravoNode)&quot;,   taskList.get(2).toString().trim());</span>
+<span class="fc" id="L69">        assertEquals(&quot;test:charlieNode (CharlieNode)&quot;, taskList.get(3).toString().trim());</span>
+<span class="fc" id="L70">        assertEquals(&quot;SetName: bar&quot;,     taskList.get(4).toString().trim());</span>
+<span class="fc" id="L71">        assertEquals(&quot;test:deltaNode (DeltaNode)&quot;,   taskList.get(5).toString().trim());</span>
+<span class="fc" id="L72">        assertEquals(&quot;SetName: bar&quot;,       taskList.get(6).toString().trim());</span>
+<span class="fc" id="L73">    }</span>
+
+    @Test
+    public void testReducePersistingStateChangesEcho() {
+<span class="fc" id="L77">        RenderTaskListGenerator renderTaskListGenerator = new RenderTaskListGenerator();</span>
+<span class="fc" id="L78">        List&lt;Node&gt; orderedNodes = Lists.newArrayList();</span>
+<span class="fc" id="L79">        Node alphaNode = new AlphaNode(&quot;alphaNode&quot;);</span>
+<span class="fc" id="L80">        orderedNodes.add(alphaNode);</span>
+<span class="fc" id="L81">        Node bravoNode = new BravoNode(&quot;bravoNode&quot;);</span>
+<span class="fc" id="L82">        orderedNodes.add(bravoNode);</span>
+<span class="fc" id="L83">        Node echoNode = new EchoNode(&quot;echoNode&quot;);</span>
+<span class="fc" id="L84">        orderedNodes.add(echoNode);</span>
+<span class="fc" id="L85">        Node charlieNode = new CharlieNode(&quot;charlieNode&quot;);</span>
+<span class="fc" id="L86">        orderedNodes.add(charlieNode);</span>
+<span class="fc" id="L87">        Node deltaNode = new DeltaNode(&quot;deltaNode&quot;);</span>
+<span class="fc" id="L88">        orderedNodes.add(deltaNode);</span>
+
+<span class="fc" id="L90">        List&lt;RenderPipelineTask&gt; taskList = renderTaskListGenerator.generateFrom(orderedNodes);</span>
+
+<span class="fc" id="L92">        assertEquals(&quot;SetName: foo&quot;,       taskList.get(0).toString().trim());</span>
+<span class="fc" id="L93">        assertEquals(&quot;test:alphaNode (AlphaNode)&quot;,   taskList.get(1).toString().trim());</span>
+<span class="fc" id="L94">        assertEquals(&quot;test:bravoNode (BravoNode)&quot;,   taskList.get(2).toString().trim());</span>
+<span class="fc" id="L95">        assertEquals(&quot;SetName: bar&quot;,       taskList.get(3).toString().trim());</span>
+<span class="fc" id="L96">        assertEquals(&quot;test:echoNode (EchoNode)&quot;,    taskList.get(4).toString().trim());</span>
+<span class="fc" id="L97">        assertEquals(&quot;SetName: foo&quot;,       taskList.get(5).toString().trim());</span>
+<span class="fc" id="L98">        assertEquals(&quot;test:charlieNode (CharlieNode)&quot;, taskList.get(6).toString().trim());</span>
+<span class="fc" id="L99">        assertEquals(&quot;SetName: bar&quot;,     taskList.get(7).toString().trim());</span>
+<span class="fc" id="L100">        assertEquals(&quot;test:deltaNode (DeltaNode)&quot;,   taskList.get(8).toString().trim());</span>
+<span class="fc" id="L101">        assertEquals(&quot;SetName: bar&quot;,   taskList.get(9).toString().trim());</span>
+<span class="fc" id="L102">    }</span>
+
+    private abstract class DummyNode implements Node {
+        private SimpleUri nodeUri;
+<span class="fc" id="L106">        private Set&lt;StateChange&gt; desiredStateChanges = Sets.newLinkedHashSet();</span>
+        private boolean enabled;
+
+<span class="fc" id="L109">        DummyNode(String nodeUri) {</span>
+<span class="fc" id="L110">            this.nodeUri = new SimpleUri(&quot;test:&quot; + nodeUri);</span>
+<span class="fc" id="L111">            enabled = true;</span>
+<span class="fc" id="L112">        }</span>
+
+        @Override
+        public SimpleUri getUri() {
+<span class="fc" id="L116">            return nodeUri;</span>
+        }
+
+        void addDesiredStateChange(StateChange stateChange) {
+<span class="fc" id="L120">            desiredStateChanges.add(stateChange);</span>
+<span class="fc" id="L121">        }</span>
+
+        @Override
+        public Set&lt;StateChange&gt; getDesiredStateChanges() {
+<span class="fc" id="L125">            return desiredStateChanges;</span>
+        }
+
+        @Override
+        public boolean isEnabled() {
+<span class="fc" id="L130">            return enabled;</span>
+        }
+
+        @Override
+        public void setEnabled(boolean enabled) {
+<span class="nc" id="L135">            this.enabled = enabled;</span>
+<span class="nc" id="L136">        }</span>
+
+        @Override
+<span class="nc" id="L139">        public void handleCommand(String command, String... arguments) { }</span>
+
+        @Override
+<span class="nc" id="L142">        public void dispose() { }</span>
+
+        @Override
+        public String toString() {
+<span class="fc" id="L146">            return String.format(&quot;%s (%s)&quot;, getUri(), this.getClass().getSimpleName());</span>
+        }
+    }
+
+    private class AlphaNode extends DummyNode {
+<span class="fc" id="L151">        AlphaNode(String nodeUri) {</span>
+<span class="fc" id="L152">            super(nodeUri);</span>
+<span class="fc" id="L153">            addDesiredStateChange(new SetName(&quot;foo&quot;));</span>
+<span class="fc" id="L154">        }</span>
+
+        @Override
+<span class="nc" id="L157">        public void process() { }</span>
+    }
+
+    private class BravoNode extends DummyNode {
+<span class="fc" id="L161">        BravoNode(String nodeUri) {</span>
+<span class="fc" id="L162">            super(nodeUri);</span>
+<span class="fc" id="L163">            addDesiredStateChange(new SetName(&quot;foo&quot;));</span>
+<span class="fc" id="L164">        }</span>
+
+        @Override
+<span class="nc" id="L167">        public void process() { }</span>
+    }
+
+    private class CharlieNode extends DummyNode {
+<span class="fc" id="L171">        CharlieNode(String nodeUri) {</span>
+<span class="fc" id="L172">            super(nodeUri);</span>
+<span class="fc" id="L173">            addDesiredStateChange(new SetName(&quot;foo&quot;));</span>
+<span class="fc" id="L174">        }</span>
+
+        @Override
+<span class="nc" id="L177">        public void process() { }</span>
+    }
+
+    private class DeltaNode extends DummyNode {
+<span class="fc" id="L181">        DeltaNode(String nodeUri) {</span>
+<span class="fc" id="L182">            super(nodeUri);</span>
+<span class="fc" id="L183">            addDesiredStateChange(new SetName(&quot;bar&quot;));</span>
+<span class="fc" id="L184">        }</span>
+
+        @Override
+<span class="nc" id="L187">        public void process() { }</span>
+    }
+
+    private class EchoNode extends DummyNode {
+<span class="fc" id="L191">        EchoNode(String nodeUri) {</span>
+<span class="fc" id="L192">            super(nodeUri);</span>
+<span class="fc" id="L193">        }</span>
+
+        @Override
+<span class="nc" id="L196">        public void process() { }</span>
+    }
+
+    // TODO: Add new tests with varying state changes
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

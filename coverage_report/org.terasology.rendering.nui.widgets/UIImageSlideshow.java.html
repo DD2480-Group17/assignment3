@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIImageSlideshow.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIImageSlideshow.java</span></div><h1>UIImageSlideshow.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.LayoutConfig;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * This widget displays images in sequence in an image slideshow.
+ * Switching images automatically after a time period or manually.
+ */
+<span class="nc" id="L31">public class UIImageSlideshow extends CoreWidget {</span>
+
+<span class="nc" id="L33">    private boolean active = true;</span>
+<span class="nc" id="L34">    private int index = 0;</span>
+<span class="nc" id="L35">    private float imageDisplayTime = 0f;</span>
+
+    /**
+     * List of images to show.
+     */
+<span class="nc" id="L40">    @LayoutConfig</span>
+    private List&lt;UIImage&gt; images = new ArrayList&lt;&gt;();
+
+    /**
+     * Speed of slideshow (in seconds).
+     */
+<span class="nc" id="L46">    @LayoutConfig</span>
+    private float speed = 5f;
+
+    /**
+     * Whether the slideshow infinite.
+     */
+<span class="nc" id="L52">    @LayoutConfig</span>
+    private boolean infinite = true;
+
+    /**
+     * Whether the slideshow automatically switch images.
+     */
+<span class="nc" id="L58">    @LayoutConfig</span>
+    private boolean auto = true;
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        if (isImageExists()) {</span>
+<span class="nc" id="L64">            images.get(index).onDraw(canvas);</span>
+        }
+<span class="nc" id="L66">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        if (isImageExists()) {</span>
+<span class="nc" id="L71">            return images.get(index).getPreferredContentSize(canvas, sizeHint);</span>
+        }
+<span class="nc" id="L73">        return Vector2i.zero();</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L78" title="All 4 branches missed.">        if (auto &amp;&amp; active) {</span>
+<span class="nc" id="L79">            imageDisplayTime += delta;</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">            if (imageDisplayTime &gt;= speed) {</span>
+<span class="nc" id="L81">                imageDisplayTime = 0f;</span>
+<span class="nc" id="L82">                nextImage();</span>
+            }
+        }
+<span class="nc" id="L85">        super.update(delta);</span>
+<span class="nc" id="L86">    }</span>
+
+    /**
+     * Adds image to slideshow list.
+     *
+     * @param image the image to show.
+     */
+    public void addImage(final UIImage image) {
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (image != null) {</span>
+<span class="nc" id="L95">            images.add(image);</span>
+        }
+<span class="nc" id="L97">    }</span>
+
+    /**
+     * Adds texture region to slideshow list.
+     *
+     * @param textureRegion the textureRegion to show.
+     */
+    public void addImage(final TextureRegion textureRegion) {
+<span class="nc" id="L105">        addImage(new UIImage(textureRegion));</span>
+<span class="nc" id="L106">    }</span>
+
+    /**
+     * Removes all images from slideshow list.
+     */
+    public void clean() {
+<span class="nc" id="L112">        index = 0;</span>
+<span class="nc" id="L113">        imageDisplayTime = 0f;</span>
+<span class="nc" id="L114">        images = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L115">    }</span>
+
+    /**
+     * Starts automatic slideshow.
+     */
+    public void start() {
+<span class="nc" id="L121">        active = true;</span>
+<span class="nc" id="L122">    }</span>
+
+    /**
+     * Stops automatic slideshow.
+     */
+    public void stop() {
+<span class="nc" id="L128">        active = false;</span>
+<span class="nc" id="L129">    }</span>
+
+    /**
+     * Checks active status of slideshow.
+     */
+    public boolean isActive() {
+<span class="nc" id="L135">        return active;</span>
+    }
+
+    /**
+     * Switches to next image of list.
+     */
+    public void nextImage() {
+<span class="nc" id="L142">        int size = images.size();</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        if (size &gt; 0) {</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if (index == size - 1) {</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                if (infinite) {</span>
+<span class="nc" id="L146">                    index = 0;</span>
+                } else {
+<span class="nc" id="L148">                    stop();</span>
+                }
+            } else {
+<span class="nc" id="L151">                index++;</span>
+            }
+        }
+<span class="nc" id="L154">    }</span>
+
+    /**
+     * Switches to previous image of list.
+     */
+    public void prevImage() {
+<span class="nc" id="L160">        int size = images.size();</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        if (size &gt; 0) {</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            if (index == 0) {</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                if (infinite) {</span>
+<span class="nc" id="L164">                    index = size - 1;</span>
+                } else {
+<span class="nc" id="L166">                    stop();</span>
+                }
+            } else {
+<span class="nc" id="L169">                index--;</span>
+            }
+        }
+<span class="nc" id="L172">    }</span>
+
+    public float getSpeed() {
+<span class="nc" id="L175">        return speed;</span>
+    }
+
+    public void setSpeed(float speed) {
+<span class="nc" id="L179">        this.speed = speed;</span>
+<span class="nc" id="L180">    }</span>
+
+    public List&lt;UIImage&gt; getImages() {
+<span class="nc" id="L183">        return images;</span>
+    }
+
+    private boolean isImageExists() {
+<span class="nc bnc" id="L187" title="All 6 branches missed.">        return !images.isEmpty() &amp;&amp; index &lt; images.size() &amp;&amp; images.get(index) != null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

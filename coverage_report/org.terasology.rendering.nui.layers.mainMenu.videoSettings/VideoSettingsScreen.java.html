@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VideoSettingsScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu.videoSettings</a> &gt; <span class="el_source">VideoSettingsScreen.java</span></div><h1>VideoSettingsScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu.videoSettings;
+
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.Time;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.engine.subsystem.Resolution;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.input.Keyboard;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.registry.In;
+import org.terasology.rendering.ShaderManager;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.BindHelper;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.itemRendering.StringTextRenderer;
+import org.terasology.rendering.nui.itemRendering.ToStringTextRenderer;
+import org.terasology.rendering.nui.layers.mainMenu.WaitPopup;
+import org.terasology.rendering.nui.widgets.UIDropdown;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UISlider;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
+
+import javax.imageio.ImageIO;
+import java.util.Arrays;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+
+public class VideoSettingsScreen extends CoreScreenLayer {
+
+<span class="nc" id="L55">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:VideoMenuScreen&quot;);</span>
+
+<span class="nc" id="L57">    private static final Logger logger = LoggerFactory.getLogger(VideoSettingsScreen.class);</span>
+    private static final long RESOLUTION_REVERT_TIME_MS = 15000;
+
+    @In
+    private GameEngine engine;
+
+    @In
+    private Config config;
+
+    @In
+    private DisplayDevice displayDevice;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    @In
+    private TranslationSystem translationSystem;
+
+    @In
+    private Time time;
+
+<span class="nc" id="L78">    public VideoSettingsScreen() {</span>
+<span class="nc" id="L79">    }</span>
+
+    @Override
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public void initialise() {
+<span class="nc" id="L84">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+<span class="nc" id="L85">        UIDropdown&lt;Preset&gt; videoQuality = find(&quot;graphicsPreset&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (videoQuality != null) {</span>
+<span class="nc" id="L87">            videoQuality.setOptionRenderer(new ToStringTextRenderer&lt;&gt;(translationSystem));</span>
+<span class="nc" id="L88">            videoQuality.setOptions(Lists.newArrayList(Preset.CUSTOM, Preset.MINIMAL, Preset.LOW, Preset.MEDIUM, Preset.HIGH, Preset.ULTRA));</span>
+<span class="nc" id="L89">            videoQuality.bindSelection(new PresetBinding(config.getRendering()));</span>
+        }
+
+<span class="nc" id="L92">        UIDropdown&lt;ViewDistance&gt; viewDistance = find(&quot;viewDistance&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (viewDistance != null) {</span>
+<span class="nc" id="L94">            viewDistance.setOptionRenderer(new ToStringTextRenderer&lt;&gt;(translationSystem));</span>
+<span class="nc" id="L95">            viewDistance.setOptions(Arrays.asList(ViewDistance.values()));</span>
+<span class="nc" id="L96">            viewDistance.bindSelection(BindHelper.bindBeanProperty(&quot;viewDistance&quot;, config.getRendering(), ViewDistance.class));</span>
+        }
+
+<span class="nc" id="L99">        UIDropdown&lt;WaterReflection&gt; waterReflection = find(&quot;reflections&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (waterReflection != null) {</span>
+<span class="nc" id="L101">            waterReflection.setOptionRenderer(new ToStringTextRenderer&lt;&gt;(translationSystem));</span>
+<span class="nc" id="L102">            waterReflection.setOptions(Lists.newArrayList(WaterReflection.SKY, WaterReflection.GLOBAL, WaterReflection.LOCAL));</span>
+<span class="nc" id="L103">            waterReflection.bindSelection(new WaterReflectionBinding(config.getRendering()));</span>
+        }
+
+<span class="nc" id="L106">        UIDropdown&lt;ScreenshotSize&gt; screenshotSize = find(&quot;screenshotSize&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (screenshotSize != null) {</span>
+<span class="nc" id="L108">            screenshotSize.setOptionRenderer(new ToStringTextRenderer&lt;&gt;(translationSystem));</span>
+<span class="nc" id="L109">            screenshotSize.setOptions(Arrays.asList(ScreenshotSize.values()));</span>
+<span class="nc" id="L110">            screenshotSize.bindSelection(BindHelper.bindBeanProperty(&quot;screenshotSize&quot;, config.getRendering(), ScreenshotSize.class));</span>
+        }
+
+<span class="nc" id="L113">        UIDropdown&lt;String&gt; screenshotFormat = find(&quot;screenshotFormat&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (screenshotFormat != null) {</span>
+<span class="nc" id="L115">            screenshotFormat.setOptions(Arrays.asList(ImageIO.getWriterFileSuffixes()));</span>
+<span class="nc" id="L116">            screenshotFormat.bindSelection(BindHelper.bindBeanProperty(&quot;screenshotFormat&quot;, config.getRendering(), String.class));</span>
+        }
+
+<span class="nc" id="L119">        UIDropdown&lt;Integer&gt; blur = find(&quot;blur&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (blur != null) {</span>
+<span class="nc" id="L121">            blur.setOptions(Lists.newArrayList(0, 1, 2, 3));</span>
+<span class="nc" id="L122">            blur.bindSelection(BindHelper.bindBeanProperty(&quot;blurIntensity&quot;, config.getRendering(), Integer.TYPE));</span>
+<span class="nc" id="L123">            blur.setOptionRenderer(new StringTextRenderer&lt;Integer&gt;() {</span>
+
+                @Override
+                public String getString(Integer value) {
+<span class="nc bnc" id="L127" title="All 4 branches missed.">                    switch (value) {</span>
+                        case 1:
+<span class="nc" id="L129">                            return translationSystem.translate(&quot;${engine:menu#camera-blur-some}&quot;);</span>
+                        case 2:
+<span class="nc" id="L131">                            return translationSystem.translate(&quot;${engine:menu#camera-blur-normal}&quot;);</span>
+                        case 3:
+<span class="nc" id="L133">                            return translationSystem.translate(&quot;${engine:menu#camera-blur-max}&quot;);</span>
+                        default:
+<span class="nc" id="L135">                            return translationSystem.translate(&quot;${engine:menu#camera-blur-off}&quot;);</span>
+                    }
+                }
+            });
+        }
+
+<span class="nc" id="L141">        UIDropdown&lt;DynamicShadows&gt; dynamicShadows = find(&quot;shadows&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if (dynamicShadows != null) {</span>
+<span class="nc" id="L143">            dynamicShadows.setOptionRenderer(new ToStringTextRenderer&lt;&gt;(translationSystem));</span>
+<span class="nc" id="L144">            dynamicShadows.setOptions(Arrays.asList(DynamicShadows.values()));</span>
+<span class="nc" id="L145">            dynamicShadows.bindSelection(new DynamicShadowsBinding(config.getRendering()));</span>
+        }
+
+<span class="nc" id="L148">        final UISlider fovSlider = find(&quot;fov&quot;, UISlider.class);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        if (fovSlider != null) {</span>
+<span class="nc" id="L150">            fovSlider.setIncrement(5.0f);</span>
+<span class="nc" id="L151">            fovSlider.setPrecision(0);</span>
+<span class="nc" id="L152">            fovSlider.setMinimum(70);</span>
+<span class="nc" id="L153">            fovSlider.setRange(50);</span>
+<span class="nc" id="L154">            fovSlider.bindValue(BindHelper.bindBeanProperty(&quot;fieldOfView&quot;, config.getRendering(), Float.TYPE));</span>
+        }
+
+<span class="nc" id="L157">        final UISlider frameLimitSlider = find(&quot;frameLimit&quot;, UISlider.class);</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        if (frameLimitSlider != null) {</span>
+<span class="nc" id="L159">            frameLimitSlider.setIncrement(5.0f);</span>
+<span class="nc" id="L160">            frameLimitSlider.setPrecision(0);</span>
+<span class="nc" id="L161">            frameLimitSlider.setMinimum(30);</span>
+<span class="nc" id="L162">            frameLimitSlider.setRange(175); // Goes up to 205 (which is off)</span>
+            // Frame limit &gt; 200 is just displayed and treated as &quot;off&quot;
+<span class="nc" id="L164">            frameLimitSlider.setLabelFunction(input -&gt; {</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                if (input &gt; 200) {</span>
+<span class="nc" id="L166">                    return &quot; Off &quot;; // Spaces to get wider than &quot;200&quot; (otherwise the display jumps around)</span>
+                } else {
+<span class="nc" id="L168">                    return String.valueOf(input.intValue());</span>
+                }
+            });
+<span class="nc" id="L171">            frameLimitSlider.bindValue(new Binding&lt;Float&gt;() {</span>
+                @Override
+                public Float get() {
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                    if (config.getRendering().getFrameLimit() == -1) {</span>
+<span class="nc" id="L175">                        return 205f;</span>
+                    } else {
+<span class="nc" id="L177">                        return (float) config.getRendering().getFrameLimit();</span>
+                    }
+                }
+
+                @Override
+                public void set(Float value) {
+<span class="nc" id="L183">                    int frameLimit = value.intValue();</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                    if (frameLimit &gt; 200) {</span>
+<span class="nc" id="L185">                        config.getRendering().setFrameLimit(-1);</span>
+                    } else {
+<span class="nc" id="L187">                        config.getRendering().setFrameLimit(frameLimit);</span>
+                    }
+<span class="nc" id="L189">                }</span>
+            });
+        }
+
+<span class="nc" id="L193">        final UISlider particleEffectLimitSlider = find(&quot;particleEffectLimit&quot;, UISlider.class);</span>
+
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        if (particleEffectLimitSlider != null) {</span>
+<span class="nc" id="L196">            particleEffectLimitSlider.setIncrement(1.0f);</span>
+<span class="nc" id="L197">            particleEffectLimitSlider.setPrecision(0);</span>
+<span class="nc" id="L198">            particleEffectLimitSlider.setMinimum(0);</span>
+<span class="nc" id="L199">            particleEffectLimitSlider.setRange(50);</span>
+
+<span class="nc" id="L201">            particleEffectLimitSlider.setLabelFunction(input -&gt; {</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">                if (input == 0) {</span>
+<span class="nc" id="L203">                    return &quot; Off &quot;;</span>
+                } else {
+<span class="nc" id="L205">                    return String.valueOf(input.intValue());</span>
+                }
+            });
+<span class="nc" id="L208">            particleEffectLimitSlider.bindValue(new Binding&lt;Float&gt;() {</span>
+                @Override
+                public Float get() {
+<span class="nc" id="L211">                    return (float) config.getRendering().getParticleEffectLimit();</span>
+                }
+
+                @Override
+                public void set(Float value) {
+<span class="nc" id="L216">                    int particleEffectLimit = value.intValue();</span>
+<span class="nc" id="L217">                    config.getRendering().setParticleEffectLimit(particleEffectLimit);</span>
+<span class="nc" id="L218">                }</span>
+            });
+        }
+
+<span class="nc" id="L222">        final UISlider fboScaleSlider = find(&quot;fboScale&quot;, UISlider.class);</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        if (fboScaleSlider != null) {</span>
+<span class="nc" id="L224">            fboScaleSlider.setIncrement(5.0f);</span>
+<span class="nc" id="L225">            fboScaleSlider.setPrecision(0);</span>
+<span class="nc" id="L226">            fboScaleSlider.setMinimum(25);</span>
+<span class="nc" id="L227">            fboScaleSlider.setRange(200);</span>
+<span class="nc" id="L228">            fboScaleSlider.setLabelFunction(input -&gt; String.valueOf(input.intValue()) + &quot;%&quot;);</span>
+<span class="nc" id="L229">            fboScaleSlider.bindValue(new Binding&lt;Float&gt;() {</span>
+                @Override
+                public Float get() {
+<span class="nc" id="L232">                    return (float) config.getRendering().getFboScale();</span>
+                }
+
+                @Override
+                public void set(Float value) {
+<span class="nc" id="L237">                    config.getRendering().setFboScale(value.intValue());</span>
+<span class="nc" id="L238">                }</span>
+            });
+        }
+
+<span class="nc" id="L242">        final UILabel uiScaleLabel = find(&quot;uiScaleLabel&quot;, UILabel.class);</span>
+<span class="nc" id="L243">        uiScaleLabel.setText(&quot; &quot; + config.getRendering().getUiScale() + &quot;% &quot;);</span>
+
+<span class="nc" id="L245">        WidgetUtil.trySubscribe(this, &quot;uiScaleSmaller&quot;, button -&gt; {</span>
+<span class="nc" id="L246">            int newScale = Math.max(50, config.getRendering().getUiScale() - 25);</span>
+<span class="nc" id="L247">            config.getRendering().setUiScale(newScale);</span>
+<span class="nc" id="L248">            uiScaleLabel.setText(&quot; &quot; + config.getRendering().getUiScale() + &quot;% &quot;);</span>
+<span class="nc" id="L249">        });</span>
+
+<span class="nc" id="L251">        WidgetUtil.trySubscribe(this, &quot;uiScaleLarger&quot;, button -&gt; {</span>
+<span class="nc" id="L252">            int newScale = Math.min(250, config.getRendering().getUiScale() + 25);</span>
+<span class="nc" id="L253">            config.getRendering().setUiScale(newScale);</span>
+<span class="nc" id="L254">            uiScaleLabel.setText(&quot; &quot; + config.getRendering().getUiScale() + &quot;% &quot;);</span>
+<span class="nc" id="L255">        });</span>
+
+<span class="nc" id="L257">        UIDropdown&lt;CameraSetting&gt; cameraSetting = find(&quot;camera&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L258" title="All 2 branches missed.">        if (cameraSetting != null) {</span>
+<span class="nc" id="L259">            cameraSetting.setOptionRenderer(new ToStringTextRenderer&lt;&gt;(translationSystem));</span>
+<span class="nc" id="L260">            cameraSetting.setOptions(Arrays.asList(CameraSetting.values()));</span>
+<span class="nc" id="L261">            cameraSetting.bindSelection(new CameraSettingBinding(config.getRendering()));</span>
+        }
+
+<span class="nc" id="L264">        UIDropdown&lt;DisplayModeSetting&gt; displaySetting = find(&quot;displayModeSetting&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">        if (displaySetting != null) {</span>
+<span class="nc" id="L266">            displaySetting.setOptionRenderer(new ToStringTextRenderer&lt;&gt;(translationSystem));</span>
+<span class="nc" id="L267">            displaySetting.setOptions(Arrays.asList(DisplayModeSetting.values()));</span>
+<span class="nc" id="L268">            displaySetting.bindSelection(BindHelper.bindBeanProperty(&quot;displayModeSetting&quot;, displayDevice, DisplayModeSetting.class));</span>
+        }
+
+<span class="nc" id="L271">        UIDropdown&lt;Resolution&gt; resolution = find(&quot;resolution&quot;, UIDropdown.class);</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">        if (resolution != null) {</span>
+<span class="nc" id="L273">            resolution.setOptions(displayDevice.getResolutions());</span>
+<span class="nc" id="L274">            resolution.bindSelection(new Binding&lt;Resolution&gt;() {</span>
+
+                @Override
+                public Resolution get() {
+<span class="nc" id="L278">                    return displayDevice.getResolution();</span>
+                }
+
+                @Override
+                public void set(Resolution value) {
+<span class="nc" id="L283">                    onResolutionChange(value);</span>
+<span class="nc" id="L284">                }</span>
+            });
+        }
+
+<span class="nc" id="L288">        WidgetUtil.tryBindCheckbox(this, &quot;menu-animations&quot;, BindHelper.bindBeanProperty(&quot;animatedMenu&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L289">        WidgetUtil.tryBindCheckbox(this, &quot;oculusVrSupport&quot;, BindHelper.bindBeanProperty(&quot;vrSupport&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L290">        WidgetUtil.tryBindCheckbox(this, &quot;animateGrass&quot;, BindHelper.bindBeanProperty(&quot;animateGrass&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L291">        WidgetUtil.tryBindCheckbox(this, &quot;animateWater&quot;, BindHelper.bindBeanProperty(&quot;animateWater&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L292">        WidgetUtil.tryBindCheckbox(this, &quot;volumetricFog&quot;, BindHelper.bindBeanProperty(&quot;volumetricFog&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L293">        WidgetUtil.tryBindCheckbox(this, &quot;inscattering&quot;, BindHelper.bindBeanProperty(&quot;inscattering&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L294">        WidgetUtil.tryBindCheckbox(this, &quot;cloudShadow&quot;, BindHelper.bindBeanProperty(&quot;cloudShadows&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L295">        WidgetUtil.tryBindCheckbox(this, &quot;extraLighting&quot;, BindHelper.bindBeanProperty(&quot;normalMapping&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L296">        WidgetUtil.tryBindCheckbox(this, &quot;parallax&quot;, BindHelper.bindBeanProperty(&quot;parallaxMapping&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L297">        WidgetUtil.tryBindCheckbox(this, &quot;filmGrain&quot;, BindHelper.bindBeanProperty(&quot;filmGrain&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L298">        WidgetUtil.tryBindCheckbox(this, &quot;motionBlur&quot;, BindHelper.bindBeanProperty(&quot;motionBlur&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L299">        WidgetUtil.tryBindCheckbox(this, &quot;bobbing&quot;, BindHelper.bindBeanProperty(&quot;cameraBobbing&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L300">        WidgetUtil.tryBindCheckbox(this, &quot;outline&quot;, BindHelper.bindBeanProperty(&quot;outline&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L301">        WidgetUtil.tryBindCheckbox(this, &quot;vsync&quot;, BindHelper.bindBeanProperty(&quot;vSync&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L302">        WidgetUtil.tryBindCheckbox(this, &quot;eyeAdaptation&quot;, BindHelper.bindBeanProperty(&quot;eyeAdaptation&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L303">        WidgetUtil.tryBindCheckbox(this, &quot;ssao&quot;, BindHelper.bindBeanProperty(&quot;ssao&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L304">        WidgetUtil.tryBindCheckbox(this, &quot;clampLighting&quot;, BindHelper.bindBeanProperty(&quot;clampLighting&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L305">        WidgetUtil.tryBindCheckbox(this, &quot;bloom&quot;, BindHelper.bindBeanProperty(&quot;bloom&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L306">        WidgetUtil.tryBindCheckbox(this, &quot;lightShafts&quot;, BindHelper.bindBeanProperty(&quot;lightShafts&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L307">        WidgetUtil.tryBindCheckbox(this, &quot;vignette&quot;, BindHelper.bindBeanProperty(&quot;vignette&quot;, config.getRendering(), Boolean.TYPE));</span>
+<span class="nc" id="L308">        WidgetUtil.tryBindCheckbox(this, &quot;flickeringLight&quot;, BindHelper.bindBeanProperty(&quot;flickeringLight&quot;, config.getRendering(), Boolean.TYPE));</span>
+
+<span class="nc bnc" id="L310" title="All 2 branches missed.">        if (fovSlider != null) {</span>
+<span class="nc" id="L311">            WidgetUtil.trySubscribe(this, &quot;fovReset&quot;, widget -&gt; fovSlider.setValue(100.0f));</span>
+        }
+
+<span class="nc" id="L314">        WidgetUtil.trySubscribe(this, &quot;close&quot;, button -&gt; saveSettings());</span>
+<span class="nc" id="L315">    }</span>
+
+
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc bnc" id="L320" title="All 4 branches missed.">        if (event.isDown() &amp;&amp; event.getKey() == Keyboard.Key.ESCAPE) {</span>
+<span class="nc" id="L321">            saveSettings();</span>
+        }
+<span class="nc" id="L323">        return false;</span>
+    }
+
+    public void saveSettings() {
+<span class="nc" id="L327">        logger.info(&quot;Video Settings: {}&quot;, config.renderConfigAsJson(config.getRendering()));</span>
+        // TODO: add a dirty flag that checks if recompiling is needed
+<span class="nc" id="L329">        CoreRegistry.get(ShaderManager.class).recompileAllShaders();</span>
+<span class="nc" id="L330">        triggerBackAnimation();</span>
+<span class="nc" id="L331">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L335">        return false;</span>
+    }
+
+    private void onFullScreenResolutionChange(Resolution oldResolution) {
+<span class="nc" id="L339">        Callable&lt;Resolution&gt; revertOperation = () -&gt; {</span>
+<span class="nc" id="L340">            Thread.sleep(RESOLUTION_REVERT_TIME_MS);</span>
+<span class="nc" id="L341">            return oldResolution;</span>
+        };
+
+        @SuppressWarnings(&quot;unchecked&quot;)
+<span class="nc" id="L345">        WaitPopup&lt;Resolution&gt; popup = getManager().pushScreen(WaitPopup.ASSET_URI, WaitPopup.class);</span>
+
+<span class="nc" id="L347">        popup.startOperation(revertOperation, true);</span>
+<span class="nc" id="L348">        popup.onSuccess(resolution -&gt; displayDevice.setResolution(resolution));</span>
+<span class="nc" id="L349">        popup.setTitleText(translationSystem.translate(&quot;${engine:menu#video-resolution-popup-title}&quot;));</span>
+<span class="nc" id="L350">        popup.setCancelText(translationSystem.translate(&quot;${engine:menu#video-resolution-popup-cancel}&quot;));</span>
+
+<span class="nc" id="L352">        long revertAtMs = time.getGameTimeInMs() + RESOLUTION_REVERT_TIME_MS;</span>
+<span class="nc" id="L353">        String message = translationSystem.translate(&quot;${engine:menu#video-resolution-popup-message}&quot;);</span>
+
+<span class="nc" id="L355">        popup.bindMessageText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc" id="L358">                long remaining = TimeUnit.MILLISECONDS.toSeconds(revertAtMs - time.getGameTimeInMs());</span>
+<span class="nc" id="L359">                return message + &quot;: &quot; + remaining + &quot;s&quot;;</span>
+            }
+        });
+<span class="nc" id="L362">    }</span>
+
+    private void onResolutionChange(Resolution newResolution) {
+<span class="nc" id="L365">        Resolution oldResolution = displayDevice.getResolution();</span>
+<span class="nc" id="L366">        displayDevice.setResolution(newResolution);</span>
+<span class="nc bnc" id="L367" title="All 2 branches missed.">        if (DisplayModeSetting.FULLSCREEN == displayDevice.getDisplayModeSetting()) {</span>
+<span class="nc" id="L368">            onFullScreenResolutionChange(oldResolution);</span>
+        }
+<span class="nc" id="L370">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

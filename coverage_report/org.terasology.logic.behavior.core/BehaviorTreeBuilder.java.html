@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BehaviorTreeBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.core</a> &gt; <span class="el_source">BehaviorTreeBuilder.java</span></div><h1>BehaviorTreeBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.core;
+
+import com.google.common.collect.Maps;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import com.google.gson.TypeAdapter;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
+import org.apache.commons.codec.Charsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.logic.behavior.BehaviorAction;
+import org.terasology.logic.behavior.asset.BehaviorTree;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.registry.InjectionHelper;
+import org.terasology.utilities.gson.UriTypeAdapterFactory;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * JSON deserializer to create trees using json:
+ * &lt;p/&gt;
+ * { sequence:[action1, {action2:{ foo:bar, duration:7}}] }
+ * &lt;p/&gt;
+ * Actions and Decorators need to be registered before parsing.
+ */
+public class BehaviorTreeBuilder implements JsonDeserializer&lt;BehaviorNode&gt;, JsonSerializer&lt;BehaviorNode&gt; {
+<span class="fc" id="L62">    private static final Logger logger = LoggerFactory.getLogger(BehaviorTreeBuilder.class);</span>
+
+<span class="fc" id="L64">    private Map&lt;String, Class&lt;? extends Action&gt;&gt; actions = Maps.newHashMap();</span>
+<span class="fc" id="L65">    private Map&lt;String, Class&lt;? extends Action&gt;&gt; decorators = Maps.newHashMap();</span>
+
+    private Gson gson;
+
+<span class="fc" id="L69">    private int nextId = 1;</span>
+
+<span class="fc" id="L71">    public BehaviorTreeBuilder() {</span>
+
+<span class="fc" id="L73">        ModuleManager moduleManager = CoreRegistry.get(ModuleManager.class);</span>
+
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (moduleManager != null) {</span>
+<span class="fc" id="L76">            ModuleEnvironment environment = moduleManager.getEnvironment();</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            for (Class&lt;? extends Action&gt; type : environment.getSubtypesOf(Action.class)) {</span>
+<span class="fc" id="L78">                BehaviorAction behaviorAction = type.getAnnotation(BehaviorAction.class);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">                if (behaviorAction != null) {</span>
+<span class="fc" id="L80">                    String name = behaviorAction.name();</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">                    if (behaviorAction.isDecorator()) {</span>
+<span class="fc" id="L82">                        registerDecorator(name, type);</span>
+<span class="fc" id="L83">                        logger.debug(&quot;Found decorator {}&quot;, name);</span>
+                    } else {
+<span class="fc" id="L85">                        registerAction(name, type);</span>
+<span class="fc" id="L86">                        logger.debug(&quot;Found action {}&quot;, name);</span>
+                    }
+                }
+<span class="fc" id="L89">            }</span>
+        }
+<span class="fc" id="L91">    }</span>
+
+    public BehaviorNode fromJson(String json) {
+<span class="fc" id="L94">        initGson();</span>
+<span class="fc" id="L95">        return gson.fromJson(json, BehaviorNode.class);</span>
+    }
+
+    public String toJson(BehaviorNode node) {
+<span class="fc" id="L99">        initGson();</span>
+<span class="fc" id="L100">        return gson.toJson(node);</span>
+    }
+
+    public BehaviorNode fromJson(InputStream json) {
+<span class="nc" id="L104">        initGson();</span>
+<span class="nc" id="L105">        return gson.fromJson(new InputStreamReader(json, Charsets.UTF_8), BehaviorNode.class);</span>
+    }
+
+    public void registerAction(String name, Class&lt;? extends Action&gt; action) {
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (actions.containsKey(name)) {</span>
+<span class="fc" id="L110">            logger.error(&quot;Duplicate Action definition! {} - overwriting...&quot;, name);</span>
+        }
+<span class="fc" id="L112">        actions.put(name, action);</span>
+<span class="fc" id="L113">        gson = null;</span>
+<span class="fc" id="L114">    }</span>
+
+    public void registerDecorator(String name, Class&lt;? extends Action&gt; action) {
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (decorators.containsKey(name)) {</span>
+<span class="fc" id="L118">            logger.error(&quot;Duplicate Decorator definition! {} - overwriting...&quot;, name);</span>
+        }
+<span class="fc" id="L120">        decorators.put(name, action);</span>
+<span class="fc" id="L121">        gson = null;</span>
+<span class="fc" id="L122">    }</span>
+
+    private void initGson() {
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        if (gson == null) {</span>
+<span class="fc" id="L126">            GsonBuilder gsonBuilder = new GsonBuilder();</span>
+<span class="fc" id="L127">            gsonBuilder.registerTypeHierarchyAdapter(BehaviorNode.class, this);</span>
+<span class="fc" id="L128">            gsonBuilder.registerTypeAdapterFactory(new UriTypeAdapterFactory());</span>
+<span class="fc" id="L129">            gsonBuilder.registerTypeAdapter(BehaviorTree.class, new TypeAdapter&lt;BehaviorTree&gt;() {</span>
+                @Override
+                public void write(JsonWriter out, BehaviorTree value) throws IOException {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                    if (value != null) {</span>
+                        // TODO doublecheck URN
+<span class="nc" id="L134">                        out.value(value.getUrn().toString());</span>
+                    } else {
+<span class="nc" id="L136">                        out.value(&quot;&quot;);</span>
+                    }
+<span class="nc" id="L138">                }</span>
+
+                @Override
+                public BehaviorTree read(JsonReader in) throws IOException {
+<span class="nc" id="L142">                    String uri = in.nextString();</span>
+<span class="nc" id="L143">                    AssetManager assetManager = CoreRegistry.get(AssetManager.class);</span>
+<span class="nc" id="L144">                    return assetManager.getAsset(new ResourceUrn(uri), BehaviorTree.class)</span>
+<span class="nc" id="L145">                            .orElse(assetManager.getAsset(new ResourceUrn(&quot;Behaviors:fallback&quot;), BehaviorTree.class).get());</span>
+
+                }
+            });
+<span class="fc" id="L149">            gson = gsonBuilder.create();</span>
+        }
+<span class="fc" id="L151">    }</span>
+
+    @Override
+    public BehaviorNode deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+        BehaviorNode node;
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (json.isJsonPrimitive()) {</span>
+<span class="fc" id="L157">            node = getPrimitiveNode(json, context);</span>
+        } else {
+<span class="fc" id="L159">            node = getCompositeNode(json, context);</span>
+        }
+<span class="fc" id="L161">        node = createNode(node);</span>
+<span class="fc" id="L162">        return node;</span>
+    }
+
+    @Override
+    public JsonElement serialize(BehaviorNode src, Type typeOfSrc, JsonSerializationContext context) {
+<span class="fc" id="L167">        JsonObject node = new JsonObject();</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if (src instanceof DelegateNode) {</span>
+<span class="nc" id="L169">            DelegateNode delegateNode = (DelegateNode) src;</span>
+<span class="nc" id="L170">            return serialize(delegateNode.delegate, BehaviorNode.class, context);</span>
+        }
+<span class="fc bfc" id="L172" title="All 2 branches covered.">        if (src instanceof CompositeNode) {</span>
+<span class="fc" id="L173">            String name = src.getName();</span>
+<span class="fc" id="L174">            JsonArray array = new JsonArray();</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">            for (int i = 0; i &lt; src.getChildrenCount(); i++) {</span>
+<span class="fc" id="L176">                array.add(serialize(src.getChild(i), BehaviorNode.class, context));</span>
+            }
+<span class="fc" id="L178">            node.add(name, array);</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">        } else if (src instanceof ActionNode) {</span>
+<span class="fc" id="L180">            ActionNode actionNode = (ActionNode) src;</span>
+            JsonObject content;
+            String name;
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">            if (actionNode.action != null) {</span>
+<span class="fc" id="L184">                content = (JsonObject) context.serialize(actionNode.action);</span>
+<span class="fc" id="L185">                name = actionNode.action.getName();</span>
+            } else {
+<span class="nc" id="L187">                content = new JsonObject();</span>
+<span class="nc" id="L188">                name = actionNode.getName();</span>
+            }
+
+<span class="fc bfc" id="L191" title="All 2 branches covered.">            if (src instanceof DecoratorNode) {</span>
+<span class="fc" id="L192">                DecoratorNode decoratorNode = (DecoratorNode) src;</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">                if (decoratorNode.getChildrenCount() &gt; 0) {</span>
+<span class="fc" id="L194">                    content.add(&quot;child&quot;, serialize(decoratorNode.getChild(0), BehaviorNode.class, context));</span>
+                }
+            }
+
+<span class="fc" id="L198">            node.add(name, content);</span>
+<span class="fc" id="L199">        } else {</span>
+<span class="fc" id="L200">            return new JsonPrimitive(src.getName());</span>
+        }
+<span class="fc" id="L202">        return node;</span>
+    }
+
+    public BehaviorNode createNode(BehaviorNode node) {
+<span class="fc" id="L206">        return node;</span>
+    }
+
+    private BehaviorNode getPrimitiveNode(JsonElement json, JsonDeserializationContext context) {
+<span class="fc" id="L210">        String type = json.getAsString();</span>
+<span class="fc" id="L211">        BehaviorNode node = createNode(type);</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">        if (actions.containsKey(type)) {</span>
+<span class="nc" id="L213">            Action action = context.deserialize(new JsonObject(), actions.get(type));</span>
+<span class="nc" id="L214">            addAction((ActionNode) node, action);</span>
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">        } else if (decorators.containsKey(type)) {</span>
+<span class="nc" id="L216">            Action action = context.deserialize(new JsonObject(), decorators.get(type));</span>
+<span class="nc" id="L217">            addAction((ActionNode) node, action);</span>
+        }
+<span class="fc" id="L219">        return node;</span>
+    }
+
+    private void addAction(ActionNode node, Action action) {
+<span class="fc" id="L223">        action.setId(nextId);</span>
+<span class="fc" id="L224">        nextId++;</span>
+<span class="fc" id="L225">        node.setAction(action);</span>
+<span class="fc" id="L226">        InjectionHelper.inject(action);</span>
+<span class="fc" id="L227">        action.setup();</span>
+<span class="fc" id="L228">    }</span>
+
+    private BehaviorNode getCompositeNode(JsonElement json, JsonDeserializationContext context) {
+        String type;
+<span class="fc" id="L232">        JsonObject obj = json.getAsJsonObject();</span>
+<span class="fc" id="L233">        Map.Entry&lt;String, JsonElement&gt; entry = obj.entrySet().iterator().next();</span>
+<span class="fc" id="L234">        type = entry.getKey();</span>
+<span class="fc" id="L235">        JsonElement jsonElement = entry.getValue();</span>
+
+<span class="fc" id="L237">        BehaviorNode node = createNode(type);</span>
+
+<span class="fc bfc" id="L239" title="All 2 branches covered.">        if (actions.containsKey(type)) {</span>
+<span class="fc" id="L240">            Action action = context.deserialize(jsonElement, actions.get(type));</span>
+<span class="fc" id="L241">            addAction((ActionNode) node, action);</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">        } else if (decorators.containsKey(type)) {</span>
+<span class="fc" id="L243">            Action action = context.deserialize(jsonElement, decorators.get(type));</span>
+<span class="fc" id="L244">            addAction((ActionNode) node, action);</span>
+<span class="fc" id="L245">            JsonElement childJson = jsonElement.getAsJsonObject().get(&quot;child&quot;);</span>
+<span class="fc" id="L246">            BehaviorNode child = context.deserialize(childJson, BehaviorNode.class);</span>
+<span class="fc" id="L247">            node.insertChild(0, child);</span>
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">        } else if (jsonElement.isJsonArray()) {</span>
+<span class="fc" id="L249">            List&lt;BehaviorNode&gt; children = context.deserialize(jsonElement, new TypeToken&lt;List&lt;BehaviorNode&gt;&gt;() {</span>
+<span class="fc" id="L250">            }.getType());</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">            for (int i = 0; i &lt; children.size(); i++) {</span>
+<span class="fc" id="L252">                BehaviorNode child = children.get(i);</span>
+<span class="fc" id="L253">                node.insertChild(i, child);</span>
+            }
+        }
+
+<span class="fc" id="L257">        return node;</span>
+    }
+
+    private BehaviorNode createNode(String type) {
+<span class="pc bpc" id="L261" title="3 of 10 branches missed.">        switch (type) {</span>
+            case &quot;sequence&quot;:
+<span class="fc" id="L263">                return new SequenceNode();</span>
+            case &quot;selector&quot;:
+<span class="fc" id="L265">                return new SelectorNode();</span>
+            case &quot;dynamic&quot;:
+<span class="fc" id="L267">                return new DynamicSelectorNode();</span>
+            case &quot;parallel&quot;:
+<span class="nc" id="L269">                return new ParallelNode();</span>
+            case &quot;failure&quot;:
+<span class="fc" id="L271">                return new FailureNode();</span>
+            case &quot;success&quot;:
+<span class="fc" id="L273">                return new SuccessNode();</span>
+            case &quot;running&quot;:
+<span class="fc" id="L275">                return new RunningNode();</span>
+            case &quot;action&quot;:
+<span class="nc" id="L277">                return new ActionNode();</span>
+            case &quot;decorator&quot;:
+<span class="nc" id="L279">                return new DecoratorNode();</span>
+            default:
+<span class="fc bfc" id="L281" title="All 2 branches covered.">                if (actions.containsKey(type)) {</span>
+<span class="fc" id="L282">                    return new ActionNode();</span>
+                }
+<span class="pc bpc" id="L284" title="1 of 2 branches missed.">                if (decorators.containsKey(type)) {</span>
+<span class="fc" id="L285">                    return new DecoratorNode();</span>
+                }
+<span class="nc" id="L287">                throw new IllegalArgumentException(&quot;Unknown behavior node type &quot; + type);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

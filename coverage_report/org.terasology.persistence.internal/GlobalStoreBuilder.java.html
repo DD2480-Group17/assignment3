@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GlobalStoreBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.internal</a> &gt; <span class="el_source">GlobalStoreBuilder.java</span></div><h1>GlobalStoreBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.internal;
+
+import com.google.common.collect.Maps;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.persistence.serializers.EntitySerializer;
+import org.terasology.persistence.serializers.PrefabSerializer;
+import org.terasology.protobuf.EntityData;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ */
+final class GlobalStoreBuilder {
+
+    private final long nextEntityId;
+    private final PrefabSerializer prefabSerializer;
+
+<span class="fc" id="L39">    GlobalStoreBuilder(EngineEntityManager entityManager, PrefabSerializer prefabSerializer) {</span>
+<span class="fc" id="L40">        this.nextEntityId = entityManager.getNextId();</span>
+<span class="fc" id="L41">        this.prefabSerializer = prefabSerializer;</span>
+<span class="fc" id="L42">    }</span>
+    
+    public EntityData.GlobalStore build(EngineEntityManager entityManager, Iterable&lt;EntityRef&gt; entities) {
+<span class="fc" id="L45">        EntityData.GlobalStore.Builder store = EntityData.GlobalStore.newBuilder();</span>
+
+<span class="fc" id="L47">        Map&lt;Class&lt;? extends Component&gt;, Integer&gt; componentIdTable = Maps.newHashMap();</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        for (ComponentMetadata&lt;?&gt; componentMetadata : entityManager.getComponentLibrary().iterateComponentMetadata()) {</span>
+<span class="fc" id="L49">            store.addComponentClass(componentMetadata.getUri().toString());</span>
+<span class="fc" id="L50">            componentIdTable.put(componentMetadata.getType(), componentIdTable.size());</span>
+<span class="fc" id="L51">        }</span>
+<span class="fc" id="L52">        prefabSerializer.setComponentIdMapping(componentIdTable);</span>
+        /*
+         * The prefabs can't be obtained from  entityManager.getPrefabManager().listPrefabs() as that might not
+         * be thread save.
+         */
+<span class="fc" id="L57">        Set&lt;Prefab&gt; prefabsRequiredForEntityStorage = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        for (EntityRef entityRef : entityManager.getAllEntities()) {</span>
+<span class="fc" id="L59">            Prefab prefab = entityRef.getParentPrefab();</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">            if (prefab != null) {</span>
+<span class="nc" id="L61">                prefabsRequiredForEntityStorage.add(prefab);</span>
+            }
+<span class="fc" id="L63">        }</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        for (Prefab prefab: prefabsRequiredForEntityStorage) {</span>
+<span class="nc" id="L65">            store.addPrefab(prefabSerializer.serialize(prefab));</span>
+<span class="nc" id="L66">        }</span>
+
+<span class="fc" id="L68">        EntitySerializer entitySerializer = new EntitySerializer(entityManager);</span>
+<span class="fc" id="L69">        entitySerializer.setComponentIdMapping(componentIdTable);</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        for (EntityRef entity: entities) {</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">            if (entity.isPersistent()) {</span>
+<span class="fc" id="L72">                store.addEntity(entitySerializer.serialize(entity));</span>
+            }
+<span class="fc" id="L74">        }</span>
+<span class="fc" id="L75">        store.setNextEntityId(nextEntityId);</span>
+<span class="fc" id="L76">        return store.build();</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

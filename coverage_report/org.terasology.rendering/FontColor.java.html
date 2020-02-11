@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FontColor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering</a> &gt; <span class="el_source">FontColor.java</span></div><h1>FontColor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering;
+
+import org.terasology.module.sandbox.API;
+import org.terasology.rendering.nui.Color;
+
+/**
+ * Defines a set of special characters that manipulate the font color of a rendered text string.
+ * Use {@link #toChar(int, int, int)}# to get such a char and append it to the text string at the desired position.
+ * Use {@link #getReset()} to reset the color back to the default.
+ * &lt;br&gt; 
+ * &lt;b&gt;Note:&lt;/b&gt; The resolution is only 4 bit per channel (not 8 as usual). 
+ */
+@API
+public final class FontColor {
+    private static final char FIRST_COLOR = 0xE000; // Unicode 6 specs: &quot;Private Use Area: U+E000 -- U+F8FF&quot;
+    private static final char LAST_COLOR  = 0xEFFF; 
+
+    private static final char RESET_COLOR  = 0xF000;
+    
+    private FontColor() {
+        // avoid instantiation
+    }
+
+    /**
+     * @param ch the character to test
+     * @return true for all color chars and the reset char
+     */
+    public static boolean isValid(char ch) {
+<span class="pc bpc" id="L45" title="1 of 6 branches missed.">        return (ch == RESET_COLOR) || (ch &gt;= FIRST_COLOR &amp;&amp; ch &lt;= LAST_COLOR);</span>
+    }
+    
+    /**
+     * @param ch the character to convert
+     * @return the actual color
+     */
+    public static Color toColor(char ch) {
+        
+<span class="nc" id="L54">        int rgb = ch - FIRST_COLOR;</span>
+<span class="nc" id="L55">        int r = (rgb &gt;&gt; 8) &amp; 0xF;</span>
+<span class="nc" id="L56">        int g = (rgb &gt;&gt; 4) &amp; 0xF;</span>
+<span class="nc" id="L57">        int b = (rgb &gt;&gt; 0) &amp; 0xF;</span>
+        
+<span class="nc" id="L59">        return new Color(r &lt;&lt; 4, g &lt;&lt; 4, b &lt;&lt; 4);</span>
+    }
+    
+    /**
+     * Stores the color with (4 + 4 + 4) = 12 bit accuracy as Unicode char
+     * @param color the color
+     * @return the unicode char
+     * @deprecated use {@link FontColor#getColored(String, Color)} instead
+     */
+    @Deprecated
+    public static char toChar(org.terasology.rendering.nui.Color color) {
+<span class="nc" id="L70">        return toChar(color.r(), color.g(), color.b());</span>
+    }
+    
+    /**
+     * Stores the color with (4 + 4 + 4) = 12 bit accuracy as Unicode char
+     * @param r red in [0..255]
+     * @param g green in [0..255]
+     * @param b blue in [0..255]
+     * @return the unicode char
+     * @deprecated use {@link FontColor#getColored(String, Color)} instead
+     */
+    @Deprecated
+    public static char toChar(int r, int g, int b) {
+<span class="nc" id="L83">        int rr = (r &gt;&gt; 4);</span>
+<span class="nc" id="L84">        int rg = (g &gt;&gt; 4);</span>
+<span class="nc" id="L85">        int rb = (b &gt;&gt; 4);</span>
+        
+<span class="nc" id="L87">        int ch = (rr &lt;&lt; 8) | (rg &lt;&lt; 4) | (rb &lt;&lt; 0);</span>
+<span class="nc" id="L88">        return (char) (FIRST_COLOR + ch);</span>
+    }
+    
+    /**
+     * Returns a string with encoded color information
+     * @param str the text
+     * @param color the color
+     * @return the encoded string
+     */
+    public static String getColored(String str, org.terasology.rendering.nui.Color color) {
+<span class="nc" id="L98">        return toChar(color) + str + getReset();</span>
+    }
+    
+    /**
+     * @return the color reset char
+     */
+    public static char getReset() {
+<span class="nc" id="L105">        return RESET_COLOR;</span>
+    }
+
+    /**
+     * @param text The colored text
+     * @return the same text string, but without the color information
+     */
+    public static String stripColor(String text) {
+        
+<span class="fc" id="L114">        StringBuffer sb = new StringBuffer(text.length());</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        for (int i = 0; i &lt; text.length(); i++) {</span>
+<span class="fc" id="L116">            char c = text.charAt(i);</span>
+        
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            if (!isValid(c)) {</span>
+<span class="fc" id="L119">                sb.append(c);</span>
+            }
+        }
+        
+<span class="fc" id="L123">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

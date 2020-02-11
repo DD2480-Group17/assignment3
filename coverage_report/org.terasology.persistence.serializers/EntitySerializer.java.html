@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntitySerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">EntitySerializer.java</span></div><h1>EntitySerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.persistence.serializers;
+
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.entity.internal.EntityInfoComponent;
+import org.terasology.entitySystem.entity.internal.EntityScope;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.prefab.PrefabManager;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.protobuf.EntityData;
+
+import java.util.Map;
+import java.util.Set;
+
+import static org.terasology.protobuf.EntityData.Entity.Scope.CHUNK;
+import static org.terasology.protobuf.EntityData.Entity.Scope.GLOBAL;
+import static org.terasology.protobuf.EntityData.Entity.Scope.SECTOR;
+
+/**
+ * Provides the ability to serialize and deserialize entities to the EntityData.Entity proto buffer format.
+ * &lt;br&gt;&lt;br&gt;
+ * As with the component serializer, a component id mapping can be provided to have components serialized against
+ * ids rather than name strings.
+ * &lt;br&gt;&lt;br&gt;
+ * It is also possible to set whether entity ids will be handled or ignored - if ignored then deserialized entities will
+ * be given new ids.
+ *
+ */
+public class EntitySerializer {
+    private EngineEntityManager entityManager;
+    private PrefabManager prefabManager;
+    private ComponentLibrary componentLibrary;
+    private ComponentSerializer componentSerializer;
+
+<span class="fc" id="L56">    private ComponentSerializeCheck componentSerializeCheck = ComponentSerializeCheck.NullCheck.create();</span>
+    private boolean ignoringEntityId;
+
+    /**
+     * @param entityManager The entityManager that deserialized entities will be placed in.
+     */
+    public EntitySerializer(EngineEntityManager entityManager) {
+<span class="fc" id="L63">        this(entityManager, entityManager.getComponentLibrary(), entityManager.getTypeSerializerLibrary());</span>
+<span class="fc" id="L64">    }</span>
+
+<span class="fc" id="L66">    public EntitySerializer(EngineEntityManager entityManager, ComponentLibrary componentLibrary, TypeHandlerLibrary typeHandlerLibrary) {</span>
+<span class="fc" id="L67">        this.entityManager = entityManager;</span>
+<span class="fc" id="L68">        this.prefabManager = entityManager.getPrefabManager();</span>
+<span class="fc" id="L69">        this.componentLibrary = componentLibrary;</span>
+<span class="fc" id="L70">        this.componentSerializer = new ComponentSerializer(componentLibrary, typeHandlerLibrary);</span>
+<span class="fc" id="L71">    }</span>
+
+    /**
+     * @return Whether entity ids are being ignored during serialization/deserialization
+     */
+    public boolean isIgnoringEntityId() {
+<span class="nc" id="L77">        return ignoringEntityId;</span>
+    }
+
+    public boolean isUsingFieldIds() {
+<span class="nc" id="L81">        return componentSerializer.isUsingFieldIds();</span>
+    }
+
+    public void setUsingFieldIds(boolean usingFieldIds) {
+<span class="nc" id="L85">        componentSerializer.setUsingFieldIds(usingFieldIds);</span>
+<span class="nc" id="L86">    }</span>
+
+    public void setComponentSerializeCheck(ComponentSerializeCheck check) {
+<span class="nc" id="L89">        this.componentSerializeCheck = check;</span>
+<span class="nc" id="L90">    }</span>
+
+    /**
+     * Sets whether entity ids should be ignored during serialization and deserialization.
+     * If ignored, then they will not be stored in the protobuf, and deserialized entities will be given new ids. This
+     * may break entity references, depending on how they are being handled (see: EntityRefTypeHandler)
+     *
+     * @param ignoringEntityId
+     */
+    public void setIgnoringEntityId(boolean ignoringEntityId) {
+<span class="nc" id="L100">        this.ignoringEntityId = ignoringEntityId;</span>
+<span class="nc" id="L101">    }</span>
+
+    /**
+     * Sets the mapping between component classes and the ids that are used for serialization
+     *
+     * @param table
+     */
+    public void setComponentIdMapping(Map&lt;Class&lt;? extends Component&gt;, Integer&gt; table) {
+<span class="fc" id="L109">        componentSerializer.setIdMapping(table);</span>
+<span class="fc" id="L110">    }</span>
+
+    /**
+     * @return An immutable copy of the component id mapping
+     */
+    public Map&lt;Class&lt;? extends Component&gt;, Integer&gt; getComponentIdMapping() {
+<span class="nc" id="L116">        return componentSerializer.getIdMapping();</span>
+    }
+
+    /**
+     * Clears the mapping between component classes and ids. This causes components to be serialized with their component
+     * class name instead.
+     */
+    public void removeComponentIdMapping() {
+<span class="fc" id="L124">        componentSerializer.removeIdMapping();</span>
+<span class="fc" id="L125">    }</span>
+
+    /**
+     * @param entityRef
+     * @return The serialized entity
+     */
+    public EntityData.Entity serialize(EntityRef entityRef) {
+<span class="fc" id="L132">        return serialize(entityRef, true, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance());</span>
+    }
+
+    /**
+     * @param entityRef
+     * @param deltaAgainstPrefab Whether the serialized entity should be a delta against its prefab (if any)
+     * @return The serialized entity
+     */
+    public EntityData.Entity serialize(EntityRef entityRef, boolean deltaAgainstPrefab) {
+<span class="nc" id="L141">        return serialize(entityRef, deltaAgainstPrefab, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance());</span>
+    }
+
+    /**
+     * @param entityRef
+     * @param fieldCheck Used to check whether each field in each component of the entity should be serialized.
+     * @return The serialized entity
+     */
+    public EntityData.Entity serialize(EntityRef entityRef, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="nc" id="L150">        return serialize(entityRef, true, fieldCheck);</span>
+    }
+
+    /**
+     * @param entityRef
+     * @param fieldCheck Used to check whether each field in each component of the entity should be serialized.
+     * @return The serialized entity
+     */
+    public EntityData.Entity serialize(EntityRef entityRef, boolean deltaAgainstPrefab, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="fc" id="L159">        Prefab prefab = entityRef.getParentPrefab();</span>
+<span class="pc bpc" id="L160" title="1 of 4 branches missed.">        if (prefab != null &amp;&amp; deltaAgainstPrefab) {</span>
+<span class="fc" id="L161">            return serializeEntityDelta(entityRef, prefab, fieldCheck);</span>
+        } else {
+<span class="fc" id="L163">            return serializeEntityFull(entityRef, fieldCheck);</span>
+        }
+    }
+
+    /**
+     * @param entityData
+     * @return The deserialized entity
+     */
+    public EntityRef deserialize(EntityData.Entity entityData) {
+<span class="fc" id="L172">        Map&lt;Class&lt;? extends Component&gt;, Component&gt; componentMap = createInitialComponents(entityData);</span>
+<span class="fc" id="L173">        deserializeOntoComponents(entityData, componentMap);</span>
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (ignoringEntityId) {</span>
+<span class="nc" id="L175">            return entityManager.create(componentMap.values());</span>
+        } else {
+<span class="fc" id="L177">            return entityManager.createEntityWithId(entityData.getId(), componentMap.values());</span>
+        }
+    }
+
+    /**
+     * Creates the components for the entity being deserialized based on its prefab (if any)
+     *
+     * @param entityData
+     * @return The mapping of components
+     */
+    private Map&lt;Class&lt;? extends Component&gt;, Component&gt; createInitialComponents(EntityData.Entity entityData) {
+<span class="fc" id="L188">        Set&lt;ComponentMetadata&lt;?&gt;&gt; removedComponents = Sets.newHashSet();</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">        for (String removedComp : entityData.getRemovedComponentList()) {</span>
+<span class="fc" id="L190">            ComponentMetadata&lt;?&gt; removedMetadata = componentLibrary.resolve(removedComp);</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">            if (removedMetadata != null) {</span>
+<span class="fc" id="L192">                removedComponents.add(removedMetadata);</span>
+            }
+<span class="fc" id="L194">        }</span>
+
+<span class="fc" id="L196">        Map&lt;Class&lt;? extends Component&gt;, Component&gt; componentMap = Maps.newHashMap();</span>
+<span class="pc bpc" id="L197" title="2 of 6 branches missed.">        if (entityData.hasParentPrefab() &amp;&amp; !entityData.getParentPrefab().isEmpty() &amp;&amp; prefabManager.exists(entityData.getParentPrefab())) {</span>
+<span class="fc" id="L198">            Prefab prefab = prefabManager.getPrefab(entityData.getParentPrefab());</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">            for (Component component : prefab.iterateComponents()) {</span>
+<span class="fc" id="L200">                ComponentMetadata&lt;?&gt; metadata = componentLibrary.getMetadata(component);</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">                if (!removedComponents.contains(metadata)) {</span>
+<span class="fc" id="L202">                    componentMap.put(component.getClass(), componentLibrary.copy(component));</span>
+                }
+<span class="fc" id="L204">            }</span>
+<span class="fc" id="L205">            componentMap.put(EntityInfoComponent.class, new EntityInfoComponent(prefab, true, prefab.isAlwaysRelevant()));</span>
+        }
+<span class="fc" id="L207">        return componentMap;</span>
+    }
+
+    /**
+     * Deserializes the components from an EntityData onto a map of components
+     *
+     * @param entityData
+     * @param componentMap
+     */
+    private void deserializeOntoComponents(EntityData.Entity entityData, Map&lt;Class&lt;? extends Component&gt;, Component&gt; componentMap) {
+<span class="fc" id="L217">        EntityInfoComponent entityInfo = (EntityInfoComponent) componentMap.get(EntityInfoComponent.class);</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">        if (entityInfo == null) {</span>
+<span class="fc" id="L219">            entityInfo = new EntityInfoComponent();</span>
+<span class="fc" id="L220">            componentMap.put(EntityInfoComponent.class, entityInfo);</span>
+        }
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">        if (entityData.hasOwner()) {</span>
+<span class="nc" id="L223">            entityInfo.owner = entityManager.getEntity(entityData.getOwner());</span>
+        }
+<span class="fc bfc" id="L225" title="All 2 branches covered.">        if (entityData.hasAlwaysRelevant()) {</span>
+<span class="fc" id="L226">            entityInfo.alwaysRelevant = entityData.getAlwaysRelevant();</span>
+        }
+<span class="pc bpc" id="L228" title="1 of 4 branches missed.">        switch (entityData.getScope()) {</span>
+            case GLOBAL:
+<span class="fc" id="L230">                entityInfo.scope = EntityScope.GLOBAL;</span>
+<span class="fc" id="L231">                break;</span>
+            case SECTOR:
+<span class="fc" id="L233">                entityInfo.scope = EntityScope.SECTOR;</span>
+<span class="fc" id="L234">                break;</span>
+            case CHUNK:
+<span class="fc" id="L236">                entityInfo.scope = EntityScope.CHUNK;</span>
+                break;
+        }
+
+<span class="fc bfc" id="L240" title="All 2 branches covered.">        for (EntityData.Component componentData : entityData.getComponentList()) {</span>
+<span class="fc" id="L241">            ComponentMetadata&lt;? extends Component&gt; metadata = componentSerializer.getComponentMetadata(componentData);</span>
+<span class="pc bpc" id="L242" title="2 of 4 branches missed.">            if (metadata == null || !componentSerializeCheck.serialize(metadata)) {</span>
+<span class="nc" id="L243">                continue;</span>
+            }
+
+<span class="fc" id="L246">            Component existingComponent = componentMap.get(metadata.getType());</span>
+<span class="fc bfc" id="L247" title="All 2 branches covered.">            if (existingComponent == null) {</span>
+<span class="fc" id="L248">                Component newComponent = componentSerializer.deserialize(componentData);</span>
+<span class="fc" id="L249">                componentMap.put(metadata.getType(), newComponent);</span>
+<span class="fc" id="L250">            } else {</span>
+<span class="fc" id="L251">                componentSerializer.deserializeOnto(existingComponent, componentData, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance());</span>
+            }
+<span class="fc" id="L253">        }</span>
+<span class="fc" id="L254">    }</span>
+
+    private EntityData.Entity serializeEntityFull(EntityRef entityRef, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="fc" id="L257">        EntityData.Entity.Builder entity = EntityData.Entity.newBuilder();</span>
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">        if (!ignoringEntityId) {</span>
+<span class="fc" id="L259">            entity.setId(entityRef.getId());</span>
+        }
+<span class="fc" id="L261">        entity.setAlwaysRelevant(entityRef.isAlwaysRelevant());</span>
+<span class="fc" id="L262">        EntityRef owner = entityRef.getOwner();</span>
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">        if (owner.exists()) {</span>
+<span class="nc" id="L264">            entity.setOwner(owner.getId());</span>
+        }
+<span class="fc" id="L266">        EntityScope scope = entityRef.getScope();</span>
+<span class="pc bpc" id="L267" title="1 of 2 branches missed.">        if (scope != null) {</span>
+<span class="pc bpc" id="L268" title="3 of 4 branches missed.">            switch (scope) {</span>
+                case GLOBAL:
+<span class="nc" id="L270">                    entity.setScope(GLOBAL);</span>
+<span class="nc" id="L271">                    break;</span>
+                case SECTOR:
+<span class="nc" id="L273">                    entity.setScope(SECTOR);</span>
+<span class="nc" id="L274">                    break;</span>
+                case CHUNK:
+<span class="fc" id="L276">                    entity.setScope(CHUNK);</span>
+                    break;
+
+            }
+        }
+
+<span class="fc bfc" id="L282" title="All 2 branches covered.">        for (Component component : entityRef.iterateComponents()) {</span>
+<span class="fc bfc" id="L283" title="All 2 branches covered.">            if (!componentSerializeCheck.serialize(componentLibrary.getMetadata(component.getClass()))) {</span>
+<span class="fc" id="L284">                continue;</span>
+            }
+
+<span class="fc" id="L287">            EntityData.Component componentData = componentSerializer.serialize(component, fieldCheck);</span>
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">            if (componentData != null) {</span>
+<span class="fc" id="L289">                entity.addComponent(componentData);</span>
+            }
+<span class="fc" id="L291">        }</span>
+<span class="fc" id="L292">        return entity.build();</span>
+    }
+
+    private EntityData.Entity serializeEntityDelta(EntityRef entityRef, Prefab prefab, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="fc" id="L296">        EntityData.Entity.Builder entity = EntityData.Entity.newBuilder();</span>
+<span class="pc bpc" id="L297" title="1 of 2 branches missed.">        if (!ignoringEntityId) {</span>
+<span class="fc" id="L298">            entity.setId(entityRef.getId());</span>
+        }
+<span class="fc" id="L300">        entity.setParentPrefab(prefab.getName());</span>
+<span class="fc bfc" id="L301" title="All 2 branches covered.">        if (entityRef.isAlwaysRelevant() != prefab.isAlwaysRelevant()) {</span>
+<span class="fc" id="L302">            entity.setAlwaysRelevant(entityRef.isAlwaysRelevant());</span>
+        }
+<span class="fc" id="L304">        EntityRef owner = entityRef.getOwner();</span>
+<span class="pc bpc" id="L305" title="1 of 2 branches missed.">        if (owner.exists()) {</span>
+<span class="nc" id="L306">            entity.setOwner(owner.getId());</span>
+        }
+<span class="fc" id="L308">        EntityScope scope = entityRef.getScope();</span>
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">        if (scope != null) {</span>
+<span class="pc bpc" id="L310" title="1 of 4 branches missed.">            switch (scope) {</span>
+                case GLOBAL:
+<span class="fc" id="L312">                    entity.setScope(GLOBAL);</span>
+<span class="fc" id="L313">                    break;</span>
+                case SECTOR:
+<span class="fc" id="L315">                    entity.setScope(SECTOR);</span>
+<span class="fc" id="L316">                    break;</span>
+                case CHUNK:
+<span class="fc" id="L318">                    entity.setScope(CHUNK);</span>
+                    break;
+            }
+        }
+
+
+<span class="fc" id="L324">        Set&lt;Class&lt;? extends Component&gt;&gt; presentClasses = Sets.newHashSet();</span>
+<span class="fc bfc" id="L325" title="All 2 branches covered.">        for (Component component : entityRef.iterateComponents()) {</span>
+<span class="fc bfc" id="L326" title="All 2 branches covered.">            if (!componentSerializeCheck.serialize(componentLibrary.getMetadata(component.getClass()))) {</span>
+<span class="fc" id="L327">                continue;</span>
+            }
+
+<span class="fc" id="L330">            presentClasses.add(component.getClass());</span>
+
+<span class="fc" id="L332">            Component prefabComponent = prefab.getComponent(component.getClass());</span>
+            EntityData.Component componentData;
+<span class="fc bfc" id="L334" title="All 2 branches covered.">            if (prefabComponent == null) {</span>
+<span class="fc" id="L335">                componentData = componentSerializer.serialize(component, fieldCheck);</span>
+            } else {
+<span class="fc" id="L337">                componentData = componentSerializer.serialize(prefabComponent, component, fieldCheck);</span>
+            }
+
+<span class="fc bfc" id="L340" title="All 2 branches covered.">            if (componentData != null) {</span>
+<span class="fc" id="L341">                entity.addComponent(componentData);</span>
+            }
+<span class="fc" id="L343">        }</span>
+<span class="fc bfc" id="L344" title="All 2 branches covered.">        for (Component prefabComponent : prefab.iterateComponents()) {</span>
+<span class="fc" id="L345">            ComponentMetadata&lt;?&gt; metadata = componentLibrary.getMetadata(prefabComponent.getClass());</span>
+<span class="pc bpc" id="L346" title="1 of 4 branches missed.">            if (!presentClasses.contains(prefabComponent.getClass()) &amp;&amp; componentSerializeCheck.serialize(metadata)) {</span>
+                // TODO: Use component ids here
+<span class="fc" id="L348">                entity.addRemovedComponent(metadata.getUri().toString());</span>
+            }
+<span class="fc" id="L350">        }</span>
+<span class="fc" id="L351">        return entity.build();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ColladaSkeletalMeshLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.md5</a> &gt; <span class="el_source">ColladaSkeletalMeshLoader.java</span></div><h1>ColladaSkeletalMeshLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.md5;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.rendering.assets.skeletalmesh.SkeletalMeshData;
+import org.terasology.rendering.collada.ColladaLoader;
+import org.terasology.rendering.collada.ColladaParseException;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+
+/**
+ * Importer for Collada data exchange model files.  Supports skeletal mesh data
+ * &lt;p&gt;
+ * The development of this loader was greatly influenced by
+ * http://www.wazim.com/Collada_Tutorial_1.htm
+ *
+ */
+@RegisterAssetFileFormat
+public class ColladaSkeletalMeshLoader extends AbstractAssetFileFormat&lt;SkeletalMeshData&gt; {
+
+<span class="fc" id="L42">    private static final Logger logger = LoggerFactory.getLogger(ColladaSkeletalMeshLoader.class);</span>
+
+    public ColladaSkeletalMeshLoader() {
+<span class="fc" id="L45">        super(&quot;dae&quot;);</span>
+<span class="fc" id="L46">    }</span>
+
+    @Override
+    public SkeletalMeshData load(ResourceUrn urn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="nc" id="L50">        logger.info(&quot;Loading skeletal mesh for &quot; + urn);</span>
+
+
+<span class="nc" id="L53">        try (InputStream stream = inputs.get(0).openStream()) {</span>
+<span class="nc" id="L54">            ColladaLoader loader = new ColladaLoader();</span>
+<span class="nc" id="L55">            return loader.parseSkeletalMeshData(stream);</span>
+<span class="nc" id="L56">        } catch (ColladaParseException e) {</span>
+<span class="nc" id="L57">            throw new IOException(&quot;Unable to load skeletal mesh for &quot; + urn, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

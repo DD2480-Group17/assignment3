@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SetMultimapTypeAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.gson</a> &gt; <span class="el_source">SetMultimapTypeAdapter.java</span></div><h1>SetMultimapTypeAdapter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities.gson;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.SetMultimap;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+
+import java.lang.reflect.Type;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+/**
+ */
+public class SetMultimapTypeAdapter&lt;V&gt; implements JsonDeserializer&lt;SetMultimap&lt;String, V&gt;&gt;, JsonSerializer&lt;SetMultimap&lt;String, V&gt;&gt; {
+
+    private Class&lt;V&gt; valueType;
+
+<span class="fc" id="L43">    public SetMultimapTypeAdapter(Class&lt;V&gt; valueType) {</span>
+<span class="fc" id="L44">        this.valueType = valueType;</span>
+<span class="fc" id="L45">    }</span>
+
+    @Override
+    public SetMultimap&lt;String, V&gt; deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="nc" id="L49">        SetMultimap&lt;String, V&gt; result = HashMultimap.create();</span>
+<span class="nc" id="L50">        JsonObject obj = json.getAsJsonObject();</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        for (Map.Entry&lt;String, JsonElement&gt; entry : obj.entrySet()) {</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">            if (entry.getValue().isJsonArray()) {</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">                for (JsonElement item : entry.getValue().getAsJsonArray()) {</span>
+<span class="nc" id="L54">                    result.put(entry.getKey(), context.&lt;V&gt;deserialize(item, valueType));</span>
+<span class="nc" id="L55">                }</span>
+            } else {
+<span class="nc" id="L57">                result.put(entry.getKey(), context.&lt;V&gt;deserialize(entry.getValue(), valueType));</span>
+            }
+<span class="nc" id="L59">        }</span>
+<span class="nc" id="L60">        return result;</span>
+    }
+
+    @Override
+    public JsonElement serialize(SetMultimap&lt;String, V&gt; src, Type typeOfSrc, JsonSerializationContext context) {
+<span class="nc" id="L65">        JsonObject result = new JsonObject();</span>
+<span class="nc" id="L66">        List&lt;String&gt; keys = Lists.newArrayList(src.keys());</span>
+<span class="nc" id="L67">        Collections.sort(keys);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        for (String key : keys) {</span>
+<span class="nc" id="L69">            Collection&lt;V&gt; values = src.get(key);</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            if (values.size() &gt; 1) {</span>
+<span class="nc" id="L71">                JsonArray array = new JsonArray();</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                for (V value : values) {</span>
+<span class="nc" id="L73">                    array.add(context.serialize(value));</span>
+<span class="nc" id="L74">                }</span>
+<span class="nc" id="L75">                result.add(key, array);</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            } else if (values.size() == 1) {</span>
+<span class="nc" id="L77">                result.add(key, context.serialize(values.iterator().next()));</span>
+            } else {
+<span class="nc" id="L79">                result.add(key, context.serialize(&quot;&quot;));</span>
+            }
+<span class="nc" id="L81">        }</span>
+<span class="nc" id="L82">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

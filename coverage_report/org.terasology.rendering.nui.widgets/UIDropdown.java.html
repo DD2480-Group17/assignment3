@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIDropdown.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIDropdown.java</span></div><h1>UIDropdown.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import com.google.common.collect.Lists;
+import org.terasology.input.Keyboard;
+import org.terasology.math.Border;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.nui.ActivatableWidget;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.SubRegion;
+import org.terasology.rendering.nui.TabbingManager;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.itemRendering.ItemRenderer;
+import org.terasology.rendering.nui.itemRendering.ToStringTextRenderer;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * A dropdown widget.
+ *
+ * @param &lt;T&gt; the list element type
+ */
+public class UIDropdown&lt;T&gt; extends ActivatableWidget {
+
+<span class="nc" id="L47">    private List&lt;InteractionListener&gt; optionListeners = Lists.newArrayList();</span>
+
+    protected int highlighted;
+
+    private static final String LIST = &quot;list&quot;;
+    private static final String LIST_ITEM = &quot;list-item&quot;;
+
+<span class="nc" id="L54">    private Binding&lt;List&lt;T&gt;&gt; options = new DefaultBinding&lt;&gt;(new ArrayList&lt;&gt;());</span>
+<span class="nc" id="L55">    private Binding&lt;T&gt; selection = new DefaultBinding&lt;&gt;();</span>
+
+<span class="nc" id="L57">    private ItemRenderer&lt;T&gt; optionRenderer = new ToStringTextRenderer&lt;&gt;();</span>
+    protected boolean opened;
+<span class="nc" id="L59">    private InteractionListener mainListener = new BaseInteractionListener() {</span>
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            opened = !opened;</span>
+<span class="nc" id="L63">            optionListeners.clear();</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            if (opened) {</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">                for (int i = 0; i &lt; getOptions().size(); ++i) {</span>
+<span class="nc" id="L66">                    optionListeners.add(new ItemListener(i));</span>
+                }
+            }
+<span class="nc" id="L69">            return true;</span>
+        }
+    };
+
+<span class="nc" id="L73">    public UIDropdown() {</span>
+
+<span class="nc" id="L75">    }</span>
+
+    public UIDropdown(String id) {
+<span class="nc" id="L78">        super(id);</span>
+<span class="nc" id="L79">    }</span>
+
+    @Override
+    public boolean isSkinAppliedByCanvas() {
+<span class="nc" id="L83">        return false;</span>
+    }
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L88">        canvas.drawBackground();</span>
+<span class="nc" id="L89">        try (SubRegion ignored = canvas.subRegion(canvas.getCurrentStyle().getMargin().shrink(canvas.getRegion()), false)) {</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            if (selection.get() != null) {</span>
+<span class="nc" id="L91">                optionRenderer.draw(selection.get(), canvas);</span>
+            }
+        }
+
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (!isEnabled()) {</span>
+            // do not open and do not add an interaction region
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        } else if (opened) {</span>
+<span class="nc" id="L98">            canvas.setPart(LIST);</span>
+<span class="nc" id="L99">            canvas.setDrawOnTop(true);</span>
+<span class="nc" id="L100">            Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L101">            Border itemMargin = canvas.getCurrentStyle().getMargin();</span>
+<span class="nc" id="L102">            int height = (font.getLineHeight() + itemMargin.getTotalHeight()) * options.get().size() + canvas.getCurrentStyle().getBackgroundBorder().getTotalHeight();</span>
+<span class="nc" id="L103">            canvas.addInteractionRegion(mainListener, Rect2i.createFromMinAndSize(0, 0, canvas.size().x, canvas.size().y + height));</span>
+
+<span class="nc" id="L105">            Rect2i location = Rect2i.createFromMinAndSize(0, canvas.size().y, canvas.size().x, height);</span>
+<span class="nc" id="L106">            canvas.drawBackground(location);</span>
+
+<span class="nc" id="L108">            int itemHeight = itemMargin.getTotalHeight() + font.getLineHeight();</span>
+<span class="nc" id="L109">            canvas.setPart(LIST_ITEM);</span>
+
+<span class="nc bnc" id="L111" title="All 2 branches missed.">            for (int i = 0; i &lt; optionListeners.size(); ++i) {</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                if (optionListeners.get(i).isMouseOver()) {</span>
+<span class="nc" id="L113">                    canvas.setMode(HOVER_MODE);</span>
+<span class="nc" id="L114">                    highlighted = i;</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                } else if (i == highlighted) {</span>
+<span class="nc" id="L116">                    canvas.setMode(HOVER_MODE);</span>
+                } else {
+<span class="nc" id="L118">                    canvas.setMode(DEFAULT_MODE);</span>
+                }
+<span class="nc" id="L120">                Rect2i itemRegion = Rect2i.createFromMinAndSize(0, canvas.size().y + itemHeight * i, canvas.size().x, itemHeight);</span>
+<span class="nc" id="L121">                canvas.drawBackground(itemRegion);</span>
+<span class="nc" id="L122">                optionRenderer.draw(options.get().get(i), canvas, itemMargin.shrink(itemRegion));</span>
+<span class="nc" id="L123">                canvas.addInteractionRegion(optionListeners.get(i), itemRegion);</span>
+            }
+<span class="nc" id="L125">        } else {</span>
+<span class="nc" id="L126">            canvas.addInteractionRegion(mainListener);</span>
+        }
+<span class="nc" id="L128">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i areaHint) {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if (selection.get() != null) {</span>
+<span class="nc" id="L133">            return canvas.getCurrentStyle().getMargin().grow(optionRenderer.getPreferredSize(selection.get(), canvas));</span>
+        }
+<span class="nc" id="L135">        return canvas.getCurrentStyle().getMargin().grow(new Vector2i(1, canvas.getCurrentStyle().getFont().getLineHeight()));</span>
+    }
+
+    @Override
+    public String getMode() {
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if (!isEnabled()) {</span>
+<span class="nc" id="L141">            return DISABLED_MODE;</span>
+<span class="nc bnc" id="L142" title="All 4 branches missed.">        } else if (opened || this.equals(TabbingManager.focusedWidget)) {</span>
+<span class="nc" id="L143">            return ACTIVE_MODE;</span>
+        }
+<span class="nc" id="L145">        return DEFAULT_MODE;</span>
+    }
+
+    @Override
+    public void onLoseFocus() {
+<span class="nc" id="L150">        super.onLoseFocus();</span>
+<span class="nc" id="L151">        opened = false;</span>
+<span class="nc" id="L152">        optionListeners.clear();</span>
+<span class="nc" id="L153">    }</span>
+
+    public void bindOptions(Binding&lt;List&lt;T&gt;&gt; binding) {
+<span class="nc" id="L156">        options = binding;</span>
+<span class="nc" id="L157">    }</span>
+
+    /**
+     * Get all the options from the dropdown.
+     *
+     * @return A List containing all the options.
+     */
+    public List&lt;T&gt; getOptions() {
+<span class="nc" id="L165">        return options.get();</span>
+    }
+
+    /**
+     * Set a new set of options for the dropdown.
+     *
+     * @param values A List containing the new options.
+     */
+    public void setOptions(List&lt;T&gt; values) {
+<span class="nc" id="L174">        this.options.set(values);</span>
+<span class="nc" id="L175">    }</span>
+
+    public void bindSelection(Binding&lt;T&gt; binding) {
+<span class="nc" id="L178">        this.selection = binding;</span>
+<span class="nc" id="L179">    }</span>
+
+    /**
+     * Get the currently selected item.
+     *
+     * @return The currently selected item.
+     */
+    public T getSelection() {
+<span class="nc" id="L187">        return selection.get();</span>
+    }
+
+    /**
+     * Set the item from that should be selected.
+     * Note that this item does not actually have to be contained in the List of options.
+     *
+     * @param value The item to set as selected.
+     */
+    public void setSelection(T value) {
+<span class="nc" id="L197">        selection.set(value);</span>
+<span class="nc" id="L198">    }</span>
+
+    /**
+     * Set the renderer to use for the options.
+     * This is used to display the options on the dropdown list and in the selection box.
+     *
+     * @param itemRenderer The new item renderer.
+     */
+    public void setOptionRenderer(ItemRenderer&lt;T&gt; itemRenderer) {
+<span class="nc" id="L207">        optionRenderer = itemRenderer;</span>
+<span class="nc" id="L208">    }</span>
+
+    public void setOpenedReverse(boolean selectionSet) {
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        opened = !opened;</span>
+
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        if (!opened) {</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">            if (selectionSet) {</span>
+<span class="nc" id="L215">                setSelection(getOptions().get(highlighted));</span>
+            }
+        }
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if (getOptions().size() != optionListeners.size()) {</span>
+<span class="nc" id="L219">            optionListeners.clear();</span>
+
+<span class="nc bnc" id="L221" title="All 2 branches missed.">            for (int i = 0; i &lt; getOptions().size(); ++i) {</span>
+<span class="nc" id="L222">                optionListeners.add(new ItemListener(i));</span>
+            }
+        }
+<span class="nc" id="L225">    }</span>
+
+    private class ItemListener extends BaseInteractionListener {
+        private int index;
+
+<span class="nc" id="L230">        ItemListener(int index) {</span>
+<span class="nc" id="L231">            this.index = index;</span>
+<span class="nc" id="L232">        }</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc" id="L236">            setSelection(getOptions().get(index));</span>
+<span class="nc" id="L237">            highlighted = index;</span>
+<span class="nc" id="L238">            opened = false;</span>
+<span class="nc" id="L239">            return true;</span>
+        }
+    }
+
+    public void changeHighlighted(boolean increase) {
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        if (!opened) {</span>
+<span class="nc" id="L245">            highlighted = getOptions().indexOf(getSelection());</span>
+        }
+
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        if (increase) {</span>
+<span class="nc" id="L249">            highlighted++;</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">            if (highlighted &gt;= getOptions().size()) {</span>
+<span class="nc" id="L251">                highlighted = 0;</span>
+            }
+        } else {
+<span class="nc" id="L254">            highlighted--;</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">            if (highlighted &lt; 0) {</span>
+<span class="nc" id="L256">                highlighted = getOptions().size() - 1;</span>
+            }
+        }
+
+<span class="nc bnc" id="L260" title="All 2 branches missed.">        if (!opened) {</span>
+<span class="nc" id="L261">            setSelection(getOptions().get(highlighted));</span>
+        }
+<span class="nc" id="L263">    }</span>
+
+    public boolean isOpened() {
+<span class="nc" id="L266">        return opened;</span>
+    }
+
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc bnc" id="L271" title="All 2 branches missed.">        if (event.isDown()) {</span>
+<span class="nc" id="L272">            int keyId = event.getKey().getId();</span>
+<span class="nc bnc" id="L273" title="All 6 branches missed.">            switch (keyId) {</span>
+                case Keyboard.KeyId.UP:
+<span class="nc" id="L275">                    this.changeHighlighted(false);</span>
+<span class="nc" id="L276">                    return false;</span>
+                case Keyboard.KeyId.DOWN:
+<span class="nc" id="L278">                    this.changeHighlighted(true);</span>
+<span class="nc" id="L279">                    return false;</span>
+                case Keyboard.KeyId.LEFT:
+<span class="nc bnc" id="L281" title="All 2 branches missed.">                    if (opened) {</span>
+<span class="nc" id="L282">                        setOpenedReverse(false);</span>
+                    }
+<span class="nc" id="L284">                    return true;</span>
+                case Keyboard.KeyId.ENTER:
+<span class="nc bnc" id="L286" title="All 2 branches missed.">                    if (opened) {</span>
+<span class="nc" id="L287">                        setSelection(getOptions().get(highlighted));</span>
+<span class="nc" id="L288">                        setOpenedReverse(false);</span>
+                    } else {
+<span class="nc" id="L290">                        setOpenedReverse(false);</span>
+<span class="nc" id="L291">                        highlighted = getOptions().indexOf(getSelection());</span>
+                    }
+<span class="nc" id="L293">                    return true;</span>
+                case Keyboard.KeyId.RIGHT:
+<span class="nc bnc" id="L295" title="All 2 branches missed.">                    if (!opened) {</span>
+<span class="nc" id="L296">                        setOpenedReverse(false);</span>
+                    }
+<span class="nc" id="L298">                    return true;</span>
+            }
+        }
+<span class="nc" id="L301">        return super.onKeyEvent(event);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

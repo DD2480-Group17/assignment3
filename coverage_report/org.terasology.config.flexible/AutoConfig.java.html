@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AutoConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config.flexible</a> &gt; <span class="el_source">AutoConfig.java</span></div><h1>AutoConfig.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.config.flexible;
+
+import com.google.common.collect.ImmutableList;
+import org.reflections.ReflectionUtils;
+import org.terasology.config.flexible.internal.SettingBuilder;
+import org.terasology.config.flexible.internal.SettingImplBuilder;
+import org.terasology.engine.SimpleUri;
+import org.terasology.reflection.TypeInfo;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Set;
+
+/**
+ * Represents a config class that will be automatically initialized and rendered by the engine.
+ * All settings must be contained in {@code public static} fields of type {@link Setting}.
+ */
+<span class="fc" id="L33">public abstract class AutoConfig {</span>
+    private SimpleUri id;
+
+    static Set&lt;Field&gt; getSettingFieldsIn(Class&lt;? extends AutoConfig&gt; configType) {
+<span class="fc" id="L37">        return ReflectionUtils.getFields(</span>
+            configType,
+<span class="fc" id="L39">            ReflectionUtils.withModifier(Modifier.PUBLIC),</span>
+<span class="fc" id="L40">            ReflectionUtils.withModifier(Modifier.FINAL),</span>
+<span class="fc" id="L41">            ReflectionUtils.withType(Setting.class)</span>
+        );
+    }
+
+    private static &lt;T&gt; Setting&lt;T&gt; setting(Iterable&lt;SettingArgument&lt;?, T&gt;&gt; arguments) {
+<span class="fc" id="L46">        SettingBuilder&lt;T&gt; builder = new SettingImplBuilder&lt;&gt;();</span>
+
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        for (SettingArgument&lt;?, T&gt; argument : arguments) {</span>
+<span class="fc" id="L49">            argument.setInBuilder(builder);</span>
+<span class="fc" id="L50">        }</span>
+
+<span class="fc" id="L52">        return builder.build();</span>
+    }
+
+    @SafeVarargs
+    protected static &lt;T&gt; Setting&lt;T&gt; setting(SettingArgument&lt;TypeInfo&lt;T&gt;, T&gt; valueType,
+                                            SettingArgument&lt;T, T&gt; defaultValue,
+                                            SettingArgument&lt;?, T&gt;... arguments) {
+<span class="fc" id="L59">        return setting(</span>
+<span class="fc" id="L60">            ImmutableList.&lt;SettingArgument&lt;?, T&gt;&gt;builder()</span>
+<span class="fc" id="L61">                .add(valueType)</span>
+<span class="fc" id="L62">                .add(defaultValue)</span>
+<span class="fc" id="L63">                .add(arguments)</span>
+<span class="fc" id="L64">                .build()</span>
+        );
+    }
+
+    public SimpleUri getId() {
+<span class="fc" id="L69">        return id;</span>
+    }
+
+    void setId(SimpleUri id) {
+<span class="fc" id="L73">        this.id = id;</span>
+<span class="fc" id="L74">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

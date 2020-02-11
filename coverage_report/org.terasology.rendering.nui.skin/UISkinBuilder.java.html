@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UISkinBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.skin</a> &gt; <span class="el_source">UISkinBuilder.java</span></div><h1>UISkinBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.skin;
+
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Table;
+import org.terasology.math.Border;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.HorizontalAlign;
+import org.terasology.rendering.nui.ScaleMode;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.VerticalAlign;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+/**
+ */
+<span class="nc" id="L39">public class UISkinBuilder {</span>
+
+    private UISkin baseSkin;
+<span class="nc" id="L42">    private Set&lt;String&gt; families = Sets.newLinkedHashSet();</span>
+<span class="nc" id="L43">    private Set&lt;StyleKey&gt; baseStyleKeys = Sets.newLinkedHashSet();</span>
+
+<span class="nc" id="L45">    private Map&lt;String, UIStyleFragment&gt; baseStyles = Maps.newHashMap();</span>
+<span class="nc" id="L46">    private Table&lt;String, StyleKey, UIStyleFragment&gt; elementStyles = HashBasedTable.create();</span>
+
+<span class="nc" id="L48">    private UIStyleFragment currentStyle = new UIStyleFragment();</span>
+<span class="nc" id="L49">    private String currentFamily = &quot;&quot;;</span>
+    private Class&lt;? extends UIWidget&gt; currentElement;
+<span class="nc" id="L51">    private String currentPart = &quot;&quot;;</span>
+<span class="nc" id="L52">    private String currentMode = &quot;&quot;;</span>
+
+    private void saveStyle() {
+<span class="nc bnc" id="L55" title="All 4 branches missed.">        if (currentFamily.isEmpty() &amp;&amp; currentElement != null) {</span>
+<span class="nc" id="L56">            baseStyleKeys.add(new StyleKey(currentElement, currentPart, currentMode));</span>
+        }
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if (currentElement != null) {</span>
+<span class="nc" id="L59">            elementStyles.put(currentFamily, new StyleKey(currentElement, currentPart, currentMode), currentStyle);</span>
+        } else {
+<span class="nc" id="L61">            baseStyles.put(currentFamily, currentStyle);</span>
+        }
+<span class="nc" id="L63">        currentStyle = new UIStyleFragment();</span>
+<span class="nc" id="L64">    }</span>
+
+    public UISkinBuilder setBaseSkin(UISkin skin) {
+<span class="nc" id="L67">        this.baseSkin = skin;</span>
+<span class="nc" id="L68">        return this;</span>
+    }
+
+    public UISkinBuilder setFamily(String family) {
+<span class="nc" id="L72">        saveStyle();</span>
+<span class="nc" id="L73">        families.add(family);</span>
+<span class="nc" id="L74">        currentFamily = family;</span>
+<span class="nc" id="L75">        currentElement = null;</span>
+<span class="nc" id="L76">        currentPart = &quot;&quot;;</span>
+<span class="nc" id="L77">        currentMode = &quot;&quot;;</span>
+<span class="nc" id="L78">        return this;</span>
+    }
+
+    public UISkinBuilder setElementClass(Class&lt;? extends UIWidget&gt; widget) {
+<span class="nc" id="L82">        saveStyle();</span>
+<span class="nc" id="L83">        currentElement = widget;</span>
+<span class="nc" id="L84">        currentMode = &quot;&quot;;</span>
+<span class="nc" id="L85">        currentPart = &quot;&quot;;</span>
+<span class="nc" id="L86">        return this;</span>
+    }
+
+    public UISkinBuilder setElementPart(String part) {
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if (currentElement == null) {</span>
+<span class="nc" id="L91">            throw new IllegalStateException(&quot;Element class must be set before element part&quot;);</span>
+        }
+<span class="nc" id="L93">        saveStyle();</span>
+<span class="nc" id="L94">        currentPart = part;</span>
+<span class="nc" id="L95">        currentMode = &quot;&quot;;</span>
+<span class="nc" id="L96">        return this;</span>
+    }
+
+    public UISkinBuilder setElementMode(String mode) {
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (currentElement == null) {</span>
+<span class="nc" id="L101">            throw new IllegalStateException(&quot;Element class must be set before element mode&quot;);</span>
+        }
+<span class="nc" id="L103">        saveStyle();</span>
+<span class="nc" id="L104">        currentMode = mode;</span>
+<span class="nc" id="L105">        return this;</span>
+    }
+
+    public UISkinBuilder setBackground(TextureRegion background) {
+<span class="nc" id="L109">        currentStyle.setBackground(background);</span>
+<span class="nc" id="L110">        return this;</span>
+    }
+
+    public UISkinBuilder setBackgroundBorder(Border border) {
+<span class="nc" id="L114">        currentStyle.setBackgroundBorder(border);</span>
+<span class="nc" id="L115">        return this;</span>
+    }
+
+    public UISkinBuilder setBackgroundMode(ScaleMode mode) {
+<span class="nc" id="L119">        currentStyle.setBackgroundScaleMode(mode);</span>
+<span class="nc" id="L120">        return this;</span>
+    }
+
+    public UISkinBuilder setFixedWidth(int width) {
+<span class="nc" id="L124">        currentStyle.setFixedWidth(width);</span>
+<span class="nc" id="L125">        return this;</span>
+    }
+
+    public UISkinBuilder setFixedHeight(int height) {
+<span class="nc" id="L129">        currentStyle.setFixedHeight(height);</span>
+<span class="nc" id="L130">        return this;</span>
+    }
+
+    public UISkinBuilder setHorizontalAlignment(HorizontalAlign align) {
+<span class="nc" id="L134">        currentStyle.setAlignmentH(align);</span>
+<span class="nc" id="L135">        return this;</span>
+    }
+
+    public UISkinBuilder setVerticalAlignment(VerticalAlign align) {
+<span class="nc" id="L139">        currentStyle.setAlignmentV(align);</span>
+<span class="nc" id="L140">        return this;</span>
+    }
+
+    public UISkinBuilder setMargin(Border margin) {
+<span class="nc" id="L144">        currentStyle.setMargin(margin);</span>
+<span class="nc" id="L145">        return this;</span>
+    }
+
+    public UISkinBuilder setTextureScaleMode(ScaleMode scaleMode) {
+<span class="nc" id="L149">        currentStyle.setTextureScaleMode(scaleMode);</span>
+<span class="nc" id="L150">        return this;</span>
+    }
+
+    public UISkinBuilder setFont(Font font) {
+<span class="nc" id="L154">        currentStyle.setFont(font);</span>
+<span class="nc" id="L155">        return this;</span>
+    }
+
+    public UISkinBuilder setTextColor(Color color) {
+<span class="nc" id="L159">        currentStyle.setTextColor(color);</span>
+<span class="nc" id="L160">        return this;</span>
+    }
+
+    public UISkinBuilder setTextShadowColor(Color color) {
+<span class="nc" id="L164">        currentStyle.setTextShadowColor(color);</span>
+<span class="nc" id="L165">        return this;</span>
+    }
+
+    public UISkinBuilder setTextShadowed(boolean shadowed) {
+<span class="nc" id="L169">        currentStyle.setTextShadowed(shadowed);</span>
+<span class="nc" id="L170">        return this;</span>
+    }
+
+    public UISkinBuilder setTextHorizontalAlignment(HorizontalAlign hAlign) {
+<span class="nc" id="L174">        currentStyle.setTextAlignmentH(hAlign);</span>
+<span class="nc" id="L175">        return this;</span>
+    }
+
+    public UISkinBuilder setTextVerticalAlignment(VerticalAlign vAlign) {
+<span class="nc" id="L179">        currentStyle.setTextAlignmentV(vAlign);</span>
+<span class="nc" id="L180">        return this;</span>
+    }
+
+    public UISkinBuilder setTextUnderlined(boolean underlined) {
+<span class="nc" id="L184">        currentStyle.setTextUnderlined(underlined);</span>
+<span class="nc" id="L185">        return this;</span>
+    }
+
+    public UISkinBuilder setStyleFragment(UIStyleFragment fragment) {
+<span class="nc" id="L189">        currentStyle = fragment;</span>
+<span class="nc" id="L190">        return this;</span>
+    }
+
+    public UISkinData build() {
+<span class="nc" id="L194">        saveStyle();</span>
+<span class="nc" id="L195">        Map&lt;String, UIStyleFamily&gt; skinFamilies = Maps.newHashMap();</span>
+
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        if (baseSkin != null) {</span>
+<span class="nc" id="L198">            UIStyle rootStyle = new UIStyle(baseSkin.getDefaultStyle());</span>
+<span class="nc" id="L199">            baseStyles.get(&quot;&quot;).applyTo(rootStyle);</span>
+<span class="nc" id="L200">            skinFamilies.put(&quot;&quot;, buildFamily(&quot;&quot;, baseSkin));</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            for (String family : families) {</span>
+<span class="nc" id="L202">                skinFamilies.put(family, buildFamily(family, baseSkin));</span>
+<span class="nc" id="L203">            }</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">            for (String family : baseSkin.getFamilies()) {</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                if (!skinFamilies.containsKey(family)) {</span>
+<span class="nc" id="L206">                    skinFamilies.put(family, baseSkin.getFamily(family));</span>
+                }
+<span class="nc" id="L208">            }</span>
+<span class="nc" id="L209">            return new UISkinData(skinFamilies);</span>
+        } else {
+<span class="nc" id="L211">            UIStyle rootStyle = new UIStyle();</span>
+<span class="nc" id="L212">            baseStyles.get(&quot;&quot;).applyTo(rootStyle);</span>
+<span class="nc" id="L213">            skinFamilies.put(&quot;&quot;, buildFamily(&quot;&quot;, rootStyle));</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">            for (String family : families) {</span>
+<span class="nc" id="L215">                skinFamilies.put(family, buildFamily(family, rootStyle));</span>
+<span class="nc" id="L216">            }</span>
+<span class="nc" id="L217">            return new UISkinData(skinFamilies);</span>
+        }
+    }
+
+    private UIStyleFamily buildFamily(String family, UISkin skin) {
+<span class="nc" id="L222">        UIStyleFamily baseFamily = skin.getFamily(family);</span>
+<span class="nc" id="L223">        UIStyle baseStyle = new UIStyle(skin.getDefaultStyleFor(family));</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        if (!family.isEmpty()) {</span>
+<span class="nc" id="L225">            UIStyleFragment fragment = baseStyles.get(family);</span>
+<span class="nc" id="L226">            fragment.applyTo(baseStyle);</span>
+        }
+
+<span class="nc" id="L229">        Set&lt;StyleKey&gt; inheritedStyleKey = Sets.newLinkedHashSet();</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        for (Class&lt;? extends UIWidget&gt; widget : baseFamily.getWidgets()) {</span>
+<span class="nc" id="L231">            inheritedStyleKey.add(new StyleKey(widget, &quot;&quot;, &quot;&quot;));</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            for (String part : baseFamily.getPartsFor(widget)) {</span>
+<span class="nc" id="L233">                inheritedStyleKey.add(new StyleKey(widget, part, &quot;&quot;));</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">                for (String mode : baseFamily.getModesFor(widget, part)) {</span>
+<span class="nc" id="L235">                    inheritedStyleKey.add(new StyleKey(widget, part, mode));</span>
+<span class="nc" id="L236">                }</span>
+<span class="nc" id="L237">            }</span>
+<span class="nc" id="L238">        }</span>
+
+<span class="nc" id="L240">        Map&lt;Class&lt;? extends UIWidget&gt;, Table&lt;String, String, UIStyle&gt;&gt; familyStyles = Maps.newHashMap();</span>
+<span class="nc" id="L241">        Map&lt;StyleKey, UIStyleFragment&gt; styleLookup = elementStyles.row(family);</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">        Map&lt;StyleKey, UIStyleFragment&gt; baseStyleLookup = (family.isEmpty()) ? Maps.&lt;StyleKey, UIStyleFragment&gt;newHashMap() : elementStyles.row(&quot;&quot;);</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">        for (StyleKey styleKey : Sets.union(Sets.union(styleLookup.keySet(), baseStyleKeys), inheritedStyleKey)) {</span>
+<span class="nc" id="L244">            UIStyle elementStyle = new UIStyle(baseSkin.getStyleFor(family, styleKey.element, styleKey.part, styleKey.mode));</span>
+<span class="nc" id="L245">            baseStyles.get(&quot;&quot;).applyTo(elementStyle);</span>
+<span class="nc" id="L246">            baseStyles.get(family).applyTo(elementStyle);</span>
+<span class="nc" id="L247">            List&lt;Class&lt;? extends UIWidget&gt;&gt; inheritanceTree = ReflectionUtil.getInheritanceTree(styleKey.element, UIWidget.class);</span>
+<span class="nc" id="L248">            applyStylesForInheritanceTree(inheritanceTree, &quot;&quot;, &quot;&quot;, elementStyle, styleLookup, baseStyleLookup);</span>
+
+<span class="nc bnc" id="L250" title="All 2 branches missed.">            if (!styleKey.part.isEmpty()) {</span>
+<span class="nc" id="L251">                applyStylesForInheritanceTree(inheritanceTree, styleKey.part, &quot;&quot;, elementStyle, styleLookup, baseStyleLookup);</span>
+            }
+
+<span class="nc bnc" id="L254" title="All 2 branches missed.">            if (!styleKey.mode.isEmpty()) {</span>
+<span class="nc" id="L255">                applyStylesForInheritanceTree(inheritanceTree, styleKey.part, styleKey.mode, elementStyle, styleLookup, baseStyleLookup);</span>
+            }
+
+<span class="nc" id="L258">            Table&lt;String, String, UIStyle&gt; elementTable = familyStyles.get(styleKey.element);</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">            if (elementTable == null) {</span>
+<span class="nc" id="L260">                elementTable = HashBasedTable.create();</span>
+<span class="nc" id="L261">                familyStyles.put(styleKey.element, elementTable);</span>
+            }
+<span class="nc" id="L263">            elementTable.put(styleKey.part, styleKey.mode, elementStyle);</span>
+<span class="nc" id="L264">        }</span>
+<span class="nc" id="L265">        return new UIStyleFamily(baseStyle, familyStyles);</span>
+    }
+
+    private UIStyleFamily buildFamily(String family, UIStyle defaultStyle) {
+<span class="nc" id="L269">        UIStyle baseStyle = new UIStyle(defaultStyle);</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">        if (!family.isEmpty()) {</span>
+<span class="nc" id="L271">            UIStyleFragment fragment = baseStyles.get(family);</span>
+<span class="nc" id="L272">            fragment.applyTo(baseStyle);</span>
+        }
+
+<span class="nc" id="L275">        Map&lt;Class&lt;? extends UIWidget&gt;, Table&lt;String, String, UIStyle&gt;&gt; familyStyles = Maps.newHashMap();</span>
+<span class="nc" id="L276">        Map&lt;StyleKey, UIStyleFragment&gt; styleLookup = elementStyles.row(family);</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        Map&lt;StyleKey, UIStyleFragment&gt; baseStyleLookup = (family.isEmpty()) ? Maps.&lt;StyleKey, UIStyleFragment&gt;newHashMap() : elementStyles.row(&quot;&quot;);</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">        for (StyleKey styleKey : Sets.union(styleLookup.keySet(), baseStyleKeys)) {</span>
+<span class="nc" id="L279">            UIStyle elementStyle = new UIStyle(baseStyle);</span>
+<span class="nc" id="L280">            List&lt;Class&lt;? extends UIWidget&gt;&gt; inheritanceTree = ReflectionUtil.getInheritanceTree(styleKey.element, UIWidget.class);</span>
+<span class="nc" id="L281">            applyStylesForInheritanceTree(inheritanceTree, &quot;&quot;, &quot;&quot;, elementStyle, styleLookup, baseStyleLookup);</span>
+
+<span class="nc bnc" id="L283" title="All 2 branches missed.">            if (!styleKey.part.isEmpty()) {</span>
+<span class="nc" id="L284">                applyStylesForInheritanceTree(inheritanceTree, styleKey.part, &quot;&quot;, elementStyle, styleLookup, baseStyleLookup);</span>
+            }
+
+<span class="nc bnc" id="L287" title="All 2 branches missed.">            if (!styleKey.mode.isEmpty()) {</span>
+<span class="nc" id="L288">                applyStylesForInheritanceTree(inheritanceTree, styleKey.part, styleKey.mode, elementStyle, styleLookup, baseStyleLookup);</span>
+            }
+
+<span class="nc" id="L291">            Table&lt;String, String, UIStyle&gt; elementTable = familyStyles.get(styleKey.element);</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">            if (elementTable == null) {</span>
+<span class="nc" id="L293">                elementTable = HashBasedTable.create();</span>
+<span class="nc" id="L294">                familyStyles.put(styleKey.element, elementTable);</span>
+            }
+<span class="nc" id="L296">            elementTable.put(styleKey.part, styleKey.mode, elementStyle);</span>
+<span class="nc" id="L297">        }</span>
+<span class="nc" id="L298">        return new UIStyleFamily(baseStyle, familyStyles);</span>
+    }
+
+    private void applyStylesForInheritanceTree(List&lt;Class&lt;? extends UIWidget&gt;&gt; inheritanceTree, String part, String mode, UIStyle elementStyle,
+                                               Map&lt;StyleKey, UIStyleFragment&gt; styleLookup, Map&lt;StyleKey, UIStyleFragment&gt; baseStyleLookup) {
+<span class="nc bnc" id="L303" title="All 2 branches missed.">        for (Class&lt;? extends UIWidget&gt; element : inheritanceTree) {</span>
+<span class="nc" id="L304">            StyleKey key = new StyleKey(element, part, mode);</span>
+<span class="nc" id="L305">            UIStyleFragment baseElementStyle = baseStyleLookup.get(key);</span>
+<span class="nc bnc" id="L306" title="All 2 branches missed.">            if (baseElementStyle != null) {</span>
+<span class="nc" id="L307">                baseElementStyle.applyTo(elementStyle);</span>
+            }
+
+<span class="nc" id="L310">            UIStyleFragment elemStyle = styleLookup.get(key);</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">            if (elemStyle != null) {</span>
+<span class="nc" id="L312">                elemStyle.applyTo(elementStyle);</span>
+            }
+<span class="nc" id="L314">        }</span>
+<span class="nc" id="L315">    }</span>
+
+    private static final class StyleKey {
+        private Class&lt;? extends UIWidget&gt; element;
+        private String part;
+        private String mode;
+
+<span class="nc" id="L322">        private StyleKey(Class&lt;? extends UIWidget&gt; element, String part, String mode) {</span>
+<span class="nc" id="L323">            this.element = element;</span>
+<span class="nc" id="L324">            this.part = part;</span>
+<span class="nc" id="L325">            this.mode = mode;</span>
+<span class="nc" id="L326">        }</span>
+
+        @Override
+        public boolean equals(Object obj) {
+<span class="nc bnc" id="L330" title="All 2 branches missed.">            if (obj == this) {</span>
+<span class="nc" id="L331">                return true;</span>
+            }
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            if (obj instanceof StyleKey) {</span>
+<span class="nc" id="L334">                StyleKey other = (StyleKey) obj;</span>
+<span class="nc bnc" id="L335" title="All 6 branches missed.">                return Objects.equals(other.element, element) &amp;&amp; Objects.equals(other.part, part) &amp;&amp; Objects.equals(other.mode, mode);</span>
+            }
+<span class="nc" id="L337">            return false;</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="nc" id="L342">            return Objects.hash(element, part, mode);</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="nc" id="L347">            return element.getSimpleName() + &quot;:&quot; + part + &quot;:&quot; + mode;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

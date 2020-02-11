@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseBooleanFieldFacet2D.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.generation.facets.base</a> &gt; <span class="el_source">BaseBooleanFieldFacet2D.java</span></div><h1>BaseBooleanFieldFacet2D.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.generation.facets.base;
+
+import com.google.common.base.Preconditions;
+
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.world.generation.Border3D;
+
+/**
+ * An abstract, but complete implementation of {@link BooleanFieldFacet2D} that
+ * is backed by a primitive boolean array.
+ *
+ */
+public abstract class BaseBooleanFieldFacet2D extends BaseFacet2D implements BooleanFieldFacet2D {
+
+    private final boolean[] data;
+
+    public BaseBooleanFieldFacet2D(Region3i targetRegion, Border3D border) {
+<span class="nc" id="L34">        super(targetRegion, border);</span>
+<span class="nc" id="L35">        Vector2i size = getRelativeRegion().size();</span>
+<span class="nc" id="L36">        data = new boolean[size.x * size.y];</span>
+<span class="nc" id="L37">    }</span>
+
+    @Override
+    public boolean get(int x, int y) {
+<span class="nc" id="L41">        return data[getRelativeIndex(x, y)];</span>
+    }
+
+    @Override
+    public boolean get(Vector2i pos) {
+<span class="nc" id="L46">        return get(pos.x, pos.y);</span>
+    }
+
+    @Override
+    public boolean getWorld(int x, int y) {
+<span class="nc" id="L51">        return data[getWorldIndex(x, y)];</span>
+    }
+
+    @Override
+    public boolean getWorld(Vector2i pos) {
+<span class="nc" id="L56">        return getWorld(pos.x, pos.y);</span>
+    }
+
+    /**
+     * This method exists for performance reasons, but it
+     * is recommended to use proper getters and setters instead.
+     * @return the internal data buffer
+     */
+    public boolean[] getInternal() {
+<span class="nc" id="L65">        return data;</span>
+    }
+
+    @Override
+    public void set(int x, int y, boolean value) {
+<span class="nc" id="L70">        data[getRelativeIndex(x, y)] = value;</span>
+<span class="nc" id="L71">    }</span>
+
+    @Override
+    public void set(Vector2i pos, boolean value) {
+<span class="nc" id="L75">        set(pos.x, pos.y, value);</span>
+<span class="nc" id="L76">    }</span>
+
+    @Override
+    public void setWorld(int x, int y, boolean value) {
+<span class="nc" id="L80">        data[getWorldIndex(x, y)] = value;</span>
+<span class="nc" id="L81">    }</span>
+
+    @Override
+    public void setWorld(Vector2i pos, boolean value) {
+<span class="nc" id="L85">        setWorld(pos.x, pos.y, value);</span>
+<span class="nc" id="L86">    }</span>
+
+    /**
+     * Replaces the content of backing entirely with new data.
+     * @param newData the new data (must be of size width * height)
+     * @throws IllegalArgumentException if the size does not match
+     */
+    public void set(boolean[] newData) {
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        Preconditions.checkArgument(newData.length == data.length, &quot;Length must be %s, but is %s&quot;, data.length, newData.length);</span>
+<span class="nc" id="L95">        System.arraycopy(newData, 0, data, 0, newData.length);</span>
+<span class="nc" id="L96">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

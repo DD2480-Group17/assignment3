@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldProviderWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.internal</a> &gt; <span class="el_source">WorldProviderWrapper.java</span></div><h1>WorldProviderWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.internal;
+
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.WorldChangeListener;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+
+import java.math.RoundingMode;
+import java.util.Collection;
+
+/**
+ */
+public class WorldProviderWrapper extends AbstractWorldProviderDecorator implements WorldProvider {
+    private WorldProviderCore core;
+    private ExtraBlockDataManager extraDataManager;
+
+    public WorldProviderWrapper(WorldProviderCore core, ExtraBlockDataManager extraDataManager) {
+<span class="nc" id="L37">        super(core);</span>
+<span class="nc" id="L38">        this.core = core;</span>
+<span class="nc" id="L39">        this.extraDataManager = extraDataManager;</span>
+<span class="nc" id="L40">    }</span>
+
+    @Override
+    public boolean isBlockRelevant(Vector3i pos) {
+<span class="nc" id="L44">        return core.isBlockRelevant(pos.x, pos.y, pos.z);</span>
+    }
+
+    @Override
+    public boolean isBlockRelevant(Vector3f pos) {
+<span class="nc" id="L49">        return isBlockRelevant(new Vector3i(pos, RoundingMode.HALF_UP));</span>
+    }
+
+    @Override
+    public Block setBlock(Vector3i pos, Block type) {
+<span class="nc" id="L54">        return core.setBlock(pos, type);</span>
+    }
+
+    @Override
+    public Block getBlock(Vector3f pos) {
+<span class="nc" id="L59">        return getBlock(new Vector3i(pos, RoundingMode.HALF_UP));</span>
+    }
+
+    @Override
+    public Block getBlock(Vector3i pos) {
+<span class="nc" id="L64">        return core.getBlock(pos.x, pos.y, pos.z);</span>
+    }
+
+    @Override
+    public byte getLight(Vector3i pos) {
+<span class="nc" id="L69">        return core.getLight(pos.x, pos.y, pos.z);</span>
+    }
+
+    @Override
+    public byte getLight(Vector3f pos) {
+<span class="nc" id="L74">        return getLight(new Vector3i(pos, RoundingMode.HALF_UP));</span>
+    }
+
+    @Override
+    public byte getSunlight(Vector3f pos) {
+<span class="nc" id="L79">        return getSunlight(new Vector3i(pos, RoundingMode.HALF_UP));</span>
+    }
+
+    @Override
+    public byte getTotalLight(Vector3f pos) {
+<span class="nc" id="L84">        return getTotalLight(new Vector3i(pos, RoundingMode.HALF_UP));</span>
+    }
+
+
+    @Override
+    public byte getSunlight(Vector3i pos) {
+<span class="nc" id="L90">        return core.getSunlight(pos.x, pos.y, pos.z);</span>
+    }
+
+    @Override
+    public byte getTotalLight(Vector3i pos) {
+<span class="nc" id="L95">        return core.getTotalLight(pos.x, pos.y, pos.z);</span>
+    }
+    
+    public int getExtraData(int index, Vector3i pos) {
+<span class="nc" id="L99">        return core.getExtraData(index, pos.x, pos.y, pos.z);</span>
+    }
+    
+    public int setExtraData(int index, int x, int y, int z, int value) {
+<span class="nc" id="L103">        return core.setExtraData(index, new Vector3i(x, y, z), value);</span>
+    }
+    
+    public int getExtraData(String fieldName, int x, int y, int z) {
+<span class="nc" id="L107">        return core.getExtraData(extraDataManager.getSlotNumber(fieldName), x, y, z);</span>
+    }
+    
+    public int getExtraData(String fieldName, Vector3i pos) {
+<span class="nc" id="L111">        return core.getExtraData(extraDataManager.getSlotNumber(fieldName), pos.x, pos.y, pos.z);</span>
+    }
+    
+    public int setExtraData(String fieldName, int x, int y, int z, int value) {
+<span class="nc" id="L115">        return core.setExtraData(extraDataManager.getSlotNumber(fieldName), new Vector3i(x, y, z), value);</span>
+    }
+    
+    public int setExtraData(String fieldName, Vector3i pos, int value) {
+<span class="nc" id="L119">        return core.setExtraData(extraDataManager.getSlotNumber(fieldName), pos, value);</span>
+    }
+
+    @Override
+    public void processPropagation() {
+<span class="nc" id="L124">        core.processPropagation();</span>
+<span class="nc" id="L125">    }</span>
+
+    @Override
+    public void registerListener(WorldChangeListener listener) {
+<span class="nc" id="L129">        core.registerListener(listener);</span>
+<span class="nc" id="L130">    }</span>
+
+    @Override
+    public void unregisterListener(WorldChangeListener listener) {
+<span class="nc" id="L134">        core.unregisterListener(listener);</span>
+<span class="nc" id="L135">    }</span>
+
+    @Override
+    public Collection&lt;Region3i&gt; getRelevantRegions() {
+<span class="nc" id="L139">        return core.getRelevantRegions();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

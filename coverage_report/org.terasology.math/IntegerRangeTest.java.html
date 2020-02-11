@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IntegerRangeTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.math</a> &gt; <span class="el_source">IntegerRangeTest.java</span></div><h1>IntegerRangeTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.math;
+
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import java.util.Iterator;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+<span class="fc" id="L27">public class IntegerRangeTest {</span>
+    @Test
+    public void testNoRange() {
+<span class="fc" id="L30">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L31">        validateRange(range);</span>
+<span class="fc" id="L32">    }</span>
+
+    @Test
+    public void testIncorrectRange() {
+<span class="fc" id="L36">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L37">        Assertions.assertThrows(IllegalArgumentException.class,</span>
+<span class="nc" id="L38">                () -&gt; range.addNumbers(3, 2));</span>
+<span class="fc" id="L39">    }</span>
+
+    @Test
+    public void testSimpleRange() {
+<span class="fc" id="L43">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L44">        range.addNumbers(1, 3);</span>
+<span class="fc" id="L45">        validateRange(range, 1, 2, 3);</span>
+<span class="fc" id="L46">    }</span>
+
+    @Test
+    public void testOneNumberRange() {
+<span class="fc" id="L50">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L51">        range.addNumbers(1, 1);</span>
+<span class="fc" id="L52">        validateRange(range, 1);</span>
+<span class="fc" id="L53">    }</span>
+
+    @Test
+    public void testTwoRanges() {
+<span class="fc" id="L57">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L58">        range.addNumbers(1, 3);</span>
+<span class="fc" id="L59">        range.addNumbers(5, 6);</span>
+<span class="fc" id="L60">        validateRange(range, 1, 2, 3, 5, 6);</span>
+<span class="fc" id="L61">    }</span>
+
+    @Test
+    public void testTwoRangesAddedInReverseOrder() {
+<span class="fc" id="L65">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L66">        range.addNumbers(5, 6);</span>
+<span class="fc" id="L67">        range.addNumbers(1, 3);</span>
+<span class="fc" id="L68">        validateRange(range, 1, 2, 3, 5, 6);</span>
+<span class="fc" id="L69">    }</span>
+
+    @Test
+    public void testTwoRangesOneWithinAnother() {
+<span class="fc" id="L73">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L74">        range.addNumbers(1, 6);</span>
+<span class="fc" id="L75">        range.addNumbers(3, 5);</span>
+<span class="fc" id="L76">        validateRange(range, 1, 2, 3, 4, 5, 6);</span>
+<span class="fc" id="L77">    }</span>
+
+    @Test
+    public void testTwoRangesOverlapping() {
+<span class="fc" id="L81">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L82">        range.addNumbers(1, 4);</span>
+<span class="fc" id="L83">        range.addNumbers(3, 6);</span>
+<span class="fc" id="L84">        validateRange(range, 1, 2, 3, 4, 5, 6);</span>
+<span class="fc" id="L85">    }</span>
+
+    @Test
+    public void testTwoRangesAtTheMaxInt() {
+<span class="fc" id="L89">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L90">        range.addNumbers(Integer.MAX_VALUE - 3, Integer.MAX_VALUE);</span>
+<span class="fc" id="L91">        range.addNumbers(Integer.MAX_VALUE - 1, Integer.MAX_VALUE);</span>
+<span class="fc" id="L92">        validateRange(range, Integer.MAX_VALUE - 3, Integer.MAX_VALUE - 2, Integer.MAX_VALUE - 1, Integer.MAX_VALUE);</span>
+<span class="fc" id="L93">    }</span>
+
+    private void validateRange(IntegerRange range, Integer...numbers) {
+<span class="fc" id="L96">        Iterator&lt;Integer&gt; iterator = range.iterator();</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        for (Integer number : numbers) {</span>
+<span class="fc" id="L98">            assertTrue(iterator.hasNext());</span>
+<span class="fc" id="L99">            assertEquals(number, iterator.next());</span>
+        }
+<span class="fc" id="L101">        assertFalse(iterator.hasNext());</span>
+<span class="fc" id="L102">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

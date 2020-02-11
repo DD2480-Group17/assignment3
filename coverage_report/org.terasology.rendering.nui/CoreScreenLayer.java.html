@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CoreScreenLayer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui</a> &gt; <span class="el_source">CoreScreenLayer.java</span></div><h1>CoreScreenLayer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.input.Keyboard;
+import org.terasology.input.binds.general.TabbingUIButton;
+import org.terasology.input.events.MouseButtonEvent;
+import org.terasology.input.events.MouseWheelEvent;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.animation.MenuAnimationSystem;
+import org.terasology.rendering.nui.animation.MenuAnimationSystemStub;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseWheelEvent;
+import org.terasology.rendering.nui.layouts.ScrollableArea;
+import org.terasology.rendering.nui.widgets.UIRadialRing;
+import org.terasology.rendering.nui.widgets.UIRadialSection;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+
+public abstract class CoreScreenLayer extends AbstractWidget implements UIScreenLayer {
+
+<span class="fc" id="L41">    private static final InteractionListener DEFAULT_SCREEN_LISTENER = new BaseInteractionListener() {</span>
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc" id="L44">            return true;</span>
+        }
+
+        @Override
+        public boolean onMouseWheel(NUIMouseWheelEvent event) {
+<span class="nc" id="L49">            return true;</span>
+        }
+    };
+
+    @LayoutConfig
+    private UIWidget contents;
+
+    private NUIManager manager;
+
+    private boolean modifyingList;
+
+    private ScrollableArea parentToSet;
+
+    private boolean activateBindEvent;
+
+<span class="pc" id="L64">    private MenuAnimationSystem animationSystem = new MenuAnimationSystemStub();</span>
+
+<span class="fc" id="L66">    public CoreScreenLayer() {</span>
+<span class="fc" id="L67">    }</span>
+
+    public CoreScreenLayer(String id) {
+<span class="nc" id="L70">        super(id);</span>
+<span class="nc" id="L71">    }</span>
+
+    public int getDepth() {
+<span class="nc" id="L74">        return depth;</span>
+    }
+
+    /**
+     * Automatically sets the depth of this screen using SortOrderSystem.
+     */
+    public void setDepthAuto() {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (SortOrderSystem.isInitialized()) {</span>
+<span class="nc" id="L82">            depth = SortOrderSystem.getCurrent();</span>
+        }
+<span class="nc" id="L84">    }</span>
+
+    @Override
+    public void setId(String id) {
+<span class="nc" id="L88">        super.setId(id);</span>
+<span class="nc" id="L89">    }</span>
+
+    protected InteractionListener getScreenListener() {
+<span class="nc" id="L92">        return DEFAULT_SCREEN_LISTENER;</span>
+    }
+
+    public void setContents(UIWidget contents) {
+<span class="nc" id="L96">        this.contents = contents;</span>
+<span class="nc" id="L97">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (depth == SortOrderSystem.DEFAULT_DEPTH) {</span>
+<span class="nc" id="L102">            setDepthAuto();</span>
+        }
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        if (SortOrderSystem.isInitialized()) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            if (!SortOrderSystem.getUsed().contains(depth)) {</span>
+<span class="nc" id="L106">                SortOrderSystem.getUsed().add(depth);</span>
+            }
+        }
+<span class="nc" id="L109">        modifyingList = false;</span>
+<span class="nc" id="L110">        activateBindEvent = false;</span>
+<span class="nc" id="L111">        TabbingManager.setInitialized(false);</span>
+
+<span class="nc" id="L113">        animationSystem.triggerFromPrev();</span>
+<span class="nc" id="L114">        onScreenOpened();</span>
+<span class="nc" id="L115">    }</span>
+
+    private void iterateThrough(Iterator&lt;UIWidget&gt; widgets) {
+<span class="nc" id="L118">        modifyingList = true;</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        while (widgets.hasNext()) {</span>
+<span class="nc" id="L120">            UIWidget next = widgets.next();</span>
+<span class="nc" id="L121">            boolean setParent = false;</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">            if (next instanceof ScrollableArea) {</span>
+<span class="nc" id="L123">                parentToSet = (ScrollableArea) next;</span>
+            }
+
+<span class="nc bnc" id="L126" title="All 2 branches missed.">            if (next instanceof WidgetWithOrder) {</span>
+<span class="nc" id="L127">                TabbingManager.addToWidgetsList((WidgetWithOrder) next);</span>
+<span class="nc" id="L128">                TabbingManager.addToUsedNums(((WidgetWithOrder) next).order);</span>
+<span class="nc" id="L129">                ((WidgetWithOrder) next).setParent(parentToSet);</span>
+            }
+
+<span class="nc bnc" id="L132" title="All 2 branches missed.">            if (next.iterator().hasNext()) {</span>
+<span class="nc" id="L133">                iterateThrough(next.iterator());</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            } else if (next instanceof UIRadialRing) {</span>
+<span class="nc" id="L135">                Iterator&lt;UIRadialSection&gt; iter = ((UIRadialRing) next).getSections().iterator();</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                while (iter.hasNext()) {</span>
+<span class="nc" id="L137">                    next = iter.next();</span>
+<span class="nc" id="L138">                    TabbingManager.addToWidgetsList((WidgetWithOrder) next);</span>
+<span class="nc" id="L139">                    TabbingManager.addToUsedNums(((WidgetWithOrder) next).order);</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                    if (setParent) {</span>
+<span class="nc" id="L141">                        ((WidgetWithOrder) next).setParent(parentToSet);</span>
+                    }
+                }
+            }
+<span class="nc" id="L145">        }</span>
+<span class="nc" id="L146">        modifyingList = false;</span>
+<span class="nc" id="L147">    }</span>
+
+    /**
+     * adds or removes from enabledWidgets based on if the screen is showing or not
+     * @param showing if the screen is visible or not
+     */
+    protected void addOrRemove(boolean showing) {
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        if (SortOrderSystem.getEnabledWidgets() != null) {</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            if (!SortOrderSystem.getEnabledWidgets().contains(this)) {</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                if (showing) {</span>
+<span class="nc" id="L157">                    ArrayList&lt;CoreScreenLayer&gt; enabledWidgets = SortOrderSystem.getEnabledWidgets();</span>
+
+<span class="nc" id="L159">                    enabledWidgets.add(this);</span>
+<span class="nc" id="L160">                    SortOrderSystem.setEnabledWidgets(enabledWidgets);</span>
+
+<span class="nc" id="L162">                    SortOrderSystem.addAnother(depth);</span>
+<span class="nc" id="L163">                }</span>
+            } else {
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                if (!showing) {</span>
+<span class="nc" id="L166">                    ArrayList&lt;CoreScreenLayer&gt; enabledWidgets = SortOrderSystem.getEnabledWidgets();</span>
+<span class="nc" id="L167">                    enabledWidgets.remove(this);</span>
+<span class="nc" id="L168">                    SortOrderSystem.setEnabledWidgets(enabledWidgets);</span>
+
+<span class="nc" id="L170">                    SortOrderSystem.removeOne(depth);</span>
+                }
+            }
+        }
+<span class="nc" id="L174">    }</span>
+
+    /**
+     * Lifecycle method called when this screen is displayed under any circumstance.
+     * &lt;p&gt;
+     * This differs from {@link #onOpened} and {@link #onShow} in that it is called both when the
+     * screen is first opened (as {@code onOpened}) as well as when a screen previously opened
+     * (e.g., a parent menu in the menu system) is returned to (as {@code onShow}).
+     */
+    public void onScreenOpened() {
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        if (!SortOrderSystem.isInSortOrder()) {</span>
+<span class="nc" id="L185">            addOrRemove(true);</span>
+        }
+<span class="nc" id="L187">        TabbingManager.setOpenScreen(this);</span>
+<span class="nc" id="L188">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L192">        return true;</span>
+    }
+
+    @Override
+    public boolean isReleasingMouse() {
+<span class="nc" id="L197">        return true;</span>
+    }
+
+    public UIWidget getContents() {
+<span class="nc" id="L201">        return contents;</span>
+    }
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L206">        Rect2i region = animationSystem.animateRegion(canvas.getRegion());</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (isModal()) {</span>
+<span class="nc" id="L208">            canvas.addInteractionRegion(getScreenListener(), region);</span>
+        }
+<span class="nc bnc" id="L210" title="All 2 branches missed.">        if (getContents() != null) {</span>
+<span class="nc" id="L211">            canvas.drawWidget(getContents(), region);</span>
+        }
+<span class="nc" id="L213">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        if (contents != null) {</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">            if (!TabbingManager.isInitialized()) {</span>
+<span class="nc" id="L219">                TabbingManager.init();</span>
+<span class="nc" id="L220">                TabbingManager.setOpenScreen(this);</span>
+
+<span class="nc" id="L222">                Iterator&lt;UIWidget&gt; widgets = contents.iterator();</span>
+<span class="nc" id="L223">                iterateThrough(widgets);</span>
+            }
+
+<span class="nc bnc" id="L226" title="All 2 branches missed.">            if (TabbingManager.getOpenScreen() == null) {</span>
+<span class="nc" id="L227">                TabbingManager.setOpenScreen(this);</span>
+
+<span class="nc" id="L229">                Iterator&lt;UIWidget&gt; widgets = contents.iterator();</span>
+<span class="nc" id="L230">                iterateThrough(widgets);</span>
+
+            }
+<span class="nc" id="L233">            contents.update(delta);</span>
+<span class="nc" id="L234">            animationSystem.update(delta);</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            if (depth == SortOrderSystem.DEFAULT_DEPTH) {</span>
+<span class="nc" id="L236">                setDepthAuto();</span>
+            }
+<span class="nc bnc" id="L238" title="All 2 branches missed.">            if (activateBindEvent) {</span>
+<span class="nc" id="L239">                onBindEvent(new TabbingUIButton());</span>
+            }
+        }
+<span class="nc" id="L242">    }</span>
+
+    @Override
+    public NUIManager getManager() {
+<span class="nc" id="L246">        return manager;</span>
+    }
+
+    public void setManager(NUIManager manager) {
+<span class="nc" id="L250">        this.manager = manager;</span>
+<span class="nc" id="L251">    }</span>
+
+    @Override
+    public void onClosed() {
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        if (!SortOrderSystem.isInSortOrder()) {</span>
+<span class="nc" id="L256">            addOrRemove(false);</span>
+        }
+<span class="nc" id="L258">        TabbingManager.setInitialized(false);</span>
+<span class="nc" id="L259">    }</span>
+
+    @Override
+    public void onShow() {
+<span class="nc" id="L263">        animationSystem.triggerFromNext();</span>
+<span class="nc" id="L264">        onScreenOpened();</span>
+<span class="nc" id="L265">    }</span>
+
+    @Override
+    public void onHide() {
+<span class="nc bnc" id="L269" title="All 2 branches missed.">        if (!SortOrderSystem.isInSortOrder()) {</span>
+<span class="nc" id="L270">            addOrRemove(false);</span>
+        }
+<span class="nc" id="L272">        TabbingManager.setInitialized(false);</span>
+<span class="nc" id="L273">    }</span>
+
+    @Override
+    public void onGainFocus() {
+<span class="nc" id="L277">    }</span>
+
+    @Override
+    public void onLoseFocus() {
+<span class="nc" id="L281">    }</span>
+
+    @Override
+    public void onMouseButtonEvent(MouseButtonEvent event) {
+<span class="nc" id="L285">    }</span>
+
+    @Override
+    public void onMouseWheelEvent(MouseWheelEvent event) {
+<span class="nc" id="L289">    }</span>
+
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc bnc" id="L293" title="All 4 branches missed.">        if (event.isDown() &amp;&amp; event.getKey() == Keyboard.Key.ESCAPE) {</span>
+<span class="nc" id="L294">            animationSystem.stop();</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            if (isEscapeToCloseAllowed()) {</span>
+<span class="nc" id="L296">                triggerBackAnimation();</span>
+<span class="nc" id="L297">                return true;</span>
+            }
+        }
+
+<span class="nc" id="L301">        return false;</span>
+    }
+
+    protected boolean isEscapeToCloseAllowed() {
+<span class="nc" id="L305">        return true;</span>
+    }
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i areaHint) {
+<span class="nc" id="L310">        return areaHint;</span>
+    }
+
+    @Override
+    public boolean isModal() {
+<span class="nc" id="L315">        return true;</span>
+    }
+
+    @Override
+    public Vector2i getMaxContentSize(Canvas canvas) {
+<span class="nc" id="L320">        return new Vector2i(Integer.MAX_VALUE, Integer.MAX_VALUE);</span>
+    }
+
+    @Override
+    public boolean isSkinAppliedByCanvas() {
+<span class="nc" id="L325">        return true;</span>
+    }
+
+    @Override
+    public String getMode() {
+<span class="nc" id="L330">        return DEFAULT_MODE;</span>
+    }
+
+    @Override
+    public Iterator&lt;UIWidget&gt; iterator() {
+<span class="nc bnc" id="L335" title="All 2 branches missed.">        if (contents == null) {</span>
+<span class="nc" id="L336">            return Collections.emptyIterator();</span>
+        }
+<span class="nc" id="L338">        return Arrays.asList(contents).iterator();</span>
+    }
+
+    public MenuAnimationSystem getAnimationSystem() {
+<span class="nc" id="L342">        return animationSystem;</span>
+    }
+
+    protected void setAnimationSystem(MenuAnimationSystem animationSystem) {
+<span class="nc" id="L346">        this.animationSystem = animationSystem;</span>
+<span class="nc" id="L347">    }</span>
+
+    protected void triggerForwardAnimation(ResourceUrn screenUri) {
+        // create and initialize now, open when the animation has finished
+<span class="nc" id="L351">        triggerForwardAnimation(getManager().createScreen(screenUri));</span>
+<span class="nc" id="L352">    }</span>
+
+    protected void triggerForwardAnimation(UIScreenLayer screen) {
+<span class="nc" id="L355">        animationSystem.onEnd(() -&gt; getManager().pushScreen(screen));</span>
+<span class="nc" id="L356">        animationSystem.triggerToNext();</span>
+<span class="nc" id="L357">    }</span>
+
+    protected void triggerBackAnimation() {
+<span class="nc" id="L360">        animationSystem.onEnd(getManager()::popScreen);</span>
+<span class="nc" id="L361">        animationSystem.triggerToPrev();</span>
+<span class="nc" id="L362">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

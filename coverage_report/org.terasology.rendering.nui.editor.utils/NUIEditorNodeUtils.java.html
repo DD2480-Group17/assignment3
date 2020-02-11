@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NUIEditorNodeUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.editor.utils</a> &gt; <span class="el_source">NUIEditorNodeUtils.java</span></div><h1>NUIEditorNodeUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.editor.utils;
+
+import com.google.common.collect.Queues;
+import com.google.gson.annotations.SerializedName;
+import org.reflections.ReflectionUtils;
+import org.terasology.persistence.ModuleContext;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.UILayout;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.editor.layers.NUIEditorScreen;
+import org.terasology.rendering.nui.editor.layers.NUISkinEditorScreen;
+import org.terasology.rendering.nui.layouts.relative.RelativeLayout;
+import org.terasology.rendering.nui.skin.UIStyleFragment;
+import org.terasology.rendering.nui.widgets.treeView.JsonTree;
+import org.terasology.rendering.nui.widgets.treeView.JsonTreeValue;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.lang.reflect.Field;
+import java.util.Deque;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+@SuppressWarnings(&quot;unchecked&quot;)
+public final class NUIEditorNodeUtils {
+    private static final String SAMPLE_LABEL_TEXT = &quot;Welcome to the Terasology NUI editor!\r\n&quot; +
+        &quot;Visit https://github.com/Terasology/TutorialNui/wiki for a quick overview of the editor,\r\n&quot; +
+        &quot;as well as the NUI framework itself.&quot;;
+
+    private NUIEditorNodeUtils() {
+    }
+
+    /**
+     * @return The {@link JsonTree} to be used as an initial screen template within {@link NUIEditorScreen}.
+     */
+    public static JsonTree createNewScreen() {
+<span class="nc" id="L52">        JsonTree tree = new JsonTree(new JsonTreeValue(null, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L53">        tree.addChild(new JsonTreeValue(&quot;type&quot;, &quot;PlaceholderScreen&quot;, JsonTreeValue.Type.KEY_VALUE_PAIR));</span>
+<span class="nc" id="L54">        tree.addChild(new JsonTreeValue(&quot;skin&quot;, &quot;engine:default&quot;, JsonTreeValue.Type.KEY_VALUE_PAIR));</span>
+
+<span class="nc" id="L56">        JsonTree layout = new JsonTree(new JsonTreeValue(&quot;contents&quot;, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L57">        layout.addChild(new JsonTreeValue(&quot;type&quot;, &quot;RelativeLayout&quot;, JsonTreeValue.Type.KEY_VALUE_PAIR));</span>
+
+<span class="nc" id="L59">        JsonTree contents = new JsonTree(new JsonTreeValue(&quot;contents&quot;, null, JsonTreeValue.Type.ARRAY));</span>
+
+<span class="nc" id="L61">        JsonTree label = createNewWidget(&quot;UILabel&quot;, &quot;sampleLabel&quot;, true);</span>
+<span class="nc" id="L62">        label.addChild(new JsonTreeValue(&quot;text&quot;, SAMPLE_LABEL_TEXT, JsonTreeValue.Type.KEY_VALUE_PAIR));</span>
+
+<span class="nc" id="L64">        contents.addChild(label);</span>
+<span class="nc" id="L65">        layout.addChild(contents);</span>
+<span class="nc" id="L66">        tree.addChild(layout);</span>
+<span class="nc" id="L67">        return tree;</span>
+    }
+
+    /**
+     * @return The {@link JsonTree} to be used as an initial skin template within {@link NUISkinEditorScreen}.
+     */
+    public static JsonTree createNewSkin() {
+<span class="nc" id="L74">        JsonTree tree = new JsonTree(new JsonTreeValue(null, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L75">        tree.addChild(new JsonTreeValue(&quot;inherit&quot;, &quot;default&quot;, JsonTreeValue.Type.KEY_VALUE_PAIR));</span>
+<span class="nc" id="L76">        tree.addChild(new JsonTreeValue(&quot;elements&quot;, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L77">        tree.addChild(new JsonTreeValue(&quot;families&quot;, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L78">        return tree;</span>
+    }
+
+    /**
+     * @param type          The type of the widget.
+     * @param id            The id of the widget.
+     * @param addLayoutInfo Whether a few layout settings from {@link RelativeLayout} should be added.
+     * @return The {@link JsonTree} with the given type/id to be used as an empty widget template within {@link NUIEditorScreen}.
+     */
+    public static JsonTree createNewWidget(String type, String id, boolean addLayoutInfo) {
+<span class="nc" id="L88">        JsonTree widget = new JsonTree(new JsonTreeValue(null, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L89">        widget.addChild(new JsonTreeValue(&quot;type&quot;, type, JsonTreeValue.Type.KEY_VALUE_PAIR));</span>
+<span class="nc" id="L90">        widget.addChild(new JsonTreeValue(&quot;id&quot;, id, JsonTreeValue.Type.KEY_VALUE_PAIR));</span>
+
+<span class="nc" id="L92">        JsonTree layoutInfo = new JsonTree(new JsonTreeValue(&quot;layoutInfo&quot;, null, JsonTreeValue.Type.OBJECT));</span>
+
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (addLayoutInfo) {</span>
+<span class="nc" id="L95">            layoutInfo.addChild(new JsonTreeValue(&quot;width&quot;, 500, JsonTreeValue.Type.KEY_VALUE_PAIR));</span>
+
+<span class="nc" id="L97">            JsonTree hPosition = new JsonTree(new JsonTreeValue(&quot;position-horizontal-center&quot;, null, JsonTreeValue.Type</span>
+                .OBJECT));
+<span class="nc" id="L99">            JsonTree vPosition = new JsonTree(new JsonTreeValue(&quot;position-vertical-center&quot;, null, JsonTreeValue.Type</span>
+                .OBJECT));
+
+<span class="nc" id="L102">            layoutInfo.addChild(hPosition);</span>
+<span class="nc" id="L103">            layoutInfo.addChild(vPosition);</span>
+        }
+
+<span class="nc" id="L106">        widget.addChild(layoutInfo);</span>
+<span class="nc" id="L107">        return widget;</span>
+    }
+
+    private static Deque&lt;JsonTree&gt; getPathToRoot(JsonTree node) {
+<span class="fc" id="L111">        Deque&lt;JsonTree&gt; pathToRoot = Queues.newArrayDeque();</span>
+
+        // Create a stack with the root node at the top and the argument at the bottom.
+<span class="fc" id="L114">        JsonTree currentNode = node;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        while (!currentNode.isRoot()) {</span>
+<span class="fc" id="L116">            pathToRoot.push(currentNode);</span>
+<span class="fc" id="L117">            currentNode = (JsonTree) currentNode.getParent();</span>
+        }
+<span class="fc" id="L119">        pathToRoot.push(currentNode);</span>
+<span class="fc" id="L120">        return pathToRoot;</span>
+    }
+
+    /**
+     * @param node       A node in an asset tree.
+     * @param nuiManager The {@link NUIManager} to be used for widget type resolution.
+     * @return The info about this node's type.
+     */
+    public static NodeInfo getNodeInfo(JsonTree node, NUIManager nuiManager) {
+<span class="fc" id="L129">        Deque&lt;JsonTree&gt; pathToRoot = getPathToRoot(node);</span>
+
+        // Start iterating from top to bottom.
+<span class="fc" id="L132">        Class currentClass = null;</span>
+<span class="fc" id="L133">        Class activeLayoutClass = null;</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        for (JsonTree n : pathToRoot) {</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">            if (n.isRoot()) {</span>
+                // currentClass is not set - set it to the screen type.
+<span class="fc" id="L137">                String type = (String) n.getChildWithKey(&quot;type&quot;).getValue().getValue();</span>
+<span class="fc" id="L138">                currentClass = nuiManager</span>
+<span class="fc" id="L139">                    .getWidgetMetadataLibrary()</span>
+<span class="fc" id="L140">                    .resolve(type, ModuleContext.getContext())</span>
+<span class="fc" id="L141">                    .getType();</span>
+<span class="fc" id="L142">            } else {</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">                if (List.class.isAssignableFrom(currentClass)</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">                    &amp;&amp; n.getValue().getKey() == null</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">                    &amp;&amp; &quot;contents&quot;.equals(n.getParent().getValue().getKey())) {</span>
+                    // Transition from a &quot;contents&quot; list to a UIWidget.
+<span class="fc" id="L147">                    currentClass = UIWidget.class;</span>
+                } else {
+                    // Retrieve the type of an unspecified UIWidget.
+<span class="pc bpc" id="L150" title="1 of 4 branches missed.">                    if (currentClass == UIWidget.class &amp;&amp; n.hasSiblingWithKey(&quot;type&quot;)) {</span>
+<span class="fc" id="L151">                        String type = (String) n.getSiblingWithKey(&quot;type&quot;).getValue().getValue();</span>
+<span class="fc" id="L152">                        currentClass = nuiManager</span>
+<span class="fc" id="L153">                            .getWidgetMetadataLibrary()</span>
+<span class="fc" id="L154">                            .resolve(type, ModuleContext.getContext())</span>
+<span class="fc" id="L155">                            .getType();</span>
+                    }
+
+                    // If the current class is a layout, remember its' value (but do not set until later on!)
+<span class="fc" id="L159">                    Class layoutClass = null;</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">                    if (UILayout.class.isAssignableFrom(currentClass)) {</span>
+<span class="fc" id="L161">                        layoutClass = currentClass;</span>
+                    }
+
+<span class="fc bfc" id="L164" title="All 4 branches covered.">                    if (UILayout.class.isAssignableFrom(currentClass) &amp;&amp; &quot;contents&quot;.equals(n.getValue().getKey())) {</span>
+                        // &quot;contents&quot; fields of a layout are always (widget) lists.
+<span class="fc" id="L166">                        currentClass = List.class;</span>
+<span class="fc bfc" id="L167" title="All 4 branches covered.">                    } else if (UIWidget.class.isAssignableFrom(currentClass) &amp;&amp; &quot;layoutInfo&quot;.equals(n.getValue().getKey())) {</span>
+                        // Set currentClass to the layout hint type for the active layout.
+<span class="fc" id="L169">                        currentClass = (Class) ReflectionUtil.getTypeParameter(activeLayoutClass.getGenericSuperclass(), 0);</span>
+                    } else {
+<span class="fc" id="L171">                        String value = n.getValue().toString();</span>
+<span class="fc" id="L172">                        Set&lt;Field&gt; fields = ReflectionUtils.getAllFields(currentClass);</span>
+<span class="fc" id="L173">                        Optional&lt;Field&gt; newField = fields</span>
+<span class="fc" id="L174">                            .stream().filter(f -&gt; f.getName().equalsIgnoreCase(value)).findFirst();</span>
+
+<span class="fc bfc" id="L176" title="All 2 branches covered.">                        if (newField.isPresent()) {</span>
+<span class="fc" id="L177">                            currentClass = newField.get().getType();</span>
+                        } else {
+<span class="fc" id="L179">                            Optional&lt;Field&gt; serializedNameField = fields</span>
+<span class="fc" id="L180">                                .stream()</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">                                .filter(f -&gt; f.isAnnotationPresent(SerializedName.class)</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">                                    &amp;&amp; f.getAnnotation(SerializedName.class).value().equals(value)).findFirst();</span>
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">                            if (serializedNameField.isPresent()) {</span>
+<span class="fc" id="L184">                                currentClass = serializedNameField.get().getType();</span>
+                            } else {
+<span class="nc" id="L186">                                return null;</span>
+                            }
+                        }
+                    }
+
+                    // Set the layout class value.
+<span class="fc bfc" id="L192" title="All 2 branches covered.">                    if (layoutClass != null) {</span>
+<span class="fc" id="L193">                        activeLayoutClass = layoutClass;</span>
+                    }
+                }
+            }
+<span class="fc" id="L197">        }</span>
+
+        // If the final result is a generic UIWidget, attempt to retrieve its' type.
+<span class="pc bpc" id="L200" title="1 of 4 branches missed.">        if (currentClass == UIWidget.class &amp;&amp; node.hasChildWithKey(&quot;type&quot;)) {</span>
+<span class="fc" id="L201">            String type = (String) node.getChildWithKey(&quot;type&quot;).getValue().getValue();</span>
+<span class="fc" id="L202">            currentClass = nuiManager</span>
+<span class="fc" id="L203">                .getWidgetMetadataLibrary()</span>
+<span class="fc" id="L204">                .resolve(type, ModuleContext.getContext())</span>
+<span class="fc" id="L205">                .getType();</span>
+        }
+<span class="fc" id="L207">        return new NodeInfo(currentClass, activeLayoutClass);</span>
+    }
+
+    /**
+     * @param node A node in an asset tree.
+     * @return The info about this node's type.
+     */
+    public static NodeInfo getSkinNodeInfo(JsonTree node) {
+<span class="nc" id="L215">        Deque&lt;JsonTree&gt; pathToRoot = getPathToRoot(node);</span>
+
+        // Start iterating from top to bottom.
+<span class="nc" id="L218">        Class nodeClass = null;</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        for (JsonTree n : pathToRoot) {</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            if (n.isRoot()) {</span>
+<span class="nc" id="L221">                nodeClass = UIStyleFragment.class;</span>
+            } else {
+<span class="nc bnc" id="L223" title="All 4 branches missed.">                if (&quot;elements&quot;.equals(n.getValue().getKey()) || &quot;families&quot;.equals(n.getValue().getKey())) {</span>
+<span class="nc" id="L224">                    nodeClass = null;</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">                } else if (n.getParent().getValue().getKey() != null</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">                    &amp;&amp; (&quot;elements&quot;.equals(n.getParent().getValue().getKey())</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                    || &quot;families&quot;.equals(n.getParent().getValue().getKey()))) {</span>
+<span class="nc" id="L228">                    nodeClass = UIStyleFragment.class;</span>
+                } else {
+<span class="nc" id="L230">                    String value = n.getValue().toString();</span>
+<span class="nc" id="L231">                    Set&lt;Field&gt; fields = ReflectionUtils.getAllFields(nodeClass);</span>
+<span class="nc" id="L232">                    Optional&lt;Field&gt; newField = fields</span>
+<span class="nc" id="L233">                        .stream().filter(f -&gt; f.getName().equalsIgnoreCase(value)).findFirst();</span>
+
+<span class="nc bnc" id="L235" title="All 2 branches missed.">                    if (newField.isPresent()) {</span>
+<span class="nc" id="L236">                        nodeClass = newField.get().getType();</span>
+                    } else {
+<span class="nc" id="L238">                        Optional&lt;Field&gt; serializedNameField = fields</span>
+<span class="nc" id="L239">                            .stream()</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">                            .filter(f -&gt; f.isAnnotationPresent(SerializedName.class)</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">                                &amp;&amp; f.getAnnotation(SerializedName.class).value().equals(value)).findFirst();</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">                        if (serializedNameField.isPresent()) {</span>
+<span class="nc" id="L243">                            nodeClass = serializedNameField.get().getType();</span>
+                        } else {
+<span class="nc" id="L245">                            return null;</span>
+                        }
+                    }
+                }
+            }
+<span class="nc" id="L250">        }</span>
+<span class="nc" id="L251">        return new NodeInfo(nodeClass, null);</span>
+    }
+
+    /**
+     * Contains information about a node's types.
+     */
+    public static class NodeInfo {
+        /**
+         * The type of the field this node represents.
+         */
+        private Class nodeClass;
+        /**
+         * The type of the layout this node is a part of. null if it's not a part of a layout.
+         */
+        private Class layoutClass;
+
+<span class="fc" id="L267">        public NodeInfo(Class nodeClass, Class layoutClass) {</span>
+<span class="fc" id="L268">            this.nodeClass = nodeClass;</span>
+<span class="fc" id="L269">            this.layoutClass = layoutClass;</span>
+<span class="fc" id="L270">        }</span>
+
+        public Class getNodeClass() {
+<span class="fc" id="L273">            return nodeClass;</span>
+        }
+
+        public Class getLayoutClass() {
+<span class="nc" id="L277">            return layoutClass;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

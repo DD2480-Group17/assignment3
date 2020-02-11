@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SpriteParticleRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.particles.rendering</a> &gt; <span class="el_source">SpriteParticleRenderer.java</span></div><h1>SpriteParticleRenderer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.particles.rendering;
+
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.engine.subsystem.lwjgl.LwjglDisplayDevice;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.RenderSystem;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.particles.ParticlePool;
+import org.terasology.particles.ParticleSystemManager;
+import org.terasology.particles.components.ParticleDataSpriteComponent;
+import org.terasology.registry.In;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.utilities.Assets;
+
+import static org.lwjgl.opengl.GL11.GL_TRIANGLE_FAN;
+import static org.lwjgl.opengl.GL11.glBegin;
+import static org.lwjgl.opengl.GL11.glBindTexture;
+import static org.lwjgl.opengl.GL11.glCallList;
+import static org.lwjgl.opengl.GL11.glDeleteLists;
+import static org.lwjgl.opengl.GL11.glEnd;
+import static org.lwjgl.opengl.GL11.glEndList;
+import static org.lwjgl.opengl.GL11.glGenLists;
+import static org.lwjgl.opengl.GL11.glNewList;
+import static org.lwjgl.opengl.GL11.glPopMatrix;
+import static org.lwjgl.opengl.GL11.glPushMatrix;
+import static org.lwjgl.opengl.GL11.glTranslatef;
+
+/**
+ * ParticleRenderer for basic sprite particle systems.
+ */
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L51">public class SpriteParticleRenderer implements RenderSystem {</span>
+
+    protected static final String PARTICLE_MATERIAL_URI = &quot;engine:prog.particle&quot;;
+
+    /**
+     * Vertices of a unit quad on the xy plane, centered on the origin.
+     * Vertices are in counter-clockwise order starting from the bottom right vertex.
+     *
+     * @return vertices coordinates
+     */
+<span class="nc" id="L61">    protected static final float[] UNIT_QUAD_VERTICES = {</span>
+            +0.5f, -0.5f, 0.0f,
+            +0.5f, +0.5f, 0.0f,
+            -0.5f, +0.5f, 0.0f,
+            -0.5f, -0.5f, 0.0f
+    };
+    @In
+    WorldRenderer worldRenderer;
+
+    @In
+    ParticleSystemManager particleSystemManager;
+
+    @In
+    DisplayDevice displayDevice;
+
+    private DisplayList drawUnitQuad;
+
+
+    public void finalize() throws Throwable {
+<span class="nc" id="L80">        super.finalize();</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (null != drawUnitQuad) {</span>
+<span class="nc" id="L82">            drawUnitQuad.dispose();</span>
+        }
+<span class="nc" id="L84">    }</span>
+
+    public void dispose() {
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (null != drawUnitQuad) {</span>
+<span class="nc" id="L88">            drawUnitQuad.dispose();</span>
+        }
+<span class="nc" id="L90">    }</span>
+
+    //&quot;BIG&quot; TODO: Have all of the work done in this method be done on the GPU by a shader. Use GPU instancing to just send some particle data after particles are already instanced and have the whole cloud rendered at once.
+    public void drawParticles(Material material, ParticleRenderingData&lt;ParticleDataSpriteComponent&gt; particleSystem, Vector3f camera) {
+<span class="nc" id="L94">        ParticlePool particlePool = particleSystem.particlePool;</span>
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        material.setBoolean(&quot;useTexture&quot;, particleSystem.particleData.texture != null);</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (particleSystem.particleData.texture != null) {</span>
+<span class="nc" id="L98">            GL13.glActiveTexture(GL13.GL_TEXTURE0);</span>
+<span class="nc" id="L99">            glBindTexture(GL11.GL_TEXTURE_2D, particleSystem.particleData.texture.getId());</span>
+
+<span class="nc" id="L101">            material.setFloat2(&quot;texSize&quot;, particleSystem.particleData.textureSize.getX(), particleSystem.particleData.textureSize.getY());</span>
+        }
+
+<span class="nc" id="L104">        glPushMatrix();</span>
+<span class="nc" id="L105">        glTranslatef(-camera.x(), -camera.y(), -camera.z());</span>
+
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        for (int i = 0; i &lt; particlePool.livingParticles(); i++) {</span>
+<span class="nc" id="L108">            final int i2 = i * 2;</span>
+<span class="nc" id="L109">            final int i3 = i * 3;</span>
+<span class="nc" id="L110">            final int i4 = i * 4;</span>
+
+<span class="nc" id="L112">            material.setFloat3(&quot;position&quot;,</span>
+                    particlePool.position[i3],
+                    particlePool.position[i3 + 1],
+                    particlePool.position[i3 + 2]
+            );
+
+<span class="nc" id="L118">            material.setFloat3(&quot;scale&quot;,</span>
+                    particlePool.scale[i3],
+                    particlePool.scale[i3 + 1],
+                    particlePool.scale[i3 + 2]
+            );
+
+<span class="nc" id="L124">            material.setFloat4(&quot;color&quot;,</span>
+                    particlePool.color[i4],
+                    particlePool.color[i4 + 1],
+                    particlePool.color[i4 + 2],
+                    particlePool.color[i4 + 3]
+            );
+
+
+<span class="nc" id="L132">            material.setFloat2(&quot;texOffset&quot;,</span>
+                    particlePool.textureOffset[i2],
+                    particlePool.textureOffset[i2 + 1]
+            );
+
+<span class="nc" id="L137">            drawUnitQuad.call();</span>
+        }
+
+<span class="nc" id="L140">        glPopMatrix();</span>
+<span class="nc" id="L141">    }</span>
+
+    @Override
+    public void renderOpaque() {
+
+<span class="nc" id="L146">    }</span>
+
+    @Override
+    public void renderAlphaBlend() {
+<span class="nc" id="L150">        Material material = Assets.getMaterial(PARTICLE_MATERIAL_URI).get();</span>
+<span class="nc" id="L151">        material.enable();</span>
+<span class="nc" id="L152">        Vector3f camPos = worldRenderer.getActiveCamera().getPosition();</span>
+
+<span class="nc" id="L154">        particleSystemManager.getParticleEmittersByDataComponent(ParticleDataSpriteComponent.class).forEach(p -&gt; drawParticles(material, p, camPos));</span>
+<span class="nc" id="L155">    }</span>
+
+    @Override
+    public void renderOverlay() {
+
+<span class="nc" id="L160">    }</span>
+
+    @Override
+    public void renderShadows() {
+
+<span class="nc" id="L165">    }</span>
+
+    @Override
+    public void initialise() {
+        // Nasty hack to only run LWJGL code with a LwjglDisplayDevice.  Should be unnecessary once &quot;big todo&quot; for drawParticles is resolved.
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (!(displayDevice instanceof LwjglDisplayDevice)) {</span>
+<span class="nc" id="L171">            return;</span>
+        }
+
+<span class="nc" id="L174">        drawUnitQuad = new DisplayList(() -&gt; {</span>
+<span class="nc" id="L175">            glBegin(GL_TRIANGLE_FAN);</span>
+<span class="nc" id="L176">            GL11.glTexCoord2f(UNIT_QUAD_VERTICES[0] + 0.5f, -UNIT_QUAD_VERTICES[1] + 0.5f);</span>
+<span class="nc" id="L177">            GL11.glVertex3f(UNIT_QUAD_VERTICES[0], UNIT_QUAD_VERTICES[1], UNIT_QUAD_VERTICES[2]);</span>
+
+<span class="nc" id="L179">            GL11.glTexCoord2f(UNIT_QUAD_VERTICES[3] + 0.5f, -UNIT_QUAD_VERTICES[4] + 0.5f);</span>
+<span class="nc" id="L180">            GL11.glVertex3f(UNIT_QUAD_VERTICES[3], UNIT_QUAD_VERTICES[4], UNIT_QUAD_VERTICES[5]);</span>
+
+<span class="nc" id="L182">            GL11.glTexCoord2f(UNIT_QUAD_VERTICES[6] + 0.5f, -UNIT_QUAD_VERTICES[7] + 0.5f);</span>
+<span class="nc" id="L183">            GL11.glVertex3f(UNIT_QUAD_VERTICES[6], UNIT_QUAD_VERTICES[7], UNIT_QUAD_VERTICES[8]);</span>
+
+<span class="nc" id="L185">            GL11.glTexCoord2f(UNIT_QUAD_VERTICES[9] + 0.5f, -UNIT_QUAD_VERTICES[10] + 0.5f);</span>
+<span class="nc" id="L186">            GL11.glVertex3f(UNIT_QUAD_VERTICES[9], UNIT_QUAD_VERTICES[10], UNIT_QUAD_VERTICES[11]);</span>
+<span class="nc" id="L187">            glEnd();</span>
+<span class="nc" id="L188">        });</span>
+<span class="nc" id="L189">    }</span>
+
+    @Override
+    public void preBegin() {
+
+<span class="nc" id="L194">    }</span>
+
+    @Override
+    public void postBegin() {
+
+<span class="nc" id="L199">    }</span>
+
+    @Override
+    public void preSave() {
+
+<span class="nc" id="L204">    }</span>
+
+    @Override
+    public void postSave() {
+
+<span class="nc" id="L209">    }</span>
+
+    @Override
+    public void shutdown() {
+<span class="nc" id="L213">        dispose();</span>
+<span class="nc" id="L214">    }</span>
+
+    private static class DisplayList {
+        private static final int DISPOSED = 0;
+        private int id;
+
+<span class="nc" id="L220">        DisplayList(Runnable commands) {</span>
+<span class="nc" id="L221">            id = glGenLists(1);</span>
+<span class="nc" id="L222">            glNewList(id, GL11.GL_COMPILE);</span>
+<span class="nc" id="L223">            commands.run();</span>
+<span class="nc" id="L224">            glEndList();</span>
+<span class="nc" id="L225">        }</span>
+
+        public void call() {
+<span class="nc" id="L228">            glCallList(id);</span>
+<span class="nc" id="L229">        }</span>
+
+        public void dispose() {
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            if (id != DISPOSED) {</span>
+<span class="nc" id="L233">                glDeleteLists(id, 1);</span>
+<span class="nc" id="L234">                id = DISPOSED;</span>
+            }
+<span class="nc" id="L236">        }</span>
+
+        @Override
+        public void finalize() throws Throwable {
+<span class="nc" id="L240">            super.finalize();</span>
+<span class="nc" id="L241">            dispose();</span>
+<span class="nc" id="L242">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

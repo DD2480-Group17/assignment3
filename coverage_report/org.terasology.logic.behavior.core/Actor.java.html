@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Actor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.core</a> &gt; <span class="el_source">Actor.java</span></div><h1>Actor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.core;
+
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.ComponentFieldUri;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
+import org.terasology.entitySystem.metadata.EntitySystemLibrary;
+import org.terasology.module.sandbox.API;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.registry.CoreRegistry;
+
+import java.lang.reflect.Field;
+import java.util.Map;
+
+/**
+ * The actor is a decorated entity, which can act on a behavior tree using an Interpreter.
+ * &lt;br&gt;&lt;br&gt;
+ * Besides the actual entity, a blackboard is stored for each actor. Every node may read or write to this blackboard,
+ * to communicate their states or exchange variables with other nodes.
+ */
+@API
+public class Actor {
+<span class="fc" id="L42">    private static Logger logger = LoggerFactory.getLogger(Actor.class);</span>
+    // Stores system-wide information (allows inter-node communication)
+    public final Map&lt;String, Object&gt; blackboard;
+    private final EntityRef entity;
+
+    // Stores information uniquely for each node that requires it
+    // TODO can we use a faster data structure? this gets accessed a lot
+<span class="fc" id="L49">    private final Map&lt;Integer, Object&gt; dataMap = Maps.newHashMap();</span>
+
+    private float delta;
+
+<span class="fc" id="L53">    public Actor(EntityRef entity) {</span>
+<span class="fc" id="L54">        this.entity = entity;</span>
+<span class="fc" id="L55">        blackboard = Maps.newHashMap();</span>
+<span class="fc" id="L56">    }</span>
+
+    public &lt;T&gt; T readFromBlackboard(String reference) {
+<span class="nc" id="L59">        return (T) blackboard.getOrDefault(reference, null);</span>
+
+    }
+
+    public void writeToBlackboard(String reference, Object value) {
+<span class="nc" id="L64">        blackboard.put(reference, value);</span>
+<span class="nc" id="L65">    }</span>
+
+    public &lt;T&gt; T getValue(int id) {
+<span class="fc" id="L68">        return (T) dataMap.get(id);</span>
+    }
+
+    public void setValue(int id, Object obj) {
+<span class="fc" id="L72">        dataMap.put(id, obj);</span>
+<span class="fc" id="L73">    }</span>
+
+    public float getDelta() {
+<span class="nc" id="L76">        return delta;</span>
+    }
+
+    public void setDelta(float delta) {
+<span class="fc" id="L80">        this.delta = delta;</span>
+<span class="fc" id="L81">    }</span>
+
+    /**
+     * @param type The type of the component
+     * @return The component of the actors minion or null if the minion has no such component.
+     */
+    public &lt;T extends Component&gt; T getComponent(Class&lt;T&gt; type) {
+<span class="nc" id="L88">        T component = entity.getComponent(type);</span>
+<span class="nc" id="L89">        return component;</span>
+    }
+
+    public Object getComponentField(ComponentFieldUri uri) {
+<span class="nc" id="L93">        ComponentLibrary componentLibrary = CoreRegistry.get(EntitySystemLibrary.class).getComponentLibrary();</span>
+<span class="nc" id="L94">        ComponentMetadata&lt;? extends Component&gt; metadata = componentLibrary.getMetadata(uri.getComponentUri());</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (metadata == null) {</span>
+<span class="nc" id="L96">            return null;</span>
+        }
+<span class="nc" id="L98">        Component component = entity.getComponent(metadata.getType());</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        if (component == null) {</span>
+<span class="nc" id="L100">            return null;</span>
+        }
+<span class="nc" id="L102">        FieldMetadata&lt;?, ?&gt; fieldMetadata = metadata.getField(uri.getFieldName());</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        if (fieldMetadata == null) {</span>
+<span class="nc" id="L104">            return null;</span>
+        }
+<span class="nc" id="L106">        Field field = fieldMetadata.getField();</span>
+        try {
+<span class="nc" id="L108">            return field.get(component);</span>
+<span class="nc" id="L109">        } catch (IllegalAccessException e) {</span>
+<span class="nc" id="L110">            throw new RuntimeException(e);</span>
+        }
+    }
+
+    /**
+     * @param component The class of the component
+     * @return true if the entity has the a component of the given class
+     */
+    public boolean hasComponent(Class&lt;? extends Component&gt; component) {
+<span class="nc" id="L119">        return entity.hasComponent(component);</span>
+    }
+
+    public void save(Component component) {
+<span class="nc" id="L123">        entity.saveComponent(component);</span>
+<span class="nc" id="L124">    }</span>
+
+    public EntityRef getEntity() {
+<span class="nc" id="L127">        return entity;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

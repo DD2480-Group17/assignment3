@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SkeletonRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.logic</a> &gt; <span class="el_source">SkeletonRenderer.java</span></div><h1>SkeletonRenderer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.logic;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL11;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.RenderSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.location.Location;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.AABB;
+import org.terasology.math.MatrixUtils;
+import org.terasology.math.geom.BaseQuat4f;
+import org.terasology.math.geom.BaseVector3f;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.registry.In;
+import org.terasology.rendering.assets.animation.MeshAnimation;
+import org.terasology.rendering.assets.animation.MeshAnimationFrame;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.skeletalmesh.Bone;
+import org.terasology.rendering.opengl.OpenGLSkeletalMesh;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.utilities.Assets;
+
+import java.nio.FloatBuffer;
+import java.util.List;
+import java.util.Random;
+
+import static org.lwjgl.opengl.GL11.GL_DEPTH_TEST;
+import static org.lwjgl.opengl.GL11.glBegin;
+import static org.lwjgl.opengl.GL11.glDisable;
+import static org.lwjgl.opengl.GL11.glEnable;
+import static org.lwjgl.opengl.GL11.glEnd;
+import static org.lwjgl.opengl.GL11.glPopMatrix;
+import static org.lwjgl.opengl.GL11.glPushMatrix;
+import static org.lwjgl.opengl.GL11.glVertex3f;
+
+/**
+ */
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L69">public class SkeletonRenderer extends BaseComponentSystem implements RenderSystem, UpdateSubscriberSystem {</span>
+
+<span class="nc" id="L71">    private static final Logger logger = LoggerFactory.getLogger(SkeletonRenderer.class);</span>
+
+    @In
+    private EntityManager entityManager;
+
+    @In
+    private WorldRenderer worldRenderer;
+
+    @In
+    private Config config;
+
+<span class="nc" id="L82">    private Random random = new Random();</span>
+
+    @ReceiveEvent(components = {SkeletalMeshComponent.class, LocationComponent.class})
+    public void newSkeleton(OnActivatedComponent event, EntityRef entity) {
+<span class="nc" id="L86">        SkeletalMeshComponent skeleton = entity.getComponent(SkeletalMeshComponent.class);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (skeleton.mesh == null) {</span>
+<span class="nc" id="L88">            return;</span>
+        }
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (skeleton.boneEntities == null) {</span>
+<span class="nc" id="L92">            skeleton.boneEntities = Maps.newHashMap();</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            for (Bone bone : skeleton.mesh.getBones()) {</span>
+<span class="nc" id="L94">                LocationComponent loc = new LocationComponent();</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                EntityRef parent = (bone.getParent() != null) ? skeleton.boneEntities.get(bone.getParent().getName()) : entity;</span>
+<span class="nc" id="L96">                EntityRef boneEntity = entityManager.create(loc);</span>
+<span class="nc" id="L97">                Location.attachChild(parent, boneEntity);</span>
+<span class="nc" id="L98">                loc.setLocalPosition(bone.getLocalPosition());</span>
+<span class="nc" id="L99">                loc.setLocalRotation(bone.getLocalRotation());</span>
+
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                if (bone.getParent() == null) {</span>
+<span class="nc" id="L102">                    skeleton.rootBone = boneEntity;</span>
+                }
+<span class="nc" id="L104">                skeleton.boneEntities.put(bone.getName(), boneEntity);</span>
+<span class="nc" id="L105">            }</span>
+<span class="nc" id="L106">            entity.saveComponent(skeleton);</span>
+        }
+<span class="nc" id="L108">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        for (EntityRef entity : entityManager.getEntitiesWith(SkeletalMeshComponent.class, LocationComponent.class)) {</span>
+<span class="nc" id="L113">            updateSkeletalMeshOfEntity(entity, delta);</span>
+<span class="nc" id="L114">        }</span>
+<span class="nc" id="L115">    }</span>
+
+    private void updateSkeletalMeshOfEntity(EntityRef entity, float delta) {
+<span class="nc" id="L118">        SkeletalMeshComponent skeletalMeshComp = entity.getComponent(SkeletalMeshComponent.class);</span>
+
+<span class="nc bnc" id="L120" title="All 4 branches missed.">        if (skeletalMeshComp.animation == null &amp;&amp; skeletalMeshComp.animationPool != null) {</span>
+<span class="nc" id="L121">            skeletalMeshComp.animation = randomAnimationData(skeletalMeshComp, random);</span>
+        }
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (skeletalMeshComp.animation == null) {</span>
+<span class="nc" id="L125">            return;</span>
+        }
+
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if (skeletalMeshComp.animation.getFrameCount() &lt; 1) {</span>
+<span class="nc" id="L129">            return;</span>
+        }
+<span class="nc" id="L131">        skeletalMeshComp.animationTime += delta * skeletalMeshComp.animationRate;</span>
+<span class="nc" id="L132">        float animationDuration = getDurationOfAnimation(skeletalMeshComp);</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        while (skeletalMeshComp.animationTime &gt;= animationDuration) {</span>
+            MeshAnimation newAnimation;
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            if (!skeletalMeshComp.loop) {</span>
+<span class="nc" id="L136">                newAnimation = null;</span>
+            } else {
+<span class="nc" id="L138">                newAnimation = randomAnimationData(skeletalMeshComp, random);</span>
+            }
+
+<span class="nc bnc" id="L141" title="All 2 branches missed.">            if (newAnimation == null) {</span>
+<span class="nc" id="L142">                MeshAnimation finishedAnimation = skeletalMeshComp.animation;</span>
+<span class="nc" id="L143">                skeletalMeshComp.animationTime = animationDuration;</span>
+<span class="nc" id="L144">                MeshAnimationFrame frame = skeletalMeshComp.animation.getFrame(skeletalMeshComp.animation.getFrameCount() - 1);</span>
+<span class="nc" id="L145">                updateSkeleton(skeletalMeshComp, frame, frame, 1.0f);</span>
+                // Set animation to null so that AnimEndEvent fires only once
+<span class="nc" id="L147">                skeletalMeshComp.animation = null;</span>
+<span class="nc" id="L148">                entity.saveComponent(skeletalMeshComp);</span>
+<span class="nc" id="L149">                entity.send(new AnimEndEvent(finishedAnimation));</span>
+<span class="nc" id="L150">                return;</span>
+            }
+<span class="nc" id="L152">            skeletalMeshComp.animationTime -= animationDuration;</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            if (skeletalMeshComp.animationTime &lt; 0) {</span>
+                // In case the float calculation wasn't exact:
+<span class="nc" id="L155">                skeletalMeshComp.animationTime = 0;</span>
+            }
+<span class="nc" id="L157">            skeletalMeshComp.animation = newAnimation;</span>
+<span class="nc" id="L158">            animationDuration = getDurationOfAnimation(skeletalMeshComp);</span>
+<span class="nc" id="L159">        }</span>
+<span class="nc" id="L160">        float framePos = skeletalMeshComp.animationTime / skeletalMeshComp.animation.getTimePerFrame();</span>
+<span class="nc" id="L161">        int frameAId = (int) framePos;</span>
+<span class="nc" id="L162">        int frameBId = frameAId + 1;</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (frameBId &gt;= skeletalMeshComp.animation.getFrameCount()) {</span>
+            // In case the float calcuation wasn't exact:
+<span class="nc" id="L165">            frameBId = skeletalMeshComp.animation.getFrameCount() - 1;</span>
+        }
+<span class="nc" id="L167">        MeshAnimationFrame frameA = skeletalMeshComp.animation.getFrame(frameAId);</span>
+<span class="nc" id="L168">        MeshAnimationFrame frameB = skeletalMeshComp.animation.getFrame(frameBId);</span>
+<span class="nc" id="L169">        updateSkeleton(skeletalMeshComp, frameA, frameB, framePos - frameAId);</span>
+<span class="nc" id="L170">        entity.saveComponent(skeletalMeshComp);</span>
+<span class="nc" id="L171">    }</span>
+
+
+    private float getDurationOfAnimation(SkeletalMeshComponent skeletalMeshComp) {
+<span class="nc" id="L175">        return skeletalMeshComp.animation.getTimePerFrame() * (skeletalMeshComp.animation.getFrameCount() - 1);</span>
+    }
+
+
+    private static MeshAnimation randomAnimationData(SkeletalMeshComponent skeletalMeshComp, Random random) {
+<span class="nc" id="L180">        List&lt;MeshAnimation&gt; animationPool = skeletalMeshComp.animationPool;</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">        if (animationPool == null) {</span>
+<span class="nc" id="L182">            return null;</span>
+        }
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        if (animationPool.isEmpty()) {</span>
+<span class="nc" id="L185">            return null;</span>
+        }
+<span class="nc" id="L187">        return animationPool.get(random.nextInt(animationPool.size()));</span>
+    }
+
+    private void updateSkeleton(SkeletalMeshComponent skeletalMeshComp, MeshAnimationFrame frameA, MeshAnimationFrame frameB, float interpolationVal) {
+
+<span class="nc bnc" id="L192" title="All 2 branches missed.">        for (int i = 0; i &lt; skeletalMeshComp.animation.getBoneCount(); ++i) {</span>
+<span class="nc" id="L193">            EntityRef boneEntity = skeletalMeshComp.boneEntities.get(skeletalMeshComp.animation.getBoneName(i));</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            if (boneEntity == null) {</span>
+<span class="nc" id="L195">                continue;</span>
+            }
+<span class="nc" id="L197">            LocationComponent boneLoc = boneEntity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            if (boneLoc != null) {</span>
+
+<span class="nc" id="L200">                Vector3f newPos = BaseVector3f.lerp(frameA.getPosition(i), frameB.getPosition(i), interpolationVal);</span>
+<span class="nc" id="L201">                boneLoc.setLocalPosition(newPos);</span>
+<span class="nc" id="L202">                Quat4f newRot = BaseQuat4f.interpolate(frameA.getRotation(i), frameB.getRotation(i), interpolationVal);</span>
+<span class="nc" id="L203">                newRot.normalize();</span>
+<span class="nc" id="L204">                boneLoc.setLocalRotation(newRot);</span>
+<span class="nc" id="L205">                boneEntity.saveComponent(boneLoc);</span>
+            }
+        }
+<span class="nc" id="L208">    }</span>
+
+    @Override
+    public void renderOpaque() {
+<span class="nc" id="L212">        Vector3f cameraPosition = worldRenderer.getActiveCamera().getPosition();</span>
+
+<span class="nc" id="L214">        Quat4f worldRot = new Quat4f();</span>
+<span class="nc" id="L215">        Vector3f worldPos = new Vector3f();</span>
+<span class="nc" id="L216">        Quat4f inverseWorldRot = new Quat4f();</span>
+
+<span class="nc" id="L218">        FloatBuffer tempMatrixBuffer44 = BufferUtils.createFloatBuffer(16);</span>
+<span class="nc" id="L219">        FloatBuffer tempMatrixBuffer33 = BufferUtils.createFloatBuffer(12);</span>
+
+<span class="nc bnc" id="L221" title="All 2 branches missed.">        for (EntityRef entity : entityManager.getEntitiesWith(SkeletalMeshComponent.class, LocationComponent.class)) {</span>
+
+<span class="nc" id="L223">            SkeletalMeshComponent skeletalMesh = entity.getComponent(SkeletalMeshComponent.class);</span>
+<span class="nc bnc" id="L224" title="All 8 branches missed.">            if (skeletalMesh.mesh == null || skeletalMesh.material == null || skeletalMesh.boneEntities == null || !skeletalMesh.material.isRenderable()) {</span>
+<span class="nc" id="L225">                continue;</span>
+            }
+            AABB aabb;
+<span class="nc" id="L228">            MeshAnimation animation = skeletalMesh.animation;</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">            if (animation != null) {</span>
+<span class="nc" id="L230">                aabb = animation.getAabb();</span>
+            } else {
+<span class="nc" id="L232">                aabb = skeletalMesh.mesh.getStaticAabb();</span>
+            }
+<span class="nc" id="L234">            LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L235">            location.getWorldRotation(worldRot);</span>
+<span class="nc" id="L236">            inverseWorldRot.inverse(worldRot);</span>
+<span class="nc" id="L237">            location.getWorldPosition(worldPos);</span>
+<span class="nc" id="L238">            float worldScale = location.getWorldScale();</span>
+
+<span class="nc" id="L240">            aabb = aabb.transform(worldRot, worldPos, worldScale);</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">            if (!worldRenderer.getActiveCamera().hasInSight(aabb)) {</span>
+<span class="nc" id="L242">                continue;</span>
+            }
+
+<span class="nc" id="L245">            skeletalMesh.material.enable();</span>
+<span class="nc" id="L246">            skeletalMesh.material.setFloat(&quot;sunlight&quot;, 1.0f, true);</span>
+<span class="nc" id="L247">            skeletalMesh.material.setFloat(&quot;blockLight&quot;, 1.0f, true);</span>
+<span class="nc" id="L248">            skeletalMesh.material.setFloat3(&quot;colorOffset&quot;, skeletalMesh.color.rf(), skeletalMesh.color.gf(), skeletalMesh.color.bf(), true);</span>
+
+<span class="nc" id="L250">            skeletalMesh.material.setMatrix4(&quot;projectionMatrix&quot;, worldRenderer.getActiveCamera().getProjectionMatrix());</span>
+<span class="nc" id="L251">            skeletalMesh.material.bindTextures();</span>
+
+
+<span class="nc" id="L254">            Vector3f worldPositionCameraSpace = new Vector3f();</span>
+<span class="nc" id="L255">            worldPositionCameraSpace.sub(worldPos, cameraPosition);</span>
+
+<span class="nc" id="L257">            worldPos.y -= skeletalMesh.heightOffset;</span>
+
+<span class="nc" id="L259">            Matrix4f matrixCameraSpace = new Matrix4f(worldRot, worldPositionCameraSpace, worldScale);</span>
+
+<span class="nc" id="L261">            Matrix4f modelViewMatrix = MatrixUtils.calcModelViewMatrix(worldRenderer.getActiveCamera().getViewMatrix(), matrixCameraSpace);</span>
+<span class="nc" id="L262">            MatrixUtils.matrixToFloatBuffer(modelViewMatrix, tempMatrixBuffer44);</span>
+
+<span class="nc" id="L264">            skeletalMesh.material.setMatrix4(&quot;worldViewMatrix&quot;, tempMatrixBuffer44, true);</span>
+
+<span class="nc" id="L266">            MatrixUtils.matrixToFloatBuffer(MatrixUtils.calcNormalMatrix(modelViewMatrix), tempMatrixBuffer33);</span>
+<span class="nc" id="L267">            skeletalMesh.material.setMatrix3(&quot;normalMatrix&quot;, tempMatrixBuffer33, true);</span>
+
+<span class="nc" id="L269">            skeletalMesh.material.setFloat(&quot;sunlight&quot;, worldRenderer.getMainLightIntensityAt(worldPos), true);</span>
+<span class="nc" id="L270">            skeletalMesh.material.setFloat(&quot;blockLight&quot;, worldRenderer.getBlockLightIntensityAt(worldPos), true);</span>
+
+<span class="nc" id="L272">            List&lt;Vector3f&gt; bonePositions = Lists.newArrayListWithCapacity(skeletalMesh.mesh.getVertexCount());</span>
+<span class="nc" id="L273">            List&lt;Quat4f&gt; boneRotations = Lists.newArrayListWithCapacity(skeletalMesh.mesh.getVertexCount());</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">            for (Bone bone : skeletalMesh.mesh.getBones()) {</span>
+<span class="nc" id="L275">                EntityRef boneEntity = skeletalMesh.boneEntities.get(bone.getName());</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">                if (boneEntity == null) {</span>
+<span class="nc" id="L277">                    boneEntity = EntityRef.NULL;</span>
+                }
+<span class="nc" id="L279">                LocationComponent boneLocation = boneEntity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">                if (boneLocation != null) {</span>
+<span class="nc" id="L281">                    Vector3f pos = boneLocation.getWorldPosition();</span>
+<span class="nc" id="L282">                    pos.sub(worldPos);</span>
+<span class="nc" id="L283">                    inverseWorldRot.rotate(pos, pos);</span>
+<span class="nc" id="L284">                    bonePositions.add(pos);</span>
+<span class="nc" id="L285">                    Quat4f rot = new Quat4f(inverseWorldRot);</span>
+<span class="nc" id="L286">                    rot.mul(boneLocation.getWorldRotation());</span>
+<span class="nc" id="L287">                    boneRotations.add(rot);</span>
+<span class="nc" id="L288">                } else {</span>
+<span class="nc" id="L289">                    logger.warn(&quot;Unable to resolve bone \&quot;{}\&quot;&quot;, bone.getName());</span>
+<span class="nc" id="L290">                    bonePositions.add(new Vector3f());</span>
+<span class="nc" id="L291">                    boneRotations.add(new Quat4f());</span>
+                }
+<span class="nc" id="L293">            }</span>
+<span class="nc" id="L294">            ((OpenGLSkeletalMesh) skeletalMesh.mesh).setScaleTranslate(skeletalMesh.scale, skeletalMesh.translate);</span>
+<span class="nc" id="L295">            ((OpenGLSkeletalMesh) skeletalMesh.mesh).render(bonePositions, boneRotations);</span>
+<span class="nc" id="L296">        }</span>
+<span class="nc" id="L297">    }</span>
+
+    @Override
+    public void renderAlphaBlend() {
+<span class="nc" id="L301">    }</span>
+
+    @Override
+    public void renderOverlay() {
+<span class="nc bnc" id="L305" title="All 2 branches missed.">        if (config.getRendering().getDebug().isRenderSkeletons()) {</span>
+<span class="nc" id="L306">            glDisable(GL_DEPTH_TEST);</span>
+<span class="nc" id="L307">            Vector3f cameraPosition = worldRenderer.getActiveCamera().getPosition();</span>
+<span class="nc" id="L308">            Material material = Assets.getMaterial(&quot;engine:white&quot;).get();</span>
+<span class="nc" id="L309">            material.setFloat(&quot;sunlight&quot;, 1.0f, true);</span>
+<span class="nc" id="L310">            material.setFloat(&quot;blockLight&quot;, 1.0f, true);</span>
+<span class="nc" id="L311">            material.setMatrix4(&quot;projectionMatrix&quot;, worldRenderer.getActiveCamera().getProjectionMatrix());</span>
+<span class="nc" id="L312">            Vector3f worldPos = new Vector3f();</span>
+
+
+<span class="nc" id="L315">            FloatBuffer tempMatrixBuffer44 = BufferUtils.createFloatBuffer(16);</span>
+<span class="nc" id="L316">            FloatBuffer tempMatrixBuffer33 = BufferUtils.createFloatBuffer(12);</span>
+
+<span class="nc bnc" id="L318" title="All 2 branches missed.">            for (EntityRef entity : entityManager.getEntitiesWith(SkeletalMeshComponent.class, LocationComponent.class)) {</span>
+<span class="nc" id="L319">                LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+
+<span class="nc" id="L321">                location.getWorldPosition(worldPos);</span>
+
+<span class="nc" id="L323">                Vector3f worldPositionCameraSpace = new Vector3f();</span>
+<span class="nc" id="L324">                worldPositionCameraSpace.sub(worldPos, cameraPosition);</span>
+
+<span class="nc" id="L326">                float worldScale = location.getWorldScale();</span>
+<span class="nc" id="L327">                Matrix4f matrixCameraSpace = new Matrix4f(new Quat4f(0, 0, 0, 1), worldPositionCameraSpace, worldScale);</span>
+
+<span class="nc" id="L329">                Matrix4f modelViewMatrix = MatrixUtils.calcModelViewMatrix(worldRenderer.getActiveCamera().getViewMatrix(), matrixCameraSpace);</span>
+<span class="nc" id="L330">                MatrixUtils.matrixToFloatBuffer(modelViewMatrix, tempMatrixBuffer44);</span>
+
+<span class="nc" id="L332">                material.setMatrix4(&quot;worldViewMatrix&quot;, tempMatrixBuffer44, true);</span>
+
+<span class="nc" id="L334">                MatrixUtils.matrixToFloatBuffer(MatrixUtils.calcNormalMatrix(modelViewMatrix), tempMatrixBuffer33);</span>
+<span class="nc" id="L335">                material.setMatrix3(&quot;normalMatrix&quot;, tempMatrixBuffer33, true);</span>
+
+<span class="nc" id="L337">                SkeletalMeshComponent skeletalMesh = entity.getComponent(SkeletalMeshComponent.class);</span>
+<span class="nc" id="L338">                renderBone(skeletalMesh.rootBone, worldPos);</span>
+<span class="nc" id="L339">            }</span>
+<span class="nc" id="L340">            glEnable(GL_DEPTH_TEST);</span>
+        }
+<span class="nc" id="L342">    }</span>
+
+    @Override
+    public void renderShadows() {
+<span class="nc" id="L346">    }</span>
+
+    private void renderBoneOrientation(EntityRef boneEntity) {
+<span class="nc" id="L349">        LocationComponent loc = boneEntity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">        if (loc == null) {</span>
+<span class="nc" id="L351">            return;</span>
+        }
+<span class="nc" id="L353">        glPushMatrix();</span>
+<span class="nc" id="L354">        Vector3f worldPosA = loc.getWorldPosition();</span>
+<span class="nc" id="L355">        Quat4f worldRot = loc.getWorldRotation();</span>
+<span class="nc" id="L356">        Vector3f offset = new Vector3f(0, 0, 0.1f);</span>
+<span class="nc" id="L357">        worldRot.rotate(offset, offset);</span>
+<span class="nc" id="L358">        offset.add(worldPosA);</span>
+
+<span class="nc" id="L360">        glBegin(GL11.GL_LINES);</span>
+<span class="nc" id="L361">        glVertex3f(worldPosA.x, worldPosA.y, worldPosA.z);</span>
+<span class="nc" id="L362">        glVertex3f(offset.x, offset.y, offset.z);</span>
+<span class="nc" id="L363">        glEnd();</span>
+
+<span class="nc" id="L365">        loc.getChildren().forEach(this::renderBoneOrientation);</span>
+<span class="nc" id="L366">        glPopMatrix();</span>
+<span class="nc" id="L367">    }</span>
+
+    private void renderBone(EntityRef boneEntity, Vector3f centerPos) {
+<span class="nc" id="L370">        LocationComponent loc = boneEntity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L371" title="All 2 branches missed.">        if (loc == null) {</span>
+<span class="nc" id="L372">            return;</span>
+        }
+<span class="nc" id="L374">        LocationComponent parentLoc = loc.getParent().getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">        if (parentLoc != null) {</span>
+<span class="nc" id="L376">            Vector3f worldPosA = loc.getWorldPosition();</span>
+<span class="nc" id="L377">            worldPosA.sub(centerPos);</span>
+<span class="nc" id="L378">            Vector3f worldPosB = parentLoc.getWorldPosition();</span>
+<span class="nc" id="L379">            worldPosB.sub(centerPos);</span>
+
+<span class="nc" id="L381">            glBegin(GL11.GL_LINES);</span>
+<span class="nc" id="L382">            glVertex3f(worldPosA.x, worldPosA.y, worldPosA.z);</span>
+<span class="nc" id="L383">            glVertex3f(worldPosB.x, worldPosB.y, worldPosB.z);</span>
+<span class="nc" id="L384">            glEnd();</span>
+
+<span class="nc bnc" id="L386" title="All 2 branches missed.">            for (EntityRef child : loc.getChildren()) {</span>
+<span class="nc" id="L387">                renderBone(child, centerPos);</span>
+<span class="nc" id="L388">            }</span>
+        }
+<span class="nc" id="L390">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

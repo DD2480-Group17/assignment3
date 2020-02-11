@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenVRStereoCamera.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.cameras</a> &gt; <span class="el_source">OpenVRStereoCamera.java</span></div><h1>OpenVRStereoCamera.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.cameras;
+
+import org.joml.Quaternionf;
+import org.joml.Vector4f;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.rendering.openvrprovider.OpenVRProvider;
+import org.lwjgl.opengl.GL11;
+import org.terasology.config.RenderingConfig;
+import org.terasology.math.MatrixUtils;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.openvrprovider.OpenVRUtil;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.rendering.world.WorldRenderer.RenderingStage;
+import org.terasology.world.WorldProvider;
+
+import static org.lwjgl.opengl.GL11.GL_PROJECTION;
+import static org.lwjgl.opengl.GL11.glMatrixMode;
+
+/**
+ * Camera which can be used to render stereoscopic images of the scene for VR.
+ */
+public class OpenVRStereoCamera extends SubmersibleCamera {
+
+<span class="nc" id="L41">    private Matrix4f projectionMatrixLeftEye = new Matrix4f();</span>
+<span class="nc" id="L42">    private Matrix4f projectionMatrixRightEye = new Matrix4f();</span>
+
+<span class="nc" id="L44">    private Matrix4f inverseProjectionMatrixLeftEye = new Matrix4f();</span>
+<span class="nc" id="L45">    private Matrix4f inverseProjectionMatrixRightEye = new Matrix4f();</span>
+
+<span class="nc" id="L47">    private Matrix4f inverseViewProjectionMatrixLeftEye = new Matrix4f();</span>
+<span class="nc" id="L48">    private Matrix4f inverseViewProjectionMatrixRightEye = new Matrix4f();</span>
+
+<span class="nc" id="L50">    private Matrix4f viewMatrixLeftEye = new Matrix4f();</span>
+<span class="nc" id="L51">    private Matrix4f viewMatrixRightEye = new Matrix4f();</span>
+
+<span class="nc" id="L53">    private Matrix4f viewMatrixReflectedLeftEye = new Matrix4f();</span>
+<span class="nc" id="L54">    private Matrix4f viewMatrixReflectedRightEye = new Matrix4f();</span>
+
+<span class="nc" id="L56">    private ViewFrustum viewFrustumLeftEye = new ViewFrustum();</span>
+<span class="nc" id="L57">    private ViewFrustum viewFrustumRightEye = new ViewFrustum();</span>
+<span class="nc" id="L58">    private ViewFrustum viewFrustumReflectedLeftEye = new ViewFrustum();</span>
+<span class="nc" id="L59">    private ViewFrustum viewFrustumReflectedRightEye = new ViewFrustum();</span>
+
+<span class="nc" id="L61">    private Matrix4f viewProjectionMatrixLeftEye = new Matrix4f();</span>
+<span class="nc" id="L62">    private Matrix4f viewProjectionMatrixRightEye = new Matrix4f();</span>
+
+<span class="nc" id="L64">    private Matrix4f viewTranslationLeftEye = new Matrix4f();</span>
+<span class="nc" id="L65">    private Matrix4f viewTranslationRightEye = new Matrix4f();</span>
+    private OpenVRProvider vrProvider;
+
+    public OpenVRStereoCamera(OpenVRProvider provider, WorldProvider worldProvider, RenderingConfig renderingConfig) {
+<span class="nc" id="L69">        super(worldProvider, renderingConfig);</span>
+<span class="nc" id="L70">        vrProvider = provider;</span>
+        // OpenVR's projection matrix is such that this is approximately true.
+<span class="nc" id="L72">        zFar = 400.0f;</span>
+<span class="nc" id="L73">    }</span>
+
+    @Override
+    public void updateFrustum() {
+<span class="nc" id="L77">        super.updateFrustum();</span>
+
+<span class="nc" id="L79">        viewFrustumLeftEye.updateFrustum(MatrixUtils.matrixToFloatBuffer(viewMatrixLeftEye), MatrixUtils.matrixToFloatBuffer(projectionMatrixLeftEye));</span>
+<span class="nc" id="L80">        viewFrustumRightEye.updateFrustum(MatrixUtils.matrixToFloatBuffer(viewMatrixRightEye), MatrixUtils.matrixToFloatBuffer(projectionMatrixRightEye));</span>
+<span class="nc" id="L81">        viewFrustumReflectedLeftEye.updateFrustum(MatrixUtils.matrixToFloatBuffer(viewMatrixReflectedLeftEye), MatrixUtils.matrixToFloatBuffer(projectionMatrixLeftEye));</span>
+<span class="nc" id="L82">        viewFrustumReflectedRightEye.updateFrustum(MatrixUtils.matrixToFloatBuffer(viewMatrixReflectedRightEye), MatrixUtils.matrixToFloatBuffer(projectionMatrixRightEye));</span>
+<span class="nc" id="L83">    }</span>
+
+    @Override
+    public boolean isBobbingAllowed() {
+<span class="nc" id="L87">        return false;</span>
+    }
+
+    @Override
+    public ViewFrustum getViewFrustum() {
+<span class="nc" id="L92">        RenderingStage renderingStage = CoreRegistry.get(WorldRenderer.class).getCurrentRenderStage();</span>
+
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (renderingStage == RenderingStage.LEFT_EYE) {</span>
+<span class="nc" id="L95">            return viewFrustumLeftEye;</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        } else if (renderingStage == RenderingStage.RIGHT_EYE) {</span>
+<span class="nc" id="L97">            return viewFrustumRightEye;</span>
+        }
+
+<span class="nc" id="L100">        return null;</span>
+    }
+
+    @Override
+    public ViewFrustum getViewFrustumReflected() {
+<span class="nc" id="L105">        RenderingStage renderingStage = CoreRegistry.get(WorldRenderer.class).getCurrentRenderStage();</span>
+
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (renderingStage == RenderingStage.LEFT_EYE) {</span>
+<span class="nc" id="L108">            return viewFrustumReflectedLeftEye;</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        } else if (renderingStage == RenderingStage.RIGHT_EYE) {</span>
+<span class="nc" id="L110">            return viewFrustumReflectedRightEye;</span>
+        }
+
+<span class="nc" id="L113">        return null;</span>
+    }
+
+    @Override
+    public Matrix4f getViewProjectionMatrix() {
+<span class="nc" id="L118">        RenderingStage renderingStage = CoreRegistry.get(WorldRenderer.class).getCurrentRenderStage();</span>
+
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (renderingStage == RenderingStage.LEFT_EYE) {</span>
+<span class="nc" id="L121">            return viewProjectionMatrixLeftEye;</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        } else if (renderingStage == RenderingStage.RIGHT_EYE) {</span>
+<span class="nc" id="L123">            return viewProjectionMatrixRightEye;</span>
+        }
+
+<span class="nc" id="L126">        return null;</span>
+    }
+
+    @Override
+    public Matrix4f getViewMatrix() {
+<span class="nc" id="L131">        RenderingStage renderingStage = CoreRegistry.get(WorldRenderer.class).getCurrentRenderStage();</span>
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (renderingStage == RenderingStage.LEFT_EYE) {</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            if (!isReflected()) {</span>
+<span class="nc" id="L135">                return viewMatrixLeftEye;</span>
+            }
+<span class="nc" id="L137">            return viewMatrixReflectedLeftEye;</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        } else if (renderingStage == RenderingStage.RIGHT_EYE) {</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            if (!isReflected()) {</span>
+<span class="nc" id="L140">                return viewMatrixRightEye;</span>
+            }
+<span class="nc" id="L142">            return viewMatrixReflectedRightEye;</span>
+        }
+
+<span class="nc" id="L145">        return null;</span>
+    }
+
+    @Override
+    public Matrix4f getProjectionMatrix() {
+<span class="nc" id="L150">        RenderingStage renderingStage = CoreRegistry.get(WorldRenderer.class).getCurrentRenderStage();</span>
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (renderingStage == RenderingStage.LEFT_EYE) {</span>
+<span class="nc" id="L153">            return projectionMatrixLeftEye;</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        } else if (renderingStage == RenderingStage.RIGHT_EYE) {</span>
+<span class="nc" id="L155">            return projectionMatrixRightEye;</span>
+        }
+
+<span class="nc" id="L158">        return null;</span>
+    }
+
+    @Override
+    public Matrix4f getInverseProjectionMatrix() {
+<span class="nc" id="L163">        RenderingStage renderingStage = CoreRegistry.get(WorldRenderer.class).getCurrentRenderStage();</span>
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (renderingStage == RenderingStage.LEFT_EYE) {</span>
+<span class="nc" id="L166">            return inverseProjectionMatrixLeftEye;</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        } else if (renderingStage == RenderingStage.RIGHT_EYE) {</span>
+<span class="nc" id="L168">            return inverseProjectionMatrixRightEye;</span>
+        }
+
+<span class="nc" id="L171">        return null;</span>
+    }
+
+    @Override
+    public Matrix4f getInverseViewProjectionMatrix() {
+<span class="nc" id="L176">        RenderingStage renderingStage = CoreRegistry.get(WorldRenderer.class).getCurrentRenderStage();</span>
+
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if (renderingStage == RenderingStage.LEFT_EYE) {</span>
+<span class="nc" id="L179">            return inverseViewProjectionMatrixLeftEye;</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">        } else if (renderingStage == RenderingStage.RIGHT_EYE) {</span>
+<span class="nc" id="L181">            return inverseViewProjectionMatrixRightEye;</span>
+        }
+
+<span class="nc" id="L184">        return null;</span>
+    }
+
+    @Override
+    @Deprecated
+    public void loadProjectionMatrix() {
+<span class="nc" id="L190">        glMatrixMode(GL_PROJECTION);</span>
+<span class="nc" id="L191">        GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(getProjectionMatrix()));</span>
+<span class="nc" id="L192">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L193">    }</span>
+
+    @Override
+    @Deprecated
+    public void loadModelViewMatrix() {
+<span class="nc" id="L198">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L199">        GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(getViewMatrix()));</span>
+<span class="nc" id="L200">    }</span>
+
+    @Override
+    @Deprecated
+    public void loadNormalizedModelViewMatrix() {
+<span class="nc" id="L205">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L206">        GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(normViewMatrix));</span>
+<span class="nc" id="L207">    }</span>
+
+    @Override
+    public void update(float deltaT) {
+<span class="nc" id="L211">        super.update(deltaT);</span>
+<span class="nc" id="L212">        updateMatrices();</span>
+<span class="nc" id="L213">    }</span>
+
+    @Override
+    public void updateMatrices() {
+<span class="nc" id="L217">        updateMatrices(activeFov);</span>
+<span class="nc" id="L218">    }</span>
+
+    private void jomlMatrix4f(org.joml.Matrix4f matrixInput, org.terasology.math.geom.Matrix4f matrixOut) {
+<span class="nc" id="L221">        matrixOut.set(0, 0, matrixInput.m00());</span>
+<span class="nc" id="L222">        matrixOut.set(0, 1, matrixInput.m10());</span>
+<span class="nc" id="L223">        matrixOut.set(0, 2, matrixInput.m20());</span>
+<span class="nc" id="L224">        matrixOut.set(0, 3, matrixInput.m30());</span>
+<span class="nc" id="L225">        matrixOut.set(1, 0, matrixInput.m01());</span>
+<span class="nc" id="L226">        matrixOut.set(1, 1, matrixInput.m11());</span>
+<span class="nc" id="L227">        matrixOut.set(1, 2, matrixInput.m21());</span>
+<span class="nc" id="L228">        matrixOut.set(1, 3, matrixInput.m31());</span>
+<span class="nc" id="L229">        matrixOut.set(2, 0, matrixInput.m02());</span>
+<span class="nc" id="L230">        matrixOut.set(2, 1, matrixInput.m12());</span>
+<span class="nc" id="L231">        matrixOut.set(2, 2, matrixInput.m22());</span>
+<span class="nc" id="L232">        matrixOut.set(2, 3, matrixInput.m32());</span>
+<span class="nc" id="L233">        matrixOut.set(3, 0, matrixInput.m03());</span>
+<span class="nc" id="L234">        matrixOut.set(3, 1, matrixInput.m13());</span>
+<span class="nc" id="L235">        matrixOut.set(3, 2, matrixInput.m23());</span>
+<span class="nc" id="L236">        matrixOut.set(3, 3, matrixInput.m33());</span>
+<span class="nc" id="L237">    }</span>
+
+    @Override
+    public void updateMatrices(float fov) {
+<span class="nc" id="L241">        prevViewProjectionMatrix.set(viewProjectionMatrix);</span>
+
+<span class="nc" id="L243">        org.joml.Matrix4f leftEyeProjection = vrProvider.getState().getEyeProjectionMatrix(0);</span>
+<span class="nc" id="L244">        org.joml.Matrix4f rightEyeProjection = vrProvider.getState().getEyeProjectionMatrix(1);</span>
+<span class="nc" id="L245">        org.joml.Matrix4f leftEyePose = vrProvider.getState().getEyePose(0);</span>
+<span class="nc" id="L246">        org.joml.Matrix4f rightEyePose = vrProvider.getState().getEyePose(1);</span>
+<span class="nc" id="L247">        float halfIPD = (float) Math.sqrt(Math.pow(leftEyePose.m30() - rightEyePose.m30(), 2)</span>
+<span class="nc" id="L248">                + Math.pow(leftEyePose.m31() - rightEyePose.m31(), 2)</span>
+<span class="nc" id="L249">                + Math.pow(leftEyePose.m32() - rightEyePose.m32(), 2)) / 2.0f;</span>
+
+        // set camera orientation
+<span class="nc" id="L252">        Vector4f vecQuaternion = OpenVRUtil.convertToQuaternion(leftEyePose);</span>
+<span class="nc" id="L253">        Quaternionf quaternion = new Quaternionf(vecQuaternion.x, vecQuaternion.y, vecQuaternion.z, vecQuaternion.w);</span>
+<span class="nc" id="L254">        setOrientation(new Quat4f(quaternion.x, quaternion.y, quaternion.z, quaternion.w));</span>
+
+
+<span class="nc" id="L257">        leftEyePose = leftEyePose.invert(); // view matrix is inverse of pose matrix</span>
+<span class="nc" id="L258">        rightEyePose = rightEyePose.invert();</span>
+
+
+<span class="nc bnc" id="L261" title="All 2 branches missed.">        if (Math.sqrt(Math.pow(leftEyePose.m30(), 2) + Math.pow(leftEyePose.m31(), 2) + Math.pow(leftEyePose.m32(), 2))  &lt; 0.25)  {</span>
+<span class="nc" id="L262">            return;</span>
+        }
+<span class="nc" id="L264">        jomlMatrix4f(leftEyeProjection, projectionMatrixLeftEye);</span>
+<span class="nc" id="L265">        jomlMatrix4f(rightEyeProjection, projectionMatrixRightEye);</span>
+<span class="nc" id="L266">        projectionMatrix = projectionMatrixLeftEye;</span>
+
+<span class="nc" id="L268">        jomlMatrix4f(leftEyePose, viewMatrixLeftEye);</span>
+<span class="nc" id="L269">        jomlMatrix4f(rightEyePose, viewMatrixRightEye);</span>
+
+<span class="nc" id="L271">        viewMatrix = viewMatrixLeftEye;</span>
+<span class="nc" id="L272">        normViewMatrix = viewMatrixLeftEye;</span>
+
+<span class="nc" id="L274">        reflectionMatrix.setRow(0, 1.0f, 0.0f, 0.0f, 0.0f);</span>
+<span class="nc" id="L275">        reflectionMatrix.setRow(1, 0.0f, -1.0f, 0.0f, 2f * (-position.y + 32f));</span>
+<span class="nc" id="L276">        reflectionMatrix.setRow(2, 0.0f, 0.0f, 1.0f, 0.0f);</span>
+<span class="nc" id="L277">        reflectionMatrix.setRow(3, 0.0f, 0.0f, 0.0f, 1.0f);</span>
+
+
+<span class="nc" id="L280">        viewMatrixReflected.mul(viewMatrix, reflectionMatrix);</span>
+
+<span class="nc" id="L282">        reflectionMatrix.setRow(1, 0.0f, -1.0f, 0.0f, 0.0f);</span>
+<span class="nc" id="L283">        normViewMatrixReflected.mul(normViewMatrix, reflectionMatrix);</span>
+
+<span class="nc" id="L285">        viewTranslationLeftEye.setIdentity();</span>
+<span class="nc" id="L286">        viewTranslationLeftEye.setTranslation(new Vector3f(halfIPD, 0.0f, 0.0f));</span>
+
+<span class="nc" id="L288">        viewTranslationRightEye.setIdentity();</span>
+<span class="nc" id="L289">        viewTranslationRightEye.setTranslation(new Vector3f(-halfIPD, 0.0f, 0.0f));</span>
+
+
+<span class="nc" id="L292">        viewMatrixReflectedLeftEye.mul(viewMatrixReflected, viewTranslationLeftEye);</span>
+<span class="nc" id="L293">        viewMatrixReflectedRightEye.mul(viewMatrixReflected, viewTranslationRightEye);</span>
+
+<span class="nc" id="L295">        viewProjectionMatrixLeftEye = MatrixUtils.calcViewProjectionMatrix(viewMatrixLeftEye, projectionMatrixLeftEye);</span>
+<span class="nc" id="L296">        viewProjectionMatrixRightEye = MatrixUtils.calcViewProjectionMatrix(viewMatrixRightEye, projectionMatrixRightEye);</span>
+
+<span class="nc" id="L298">        inverseViewProjectionMatrixLeftEye = new Matrix4f(viewProjectionMatrixLeftEye);</span>
+<span class="nc" id="L299">        inverseViewProjectionMatrixRightEye = new Matrix4f(viewProjectionMatrixRightEye);</span>
+<span class="nc" id="L300">        inverseViewProjectionMatrixLeftEye.invert(viewProjectionMatrixLeftEye);</span>
+<span class="nc" id="L301">        inverseViewProjectionMatrixRightEye.invert(viewProjectionMatrixRightEye);</span>
+
+<span class="nc" id="L303">        inverseProjectionMatrixLeftEye = new Matrix4f(projectionMatrixLeftEye);</span>
+<span class="nc" id="L304">        inverseProjectionMatrixRightEye = new Matrix4f(projectionMatrixRightEye);</span>
+<span class="nc" id="L305">        inverseProjectionMatrixLeftEye.invert(projectionMatrixLeftEye);</span>
+<span class="nc" id="L306">        inverseProjectionMatrixRightEye.invert(projectionMatrixRightEye);</span>
+
+<span class="nc" id="L308">        updateFrustum();</span>
+<span class="nc" id="L309">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

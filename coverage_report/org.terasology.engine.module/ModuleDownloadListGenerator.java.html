@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModuleDownloadListGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.module</a> &gt; <span class="el_source">ModuleDownloadListGenerator.java</span></div><h1>ModuleDownloadListGenerator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.module;
+
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleRegistry;
+import org.terasology.module.PathModule;
+import org.terasology.module.ResolutionResult;
+import org.terasology.naming.Name;
+import org.terasology.naming.Version;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+
+class ModuleDownloadListGenerator {
+
+    private ModuleRegistry localRegistry;
+    private DependencyResolver remoteDependencyResolver;
+
+<span class="fc" id="L35">    ModuleDownloadListGenerator(ModuleRegistry localRegistry, DependencyResolver remoteDependencyResolver) {</span>
+<span class="fc" id="L36">        this.localRegistry = localRegistry;</span>
+<span class="fc" id="L37">        this.remoteDependencyResolver = remoteDependencyResolver;</span>
+<span class="fc" id="L38">    }</span>
+
+    Set&lt;Module&gt; getAllModulesToDownloadFor(Name... modulesToInstall) throws DependencyResolutionFailedException {
+<span class="fc" id="L41">        Version currentEngineVersion = localRegistry.getLatestModuleVersion(TerasologyConstants.ENGINE_MODULE).getVersion();</span>
+<span class="fc" id="L42">        ResolutionResult resolutionResult = remoteDependencyResolver.builder()</span>
+<span class="fc" id="L43">                .requireVersion(TerasologyConstants.ENGINE_MODULE, currentEngineVersion)</span>
+<span class="fc" id="L44">                .requireAll(modulesToInstall)</span>
+<span class="fc" id="L45">                .build();</span>
+<span class="fc" id="L46">        return processResolutionResult(resolutionResult);</span>
+    }
+
+    private Set&lt;Module&gt; processResolutionResult(ResolutionResult resolutionResult) throws DependencyResolutionFailedException {
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (!resolutionResult.isSuccess()) {</span>
+<span class="fc" id="L51">            throw new DependencyResolutionFailedException(&quot;Module dependency resolution failed.&quot;);</span>
+        }
+<span class="fc" id="L53">        return resolutionResult.getModules().stream()</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">                .filter(module -&gt; !module.getId().equals(TerasologyConstants.ENGINE_MODULE))</span>
+<span class="fc" id="L55">                .filter(module -&gt; isOnlineVersionNewer(localRegistry.getLatestModuleVersion(module.getId()), module))</span>
+<span class="fc" id="L56">                .collect(Collectors.toSet());</span>
+    }
+
+    /**
+     * Whether the given module is present as source in the workspace.
+     *
+     * This is relevant when running the game from a local workspace to prevent downloading modules already present as
+     * source.
+     */
+    private boolean isSourceModule(Module module) {
+<span class="fc" id="L66">        return module instanceof PathModule;</span>
+    }
+
+    private boolean isOnlineVersionNewer(Module localVersion, Module onlineVersion) {
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (onlineVersion == null) {</span>
+<span class="nc" id="L71">            return false;</span>
+        }
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if (localVersion == null) {</span>
+<span class="nc" id="L74">            return true;</span>
+        }
+<span class="fc" id="L76">        int versionCompare = onlineVersion.getVersion().compareTo(localVersion.getVersion());</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (versionCompare &gt; 0) {</span>
+<span class="fc" id="L78">            return true;</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">        } else if (versionCompare == 0) {</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">            if (isSourceModule(localVersion)) {</span>
+                // In case the version of the local source module is the same as remote, don't download it again.
+<span class="nc" id="L82">                return false;</span>
+            } else {
+                /*
+                 * Multiple binaries get released as the same snapshot version, A version name match thus does not
+                 * guarantee that we have the newest version already if it is a snapshot version.
+                 *
+                 * Having the user redownload the same binary again is not ideal, but it is better then having the user
+                 * being stuck on an outdated snapshot binary.
+                 */
+<span class="fc" id="L91">                return onlineVersion.getVersion().isSnapshot();</span>
+            }
+        } else {
+<span class="nc" id="L94">            return false;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LocationComponent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.location</a> &gt; <span class="el_source">LocationComponent.java</span></div><h1>LocationComponent.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.location;
+
+import com.google.common.collect.Lists;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.math.Direction;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.network.Replicate;
+import org.terasology.network.ReplicationCheck;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.rendering.nui.properties.TextField;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Component represent the location and facing of an entity in the world
+ *
+ */
+public final class LocationComponent implements Component, ReplicationCheck {
+
+<span class="fc" id="L39">    public boolean replicateChanges = true;</span>
+
+    // Relative to
+<span class="fc" id="L42">    @Replicate</span>
+    EntityRef parent = EntityRef.NULL;
+
+<span class="fc" id="L45">    @Replicate</span>
+<span class="fc" id="L46">    List&lt;EntityRef&gt; children = Lists.newArrayList();</span>
+
+    // Standard position/rotation
+<span class="fc" id="L49">    @Replicate</span>
+    @TextField
+    Vector3f position = new Vector3f();
+<span class="fc" id="L52">    @Replicate</span>
+    Quat4f rotation = new Quat4f(0, 0, 0, 1);
+<span class="fc" id="L54">    @Replicate</span>
+    float scale = 1.0f;
+<span class="fc" id="L56">    @Replicate</span>
+    Vector3f lastPosition = new Vector3f();
+<span class="fc" id="L58">    @Replicate</span>
+    Quat4f lastRotation = new Quat4f(0,0,0,1);
+
+<span class="fc" id="L61">    public LocationComponent() {</span>
+<span class="fc" id="L62">    }</span>
+
+<span class="fc" id="L64">    public LocationComponent(Vector3f position) {</span>
+<span class="fc" id="L65">        setLocalPosition(position);</span>
+<span class="fc" id="L66">    }</span>
+
+    /**
+     * @return The position of this component relative to any parent. Can be directly modified to update the component
+     */
+    public Vector3f getLocalPosition() {
+<span class="fc" id="L72">        return position;</span>
+    }
+
+    public void setLocalPosition(Vector3f newPos) {
+<span class="fc" id="L76">        lastPosition.set(position);</span>
+<span class="fc" id="L77">        position.set(newPos);</span>
+<span class="fc" id="L78">    }</span>
+
+    public Vector3f getLocalDirection() {
+<span class="nc" id="L81">        Vector3f result = Direction.FORWARD.getVector3f();</span>
+<span class="nc" id="L82">        getLocalRotation().rotate(result, result);</span>
+<span class="nc" id="L83">        return result;</span>
+    }
+
+    public Quat4f getLocalRotation() {
+<span class="fc" id="L87">        return rotation;</span>
+    }
+
+    public void setLocalRotation(Quat4f newQuat) {
+<span class="fc" id="L91">        lastRotation.set(rotation);</span>
+<span class="fc" id="L92">        rotation.set(newQuat);</span>
+<span class="fc" id="L93">    }</span>
+
+    public void setLocalScale(float value) {
+<span class="fc" id="L96">        this.scale = value;</span>
+<span class="fc" id="L97">    }</span>
+
+    public float getLocalScale() {
+<span class="fc" id="L100">        return scale;</span>
+    }
+
+    /**
+     * @return A new vector containing the world location.
+     */
+    public Vector3f getWorldPosition() {
+<span class="fc" id="L107">        return getWorldPosition(new Vector3f());</span>
+    }
+
+    public Vector3f getWorldPosition(Vector3f output) {
+<span class="fc" id="L111">        output.set(position);</span>
+<span class="fc" id="L112">        LocationComponent parentLoc = parent.getComponent(LocationComponent.class);</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        while (parentLoc != null) {</span>
+<span class="fc" id="L114">            output.scale(parentLoc.scale);</span>
+<span class="fc" id="L115">            parentLoc.getLocalRotation().rotate(output, output);</span>
+<span class="fc" id="L116">            output.add(parentLoc.position);</span>
+<span class="fc" id="L117">            parentLoc = parentLoc.parent.getComponent(LocationComponent.class);</span>
+        }
+<span class="fc" id="L119">        return output;</span>
+    }
+
+    public Vector3f getWorldDirection() {
+<span class="nc" id="L123">        Vector3f result = Direction.FORWARD.getVector3f();</span>
+<span class="nc" id="L124">        getWorldRotation().rotate(result, result);</span>
+<span class="nc" id="L125">        return result;</span>
+    }
+
+    public Quat4f getWorldRotation() {
+<span class="fc" id="L129">        return getWorldRotation(new Quat4f(0, 0, 0, 1));</span>
+    }
+
+    public Quat4f getWorldRotation(Quat4f output) {
+<span class="fc" id="L133">        output.set(rotation);</span>
+<span class="fc" id="L134">        LocationComponent parentLoc = parent.getComponent(LocationComponent.class);</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        while (parentLoc != null) {</span>
+<span class="fc" id="L136">            output.mul(parentLoc.rotation, output);</span>
+<span class="fc" id="L137">            parentLoc = parentLoc.parent.getComponent(LocationComponent.class);</span>
+        }
+<span class="fc" id="L139">        return output;</span>
+    }
+
+    public float getWorldScale() {
+<span class="fc" id="L143">        float result = scale;</span>
+<span class="fc" id="L144">        LocationComponent parentLoc = parent.getComponent(LocationComponent.class);</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">        while (parentLoc != null) {</span>
+<span class="fc" id="L146">            result *= parentLoc.getLocalScale();</span>
+<span class="fc" id="L147">            parentLoc = parentLoc.parent.getComponent(LocationComponent.class);</span>
+        }
+<span class="fc" id="L149">        return result;</span>
+    }
+
+    public void setWorldPosition(Vector3f value) {
+<span class="fc" id="L153">        setLocalPosition(value);</span>
+<span class="fc" id="L154">        LocationComponent parentLoc = parent.getComponent(LocationComponent.class);</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        if (parentLoc != null) {</span>
+<span class="fc" id="L156">            this.position.sub(parentLoc.getWorldPosition());</span>
+<span class="fc" id="L157">            this.position.scale(1f / parentLoc.getWorldScale());</span>
+<span class="fc" id="L158">            Quat4f rot = new Quat4f(0, 0, 0, 1);</span>
+<span class="fc" id="L159">            rot.inverse(parentLoc.getWorldRotation());</span>
+<span class="fc" id="L160">            rot.rotate(this.position, this.position);</span>
+        }
+<span class="fc" id="L162">    }</span>
+
+    public void setWorldRotation(Quat4f value) {
+<span class="fc" id="L165">        setLocalRotation(value);</span>
+<span class="fc" id="L166">        LocationComponent parentLoc = parent.getComponent(LocationComponent.class);</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">        if (parentLoc != null) {</span>
+<span class="fc" id="L168">            Quat4f worldRot = parentLoc.getWorldRotation();</span>
+<span class="fc" id="L169">            worldRot.inverse();</span>
+<span class="fc" id="L170">            this.rotation.mul(worldRot, this.rotation);</span>
+        }
+<span class="fc" id="L172">    }</span>
+
+    public void setWorldScale(float value) {
+<span class="fc" id="L175">        this.scale = value;</span>
+<span class="fc" id="L176">        LocationComponent parentLoc = parent.getComponent(LocationComponent.class);</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">        if (parentLoc != null) {</span>
+<span class="fc" id="L178">            this.scale /= parentLoc.getWorldScale();</span>
+        }
+<span class="fc" id="L180">    }</span>
+
+    public EntityRef getParent() {
+<span class="fc" id="L183">        return parent;</span>
+    }
+
+    public Collection&lt;EntityRef&gt; getChildren() {
+<span class="fc" id="L187">        return children;</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="nc bnc" id="L192" title="All 2 branches missed.">        if (this == o) {</span>
+<span class="nc" id="L193">            return true;</span>
+        }
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        if (o instanceof LocationComponent) {</span>
+<span class="nc" id="L196">            LocationComponent other = (LocationComponent) o;</span>
+<span class="nc bnc" id="L197" title="All 8 branches missed.">            return other.scale == scale &amp;&amp; Objects.equals(parent, other.parent) &amp;&amp; Objects.equals(position, other.position) &amp;&amp; Objects.equals(rotation, other.rotation);</span>
+        }
+<span class="nc" id="L199">        return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L204">        return Objects.hash(position, rotation, scale, parent);</span>
+    }
+
+    @Override
+    public boolean shouldReplicate(FieldMetadata&lt;?, ?&gt; field, boolean initial, boolean toOwner) {
+<span class="nc bnc" id="L209" title="All 4 branches missed.">        return initial || replicateChanges;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

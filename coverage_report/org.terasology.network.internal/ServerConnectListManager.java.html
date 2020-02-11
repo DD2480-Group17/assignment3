@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerConnectListManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.network.internal</a> &gt; <span class="el_source">ServerConnectListManager.java</span></div><h1>ServerConnectListManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.network.internal;
+
+import com.google.gson.Gson;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.engine.subsystem.DisplayDevice;
+
+import java.io.IOException;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * This class provides the methods needed to determine if a client is allowed to connect or not,
+ * based on the blacklist and whitelist files.
+ */
+
+public class ServerConnectListManager {
+
+<span class="fc" id="L40">    private static final Logger logger = LoggerFactory.getLogger(ServerConnectListManager.class);</span>
+<span class="fc" id="L41">    private static final Gson gson = new Gson();</span>
+
+    private Context context;
+    private Set&lt;String&gt; blacklistedIDs;
+    private Set&lt;String&gt; whitelistedIDs;
+    private final Path blacklistPath;
+    private final Path whitelistPath;
+
+<span class="fc" id="L49">    public ServerConnectListManager(Context context) {</span>
+<span class="fc" id="L50">        blacklistPath = PathManager.getInstance().getHomePath().resolve(&quot;blacklist.json&quot;);</span>
+<span class="fc" id="L51">        whitelistPath = PathManager.getInstance().getHomePath().resolve(&quot;whitelist.json&quot;);</span>
+<span class="fc" id="L52">        this.context = context;</span>
+<span class="fc" id="L53">        loadLists();</span>
+<span class="fc" id="L54">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    private void loadLists() {
+        try {
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">            if (createFiles()) {</span>
+<span class="nc" id="L60">                blacklistedIDs = gson.fromJson(Files.newBufferedReader(blacklistPath), Set.class);</span>
+<span class="nc" id="L61">                whitelistedIDs = gson.fromJson(Files.newBufferedReader(whitelistPath), Set.class);</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">                if (blacklistedIDs == null) {</span>
+<span class="nc" id="L63">                    blacklistedIDs = new HashSet&lt;&gt;();</span>
+                }
+<span class="nc bnc" id="L65" title="All 2 branches missed.">                if (whitelistedIDs == null) {</span>
+<span class="nc" id="L66">                    whitelistedIDs = new HashSet&lt;&gt;();</span>
+                }
+            }
+<span class="nc" id="L69">        } catch (IOException e) {</span>
+<span class="nc" id="L70">            logger.error(&quot;Whitelist or blacklist files not found:&quot;, e);</span>
+<span class="fc" id="L71">        }</span>
+<span class="fc" id="L72">    }</span>
+
+    private void saveLists() {
+        try {
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            if (createFiles()) {</span>
+<span class="nc" id="L77">                Writer blacklistWriter = Files.newBufferedWriter(blacklistPath);</span>
+<span class="nc" id="L78">                Writer whitelistWriter = Files.newBufferedWriter(whitelistPath);</span>
+<span class="nc" id="L79">                blacklistWriter.write(gson.toJson(blacklistedIDs));</span>
+<span class="nc" id="L80">                whitelistWriter.write(gson.toJson(whitelistedIDs));</span>
+<span class="nc" id="L81">                blacklistWriter.close();</span>
+<span class="nc" id="L82">                whitelistWriter.close();</span>
+            }
+<span class="nc" id="L84">        } catch (IOException e) {</span>
+<span class="nc" id="L85">            e.printStackTrace();</span>
+<span class="nc" id="L86">        }</span>
+<span class="nc" id="L87">    }</span>
+
+    private boolean createFiles() throws IOException {
+<span class="fc" id="L90">        DisplayDevice display = context.get(DisplayDevice.class);</span>
+<span class="pc bpc" id="L91" title="3 of 4 branches missed.">        if (display == null || !display.isHeadless()) {</span>
+<span class="fc" id="L92">            return false;</span>
+        }
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (!Files.exists(blacklistPath)) {</span>
+<span class="nc" id="L95">            Files.createFile(blacklistPath);</span>
+        }
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (!Files.exists(whitelistPath)) {</span>
+<span class="nc" id="L98">            Files.createFile(whitelistPath);</span>
+        }
+<span class="nc" id="L100">        return true;</span>
+    }
+
+    public String getErrorMessage(String clientID) {
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        if (isClientBlacklisted(clientID)) {</span>
+<span class="nc" id="L105">            return &quot;client on blacklist&quot;;</span>
+        }
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (!isClientWhitelisted(clientID)) {</span>
+<span class="nc" id="L108">            return &quot;client not on whitelist&quot;;</span>
+        }
+<span class="nc" id="L110">        return null;</span>
+    }
+
+    @SuppressWarnings(&quot;BooleanMethodIsAlwaysInverted&quot;)
+    public boolean isClientAllowedToConnect(String clientID) {
+<span class="pc bpc" id="L115" title="2 of 4 branches missed.">        return !isClientBlacklisted(clientID) &amp;&amp; isClientWhitelisted(clientID);</span>
+    }
+
+    public void addToWhitelist(String clientID) {
+<span class="nc" id="L119">        whitelistedIDs.add(clientID);</span>
+<span class="nc" id="L120">        saveLists();</span>
+<span class="nc" id="L121">    }</span>
+
+    public void removeFromWhitelist(String clientID) {
+<span class="nc" id="L124">        whitelistedIDs.remove(clientID);</span>
+<span class="nc" id="L125">        saveLists();</span>
+<span class="nc" id="L126">    }</span>
+
+    public Set getWhitelist() {
+<span class="nc" id="L129">        return Collections.unmodifiableSet(whitelistedIDs);</span>
+    }
+
+    public void addToBlacklist(String clientID) {
+<span class="nc" id="L133">        blacklistedIDs.add(clientID);</span>
+<span class="nc" id="L134">        saveLists();</span>
+<span class="nc" id="L135">    }</span>
+
+    public void removeFromBlacklist(String clientID) {
+<span class="nc" id="L138">        blacklistedIDs.remove(clientID);</span>
+<span class="nc" id="L139">        saveLists();</span>
+<span class="nc" id="L140">    }</span>
+
+    public Set getBlacklist() {
+<span class="nc" id="L143">        return Collections.unmodifiableSet(blacklistedIDs);</span>
+    }
+
+    private boolean isClientBlacklisted(String clientID) {
+<span class="pc bpc" id="L147" title="3 of 4 branches missed.">        return blacklistedIDs != null &amp;&amp; blacklistedIDs.contains(clientID);</span>
+    }
+
+    private boolean isClientWhitelisted(String clientID) {
+<span class="pc bpc" id="L151" title="5 of 6 branches missed.">        return whitelistedIDs == null || whitelistedIDs.isEmpty() || whitelistedIDs.contains(clientID);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

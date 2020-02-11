@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UICheckbox.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UICheckbox.java</span></div><h1>UICheckbox.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.terasology.input.MouseInput;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.ActivatableWidget;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.TabbingManager;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+
+/**
+ * A check-box. Hovering is supported.
+ */
+public class UICheckbox extends ActivatableWidget {
+    public static final String HOVER_ACTIVE_MODE = &quot;hover-active&quot;;
+
+<span class="nc" id="L35">    private Binding&lt;Boolean&gt; active = new DefaultBinding&lt;&gt;(false);</span>
+
+<span class="nc" id="L37">    private InteractionListener interactionListener = new BaseInteractionListener() {</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L41" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+<span class="nc" id="L42">                activateWidget();</span>
+<span class="nc" id="L43">                return true;</span>
+            }
+<span class="nc" id="L45">            return false;</span>
+        }
+
+    };
+
+<span class="nc" id="L50">    public UICheckbox() {</span>
+<span class="nc" id="L51">    }</span>
+
+    public UICheckbox(String id) {
+<span class="nc" id="L54">        super(id);</span>
+<span class="nc" id="L55">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (isEnabled()) {</span>
+<span class="nc" id="L60">            canvas.addInteractionRegion(interactionListener);</span>
+        }
+<span class="nc" id="L62">    }</span>
+
+    @Override
+    public String getMode() {
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        if (!isEnabled()) {</span>
+<span class="nc" id="L67">            return DISABLED_MODE;</span>
+<span class="nc bnc" id="L68" title="All 6 branches missed.">        } else if (interactionListener.isMouseOver() || (TabbingManager.focusedWidget != null &amp;&amp; TabbingManager.focusedWidget.equals(this))) {</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            if (active.get()) {</span>
+<span class="nc" id="L70">                return HOVER_ACTIVE_MODE;</span>
+            }
+<span class="nc" id="L72">            return HOVER_MODE;</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        } else if (active.get()) {</span>
+<span class="nc" id="L74">            return ACTIVE_MODE;</span>
+        }
+<span class="nc" id="L76">        return DEFAULT_MODE;</span>
+    }
+
+    /**
+     * @return A boolean indicating the status of the checkbox
+     */
+    public boolean isChecked() {
+<span class="nc" id="L83">        return active.get();</span>
+    }
+
+    /**
+     * @param checked A boolean setting the ticked state of the checkbox
+     */
+    public void setChecked(boolean checked) {
+<span class="nc" id="L90">        active.set(checked);</span>
+<span class="nc" id="L91">    }</span>
+
+    @Override
+    public void activateWidget() {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        setChecked(!isChecked());</span>
+<span class="nc" id="L96">        UICheckbox.super.activateWidget();</span>
+<span class="nc" id="L97">    }</span>
+
+
+    public void bindChecked(Binding&lt;Boolean&gt; binding) {
+<span class="nc" id="L101">        this.active = binding;</span>
+<span class="nc" id="L102">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc" id="L106">        return Vector2i.zero();</span>
+    }
+
+    /**
+     * Subscribes a listener that is called whenever this {@code UICheckBox} is activated.
+     *
+     * @param listener The {@link ActivateEventListener} to be subscribed
+     */
+    public void subscribe(ActivateEventListener listener) {
+<span class="nc" id="L115">        listeners.add(listener);</span>
+<span class="nc" id="L116">    }</span>
+
+    /**
+     * Unsubscribes a listener from this {@code UICheckBox}.
+     *
+     * @param listener The {@code ActivateEventListener}to be unsubscribed
+     */
+    public void unsubscribe(ActivateEventListener listener) {
+<span class="nc" id="L124">        listeners.remove(listener);</span>
+<span class="nc" id="L125">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

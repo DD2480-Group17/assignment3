@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GLSLShaderFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.shader</a> &gt; <span class="el_source">GLSLShaderFormat.java</span></div><h1>GLSLShaderFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.assets.shader;
+
+import com.google.common.base.Charsets;
+import com.google.common.io.CharStreams;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.exceptions.InvalidAssetFilenameException;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.format.AssetFileFormat;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.naming.Name;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.lang.reflect.Type;
+import java.nio.file.PathMatcher;
+import java.util.List;
+
+/**
+ */
+@RegisterAssetFileFormat
+public class GLSLShaderFormat implements AssetFileFormat&lt;ShaderData&gt; {
+    public static final String FRAGMENT_SUFFIX = &quot;_frag.glsl&quot;;
+    public static final String VERTEX_SUFFIX = &quot;_vert.glsl&quot;;
+    public static final String METADATA_SUFFIX = &quot;.info&quot;;
+    private Gson gson;
+
+<span class="fc" id="L50">    public GLSLShaderFormat() {</span>
+<span class="fc" id="L51">        gson = new GsonBuilder()</span>
+<span class="fc" id="L52">                .registerTypeAdapter(ShaderMetadata.class, new ShaderMetadataHandler())</span>
+<span class="fc" id="L53">                .create();</span>
+<span class="fc" id="L54">    }</span>
+
+    @Override
+    public PathMatcher getFileMatcher() {
+<span class="fc" id="L58">        return path -&gt; {</span>
+<span class="fc" id="L59">            String name = path.getFileName().toString();</span>
+<span class="pc bpc" id="L60" title="1 of 6 branches missed.">            return name.endsWith(FRAGMENT_SUFFIX) || path.getFileName().toString().endsWith(VERTEX_SUFFIX) || path.getFileName().toString().endsWith(METADATA_SUFFIX);</span>
+        };
+    }
+
+    @Override
+    public Name getAssetName(String filename) throws InvalidAssetFilenameException {
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        if (filename.endsWith(METADATA_SUFFIX)) {</span>
+<span class="fc" id="L67">            return new Name(filename.substring(0, filename.length() - METADATA_SUFFIX.length()));</span>
+        } else {
+<span class="fc" id="L69">            return new Name(filename.substring(0, filename.length() - FRAGMENT_SUFFIX.length()));</span>
+        }
+    }
+
+    @Override
+    public ShaderData load(ResourceUrn urn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="fc" id="L75">        String vertProgram = null;</span>
+<span class="fc" id="L76">        String fragProgram = null;</span>
+<span class="fc" id="L77">        ShaderMetadata metadata = new ShaderMetadata();</span>
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        for (AssetDataFile input : inputs) {</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">            if (input.getFilename().endsWith(VERTEX_SUFFIX)) {</span>
+<span class="fc" id="L81">                vertProgram = readInput(input);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">            } else if (input.getFilename().endsWith(FRAGMENT_SUFFIX)) {</span>
+<span class="fc" id="L83">                fragProgram = readInput(input);</span>
+            } else {
+<span class="fc" id="L85">                metadata = readMetadata(input);</span>
+            }
+<span class="fc" id="L87">        }</span>
+<span class="pc bpc" id="L88" title="2 of 4 branches missed.">        if (vertProgram != null &amp;&amp; fragProgram != null) {</span>
+<span class="fc" id="L89">            return new ShaderData(vertProgram, fragProgram, metadata.getParameters());</span>
+        }
+<span class="nc" id="L91">        throw new IOException(&quot;Failed to load shader '&quot; + urn + &quot;' - missing vertex or fragment program&quot;);</span>
+    }
+
+    private ShaderMetadata readMetadata(AssetDataFile input) throws IOException {
+<span class="fc" id="L95">        try (Reader reader = new InputStreamReader(input.openStream(), Charsets.UTF_8)) {</span>
+<span class="fc" id="L96">            return gson.fromJson(reader, ShaderMetadata.class);</span>
+        }
+    }
+
+    private String readInput(AssetDataFile input) throws IOException {
+<span class="fc" id="L101">        try (InputStreamReader reader = new InputStreamReader(input.openStream(), Charsets.UTF_8)) {</span>
+<span class="fc" id="L102">            return CharStreams.toString(reader);</span>
+        }
+    }
+
+    private static class ShaderMetadataHandler implements JsonDeserializer&lt;ShaderMetadata&gt; {
+
+        @Override
+        public ShaderMetadata deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L110">            ShaderMetadata result = new ShaderMetadata();</span>
+<span class="fc" id="L111">            ShaderParameterMetadata[] params = context.deserialize(json.getAsJsonObject().get(&quot;params&quot;), ShaderParameterMetadata[].class);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            for (ShaderParameterMetadata param : params) {</span>
+<span class="fc" id="L113">                result.getParameters().add(param);</span>
+            }
+<span class="fc" id="L115">            return result;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

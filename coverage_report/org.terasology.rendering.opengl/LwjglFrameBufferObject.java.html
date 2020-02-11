@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LwjglFrameBufferObject.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.opengl</a> &gt; <span class="el_source">LwjglFrameBufferObject.java</span></div><h1>LwjglFrameBufferObject.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.opengl;
+
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
+import org.terasology.utilities.Assets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.BaseVector2i;
+import org.terasology.math.geom.ImmutableVector2i;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureData;
+
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+
+import static org.lwjgl.opengl.GL11.GL_MODELVIEW;
+import static org.lwjgl.opengl.GL11.GL_PROJECTION;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE;
+import static org.lwjgl.opengl.GL11.glLoadIdentity;
+import static org.lwjgl.opengl.GL11.glMatrixMode;
+import static org.lwjgl.opengl.GL11.glOrtho;
+
+/**
+ * A OpenGL framebuffer. Generates the fbo and a backing texture.
+ */
+public class LwjglFrameBufferObject implements FrameBufferObject {
+    private int frame;
+    private ImmutableVector2i size;
+    private IntBuffer vp;
+
+<span class="nc" id="L47">    public LwjglFrameBufferObject(ResourceUrn urn, BaseVector2i size) {</span>
+<span class="nc" id="L48">        this.size = ImmutableVector2i.createOrUse(size);</span>
+
+<span class="nc" id="L50">        IntBuffer fboId = BufferUtils.createIntBuffer(1);</span>
+<span class="nc" id="L51">        GL30.glGenFramebuffers(fboId);</span>
+<span class="nc" id="L52">        frame = fboId.get(0);</span>
+
+<span class="nc" id="L54">        Texture texture = generateTexture(urn);</span>
+
+<span class="nc" id="L56">        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, frame);</span>
+<span class="nc" id="L57">        GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, texture.getId(), 0);</span>
+
+<span class="nc" id="L59">        int result = GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        if (result != GL30.GL_FRAMEBUFFER_COMPLETE) {</span>
+<span class="nc" id="L61">            throw new IllegalStateException(&quot;Something went wrong with framebuffer! &quot; + result);</span>
+        }
+
+<span class="nc" id="L64">        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);</span>
+<span class="nc" id="L65">    }</span>
+
+    public void dispose() {
+        // texture assets are disposed automatically
+<span class="nc" id="L69">        GL30.glDeleteFramebuffers(frame);</span>
+<span class="nc" id="L70">    }</span>
+
+    private Texture generateTexture(ResourceUrn urn) {
+<span class="nc" id="L73">        ByteBuffer buffer = ByteBuffer.allocateDirect(size.x() * size.y() * Integer.BYTES);</span>
+<span class="nc" id="L74">        ByteBuffer[] mipmaps = new ByteBuffer[]{buffer};</span>
+<span class="nc" id="L75">        TextureData data = new TextureData(size.x(), size.y(), mipmaps, Texture.WrapMode.CLAMP, Texture.FilterMode.NEAREST);</span>
+<span class="nc" id="L76">        return Assets.generateAsset(urn, data, Texture.class);</span>
+    }
+
+    @Override
+    public void unbindFrame() {
+<span class="nc" id="L81">        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);</span>
+<span class="nc" id="L82">        GL11.glViewport(vp.get(0), vp.get(1), vp.get(2), vp.get(3));</span>
+
+<span class="nc" id="L84">        glMatrixMode(GL_TEXTURE);</span>
+<span class="nc" id="L85">        glLoadIdentity();</span>
+<span class="nc" id="L86">        glMatrixMode(GL_PROJECTION);</span>
+<span class="nc" id="L87">        glLoadIdentity();</span>
+<span class="nc" id="L88">        glOrtho(0, Display.getWidth(), Display.getHeight(), 0, 0, 2048f);</span>
+<span class="nc" id="L89">        glMatrixMode(GL_MODELVIEW);</span>
+<span class="nc" id="L90">        glLoadIdentity();</span>
+<span class="nc" id="L91">    }</span>
+
+    @Override
+    public void bindFrame() {
+<span class="nc" id="L95">        vp = BufferUtils.createIntBuffer(16);</span>
+<span class="nc" id="L96">        GL11.glGetInteger(GL11.GL_VIEWPORT, vp);</span>
+
+<span class="nc" id="L98">        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, frame);</span>
+<span class="nc" id="L99">        GL11.glViewport(0, 0, size.x(), size.y());</span>
+
+<span class="nc" id="L101">        glMatrixMode(GL_TEXTURE);</span>
+<span class="nc" id="L102">        glLoadIdentity();</span>
+<span class="nc" id="L103">        glMatrixMode(GL_PROJECTION);</span>
+<span class="nc" id="L104">        glLoadIdentity();</span>
+<span class="nc" id="L105">        glOrtho(0, size.x(), size.y(), 0, 0, 2048f);</span>
+<span class="nc" id="L106">        glMatrixMode(GL_MODELVIEW);</span>
+<span class="nc" id="L107">        glLoadIdentity();</span>
+<span class="nc" id="L108">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AttachSupportRequired.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.structure</a> &gt; <span class="el_source">AttachSupportRequired.java</span></div><h1>AttachSupportRequired.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.structure;
+
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.math.Side;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.world.BlockEntityRegistry;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockPart;
+import org.terasology.world.block.shapes.BlockMeshPart;
+
+import java.util.Collections;
+import java.util.Map;
+
+<span class="nc" id="L31">public class AttachSupportRequired implements BlockStructuralSupport {</span>
+    @Override
+    public int getPriority() {
+<span class="nc" id="L34">        return 100;</span>
+    }
+
+    @Override
+    public boolean shouldBeRemovedDueToChange(Vector3i location, Side sideChanged) {
+<span class="nc" id="L39">        final AttachSupportRequiredComponent component = getComponent(location, Collections.&lt;Vector3i, Block&gt;emptyMap());</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">        if (component != null) {</span>
+<span class="nc" id="L41">            final Block block = getBlockWithOverrides(location, Collections.&lt;Vector3i, Block&gt;emptyMap());</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">            if (!hasRequiredSupportOnSideForBlock(location, sideChanged, block)) {</span>
+<span class="nc" id="L43">                return true;</span>
+            }
+        }
+<span class="nc" id="L46">        return false;</span>
+    }
+
+    private boolean hasRequiredSupportOnSideForBlock(Vector3i location, Side sideChanged, Block block) {
+<span class="nc" id="L50">        final BlockMeshPart part = block.getPrimaryAppearance().getPart(BlockPart.fromSide(sideChanged));</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        if (part != null) {</span>
+            // This block has mesh on this side, therefore it requires a support on that side
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            if (!hasSupportFromBlockOnSide(location, sideChanged, Collections.&lt;Vector3i, Block&gt;emptyMap())) {</span>
+<span class="nc" id="L54">                return false;</span>
+            }
+        }
+<span class="nc" id="L57">        return true;</span>
+    }
+
+    @Override
+    public boolean isSufficientlySupported(Vector3i location, Map&lt;Vector3i, Block&gt; blockOverrides) {
+<span class="nc" id="L62">        final AttachSupportRequiredComponent component = getComponent(location, blockOverrides);</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        if (component != null) {</span>
+<span class="nc" id="L64">            final Block block = getBlockWithOverrides(location, blockOverrides);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            for (Side side : Side.getAllSides()) {</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">                if (hasRequiredSupportOnSideForBlock(location, side, block)) {</span>
+<span class="nc" id="L67">                    return true;</span>
+                }
+<span class="nc" id="L69">            }</span>
+<span class="nc" id="L70">            return false;</span>
+        }
+<span class="nc" id="L72">        return true;</span>
+    }
+
+    private EntityRef getEntity(Vector3i location, Map&lt;Vector3i, Block&gt; blockOverrides) {
+<span class="nc" id="L76">        final Block overwrittenBlock = blockOverrides.get(location);</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if (overwrittenBlock != null) {</span>
+<span class="nc" id="L78">            return overwrittenBlock.getEntity();</span>
+        }
+<span class="nc" id="L80">        EntityRef blockEntity = getBlockEntityRegistry().getExistingBlockEntityAt(location);</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (blockEntity.exists()) {</span>
+<span class="nc" id="L82">            return blockEntity;</span>
+        } else {
+<span class="nc" id="L84">            return getWorldProvider().getBlock(location).getEntity();</span>
+        }
+    }
+
+    private AttachSupportRequiredComponent getComponent(Vector3i location, Map&lt;Vector3i, Block&gt; blockOverrides) {
+<span class="nc" id="L89">        return getEntity(location, blockOverrides).getComponent(AttachSupportRequiredComponent.class);</span>
+    }
+
+    private boolean hasSupportFromBlockOnSide(Vector3i blockPosition, Side side, Map&lt;Vector3i, Block&gt; blockOverrides) {
+<span class="nc" id="L93">        final Vector3i sideBlockPosition = side.getAdjacentPos(blockPosition);</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (!getWorldProvider().isBlockRelevant(sideBlockPosition)) {</span>
+<span class="nc" id="L95">            return true;</span>
+        }
+<span class="nc" id="L97">        return getBlockWithOverrides(sideBlockPosition, blockOverrides).canAttachTo(side.reverse());</span>
+    }
+
+    private Block getBlockWithOverrides(Vector3i location, Map&lt;Vector3i, Block&gt; blockOverrides) {
+<span class="nc" id="L101">        final Block blockFromOverride = blockOverrides.get(location);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (blockFromOverride != null) {</span>
+<span class="nc" id="L103">            return blockFromOverride;</span>
+        }
+<span class="nc" id="L105">        return getWorldProvider().getBlock(location);</span>
+    }
+
+    private BlockEntityRegistry getBlockEntityRegistry() {
+<span class="nc" id="L109">        return CoreRegistry.get(BlockEntityRegistry.class);</span>
+    }
+
+    private WorldProvider getWorldProvider() {
+<span class="nc" id="L113">        return CoreRegistry.get(WorldProvider.class);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PerformanceMonitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.monitoring</a> &gt; <span class="el_source">PerformanceMonitor.java</span></div><h1>PerformanceMonitor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.monitoring;
+
+import gnu.trove.map.TObjectDoubleMap;
+import org.terasology.monitoring.impl.NullPerformanceMonitor;
+import org.terasology.monitoring.impl.PerformanceMonitorImpl;
+import org.terasology.monitoring.impl.PerformanceMonitorInternal;
+
+/**
+ * Maintains a running average of execution times and memory allocated by different activities.
+ * Activities call to denote when they start and stop.
+ * &lt;br&gt;&lt;br&gt;
+ * Activities may be nested, and while a nested activity is running the collection of data from outer activities
+ * is paused: time passing and allocated memory are not assigned to them.
+ * &lt;br&gt;&lt;br&gt;
+ * Performance monitor is intended only for use by the main thread of Terasology, and does not handle
+ * activities being started and ended on other threads at this time.
+ */
+public final class PerformanceMonitor {
+    private static PerformanceMonitorInternal instance;
+
+    static {
+<span class="fc" id="L37">        instance = new NullPerformanceMonitor();</span>
+<span class="fc" id="L38">    }</span>
+
+    private PerformanceMonitor() {
+    }
+
+    /**
+     * Indicates the start of an activity. All started activities must either be ended with a call to endActivity()
+     * (see example 1) or take advantage of the autocloseable interface implemented by Activity (see example 2).&lt;br&gt;
+     * &lt;br&gt;
+     *
+     * Example 1 - explicitly ending an activity:
+     * &lt;pre&gt;
+     * PerformanceMonitor.startActivity(&quot;myActivity&quot;)
+     * doSomething();
+     * PerformanceMonitor.endActivity()
+     * &lt;/pre&gt;
+     *
+     * Example 2 - the end of the activity is handled internally:
+     * &lt;pre&gt;
+     * try (Activity ignored = PerformanceMonitor.startActivity(&quot;myActivity&quot;) {
+     *     doSomething();
+     * }
+     * &lt;/pre&gt;
+     *
+     * The latter case is particularly useful whenever the activity's code has a number of possible exit paths,
+     * as it might be undesirable or simply non-trivial to add an endActivity() call at the end of each.&lt;br&gt;
+     * &lt;br&gt;
+     *
+     * Activities may be nested. Example: (the indentation pattern is not strictly necessary)
+     * &lt;pre&gt;
+     * PerformanceMonitor.startActivity(&quot;myActivity&quot;)
+     * doSomething();
+     *
+     *     PerformanceMonitor.startActivity(&quot;myNestedActivity&quot;)
+     *     doSomethingNested();
+     *     PerformanceMonitor.endActivity()
+     *
+     * doSomethingElse()
+     * PerformanceMonitor.endActivity()
+     * &lt;/pre&gt;
+     *
+     * @param activityName the name of the activity starting.
+     */
+    public static Activity startActivity(String activityName) {
+<span class="fc" id="L82">        return instance.startActivity(activityName);</span>
+    }
+
+    /**
+     * Indicates the end of the last started activity.
+     */
+    public static void endActivity() {
+<span class="fc" id="L89">        instance.endActivity();</span>
+<span class="fc" id="L90">    }</span>
+
+    /**
+     * Drops old information and updates the metrics. Should be called once per frame.
+     */
+    public static void rollCycle() {
+<span class="nc" id="L96">        instance.rollCycle();</span>
+<span class="nc" id="L97">    }</span>
+
+    /**
+     * Returns a mapping from the name of an activity to a running mean of its execution times, over a number of cycles.
+     * &lt;br&gt;&lt;br&gt;
+     * Activities may be nested, and while a nested activity is running the collection of data from outer activities
+     * is paused and time passing is not assigned to them.
+     *
+     * @return a mapping from activity name to running mean of execution times.
+     */
+    public static TObjectDoubleMap&lt;String&gt; getRunningMean() {
+<span class="nc" id="L108">        return instance.getRunningMean();</span>
+    }
+
+    /**
+     * Returns a mapping from the name of an activity to the activity's largest execution time, decayed by time.
+     * &lt;br&gt;&lt;br&gt;
+     * Without decay this method would return the absolute largest execution time for each activity, since
+     * it was first started. Instead, this method returns the largest -most recent- execution time for
+     * each activity.
+     *
+     * @return a mapping from activity name to largest most recent execution time per cycle.
+     */
+    // TODO: change to return the largest execution time over the monitored interval - no decay involved. See comment in
+    // TODO: https://github.com/emanuele3d/Terasology/commit/36cf9bf23b42f76793a5d5968ef4e25986aa9706#commitcomment-11445526
+    public static TObjectDoubleMap&lt;String&gt; getDecayingSpikes() {
+<span class="nc" id="L123">        return instance.getDecayingSpikes();</span>
+    }
+
+    /**
+     * Returns a mapping from the name of an activity to a running mean of allocated memory during
+     * the execution of the activity, over a number of cycles.
+     * &lt;br&gt;&lt;br&gt;
+     * Activities may be nested, and while a nested activity is running the collection of data from
+     * outer activities is paused and allocated memory is not assigned to them.
+     * &lt;br&gt;&lt;br&gt;
+     * No guarantee can be given that the memory allocated during the execution of an activity is
+     * entirely due to the activity. Other threads for example might increase or decrease the
+     * figure.
+     *
+     * @return a mapping from activity name to running mean of allocated memory.
+     */
+    public static TObjectDoubleMap&lt;String&gt; getAllocationMean() {
+<span class="nc" id="L140">        return instance.getAllocationMean();</span>
+    }
+
+    /**
+     * Enables or disables the Performance Monitoring system.
+     * &lt;br&gt;&lt;br&gt;
+     * When disabled all data is purged and calls to startActivity()/endActivity() and rollCycle() are ignored.
+     *
+     * @param enabled True turns the Performance Monitoring system ON. False turns it OFF.
+     */
+    public static void setEnabled(boolean enabled) {
+<span class="nc bnc" id="L151" title="All 4 branches missed.">        if (enabled &amp;&amp; !(instance instanceof PerformanceMonitorImpl)) {</span>
+<span class="nc" id="L152">            instance = new PerformanceMonitorImpl();</span>
+<span class="nc bnc" id="L153" title="All 4 branches missed.">        } else if (!enabled &amp;&amp; !(instance instanceof NullPerformanceMonitor)) {</span>
+<span class="nc" id="L154">            instance = new NullPerformanceMonitor();</span>
+        }
+<span class="nc" id="L156">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

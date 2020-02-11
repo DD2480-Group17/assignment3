@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FontFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.font</a> &gt; <span class="el_source">FontFormat.java</span></div><h1>FontFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.assets.font;
+
+import com.google.common.base.Charsets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.naming.Name;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.texture.Texture;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.List;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ */
+@RegisterAssetFileFormat
+public class FontFormat extends AbstractAssetFileFormat&lt;FontData&gt; {
+
+    private static final String INTEGER_PATTERN = &quot;((?:[\\+-]?\\d+)(?:[eE][\\+-]?\\d+)?)&quot;;
+
+<span class="fc" id="L44">    private static final Name FONT_RESOURCE_NAME = new Name(&quot;font&quot;);</span>
+
+    // Common patterns
+<span class="fc" id="L47">    private Pattern lineHeightPattern = Pattern.compile(&quot;lineHeight=&quot; + INTEGER_PATTERN);</span>
+<span class="fc" id="L48">    private Pattern baseHeightPattern = Pattern.compile(&quot;base=&quot; + INTEGER_PATTERN);</span>
+<span class="fc" id="L49">    private Pattern pagesPattern = Pattern.compile(&quot;pages=&quot; + INTEGER_PATTERN);</span>
+
+<span class="fc" id="L51">    private Pattern pagePattern = Pattern.compile(&quot;page id=&quot; + INTEGER_PATTERN + &quot; file=\&quot;(.*)\&quot;&quot;);</span>
+<span class="fc" id="L52">    private Pattern charsPattern = Pattern.compile(&quot;chars count=&quot; + INTEGER_PATTERN);</span>
+<span class="fc" id="L53">    private Pattern charPattern = Pattern.compile(&quot;char\\s+&quot; +</span>
+            &quot;id=&quot; + INTEGER_PATTERN + &quot;\\s+&quot; +
+            &quot;x=&quot; + INTEGER_PATTERN + &quot;\\s+&quot; +
+            &quot;y=&quot; + INTEGER_PATTERN + &quot;\\s+&quot; +
+            &quot;width=&quot; + INTEGER_PATTERN + &quot;\\s+&quot; +
+            &quot;height=&quot; + INTEGER_PATTERN + &quot;\\s+&quot; +
+            &quot;xoffset=&quot; + INTEGER_PATTERN + &quot;\\s+&quot; +
+            &quot;yoffset=&quot; + INTEGER_PATTERN + &quot;\\s+&quot; +
+            &quot;xadvance=&quot; + INTEGER_PATTERN + &quot;\\s+&quot; +
+            &quot;page=&quot; + INTEGER_PATTERN + &quot;\\s+&quot; +
+            &quot;chnl=&quot; + INTEGER_PATTERN + &quot;\\s*&quot;);
+
+    private AssetManager assetManager;
+
+    public FontFormat(AssetManager assetManager) {
+<span class="fc" id="L68">        super(&quot;fnt&quot;);</span>
+<span class="fc" id="L69">        this.assetManager = assetManager;</span>
+<span class="fc" id="L70">    }</span>
+
+    @Override
+    public FontData load(ResourceUrn urn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="nc" id="L74">        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputs.get(0).openStream(), Charsets.UTF_8))) {</span>
+<span class="nc" id="L75">            FontDataBuilder builder = new FontDataBuilder();</span>
+<span class="nc" id="L76">            parseHeader(reader.readLine());</span>
+<span class="nc" id="L77">            int numPages = parseCommon(builder, reader.readLine());</span>
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            for (int i = 0; i &lt; numPages; ++i) {</span>
+<span class="nc" id="L80">                parsePage(builder, urn.getModuleName(), reader.readLine());</span>
+            }
+
+<span class="nc" id="L83">            int charCount = getCharacterCount(reader.readLine());</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            for (int i = 0; i &lt; charCount; ++i) {</span>
+<span class="nc" id="L85">                parseCharacter(builder, reader.readLine());</span>
+            }
+
+<span class="nc" id="L88">            return builder.build();</span>
+        }
+    }
+
+    private void parseCharacter(FontDataBuilder builder, String charInfo) throws IOException {
+<span class="nc" id="L93">        Matcher matcher = charPattern.matcher(charInfo);</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (matcher.matches()) {</span>
+            try {
+<span class="nc" id="L96">                builder.startCharacter(Integer.parseInt(matcher.group(1)))</span>
+<span class="nc" id="L97">                        .setCharacterX(Integer.parseInt(matcher.group(2)))</span>
+<span class="nc" id="L98">                        .setCharacterY(Integer.parseInt(matcher.group(3)))</span>
+<span class="nc" id="L99">                        .setCharacterWidth(Integer.parseInt(matcher.group(4)))</span>
+<span class="nc" id="L100">                        .setCharacterHeight(Integer.parseInt(matcher.group(5)))</span>
+<span class="nc" id="L101">                        .setCharacterXOffset(Integer.parseInt(matcher.group(6)))</span>
+<span class="nc" id="L102">                        .setCharacterYOffset(Integer.parseInt(matcher.group(7)))</span>
+<span class="nc" id="L103">                        .setCharacterXAdvance(Integer.parseInt(matcher.group(8)))</span>
+<span class="nc" id="L104">                        .setCharacterPage(Integer.parseInt(matcher.group(9)))</span>
+<span class="nc" id="L105">                        .endCharacter();</span>
+<span class="nc" id="L106">            } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L107">                throw new IOException(&quot;Failed to load font&quot;, e);</span>
+<span class="nc" id="L108">            }</span>
+        } else {
+<span class="nc" id="L110">            throw new IOException(&quot;Failed to parse font - invalid char line '&quot; + charInfo + &quot;'&quot;);</span>
+        }
+<span class="nc" id="L112">    }</span>
+
+    private int getCharacterCount(String charsInfo) throws IOException {
+<span class="nc" id="L115">        Matcher charsMatcher = charsPattern.matcher(charsInfo);</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        if (charsMatcher.matches()) {</span>
+<span class="nc" id="L117">            return Integer.parseInt(charsMatcher.group(1));</span>
+        } else {
+<span class="nc" id="L119">            throw new IOException(&quot;Failed to load font - invalid chars line '&quot; + charsInfo + &quot;'&quot;);</span>
+        }
+    }
+
+    private void parsePage(FontDataBuilder builder, Name moduleName, String pageInfo) throws IOException {
+<span class="nc" id="L124">        Matcher pageMatcher = pagePattern.matcher(pageInfo);</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        if (pageMatcher.matches()) {</span>
+<span class="nc" id="L126">            int pageId = Integer.parseInt(pageMatcher.group(1));</span>
+<span class="nc" id="L127">            Name textureName = new Name(pageMatcher.group(2).substring(0, pageMatcher.group(2).lastIndexOf('.')));</span>
+
+<span class="nc" id="L129">            Optional&lt;Material&gt; material = assetManager.getAsset(new ResourceUrn(moduleName, new Name(&quot;font&quot;), textureName), Material.class);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">            if (!material.isPresent()) {</span>
+<span class="nc" id="L131">                throw new IOException(&quot;Failed to load font - unable to resolve font page '&quot; + textureName + &quot;'&quot;);</span>
+            } else {
+<span class="nc" id="L133">                builder.addPage(pageId, assetManager.getAsset(new ResourceUrn(moduleName, textureName), Texture.class).get(), material.get());</span>
+            }
+<span class="nc" id="L135">        } else {</span>
+<span class="nc" id="L136">            throw new IOException(&quot;Failed to load font - invalid page line '&quot; + pageInfo + &quot;'&quot;);</span>
+        }
+<span class="nc" id="L138">    }</span>
+
+
+    private void parseHeader(String info) throws IOException {
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if (!info.startsWith(&quot;info &quot;)) {</span>
+<span class="nc" id="L143">            throw new IOException(&quot;Invalid font - missing info line&quot;);</span>
+        }
+        // We don't actually use anything from the info line
+<span class="nc" id="L146">    }</span>
+
+    private int parseCommon(FontDataBuilder builder, String commonLine) throws IOException {
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        if (!commonLine.startsWith(&quot;common &quot;)) {</span>
+<span class="nc" id="L150">            throw new IOException(&quot;Failed to load font - missing common line&quot;);</span>
+        }
+<span class="nc" id="L152">        builder.setLineHeight(findInteger(lineHeightPattern, commonLine));</span>
+<span class="nc" id="L153">        builder.setBaseHeight(findInteger(baseHeightPattern, commonLine));</span>
+<span class="nc" id="L154">        return findInteger(pagesPattern, commonLine);</span>
+    }
+
+    private int findInteger(Pattern pattern, String in) {
+<span class="nc" id="L158">        Matcher matcher = pattern.matcher(in);</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        if (matcher.find()) {</span>
+<span class="nc" id="L160">            return Integer.parseInt(matcher.group(1));</span>
+        }
+<span class="nc" id="L162">        return 0;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

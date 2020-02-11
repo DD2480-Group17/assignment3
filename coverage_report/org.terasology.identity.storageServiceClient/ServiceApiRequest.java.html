@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServiceApiRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.identity.storageServiceClient</a> &gt; <span class="el_source">ServiceApiRequest.java</span></div><h1>ServiceApiRequest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.identity.storageServiceClient;
+
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.math.BigInteger;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLDecoder;
+
+/**
+ * Utility class to perform requests to the service API.
+ */
+final class ServiceApiRequest {
+
+<span class="fc" id="L37">    private static final Gson GSON = new GsonBuilder().registerTypeHierarchyAdapter(BigInteger.class, BigIntegerBase64Serializer.getInstance()).create();</span>
+
+    private ServiceApiRequest() {
+    }
+
+    private static boolean isSuccessful(int code) {
+<span class="pc bpc" id="L43" title="2 of 4 branches missed.">        return code &gt;= 200 &amp;&amp; code &lt; 300;</span>
+    }
+
+    private static boolean isRedirect(int code) {
+<span class="pc bpc" id="L47" title="2 of 4 branches missed.">        return code == HttpURLConnection.HTTP_MOVED_PERM || code == HttpURLConnection.HTTP_MOVED_TEMP;</span>
+    }
+
+    private static void parseError(HttpURLConnection conn) throws IOException, StorageServiceException {
+<span class="nc" id="L51">        try (InputStreamReader errResponse = new InputStreamReader(conn.getErrorStream())) {</span>
+            try {
+<span class="nc" id="L53">                throw new StorageServiceException(GSON.fromJson(errResponse, ErrorResponseData.class).error);</span>
+<span class="nc" id="L54">            } catch (JsonSyntaxException e) {</span>
+<span class="nc" id="L55">                throw new StorageServiceException();</span>
+            }
+<span class="nc bnc" id="L57" title="All 4 branches missed.">        }</span>
+    }
+
+    public static &lt;REQUEST, RESPONSE&gt; RESPONSE request(HttpURLConnection firstConn, HttpMethod method, String sessionToken, REQUEST data, Class&lt;RESPONSE&gt; responseClass)
+            throws IOException, StorageServiceException {
+<span class="fc" id="L62">        HttpURLConnection conn = null;</span>
+<span class="fc" id="L63">        int followedRedirects = 0;</span>
+        do {
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            if (conn == null) {</span>
+<span class="fc" id="L66">                conn = firstConn;</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            } else if (followedRedirects &gt;= 8) {</span>
+<span class="nc" id="L68">                throw new IOException(&quot;Reached max limit of HTTP redirects&quot;);</span>
+            } else {
+<span class="nc" id="L70">                String redirectUrl = conn.getHeaderField(&quot;Location&quot;);</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">                if (redirectUrl == null) {</span>
+<span class="nc" id="L72">                    throw new IOException(&quot;An HTTP redirect status code was received, but no Location header was specified&quot;);</span>
+                }
+<span class="nc" id="L74">                redirectUrl = URLDecoder.decode(redirectUrl, &quot;UTF-8&quot;);</span>
+
+                //needed if the Location header specifies a relative redirect, e.g. &quot;Location: /some/path/on/the/same/server&quot;
+<span class="nc" id="L77">                URL baseUrl = conn.getURL();</span>
+                //if redirectUrl is already absolute (contains authority), baseUrl will be ignored (see javadoc for the URL(URL, String) constructor for more info)
+<span class="nc" id="L79">                URL target = new URL(baseUrl, redirectUrl);</span>
+
+<span class="nc" id="L81">                conn = (HttpURLConnection) target.openConnection();</span>
+<span class="nc" id="L82">                followedRedirects++;</span>
+            }
+<span class="fc" id="L84">            conn.setRequestMethod(method.name());</span>
+<span class="fc" id="L85">            conn.setUseCaches(false);</span>
+<span class="fc" id="L86">            conn.setDoOutput(true);</span>
+<span class="fc" id="L87">            conn.setRequestProperty(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">            if (sessionToken != null) {</span>
+<span class="nc" id="L89">                conn.setRequestProperty(&quot;Session-Token&quot;, sessionToken);</span>
+            }
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">            if (data != null) {</span>
+<span class="fc" id="L92">                try (OutputStream request = conn.getOutputStream()) {</span>
+<span class="fc" id="L93">                    request.write(GSON.toJson(data).getBytes());</span>
+                }
+            }
+<span class="fc" id="L96">            conn.connect();</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        } while (isRedirect(conn.getResponseCode()));</span>
+
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">        if (!isSuccessful(conn.getResponseCode())) {</span>
+<span class="nc" id="L100">            parseError(conn);</span>
+        }
+<span class="fc" id="L102">        try (InputStream response = conn.getInputStream()) {</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">            if (responseClass != null) {</span>
+<span class="fc" id="L104">                return GSON.fromJson(new InputStreamReader(response), responseClass);</span>
+            } else {
+<span class="nc" id="L106">                return null;</span>
+            }
+        }
+    }
+
+    public static &lt;REQUEST, RESPONSE&gt; RESPONSE request(URL url, HttpMethod method, String sessionToken, REQUEST data, Class&lt;RESPONSE&gt; responseClass)
+            throws IOException, StorageServiceException {
+<span class="nc" id="L113">        return request((HttpURLConnection) url.openConnection(), method, sessionToken, data, responseClass);</span>
+    }
+
+    private static class ErrorResponseData {
+        private String error;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

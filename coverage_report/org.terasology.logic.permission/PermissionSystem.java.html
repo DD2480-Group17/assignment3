@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.permission</a> &gt; <span class="el_source">PermissionSystem.java</span></div><h1>PermissionSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.permission;
+
+import com.google.common.base.Predicate;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.registry.In;
+import org.terasology.registry.Share;
+
+import java.util.Set;
+
+@RegisterSystem(RegisterMode.AUTHORITY)
+@Share(PermissionManager.class)
+<span class="nc" id="L31">public class PermissionSystem extends BaseComponentSystem implements PermissionManager {</span>
+    @In
+    private LocalPlayer localPlayer;
+
+    @Override
+    public void addPermission(EntityRef player, String permission) {
+<span class="nc" id="L37">        PermissionSetComponent permissionSet = player.getComponent(PermissionSetComponent.class);</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">        if (permissionSet != null) {</span>
+<span class="nc" id="L39">            permissionSet.permissions.add(permission);</span>
+<span class="nc" id="L40">            player.saveComponent(permissionSet);</span>
+        }
+<span class="nc" id="L42">    }</span>
+
+    @Override
+    public boolean hasPermission(EntityRef player, String permission) {
+        // Local player has all permissions in every situation
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        if (isLocal(player)) {</span>
+<span class="nc" id="L48">            return true;</span>
+        }
+
+<span class="nc" id="L51">        PermissionSetComponent permissionSet = player.getComponent(PermissionSetComponent.class);</span>
+<span class="nc bnc" id="L52" title="All 4 branches missed.">        return permissionSet != null &amp;&amp; permissionSet.permissions.contains(permission);</span>
+    }
+
+    @Override
+    public boolean hasPermission(EntityRef player, Predicate&lt;String&gt; permissionPredicate) {
+        // Local player has all permission in every situation
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if (isLocal(player)) {</span>
+<span class="nc" id="L59">            return true;</span>
+        }
+
+<span class="nc" id="L62">        PermissionSetComponent permissionSet = player.getComponent(PermissionSetComponent.class);</span>
+<span class="nc bnc" id="L63" title="All 4 branches missed.">        return permissionSet != null &amp;&amp; predicateMatches(permissionPredicate, permissionSet.permissions);</span>
+    }
+
+    private boolean predicateMatches(Predicate&lt;String&gt; permissionPredicate, Set&lt;String&gt; permissions) {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        for (String permission : permissions) {</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">            if (permissionPredicate.apply(permission)) {</span>
+<span class="nc" id="L69">                return true;</span>
+            }
+<span class="nc" id="L71">        }</span>
+<span class="nc" id="L72">        return false;</span>
+    }
+
+    @Override
+    public void removePermission(EntityRef player, String permission) {
+<span class="nc" id="L77">        PermissionSetComponent permissionSet = player.getComponent(PermissionSetComponent.class);</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        if (permissionSet != null) {</span>
+<span class="nc" id="L79">            permissionSet.permissions.remove(permission);</span>
+<span class="nc" id="L80">            player.saveComponent(permissionSet);</span>
+        }
+<span class="nc" id="L82">    }</span>
+
+    /**
+     *
+     * @param player client info entity of the player
+     *
+     * @return true if it is the local player
+     */
+    private boolean isLocal(EntityRef player) {
+<span class="nc bnc" id="L91" title="All 4 branches missed.">        return localPlayer != null &amp;&amp; localPlayer.getClientInfoEntity().equals(player);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

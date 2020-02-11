@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BackdropReflectionNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">BackdropReflectionNode.java</span></div><h1>BackdropReflectionNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.util.glu.Sphere;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.DisableDepthWriting;
+import org.terasology.rendering.dag.stateChanges.EnableFaceCulling;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.LookThroughNormalized;
+import org.terasology.rendering.dag.stateChanges.ReflectedCamera;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture2D;
+import org.terasology.rendering.dag.stateChanges.SetViewportToSizeOf;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.world.WorldRenderer;
+
+import static org.lwjgl.opengl.GL11.glCallList;
+import static org.lwjgl.opengl.GL11.glEndList;
+import static org.lwjgl.opengl.GL11.glGenLists;
+import static org.lwjgl.opengl.GL11.glNewList;
+import static org.terasology.rendering.dag.nodes.BackdropNode.getAllWeatherZenith;
+import static org.terasology.rendering.opengl.ScalingFactors.HALF_SCALE;
+
+/**
+ * An instance of this class is responsible for rendering a reflected backdrop (usually the sky) into the
+ * &quot;engine:sceneReflected&quot; buffer. The content of the buffer is later used to render the reflections
+ * on the water surface.
+ *
+ * This class could potentially be used also for other reflecting surfaces, i.e. metal, but it only works
+ * for horizontal surfaces.
+ *
+ * Instances of this class are not dependent on the Video Settings or any other conditions. They can be disabled
+ * by using method Node.setEnabled(boolean) or by removing the instance from the Render Graph.
+ *
+ */
+public class BackdropReflectionNode extends AbstractNode {
+<span class="nc" id="L63">    public static final SimpleUri REFLECTED_FBO_URI = new SimpleUri(&quot;engine:fbo.sceneReflected&quot;);</span>
+<span class="nc" id="L64">    private static final ResourceUrn SKY_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.sky&quot;);</span>
+    private static final int RADIUS = 1024;
+    private static final int SLICES = 16;
+    private static final int STACKS = 128;
+
+    private BackdropProvider backdropProvider;
+
+<span class="nc" id="L71">    private int skySphere = -1;</span>
+
+    private Material skyMaterial;
+
+<span class="nc" id="L75">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 1.0f, max = 8192.0f)
+    private float sunExponent = 512.0f;
+<span class="nc" id="L78">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 1.0f, max = 8192.0f)
+    private float moonExponent = 256.0f;
+<span class="nc" id="L81">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 10.0f)
+    private float skyDaylightBrightness = 0.6f;
+<span class="nc" id="L84">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 10.0f)
+    private float skyNightBrightness = 1.0f;
+
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    private Vector3f sunDirection;
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    private float turbidity;
+
+    /**
+     * Internally requires the &quot;engine:sceneReflected&quot; buffer, stored in the (display) resolution-dependent FBO manager.
+     * This is a default, half-scale buffer inclusive of a depth buffer FBO. See FBOConfig and ScalingFactors for details
+     * on possible FBO configurations.
+     *
+     * This method also requests the material using the &quot;sky&quot; shaders (vertex, fragment) to be enabled.
+     */
+    public BackdropReflectionNode(String nodeUri, Context context) {
+<span class="nc" id="L101">        super(nodeUri, context);</span>
+
+<span class="nc" id="L103">        backdropProvider = context.get(BackdropProvider.class);</span>
+
+<span class="nc" id="L105">        SubmersibleCamera activeCamera = context.get(WorldRenderer.class).getActiveCamera();</span>
+<span class="nc" id="L106">        addDesiredStateChange(new ReflectedCamera(activeCamera));</span>
+<span class="nc" id="L107">        addDesiredStateChange(new LookThroughNormalized(activeCamera));</span>
+<span class="nc" id="L108">        initSkysphere();</span>
+
+<span class="nc" id="L110">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L111">        FBO reflectedFbo = requiresFBO(new FBOConfig(REFLECTED_FBO_URI, HALF_SCALE, FBO.Type.DEFAULT).useDepthBuffer(), displayResolutionDependentFBOs);</span>
+<span class="nc" id="L112">        addDesiredStateChange(new BindFbo(reflectedFbo));</span>
+<span class="nc" id="L113">        addDesiredStateChange(new SetViewportToSizeOf(reflectedFbo));</span>
+<span class="nc" id="L114">        addDesiredStateChange(new EnableFaceCulling());</span>
+<span class="nc" id="L115">        addDesiredStateChange(new DisableDepthWriting());</span>
+<span class="nc" id="L116">        addDesiredStateChange(new EnableMaterial(SKY_MATERIAL_URN));</span>
+
+<span class="nc" id="L118">        skyMaterial = getMaterial(SKY_MATERIAL_URN);</span>
+
+<span class="nc" id="L120">        int textureSlot = 0;</span>
+<span class="nc" id="L121">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:sky90&quot;, SKY_MATERIAL_URN, &quot;texSky90&quot;));</span>
+<span class="nc" id="L122">        addDesiredStateChange(new SetInputTexture2D(textureSlot, &quot;engine:sky180&quot;, SKY_MATERIAL_URN, &quot;texSky180&quot;));</span>
+<span class="nc" id="L123">    }</span>
+
+    /**
+     * Renders the sky, reflected, into the buffers attached to the &quot;engine:sceneReflected&quot; FBO. It is used later,
+     * to render horizontal reflective surfaces, i.e. water.
+     *
+     * Notice that this method clears the FBO, both its color and depth attachments. Earlier nodes using the
+     * same buffers beware.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L134">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+        // Common Shader Parameters
+
+<span class="nc" id="L138">        sunDirection = backdropProvider.getSunDirection(false);</span>
+<span class="nc" id="L139">        turbidity = backdropProvider.getTurbidity();</span>
+
+<span class="nc" id="L141">        skyMaterial.setFloat(&quot;daylight&quot;, backdropProvider.getDaylight(), true);</span>
+<span class="nc" id="L142">        skyMaterial.setFloat3(&quot;sunVec&quot;, sunDirection, true);</span>
+
+        // Specific Shader Parameters
+
+<span class="nc" id="L146">        skyMaterial.setFloat3(&quot;zenith&quot;, getAllWeatherZenith(sunDirection.y, turbidity), true);</span>
+<span class="nc" id="L147">        skyMaterial.setFloat(&quot;turbidity&quot;, turbidity, true);</span>
+<span class="nc" id="L148">        skyMaterial.setFloat(&quot;colorExp&quot;, backdropProvider.getColorExp(), true);</span>
+<span class="nc" id="L149">        skyMaterial.setFloat4(&quot;skySettings&quot;, sunExponent, moonExponent, skyDaylightBrightness, skyNightBrightness, true);</span>
+
+        // Actual Node Processing
+
+<span class="nc" id="L153">        glCallList(skySphere); // Draws the skysphere</span>
+
+<span class="nc" id="L155">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L156">    }</span>
+
+    private void initSkysphere() {
+<span class="nc" id="L159">        Sphere sphere = new Sphere();</span>
+<span class="nc" id="L160">        sphere.setTextureFlag(true);</span>
+
+<span class="nc" id="L162">        skySphere = glGenLists(1);</span>
+
+<span class="nc" id="L164">        glNewList(skySphere, GL11.GL_COMPILE);</span>
+<span class="nc" id="L165">        sphere.draw(RADIUS, SLICES, STACKS);</span>
+<span class="nc" id="L166">        glEndList();</span>
+<span class="nc" id="L167">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

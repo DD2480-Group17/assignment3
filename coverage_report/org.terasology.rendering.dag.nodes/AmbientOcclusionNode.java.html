@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AmbientOcclusionNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">AmbientOcclusionNode.java</span></div><h1>AmbientOcclusionNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.lwjgl.BufferUtils;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureData;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.dag.ConditionDependentNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture2D;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.dag.stateChanges.SetViewportToSizeOf;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.utilities.Assets;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.utilities.random.Random;
+
+import java.beans.PropertyChangeEvent;
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.util.Optional;
+
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.DepthStencilTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.NormalsTexture;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+import static org.terasology.rendering.opengl.ScalingFactors.FULL_SCALE;
+import static org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs.POST_FBO_REGENERATION;
+
+/**
+ * Instances of this node work in tandem with instances of the BlurredAmbientOcclusionNode class.
+ * Together they constitute an ambient occlusion pass.
+ *
+ * This particular node generates a first, sharper ambient occlusion output. Subsequently that's
+ * used by the BlurredAmbientOcclusionNode to make it softer.
+ *
+ * At this stage only the output of BlurredAmbientOcclusionNode is used to enhance the image eventually
+ * shown on screen to the user. It is currently not possible to use the sharper output produced by
+ * this node alone, i.e. to have lower quality but faster ambient occlusions.
+ *
+ * Ambient occlusion is a subtle visual effect that makes the rendering of the world more pleasing
+ * at the cost of some additional milliseconds per frame. Disabling it may lead to increased frame
+ * rate while the gameplay remains unaffected.
+ *
+ * See http://en.wikipedia.org/wiki/Ambient_occlusion for more information on this technique.
+ */
+public class AmbientOcclusionNode extends ConditionDependentNode {
+<span class="nc" id="L74">    public static final SimpleUri SSAO_FBO_URI = new SimpleUri(&quot;engine:fbo.ssao&quot;);</span>
+    public static final int SSAO_KERNEL_ELEMENTS = 32;
+    public static final int SSAO_NOISE_SIZE = 4;
+<span class="nc" id="L77">    private static final ResourceUrn SSAO_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.ssao&quot;);</span>
+    private static final float NOISE_TEXEL_SIZE = 0.25f;
+
+    private Material ssaoMaterial;
+    private float outputFboWidth;
+    private float outputFboHeight;
+
+<span class="nc" id="L84">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.01f, max = 12.0f)
+    private float ssaoStrength = 1.75f;
+<span class="nc" id="L87">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.1f, max = 25.0f)
+    private float ssaoRad = 1.5f;
+
+    private FBO ssaoFbo;
+
+    private Camera activeCamera;
+
+<span class="nc" id="L95">    private final Random randomGenerator = new FastRandom();</span>
+
+    private FloatBuffer ssaoSamples;
+
+    public AmbientOcclusionNode(String nodeUri, Context context) {
+<span class="nc" id="L100">        super(nodeUri, context);</span>
+
+<span class="nc" id="L102">        activeCamera = worldRenderer.getActiveCamera();</span>
+
+<span class="nc" id="L104">        RenderingConfig renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L105">        renderingConfig.subscribe(RenderingConfig.SSAO, this);</span>
+<span class="nc" id="L106">        requiresCondition(renderingConfig::isSsao);</span>
+
+<span class="nc" id="L108">        addDesiredStateChange(new EnableMaterial(SSAO_MATERIAL_URN));</span>
+<span class="nc" id="L109">        ssaoMaterial = getMaterial(SSAO_MATERIAL_URN);</span>
+
+<span class="nc" id="L111">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L112">        ssaoFbo = requiresFBO(new FBOConfig(SSAO_FBO_URI, FULL_SCALE, FBO.Type.DEFAULT), displayResolutionDependentFBOs);</span>
+<span class="nc" id="L113">        addDesiredStateChange(new BindFbo(ssaoFbo));</span>
+<span class="nc" id="L114">        addDesiredStateChange(new SetViewportToSizeOf(ssaoFbo));</span>
+<span class="nc" id="L115">        displayResolutionDependentFBOs.subscribe(POST_FBO_REGENERATION, this);</span>
+
+<span class="nc" id="L117">        retrieveFboDimensions();</span>
+
+        // TODO: check for input textures brought in by the material
+
+<span class="nc" id="L121">        FBO lastUpdatedGBuffer = displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo();</span>
+
+<span class="nc" id="L123">        int texId = 0;</span>
+<span class="nc" id="L124">        addDesiredStateChange(new SetInputTextureFromFbo(texId++, lastUpdatedGBuffer, DepthStencilTexture, displayResolutionDependentFBOs, SSAO_MATERIAL_URN, &quot;texDepth&quot;));</span>
+<span class="nc" id="L125">        addDesiredStateChange(new SetInputTextureFromFbo(texId++, lastUpdatedGBuffer, NormalsTexture, displayResolutionDependentFBOs, SSAO_MATERIAL_URN, &quot;texNormals&quot;));</span>
+<span class="nc" id="L126">        addDesiredStateChange(new SetInputTexture2D(texId, generateNoiseTexture().getId(), SSAO_MATERIAL_URN, &quot;texNoise&quot;));</span>
+
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if (ssaoSamples == null) {</span>
+<span class="nc" id="L129">            createSamplesBuffer();</span>
+        }
+<span class="nc" id="L131">    }</span>
+
+    /**
+     * If Ambient Occlusion is enabled in the render settings, this method generates and
+     * stores the necessary images into their own FBOs. The stored images are eventually
+     * combined with others.
+     * &lt;p&gt;
+     * For further information on Ambient Occlusion see: http://en.wikipedia.org/wiki/Ambient_occlusion
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L142">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+<span class="nc" id="L144">        ssaoMaterial.setFloat4(&quot;ssaoSettings&quot;, ssaoStrength, ssaoRad, 0.0f, 0.0f, true);</span>
+
+<span class="nc" id="L146">        ssaoMaterial.setMatrix4(&quot;invProjMatrix&quot;, activeCamera.getInverseProjectionMatrix(), true);</span>
+<span class="nc" id="L147">        ssaoMaterial.setMatrix4(&quot;projMatrix&quot;, activeCamera.getProjectionMatrix(), true);</span>
+
+<span class="nc" id="L149">        ssaoMaterial.setFloat2(&quot;texelSize&quot;, 1.0f / outputFboWidth, 1.0f / outputFboHeight, true);</span>
+<span class="nc" id="L150">        ssaoMaterial.setFloat2(&quot;noiseTexelSize&quot;, NOISE_TEXEL_SIZE, NOISE_TEXEL_SIZE, true);</span>
+
+<span class="nc" id="L152">        ssaoMaterial.setFloat3(&quot;ssaoSamples&quot;, ssaoSamples);</span>
+
+<span class="nc" id="L154">        renderFullscreenQuad();</span>
+
+<span class="nc" id="L156">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L157">    }</span>
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+<span class="nc" id="L161">        String propertyName = event.getPropertyName();</span>
+
+<span class="nc bnc" id="L163" title="All 3 branches missed.">        switch (propertyName) {</span>
+            case RenderingConfig.SSAO:
+<span class="nc" id="L165">                super.propertyChange(event);</span>
+<span class="nc" id="L166">                break;</span>
+
+            case POST_FBO_REGENERATION:
+<span class="nc" id="L169">                retrieveFboDimensions();</span>
+                break;
+
+            // default: no other cases are possible - see subscribe operations in initialize().
+        }
+<span class="nc" id="L174">    }</span>
+
+    private void retrieveFboDimensions() {
+<span class="nc" id="L177">        outputFboWidth = ssaoFbo.width();</span>
+<span class="nc" id="L178">        outputFboHeight = ssaoFbo.height();</span>
+<span class="nc" id="L179">    }</span>
+
+    private void createSamplesBuffer() {
+<span class="nc" id="L182">        ssaoSamples = BufferUtils.createFloatBuffer(SSAO_KERNEL_ELEMENTS * 3);</span>
+
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        for (int i = 0; i &lt; SSAO_KERNEL_ELEMENTS; ++i) {</span>
+<span class="nc" id="L185">            Vector3f vec = new Vector3f();</span>
+<span class="nc" id="L186">            vec.x = randomGenerator.nextFloat(-1.0f, 1.0f);</span>
+<span class="nc" id="L187">            vec.y = randomGenerator.nextFloat(-1.0f, 1.0f);</span>
+<span class="nc" id="L188">            vec.z = randomGenerator.nextFloat();</span>
+
+<span class="nc" id="L190">            vec.normalize();</span>
+<span class="nc" id="L191">            vec.scale(randomGenerator.nextFloat(0.0f, 1.0f));</span>
+<span class="nc" id="L192">            float scale = i / (float) SSAO_KERNEL_ELEMENTS;</span>
+<span class="nc" id="L193">            scale = TeraMath.lerp(0.25f, 1.0f, scale * scale);</span>
+
+<span class="nc" id="L195">            vec.scale(scale);</span>
+
+<span class="nc" id="L197">            ssaoSamples.put(vec.x);</span>
+<span class="nc" id="L198">            ssaoSamples.put(vec.y);</span>
+<span class="nc" id="L199">            ssaoSamples.put(vec.z);</span>
+        }
+
+<span class="nc" id="L202">        ssaoSamples.flip();</span>
+<span class="nc" id="L203">    }</span>
+
+    private Texture generateNoiseTexture() {
+<span class="nc" id="L206">        Optional&lt;Texture&gt; texture = Assets.getTexture(&quot;engine:ssaoNoise&quot;);</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (!texture.isPresent()) {</span>
+<span class="nc" id="L208">            ByteBuffer noiseValues = BufferUtils.createByteBuffer(SSAO_NOISE_SIZE * SSAO_NOISE_SIZE * 4);</span>
+
+<span class="nc bnc" id="L210" title="All 2 branches missed.">            for (int i = 0; i &lt; SSAO_NOISE_SIZE * SSAO_NOISE_SIZE; ++i) {</span>
+<span class="nc" id="L211">                Vector3f noiseVector = new Vector3f(randomGenerator.nextFloat(-1.0f, 1.0f), randomGenerator.nextFloat(-1.0f, 1.0f), 0.0f);</span>
+<span class="nc" id="L212">                noiseVector.normalize();</span>
+
+<span class="nc" id="L214">                noiseValues.put((byte) ((noiseVector.x * 0.5 + 0.5) * 255.0f));</span>
+<span class="nc" id="L215">                noiseValues.put((byte) ((noiseVector.y * 0.5 + 0.5) * 255.0f));</span>
+<span class="nc" id="L216">                noiseValues.put((byte) ((noiseVector.z * 0.5 + 0.5) * 255.0f));</span>
+<span class="nc" id="L217">                noiseValues.put((byte) 0x0);</span>
+            }
+
+<span class="nc" id="L220">            noiseValues.flip();</span>
+
+<span class="nc" id="L222">            return Assets.generateAsset(new ResourceUrn(&quot;engine:ssaoNoise&quot;), new TextureData(SSAO_NOISE_SIZE, SSAO_NOISE_SIZE,</span>
+                    new ByteBuffer[]{noiseValues}, Texture.WrapMode.REPEAT, Texture.FilterMode.NEAREST), Texture.class);
+        }
+<span class="nc" id="L225">        return texture.get();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

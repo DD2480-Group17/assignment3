@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CharacterComponent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.characters</a> &gt; <span class="el_source">CharacterComponent.java</span></div><h1>CharacterComponent.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.characters;
+
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.Owns;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.network.FieldReplicateType;
+import org.terasology.network.Replicate;
+
+/**
+ * Information common to characters (the physical body of players and creatures)
+ *
+ */
+<span class="nc" id="L28">public final class CharacterComponent implements Component {</span>
+    /**
+     * Recommended height from center at which name tags should be placed if there is one.
+     */
+<span class="nc" id="L32">    public float nameTagOffset = 1.0f;</span>
+    /**
+     * Specifies the maximium range at which this character is able to interact with other objects.
+     * When the player leaves the range the interaction gets canceled.
+     */
+<span class="nc" id="L37">    public float interactionRange = 5f;</span>
+    /**
+     * The current interaction target of a character which has been authorized by the authority (e.g. the server).
+     * &lt;br&gt;&lt;br&gt;
+     * Modules should not modify this field directly.
+     */
+<span class="nc" id="L43">    public EntityRef authorizedInteractionTarget = EntityRef.NULL;</span>
+    /**
+     * This field is only set for clients (including clients that are servers).
+     * &lt;br&gt;&lt;br&gt;
+     * It contains the number of the activationId that caused the interaction start.
+     * &lt;br&gt;&lt;br&gt;
+     * The field is used to tell the client which interaction got canceled. Thus if the client has started another
+     * interaction when it receives the old cancel, it won't wrongly cancel the new interaction.
+     */
+    public int authorizedInteractionId;
+
+    /**
+     * This field is only set for clients (including clients that are servers). The clients set it
+     * best to their knowledge.
+     * &lt;br&gt;&lt;br&gt;
+     * The events {@link org.terasology.logic.characters.interactions.InteractionStartPredicted} and
+     * {@link org.terasology.logic.characters.interactions.InteractionEndPredicted} inform about changes of this
+     * field.
+     */
+<span class="nc" id="L62">    public EntityRef predictedInteractionTarget = EntityRef.NULL;</span>
+
+    /**
+     * This field is only set for clients (including clients that are servers).
+     * &lt;br&gt;&lt;br&gt;
+     * It contains the number of the activationId that caused the interaction start.
+     * &lt;br&gt;&lt;br&gt;
+     * The field is used to determine if a incoming interaction cancel is for the current interaction or not.
+     */
+    public int predictedInteractionId;
+
+<span class="nc" id="L73">    @Replicate(FieldReplicateType.SERVER_TO_OWNER)</span>
+    @Owns
+    public EntityRef movingItem = EntityRef.NULL;
+
+<span class="nc" id="L77">    @Replicate(FieldReplicateType.SERVER_TO_OWNER)</span>
+    public EntityRef controller = EntityRef.NULL;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StandardModuleExtension.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.module</a> &gt; <span class="el_source">StandardModuleExtension.java</span></div><h1>StandardModuleExtension.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.engine.module;
+
+import java.util.EnumSet;
+import java.util.Set;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.SimpleUri;
+import org.terasology.module.Module;
+
+/**
+ * A set of standard module extensions.
+ */
+<span class="fc" id="L30">public enum StandardModuleExtension implements ModuleExtension {</span>
+
+<span class="fc" id="L32">    SERVER_SIDE_ONLY(&quot;serverSideOnly&quot;, Boolean.class),</span>
+<span class="fc" id="L33">    IS_GAMEPLAY(&quot;isGameplay&quot;, Boolean.class),</span>
+<span class="fc" id="L34">    IS_ASSET(&quot;isAsset&quot;, Boolean.class),</span>
+<span class="fc" id="L35">    IS_WORLD(&quot;isWorld&quot;, Boolean.class),</span>
+<span class="fc" id="L36">    IS_LIBRARY(&quot;isLibrary&quot;, Boolean.class),</span>
+<span class="fc" id="L37">    IS_SPECIAL(&quot;isSpecial&quot;, Boolean.class),</span>
+<span class="fc" id="L38">    IS_AUGMENTATION(&quot;isAugmentation&quot;, Boolean.class),</span>
+<span class="fc" id="L39">    DEFAULT_WORLD_GENERATOR(&quot;defaultWorldGenerator&quot;, String.class);</span>
+
+    private final String key;
+    private final Class&lt;?&gt; valueType;
+<span class="fc" id="L43">    private static final Logger logger = LoggerFactory.getLogger(StandardModuleExtension.class);</span>
+
+<span class="fc" id="L45">    StandardModuleExtension(String key, Class&lt;?&gt; valueType) {</span>
+<span class="fc" id="L46">        this.key = key;</span>
+<span class="fc" id="L47">        this.valueType = valueType;</span>
+<span class="fc" id="L48">    }</span>
+
+    @Override
+    public String getKey() {
+<span class="fc" id="L52">        return key;</span>
+    }
+
+    @Override
+    public Class&lt;?&gt; getValueType() {
+<span class="fc" id="L57">        return valueType;</span>
+    }
+
+    public static boolean isServerSideOnly(Module module) {
+<span class="nc" id="L61">        return getBooleanExtension(module, SERVER_SIDE_ONLY);</span>
+    }
+
+    public static boolean isGameplayModule(Module module) {
+<span class="nc" id="L65">        return getBooleanExtension(module, IS_GAMEPLAY);</span>
+    }
+
+    public static SimpleUri getDefaultWorldGenerator(Module module) {
+<span class="nc" id="L69">        String ext = module.getMetadata().getExtension(DEFAULT_WORLD_GENERATOR.getKey(), String.class);</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        return ext != null ? new SimpleUri(ext) : null;</span>
+    }
+
+    private static boolean getBooleanExtension(Module module, StandardModuleExtension ext) {
+<span class="nc" id="L74">        Boolean result = module.getMetadata().getExtension(ext.getKey(), Boolean.class);</span>
+<span class="nc bnc" id="L75" title="All 4 branches missed.">        return result != null &amp;&amp; result;</span>
+    }
+
+    public static Set&lt;StandardModuleExtension&gt; booleanPropertySet() {
+<span class="fc" id="L79">        Set&lt;StandardModuleExtension&gt; booleanPropertySet = EnumSet.noneOf(StandardModuleExtension.class);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        for (StandardModuleExtension standardModuleExtension : values()) {</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">            if (standardModuleExtension.getValueType().equals(Boolean.class)) {</span>
+<span class="fc" id="L82">                booleanPropertySet.add(standardModuleExtension);</span>
+            }
+        }
+<span class="fc" id="L85">        return booleanPropertySet;</span>
+    }
+
+    public boolean isProvidedBy(Module module) {
+<span class="nc" id="L89">        return getBooleanExtension(module, this);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

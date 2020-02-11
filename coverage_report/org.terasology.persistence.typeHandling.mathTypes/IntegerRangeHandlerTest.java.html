@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IntegerRangeHandlerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.mathTypes</a> &gt; <span class="el_source">IntegerRangeHandlerTest.java</span></div><h1>IntegerRangeHandlerTest.java</h1><pre class="source lang-java linenums">/*
+# * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.mathTypes;
+
+import org.junit.jupiter.api.Test;
+import org.terasology.math.IntegerRange;
+
+import java.util.Iterator;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+<span class="fc" id="L27">public class IntegerRangeHandlerTest {</span>
+<span class="fc" id="L28">    private IntegerRangeHandler handler = new IntegerRangeHandler();</span>
+
+    @Test
+    public void testEmptyRange() {
+<span class="fc" id="L32">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L33">        String rangeStr = handler.getAsString(range);</span>
+<span class="fc" id="L34">        assertEquals(&quot;&quot;, rangeStr);</span>
+<span class="fc" id="L35">        validateRange(handler.getFromString(rangeStr));</span>
+<span class="fc" id="L36">    }</span>
+
+    @Test
+    public void testSimpleRange() {
+<span class="fc" id="L40">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L41">        range.addNumbers(1, 3);</span>
+<span class="fc" id="L42">        String rangeStr = handler.getAsString(range);</span>
+<span class="fc" id="L43">        assertEquals(&quot;1..3&quot;, rangeStr);</span>
+<span class="fc" id="L44">        validateRange(handler.getFromString(rangeStr), 1, 2, 3);</span>
+<span class="fc" id="L45">    }</span>
+
+    @Test
+    public void testSingleRange() {
+<span class="fc" id="L49">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L50">        range.addNumbers(1, 1);</span>
+<span class="fc" id="L51">        String rangeStr = handler.getAsString(range);</span>
+<span class="fc" id="L52">        assertEquals(&quot;1&quot;, rangeStr);</span>
+<span class="fc" id="L53">        validateRange(handler.getFromString(rangeStr), 1);</span>
+<span class="fc" id="L54">    }</span>
+
+    @Test
+    public void testTwoRanges() {
+<span class="fc" id="L58">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L59">        range.addNumbers(1, 3);</span>
+<span class="fc" id="L60">        range.addNumbers(5, 6);</span>
+<span class="fc" id="L61">        String rangeStr = handler.getAsString(range);</span>
+<span class="fc" id="L62">        assertEquals(&quot;1..3,5..6&quot;, rangeStr);</span>
+<span class="fc" id="L63">        validateRange(handler.getFromString(rangeStr), 1, 2, 3, 5, 6);</span>
+<span class="fc" id="L64">    }</span>
+
+    @Test
+    public void testTwoRangesMerged() {
+<span class="fc" id="L68">        IntegerRange range = new IntegerRange();</span>
+<span class="fc" id="L69">        range.addNumbers(1, 5);</span>
+<span class="fc" id="L70">        range.addNumbers(3, 6);</span>
+<span class="fc" id="L71">        String rangeStr = handler.getAsString(range);</span>
+<span class="fc" id="L72">        assertEquals(&quot;1..6&quot;, rangeStr);</span>
+<span class="fc" id="L73">        validateRange(handler.getFromString(rangeStr), 1, 2, 3, 4, 5, 6);</span>
+<span class="fc" id="L74">    }</span>
+
+    private void validateRange(IntegerRange range, Integer... numbers) {
+<span class="fc" id="L77">        Iterator&lt;Integer&gt; iterator = range.iterator();</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        for (Integer number : numbers) {</span>
+<span class="fc" id="L79">            assertTrue(iterator.hasNext());</span>
+<span class="fc" id="L80">            assertEquals(number, iterator.next());</span>
+        }
+<span class="fc" id="L82">        assertFalse(iterator.hasNext());</span>
+<span class="fc" id="L83">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

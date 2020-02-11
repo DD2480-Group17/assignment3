@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HeadlessTexture.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.subsystem.headless.assets</a> &gt; <span class="el_source">HeadlessTexture.java</span></div><h1>HeadlessTexture.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.subsystem.headless.assets;
+
+import com.google.common.collect.Lists;
+
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Rect2f;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureData;
+
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class HeadlessTexture extends Texture {
+
+<span class="fc" id="L33">    private static final AtomicInteger ID_COUNTER = new AtomicInteger();</span>
+
+    private TextureData textureData;
+    private int id;
+    private final DisposalAction disposalAction;
+
+    public HeadlessTexture(ResourceUrn urn, AssetType&lt;?, TextureData&gt; assetType, TextureData data) {
+<span class="fc" id="L40">        super(urn, assetType);</span>
+<span class="fc" id="L41">        disposalAction = new DisposalAction();</span>
+<span class="fc" id="L42">        getDisposalHook().setDisposeAction(disposalAction);</span>
+<span class="fc" id="L43">        reload(data);</span>
+<span class="fc" id="L44">        id = ID_COUNTER.getAndIncrement();</span>
+<span class="fc" id="L45">    }</span>
+
+    @Override
+    public int getId() {
+<span class="nc" id="L49">        return id;</span>
+    }
+
+    @Override
+    public int getDepth() {
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        switch (textureData.getType()) {</span>
+            case TEXTURE3D:
+<span class="nc" id="L56">                return textureData.getHeight();</span>
+            default:
+<span class="nc" id="L58">                return 1;</span>
+        }
+    }
+
+    /**
+     *
+     * @return
+     */
+    @Override
+    public boolean isLoaded() {
+<span class="nc" id="L68">        return isDisposed();</span>
+    }
+
+    @Override
+    protected void doReload(TextureData data) {
+<span class="fc" id="L73">        this.textureData = data;</span>
+<span class="fc" id="L74">    }</span>
+
+    @Override
+    public TextureData getData() {
+<span class="fc" id="L78">        return new TextureData(textureData);</span>
+    }
+
+    @Override
+    public Texture getTexture() {
+<span class="nc" id="L83">        return this;</span>
+    }
+
+    @Override
+    public Rect2f getRegion() {
+<span class="nc" id="L88">        return FULL_TEXTURE_REGION;</span>
+    }
+
+    @Override
+    public int getWidth() {
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        switch (textureData.getType()) {</span>
+            case TEXTURE3D:
+<span class="nc" id="L95">                return textureData.getHeight();</span>
+            default:
+<span class="fc" id="L97">                return textureData.getWidth();</span>
+        }
+    }
+
+    @Override
+    public int getHeight() {
+<span class="fc" id="L103">        return textureData.getHeight();</span>
+    }
+
+    @Override
+    public Vector2i size() {
+<span class="nc" id="L108">        return new Vector2i(getWidth(), getHeight());</span>
+    }
+
+    @Override
+    public WrapMode getWrapMode() {
+<span class="nc" id="L113">        return textureData.getWrapMode();</span>
+    }
+
+    @Override
+    public FilterMode getFilterMode() {
+<span class="nc" id="L118">        return textureData.getFilterMode();</span>
+    }
+
+    @Override
+    public Rect2i getPixelRegion() {
+<span class="nc" id="L123">        return Rect2i.createFromMinAndSize(0, 0, textureData.getWidth(), textureData.getHeight());</span>
+    }
+
+    @Override
+    public synchronized void subscribeToDisposal(Runnable subscriber) {
+<span class="nc" id="L128">        disposalAction.disposalListeners.add(subscriber);</span>
+<span class="nc" id="L129">    }</span>
+
+    @Override
+    public synchronized void unsubscribeToDisposal(Runnable subscriber) {
+<span class="nc" id="L133">        disposalAction.disposalListeners.remove(subscriber);</span>
+<span class="nc" id="L134">    }</span>
+
+<span class="fc" id="L136">    private static class DisposalAction implements Runnable {</span>
+
+<span class="fc" id="L138">        private final List&lt;Runnable&gt; disposalListeners = Lists.newArrayList();</span>
+
+        @Override
+        public void run() {
+<span class="nc" id="L142">            disposalListeners.forEach(java.lang.Runnable::run);</span>
+<span class="nc" id="L143">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,535 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SpaceTree.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.tree</a> &gt; <span class="el_source">SpaceTree.java</span></div><h1>SpaceTree.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.utilities.tree;
+
+import com.google.common.collect.Ordering;
+import com.google.common.collect.TreeMultimap;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.NavigableSet;
+import java.util.Set;
+
+/**
+ * A data structure that allows to add, remove and find nearest nodes in an N-dimensional space.
+ * This can be used to locate entities (or block entities) nearest to player of a specific type, provided that system
+ * using it keeps track of all loaded &amp;amp; active entities of this specific type.
+ * &lt;br&gt;&lt;br&gt;
+ * For three dimensions this is an octree and for two dimensions this is quadtree implementations.
+ * &lt;br&gt;&lt;br&gt;
+ * It is possible to provide a DistanceFunction in the constructor that will be used instead of EuclideanDistanceFunction.
+ * This allows to prefer a specific axis (i.e. objects above/below have higher priority than front/back or sides) or
+ * it might have some other applications. Please note, that if it is used, the distance returned in an &quot;Entry&quot; is
+ * according to the DistanceFunction.
+ *
+ * @param &lt;T&gt; The type of object stored as a value in this SpaceTree.
+ */
+public class SpaceTree&lt;T&gt; extends AbstractDimensionalMap&lt;T&gt; {
+    private static final int DEFAULT_BUCKET_SIZE = 24;
+<span class="fc" id="L45">    private static final DistanceFunction DEFAULT_DISTANCE_FUNCTION = new EuclideanDistanceFunction();</span>
+
+    private final int bucketSize;
+    private final int dimensions;
+    private final int subNodeCount;
+    private final DistanceFunction distanceFunction;
+
+    private Node rootNode;
+
+    /**
+     * Constructor for a SpaceTree object given only the dimensions. The object will use the DEFAULT_BUCKET_SIZE
+     * and DEFAULT_DISTANCE_FUNCTION as the default bucket size and distance function respectively.
+     */
+    public SpaceTree(int dimensions) {
+<span class="fc" id="L59">        this(dimensions, DEFAULT_BUCKET_SIZE, DEFAULT_DISTANCE_FUNCTION);</span>
+<span class="fc" id="L60">    }</span>
+
+    /**
+     * Constructor for a SpaceTree object given only the dimensions and the default distance function.
+     * The object will use the DEFAULT_BUCKET_SIZE for the default bucket size.
+     */
+
+    public SpaceTree(int dimensions, DistanceFunction distanceFunction) {
+<span class="nc" id="L68">        this(dimensions, DEFAULT_BUCKET_SIZE, distanceFunction);</span>
+<span class="nc" id="L69">    }</span>
+
+    /**
+     * Constructor for a SpaceTree object given only the dimensions and the default bucket size.
+     * The object will use the DEFAULT_DISTANCE_FUNCTION for the default distance function.
+     */
+    public SpaceTree(int dimensions, int bucketSize) {
+<span class="nc" id="L76">        this(dimensions, bucketSize, DEFAULT_DISTANCE_FUNCTION);</span>
+<span class="nc" id="L77">    }</span>
+
+    /**
+     * Constructor for a SpaceTree object given only the dimensions, default bucket size, and
+     * default distance function.
+     */
+<span class="fc" id="L83">    public SpaceTree(int dimensions, int bucketSize, DistanceFunction distanceFunction) {</span>
+<span class="fc" id="L84">        this.dimensions = dimensions;</span>
+<span class="fc" id="L85">        this.bucketSize = bucketSize;</span>
+<span class="fc" id="L86">        this.distanceFunction = distanceFunction;</span>
+
+<span class="fc" id="L88">        int subNodes = 2;</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        for (int i = 1; i &lt; dimensions; i++) {</span>
+<span class="fc" id="L90">            subNodes *= 2;</span>
+        }
+<span class="fc" id="L92">        subNodeCount = subNodes;</span>
+<span class="fc" id="L93">    }</span>
+
+    /**
+     * Adds a new value to the SpaceTree. If the root (start of the tree) is null, then a new node will be
+     * created. Otherwise, it'll call upon the addToNode() method to add the new value to the root node.
+     *
+     * @param position   The position of the new node
+     */
+    @Override
+    public T add(float[] position, T value) {
+<span class="fc" id="L103">        validatePosition(position);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L105">            throw new IllegalArgumentException(&quot;Value cannot be null&quot;);</span>
+        }
+
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (rootNode == null) {</span>
+            // Create a new node and make it root
+<span class="fc" id="L110">            float[] min = new float[dimensions];</span>
+<span class="fc" id="L111">            float[] max = new float[dimensions];</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            for (int i = 0; i &lt; dimensions; i++) {</span>
+<span class="fc" id="L113">                min[i] = Float.MIN_VALUE;</span>
+<span class="fc" id="L114">                max[i] = Float.MAX_VALUE;</span>
+            }
+<span class="fc" id="L116">            rootNode = createNewNode(position, min, max, value);</span>
+<span class="fc" id="L117">            return null;</span>
+        } else {
+            // Add a node to the root
+<span class="fc" id="L120">            return addToNode(position, rootNode, value);</span>
+        }
+    }
+
+    /**
+     * Removes a node and then returns the value of the removed node.
+     *
+     * @param position   The position of the node to be removed
+     * @return a T object which is the value of the node removed (null if root node was null)
+     */
+    @Override
+    public T remove(float[] position) {
+<span class="fc" id="L132">        validatePosition(position);</span>
+
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        if (rootNode == null) {</span>
+<span class="fc" id="L135">            return null;</span>
+        } else { // If the node to be removed is not a leaf, then reattach the tree so the removed node's children remain in the tree
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">            if (rootNode.center != null) {</span>
+                // This is not a leaf
+<span class="nc" id="L139">                int subNodeIndex = getSubNodeIndex(position, rootNode.center);</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                if (subNodeIndex == -1) {</span>
+<span class="nc" id="L141">                    Node oldRootNode = rootNode;</span>
+<span class="nc" id="L142">                    rootNode = null;</span>
+
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                    for (Node subNode : oldRootNode.subNodes) {</span>
+<span class="nc" id="L145">                        addAllFromNode(subNode, null);</span>
+                    }
+
+<span class="nc" id="L148">                    return oldRootNode.centerValue;</span>
+                } else {
+<span class="nc" id="L150">                    return removeFromSubNodeOfNode(position, rootNode, subNodeIndex);</span>
+                }
+            } else { // If the node to be removed is a leaf, just remove it
+                // This is a leaf so need to check bucket
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">                for (NodeEntry&lt;T&gt; nodeEntry : rootNode.nodeBucket) {</span>
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">                    if (distanceFunction.getDistance(nodeEntry.position, position) == 0) {</span>
+<span class="fc" id="L156">                        rootNode.nodeBucket.remove(nodeEntry);</span>
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">                        if (rootNode.nodeBucket.size() == 0) {</span>
+<span class="fc" id="L158">                            rootNode = null;</span>
+                        }
+
+<span class="fc" id="L161">                        return nodeEntry.value;</span>
+                    }
+<span class="nc" id="L163">                }</span>
+
+                // It was not found in this leaf's bucket
+<span class="nc" id="L166">                return null;</span>
+            }
+        }
+    }
+
+    /**
+     * Returns a collection of entry objects that was created as a result of the search. The search is finding 'count' number of
+     * nodes which are within 'within' distance away from the node specified by the position
+     *
+     * @param position    The position of the node to be searched around
+     * @param count       The number of nodes to be found during the search
+     */
+    @Override
+    public Collection&lt;Entry&lt;T&gt;&gt; findNearest(float[] position, int count, float within) {
+<span class="fc" id="L180">        validatePosition(position);</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        if (count &lt; 1) {</span>
+<span class="nc" id="L182">            throw new IllegalArgumentException(&quot;Count cannot be smaller than 1&quot;);</span>
+        }
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">        if (within &lt; 0) {</span>
+<span class="nc" id="L185">            throw new IllegalArgumentException(&quot;Within cannot be smaller than 0&quot;);</span>
+        }
+
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">        if (rootNode == null) {</span>
+<span class="nc" id="L189">            return Collections.emptyList();</span>
+        } else {
+<span class="fc" id="L191">            TreeSearch&lt;T&gt; treeSearch = new TreeSearch&lt;&gt;(within, count);</span>
+<span class="fc" id="L192">            executeSearchInNode(position, rootNode, treeSearch);</span>
+<span class="fc" id="L193">            return Collections.unmodifiableCollection(treeSearch.results.values());</span>
+        }
+    }
+
+    /**
+     * The method for executing the search.
+     *
+     * @param position     The position of the node
+     * @param node         The node to be searched around
+     * @param treeSearch   The treeSearch object for searching
+     */
+    private void executeSearchInNode(float[] position, Node node, TreeSearch&lt;T&gt; treeSearch) {
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (node.center != null) {</span>
+            // This is not a leaf
+<span class="nc" id="L207">            float distance = distanceFunction.getDistance(position, node.center);</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">            if (distance &lt;= treeSearch.maxDistance) {</span>
+<span class="nc" id="L209">                treeSearch.addEntry(new Entry&lt;&gt;(distance, node.centerValue));</span>
+            }
+
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            for (Node subNode : node.subNodes) {</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">                if (subNode != null) {</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                    if (distanceFunction.getPointRegionDistance(position, subNode.minValues, subNode.maxValues) &lt;= treeSearch.maxDistance) {</span>
+<span class="nc" id="L215">                        executeSearchInNode(position, subNode, treeSearch);</span>
+                    }
+                }
+            }
+<span class="nc" id="L219">        } else {</span>
+            // This is a leaf so need to check bucket
+<span class="fc bfc" id="L221" title="All 2 branches covered.">            for (NodeEntry&lt;T&gt; nodeEntry : node.nodeBucket) {</span>
+<span class="fc" id="L222">                float distance = distanceFunction.getDistance(nodeEntry.position, position);</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">                if (distance &lt;= treeSearch.maxDistance) {</span>
+<span class="fc" id="L224">                    treeSearch.addEntry(new Entry&lt;&gt;(distance, nodeEntry.value));</span>
+                }
+<span class="fc" id="L226">            }</span>
+        }
+<span class="fc" id="L228">    }</span>
+
+    /**
+     * Removes and returns the value of the subNode removed from the node.
+     *
+     * @param position        The position of the node
+     * @param node            The parent node
+     * @param subNodeIndex    The index of the subNode to be removed
+     * @return the value of the subNode removed
+     */
+    private T removeFromSubNodeOfNode(float[] position, Node node, int subNodeIndex) {
+<span class="nc" id="L239">        Node processedNode = node;</span>
+<span class="nc" id="L240">        int processedSubNodeIndex = subNodeIndex;</span>
+        while (true) {
+<span class="nc" id="L242">            Node subNode = processedNode.subNodes[processedSubNodeIndex];</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">            if (subNode == null) {</span>
+<span class="nc" id="L244">                return null;</span>
+            } else {
+<span class="nc bnc" id="L246" title="All 2 branches missed.">                if (subNode.center != null) {</span>
+                    // This is not a leaf
+<span class="nc" id="L248">                    int subSubNodeIndex = getSubNodeIndex(position, subNode.center);</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">                    if (subSubNodeIndex == -1) {</span>
+<span class="nc" id="L250">                        processedNode.subNodes[processedSubNodeIndex] = null;</span>
+
+<span class="nc bnc" id="L252" title="All 2 branches missed.">                        for (Node subSubNode : subNode.subNodes) {</span>
+<span class="nc" id="L253">                            addAllFromNode(subSubNode, processedNode);</span>
+                        }
+
+<span class="nc" id="L256">                        return subNode.centerValue;</span>
+                    } else {
+<span class="nc" id="L258">                        processedNode = subNode;</span>
+<span class="nc" id="L259">                        processedSubNodeIndex = subSubNodeIndex;</span>
+                    }
+<span class="nc" id="L261">                } else {</span>
+                    // It is a leaf so need to check bucket
+<span class="nc bnc" id="L263" title="All 2 branches missed.">                    for (NodeEntry&lt;T&gt; nodeEntry : subNode.nodeBucket) {</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">                        if (distanceFunction.getDistance(nodeEntry.position, position) == 0) {</span>
+<span class="nc" id="L265">                            subNode.nodeBucket.remove(nodeEntry);</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">                            if (subNode.nodeBucket.size() == 0) {</span>
+<span class="nc" id="L267">                                processedNode.subNodes[processedSubNodeIndex] = null;</span>
+                            }
+
+<span class="nc" id="L270">                            return nodeEntry.value;</span>
+                        }
+<span class="nc" id="L272">                    }</span>
+                }
+            }
+<span class="nc" id="L275">        }</span>
+    }
+
+    /**
+     * If nodeToAddFrom is not null, then the nodeToAddFrom will be added to the nodeToAddTo.
+     *
+     * @param nodeToAddFrom     The node to be added to the nodeToAddTo
+     * @param nodeToAddTo       The node to receive the nodeToAddFrom
+     */
+    private void addAllFromNode(Node nodeToAddFrom, Node nodeToAddTo) {
+<span class="nc bnc" id="L285" title="All 2 branches missed.">        if (nodeToAddFrom != null) {</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">            if (nodeToAddTo == null) {</span>
+<span class="nc" id="L287">                add(nodeToAddFrom.center, nodeToAddFrom.centerValue);</span>
+            } else {
+<span class="nc" id="L289">                addToNode(nodeToAddFrom.center, nodeToAddTo, nodeToAddFrom.centerValue);</span>
+            }
+<span class="nc bnc" id="L291" title="All 2 branches missed.">            for (Node subNode : nodeToAddFrom.subNodes) {</span>
+<span class="nc" id="L292">                addAllFromNode(subNode, nodeToAddTo);</span>
+            }
+        }
+<span class="nc" id="L295">    }</span>
+
+    /**
+     * A method used to add a node with a value to another existing node.
+     *
+     * @param position   The position of the new node
+     * @param node       The node to add to
+     * @param value      The value of the new node
+     * @return the value of the node that was added
+     */
+    private T addToNode(float[] position, Node node, T value) {
+<span class="fc" id="L306">        Node processedNode = node;</span>
+        while (true) {
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">            if (processedNode.center != null) {</span>
+                // This is not a leaf
+<span class="nc" id="L310">                int subNodeIndex = getSubNodeIndex(position, processedNode.center);</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">                if (subNodeIndex == -1) {</span>
+<span class="nc" id="L312">                    T oldValue = processedNode.centerValue;</span>
+<span class="nc" id="L313">                    processedNode.centerValue = value;</span>
+<span class="nc" id="L314">                    return oldValue;</span>
+                } else {
+<span class="nc" id="L316">                    Node subNode = processedNode.subNodes[subNodeIndex];</span>
+<span class="nc bnc" id="L317" title="All 2 branches missed.">                    if (subNode == null) {</span>
+<span class="nc" id="L318">                        float[] min = new float[dimensions];</span>
+<span class="nc" id="L319">                        float[] max = new float[dimensions];</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">                        for (int i = 0; i &lt; dimensions; i++) {</span>
+<span class="nc bnc" id="L321" title="All 2 branches missed.">                            if (position[i] &gt; processedNode.center[i]) {</span>
+<span class="nc" id="L322">                                min[i] = processedNode.center[i];</span>
+<span class="nc" id="L323">                                max[i] = processedNode.maxValues[i];</span>
+                            } else {
+<span class="nc" id="L325">                                min[i] = processedNode.minValues[i];</span>
+<span class="nc" id="L326">                                max[i] = processedNode.center[i];</span>
+                            }
+                        }
+<span class="nc" id="L329">                        processedNode.subNodes[subNodeIndex] = createNewNode(position, min, max, value);</span>
+<span class="nc" id="L330">                        return null;</span>
+                    } else {
+<span class="nc" id="L332">                        processedNode = subNode;</span>
+                    }
+                }
+<span class="nc" id="L335">            } else {</span>
+                // This is a leaf, so need to check bucket
+
+                // First check if the bucket already contains value for this position
+<span class="fc bfc" id="L339" title="All 2 branches covered.">                for (NodeEntry&lt;T&gt; nodeEntry : processedNode.nodeBucket) {</span>
+<span class="fc bfc" id="L340" title="All 2 branches covered.">                    if (distanceFunction.getDistance(nodeEntry.position, position) == 0) {</span>
+<span class="fc" id="L341">                        processedNode.nodeBucket.remove(nodeEntry);</span>
+<span class="fc" id="L342">                        processedNode.nodeBucket.add(new NodeEntry&lt;&gt;(position, value));</span>
+<span class="fc" id="L343">                        return nodeEntry.value;</span>
+                    }
+<span class="fc" id="L345">                }</span>
+
+<span class="fc" id="L347">                processedNode.nodeBucket.add(new NodeEntry&lt;&gt;(position, value));</span>
+<span class="pc bpc" id="L348" title="1 of 2 branches missed.">                if (processedNode.nodeBucket.size() &gt; bucketSize) {</span>
+<span class="nc" id="L349">                    processedNode.splitNode();</span>
+                }
+
+<span class="fc" id="L352">                return null;</span>
+            }
+        }
+    }
+
+    /**
+     * Obtains the index of the subNode specified by center of the node specified by position.
+     *
+     * @param position   The position of the parent node
+     * @param center     The position of the subNode
+     * @return the index of the sub Node of the node specified by the position
+     */
+    private int getSubNodeIndex(float[] position, float[] center) {
+<span class="nc" id="L365">        int index = 0;</span>
+<span class="nc" id="L366">        int increment = 1;</span>
+<span class="nc bnc" id="L367" title="All 2 branches missed.">        for (int i = 0; i &lt; dimensions; i++) {</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">            if (position[i] &gt; center[i]) {</span>
+<span class="nc" id="L369">                index += increment;</span>
+            }
+<span class="nc" id="L371">            increment *= 2;</span>
+        }
+
+<span class="nc bnc" id="L374" title="All 2 branches missed.">        if (index == 0) {</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">            if (distanceFunction.getDistance(position, center) == 0) {</span>
+<span class="nc" id="L376">                return -1;</span>
+            }
+        }
+<span class="nc" id="L379">        return index;</span>
+    }
+
+    /**
+     * Creates a new node.
+     *
+     * @param position   The position of the new node
+     * @param min        The minimal position of the new node
+     * @param max        The maximal position of the new node
+     * @param value      The value of the new node
+     */
+    private Node createNewNode(float[] position, float[] min, float[] max, T value) {
+<span class="fc" id="L391">        float[] positionCopy = new float[dimensions];</span>
+<span class="fc" id="L392">        System.arraycopy(position, 0, positionCopy, 0, dimensions);</span>
+<span class="fc" id="L393">        return new Node(positionCopy, value, min, max);</span>
+    }
+
+    /**
+     * Throws a new IllegalArguementException if the position is either null or the length of the
+     * position (number of items in the array) is not equal to dimensions
+     */
+    private void validatePosition(float[] position) {
+<span class="fc bfc" id="L401" title="All 4 branches covered.">        if (position == null || position.length != dimensions) {</span>
+<span class="fc" id="L402">            throw new IllegalArgumentException(&quot;Invalid position, either null or invalid number of dimensions&quot;);</span>
+        }
+<span class="fc" id="L404">    }</span>
+
+    /**
+     * The class that is responsible for searching the SpaceTree
+     */
+    private static final class TreeSearch&lt;T&gt; {
+        private float maxDistance;
+        private int maxCapacity;
+
+<span class="fc" id="L413">        private TreeMultimap&lt;Float, Entry&lt;T&gt;&gt; results = TreeMultimap.create(</span>
+<span class="fc" id="L414">                new Comparator&lt;Float&gt;() {</span>
+                    @Override
+                    public int compare(Float o1, Float o2) {
+<span class="fc" id="L417">                        return o1.compareTo(o2);</span>
+                    }
+<span class="fc" id="L419">                }, Ordering.arbitrary());</span>
+
+        /**
+         * Constructor for the TreeSearch object.
+         *
+         * @param maxDistance   The max distance of the TreeSearch object will search
+         * @param maxCapacity   The maximum capacity of the TreeSearch object for nodes
+         */
+<span class="fc" id="L427">        private TreeSearch(float maxDistance, int maxCapacity) {</span>
+<span class="fc" id="L428">            this.maxDistance = maxDistance;</span>
+<span class="fc" id="L429">            this.maxCapacity = maxCapacity;</span>
+<span class="fc" id="L430">        }</span>
+
+        /**
+         * Adds an object to the results of the search as long as maxCapacity nor maxDistance is not exceeded.
+         *
+         * @param entry     The object to add to the results of the search
+         */
+        void addEntry(Entry&lt;T&gt; entry) {
+<span class="fc" id="L438">            results.put(entry.distance, entry);</span>
+<span class="fc" id="L439">            int size = results.size();</span>
+<span class="fc bfc" id="L440" title="All 2 branches covered.">            if (size &gt; maxCapacity) { //Removes some entries if maxCapacity is exceeded</span>
+<span class="fc" id="L441">                Float maxDistanceInResults = results.keySet().last();</span>
+<span class="fc" id="L442">                NavigableSet&lt;Entry&lt;T&gt;&gt; entriesAtThisDistance = results.get(maxDistanceInResults);</span>
+<span class="fc" id="L443">                entriesAtThisDistance.pollLast();</span>
+<span class="fc bfc" id="L444" title="All 2 branches covered.">                if (entriesAtThisDistance.size() == 0) {</span>
+<span class="fc" id="L445">                    results.removeAll(maxDistanceInResults);</span>
+                }
+<span class="fc" id="L447">                maxDistance = results.keySet().last();</span>
+<span class="fc bfc" id="L448" title="All 2 branches covered.">            } else if (size == maxCapacity) { //If the size is at maxCapacity, then set maxDistance to the distance of the last entry</span>
+<span class="fc" id="L449">                maxDistance = results.keySet().last();</span>
+            }
+<span class="fc" id="L451">        }</span>
+    }
+
+    /**
+     * The supporting data structure for the Node object. It holds the position, as well as the value of a node.
+     */
+    private static final class NodeEntry&lt;T&gt; {
+        private float[] position;
+        private T value;
+
+        /**
+         * Constructor for the NodeEntry object.
+         *
+         * @param position    The position information that the NodeEntry will hold
+         * @param value           The value which the NodeEntry will hold
+         */
+<span class="fc" id="L467">        private NodeEntry(float[] position, T value) {</span>
+<span class="fc" id="L468">            this.position = position;</span>
+<span class="fc" id="L469">            this.value = value;</span>
+<span class="fc" id="L470">        }</span>
+    }
+
+    /**
+     * The supporting data structure for the SpaceTree object. The SpaceTree made up of Node objects.
+     */
+    private final class Node {
+        private Set&lt;NodeEntry&lt;T&gt;&gt; nodeBucket;
+        private float[] center;
+        private T centerValue;
+        private float[] minValues;
+        private float[] maxValues;
+        private Node[] subNodes;
+
+        /**
+         * The Constructor for the Node Object.
+         *
+         * @param position      The position of the node
+         * @param value         The value which the node holds
+         * @param minValues     The minimum values of the node in terms of position
+         * @param maxValues     The maximum values of the node in terms of position
+         */
+<span class="fc" id="L492">        private Node(float[] position, T value, float[] minValues, float[] maxValues) {</span>
+<span class="fc" id="L493">            nodeBucket = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L494">            nodeBucket.add(new NodeEntry&lt;&gt;(position, value));</span>
+<span class="fc" id="L495">            this.minValues = minValues;</span>
+<span class="fc" id="L496">            this.maxValues = maxValues;</span>
+<span class="fc" id="L497">        }</span>
+
+        /**
+         * Splits the node into two nodes to help maintain order within the tree.
+         */
+        void splitNode() {
+<span class="nc" id="L503">            Iterator&lt;NodeEntry&lt;T&gt;&gt; iterator = nodeBucket.iterator();</span>
+<span class="nc" id="L504">            NodeEntry&lt;T&gt; newCenter = iterator.next();</span>
+<span class="nc" id="L505">            center = newCenter.position;</span>
+<span class="nc" id="L506">            centerValue = newCenter.value;</span>
+
+<span class="nc" id="L508">            subNodes = new SpaceTree.Node[subNodeCount];</span>
+
+<span class="nc bnc" id="L510" title="All 2 branches missed.">            while (iterator.hasNext()) {</span>
+<span class="nc" id="L511">                NodeEntry&lt;T&gt; nodeEntry = iterator.next();</span>
+<span class="nc" id="L512">                int subNodeIndex = getSubNodeIndex(nodeEntry.position, center);</span>
+<span class="nc bnc" id="L513" title="All 2 branches missed.">                if (subNodes[subNodeIndex] == null) {</span>
+<span class="nc" id="L514">                    float[] min = new float[dimensions];</span>
+<span class="nc" id="L515">                    float[] max = new float[dimensions];</span>
+<span class="nc bnc" id="L516" title="All 2 branches missed.">                    for (int i = 0; i &lt; dimensions; i++) {</span>
+<span class="nc bnc" id="L517" title="All 2 branches missed.">                        if (nodeEntry.position[i] &gt; center[i]) {</span>
+<span class="nc" id="L518">                            min[i] = center[i];</span>
+<span class="nc" id="L519">                            max[i] = maxValues[i];</span>
+                        } else {
+<span class="nc" id="L521">                            min[i] = minValues[i];</span>
+<span class="nc" id="L522">                            max[i] = center[i];</span>
+                        }
+                    }
+
+<span class="nc" id="L526">                    subNodes[subNodeIndex] = new Node(nodeEntry.position, nodeEntry.value, min, max);</span>
+<span class="nc" id="L527">                } else {</span>
+<span class="nc" id="L528">                    subNodes[subNodeIndex].nodeBucket.add(nodeEntry);</span>
+                }
+<span class="nc" id="L530">            }</span>
+<span class="nc" id="L531">            nodeBucket = null;</span>
+<span class="nc" id="L532">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

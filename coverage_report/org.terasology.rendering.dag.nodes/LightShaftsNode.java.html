@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LightShaftsNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">LightShaftsNode.java</span></div><h1>LightShaftsNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.ConditionDependentNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.dag.stateChanges.SetViewportToSizeOf;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.world.WorldProvider;
+
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.ColorTexture;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+import static org.terasology.rendering.opengl.ScalingFactors.HALF_SCALE;
+
+/**
+ * An instance of this class takes advantage of the color and depth buffers attached to the read-only gbuffer
+ * and produces light shafts from the main light (sun/moon). It is therefore a relatively inexpensive
+ * 2D effect rendered on a full screen quad - no 3D geometry involved.
+ *
+ * Trivia: the more correct term would be Crepuscular Rays [1], an atmospheric effect. One day we might
+ * be able to provide indoor light shafts through other means and it might be appropriate to rename
+ * this node accordingly.
+ *
+ * [1] https://en.wikipedia.org/wiki/Crepuscular_rays
+ */
+public class LightShaftsNode extends ConditionDependentNode {
+<span class="nc" id="L57">    public static final SimpleUri LIGHT_SHAFTS_FBO_URI = new SimpleUri(&quot;engine:fbo.lightShafts&quot;);</span>
+<span class="nc" id="L58">    private static final ResourceUrn LIGHT_SHAFTS_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.lightShafts&quot;);</span>
+
+    private BackdropProvider backdropProvider;
+    private SubmersibleCamera activeCamera;
+    private WorldProvider worldProvider;
+    private Material lightShaftsMaterial;
+    private float exposure;
+
+<span class="nc" id="L66">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 10.0f)
+    private float density = 1.0f;
+<span class="nc" id="L69">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.01f)
+    private float exposureDay = 0.0075f;
+<span class="nc" id="L72">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.01f)
+    private float exposureNight = 0.00375f;
+<span class="nc" id="L75">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 10.0f)
+    private float weight = 8.0f;
+<span class="nc" id="L78">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.99f)
+    private float decay = 0.95f;
+
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    private Vector3f sunDirection;
+<span class="nc" id="L84">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    private Vector4f sunPositionWorldSpace4 = new Vector4f();
+<span class="nc" id="L86">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    private Vector4f sunPositionScreenSpace = new Vector4f();
+
+    public LightShaftsNode(String nodeUri, Context context) {
+<span class="nc" id="L90">        super(nodeUri, context);</span>
+
+<span class="nc" id="L92">        worldProvider = context.get(WorldProvider.class);</span>
+<span class="nc" id="L93">        backdropProvider = context.get(BackdropProvider.class);</span>
+<span class="nc" id="L94">        activeCamera = context.get(WorldRenderer.class).getActiveCamera();</span>
+
+<span class="nc" id="L96">        RenderingConfig renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L97">        renderingConfig.subscribe(RenderingConfig.LIGHT_SHAFTS, this);</span>
+<span class="nc" id="L98">        requiresCondition(renderingConfig::isLightShafts);</span>
+
+<span class="nc" id="L100">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L101">        FBO lightShaftsFbo = requiresFBO(new FBOConfig(LIGHT_SHAFTS_FBO_URI, HALF_SCALE, FBO.Type.DEFAULT), displayResolutionDependentFBOs);</span>
+<span class="nc" id="L102">        addDesiredStateChange(new BindFbo(lightShaftsFbo));</span>
+<span class="nc" id="L103">        addDesiredStateChange(new SetViewportToSizeOf(lightShaftsFbo));</span>
+
+<span class="nc" id="L105">        addDesiredStateChange(new EnableMaterial(LIGHT_SHAFTS_MATERIAL_URN));</span>
+
+<span class="nc" id="L107">        lightShaftsMaterial = getMaterial(LIGHT_SHAFTS_MATERIAL_URN);</span>
+
+<span class="nc" id="L109">        int textureSlot = 0;</span>
+<span class="nc" id="L110">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot, displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo(),</span>
+                                    ColorTexture, displayResolutionDependentFBOs, LIGHT_SHAFTS_MATERIAL_URN, &quot;texScene&quot;));
+<span class="nc" id="L112">    }</span>
+
+    /**
+     * Renders light shafts, taking advantage of the information provided
+     * by the color buffer and especially the depth buffer attached to the FBO
+     * currently set as read-only.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L121">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+        // Get time of day from midnight to midnight &lt;0, 1&gt;, 0.5 being noon.
+
+<span class="nc" id="L125">        float days = worldProvider.getTime().getDays();</span>
+<span class="nc" id="L126">        days = days - (int) days;</span>
+
+        // If sun is down and moon is up, do lightshafts from moon.
+        // This is a temporary solution to sun causing light shafts even at night.
+
+<span class="nc bnc" id="L131" title="All 4 branches missed.">        if (days &lt; 0.25f || days &gt; 0.75f) {</span>
+<span class="nc" id="L132">            sunDirection = backdropProvider.getSunDirection(true);</span>
+<span class="nc" id="L133">            exposure = exposureNight;</span>
+        } else {
+<span class="nc" id="L135">            sunDirection = backdropProvider.getSunDirection(false);</span>
+<span class="nc" id="L136">            exposure = exposureDay;</span>
+        }
+
+        // Shader Parameters
+
+<span class="nc" id="L141">        lightShaftsMaterial.setFloat(&quot;density&quot;, density, true);</span>
+<span class="nc" id="L142">        lightShaftsMaterial.setFloat(&quot;exposure&quot;, exposure, true);</span>
+<span class="nc" id="L143">        lightShaftsMaterial.setFloat(&quot;weight&quot;, weight, true);</span>
+<span class="nc" id="L144">        lightShaftsMaterial.setFloat(&quot;decay&quot;, decay, true);</span>
+
+<span class="nc" id="L146">        sunPositionWorldSpace4.set(sunDirection.x * 10000.0f, sunDirection.y * 10000.0f, sunDirection.z * 10000.0f, 1.0f);</span>
+<span class="nc" id="L147">        sunPositionScreenSpace.set(sunPositionWorldSpace4);</span>
+<span class="nc" id="L148">        activeCamera.getViewProjectionMatrix().transform(sunPositionScreenSpace);</span>
+
+<span class="nc" id="L150">        sunPositionScreenSpace.x /= sunPositionScreenSpace.w;</span>
+<span class="nc" id="L151">        sunPositionScreenSpace.y /= sunPositionScreenSpace.w;</span>
+<span class="nc" id="L152">        sunPositionScreenSpace.z /= sunPositionScreenSpace.w;</span>
+<span class="nc" id="L153">        sunPositionScreenSpace.w = 1.0f;</span>
+
+<span class="nc" id="L155">        lightShaftsMaterial.setFloat(&quot;lightDirDotViewDir&quot;, activeCamera.getViewingDirection().dot(sunDirection), true);</span>
+<span class="nc" id="L156">        lightShaftsMaterial.setFloat2(&quot;lightScreenPos&quot;, (sunPositionScreenSpace.x + 1.0f) / 2.0f, (sunPositionScreenSpace.y + 1.0f) / 2.0f, true);</span>
+
+        // Actual Node Processing
+
+        // The source code for this method is quite short because everything happens in the shader and its setup.
+        // In particular see the class ShaderParametersLightShafts and resource lightShafts_frag.glsl
+<span class="nc" id="L162">        renderFullscreenQuad();</span>
+
+<span class="nc" id="L164">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L165">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

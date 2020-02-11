@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BrownianNoiseOld.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.procedural</a> &gt; <span class="el_source">BrownianNoiseOld.java</span></div><h1>BrownianNoiseOld.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities.procedural;
+
+/**
+ * Computes Brownian noise based on some noise generator.
+ * Originally, Brown integrates white noise, but using other noises can be sometimes useful, too.
+ */
+public abstract class BrownianNoiseOld {
+
+    /**
+     * Default persistence value
+     */
+    public static final double DEFAULT_PERSISTENCE = 0.836281;
+
+    /**
+     * Default lacunarity value
+     */
+    public static final double DEFAULT_LACUNARITY = 2.1379201;
+
+<span class="nc" id="L35">    private double lacunarity = DEFAULT_LACUNARITY;</span>
+
+<span class="nc" id="L37">    private double persistence = DEFAULT_PERSISTENCE;</span>
+
+    private int octaves;
+    private double[] spectralWeights;
+
+    /**
+     * Initialize with 9 octaves - &lt;b&gt;this is insanely expensive, but backwards compatible&lt;/b&gt;
+     */
+<span class="nc" id="L45">    protected BrownianNoiseOld() {</span>
+<span class="nc" id="L46">        setOctaves(9);</span>
+<span class="nc" id="L47">    }</span>
+
+    /**
+     * Values of noise() are in the range [-scale..scale]
+     * @return the scale
+     */
+    public double getScale() {
+<span class="nc" id="L54">        double sum = 0;</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        for (double weight : spectralWeights) {</span>
+<span class="nc" id="L56">            sum += weight;</span>
+        }
+<span class="nc" id="L58">        return sum;</span>
+    }
+
+    /**
+     * @param octaves the number of octaves used for computation
+     */
+    public void setOctaves(int octaves) {
+<span class="nc" id="L65">        this.octaves = octaves;</span>
+
+        // recompute weights eagerly
+<span class="nc" id="L68">        spectralWeights = new double[octaves];</span>
+
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        for (int i = 0; i &lt; octaves; i++) {</span>
+<span class="nc" id="L71">            spectralWeights[i] = Math.pow(lacunarity, -persistence * i);</span>
+        }
+<span class="nc" id="L73">   }</span>
+
+    /**
+     * @return the number of octaves
+     */
+    public int getOctaves() {
+<span class="nc" id="L79">        return octaves;</span>
+    }
+
+    /**
+     * Lacunarity is what makes the frequency grow. Each octave
+     * the frequency is multiplied by the lacunarity.
+     * @return the lacunarity
+     */
+    public double getLacunarity() {
+<span class="nc" id="L88">        return this.lacunarity;</span>
+    }
+
+    /**
+     * Lacunarity is what makes the frequency grow. Each octave
+     * the frequency is multiplied by the lacunarity.
+     * @param lacunarity the lacunarity
+     */
+    public void setLacunarity(double lacunarity) {
+<span class="nc" id="L97">        this.lacunarity = lacunarity;</span>
+<span class="nc" id="L98">    }</span>
+
+    /**
+     * Persistence is what makes the amplitude shrink.
+     * More precicely the amplitude of octave i = lacunarity^(-persistence * i)
+     * @return the persistance
+     */
+    public double getPersistance() {
+<span class="nc" id="L106">        return this.persistence;</span>
+    }
+
+    /**
+     * Persistence is what makes the amplitude shrink.
+     * More precisely the amplitude of octave i = lacunarity^(-persistence * i)
+     * @param persistence the persistence to set
+     */
+    public void setPersistence(double persistence) {
+<span class="nc" id="L115">        this.persistence = persistence;</span>
+<span class="nc" id="L116">    }</span>
+
+    /**
+     * @return the spectralWeights
+     */
+    protected double getSpectralWeight(int octave) {
+<span class="nc" id="L122">        return spectralWeights[octave];</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectFieldMapTypeHandlerFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.coreTypes.factories</a> &gt; <span class="el_source">ObjectFieldMapTypeHandlerFactory.java</span></div><h1>ObjectFieldMapTypeHandlerFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.coreTypes.factories;
+
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.persistence.typeHandling.TypeHandler;
+import org.terasology.persistence.typeHandling.TypeHandlerFactory;
+import org.terasology.persistence.typeHandling.TypeHandlerContext;
+import org.terasology.persistence.typeHandling.coreTypes.ObjectFieldMapTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.RuntimeDelegatingTypeHandler;
+import org.terasology.reflection.TypeInfo;
+import org.terasology.reflection.reflect.ConstructorLibrary;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
+import java.util.Map;
+import java.util.Optional;
+
+public class ObjectFieldMapTypeHandlerFactory implements TypeHandlerFactory {
+<span class="fc" id="L37">    private static final Logger LOGGER = LoggerFactory.getLogger(ObjectFieldMapTypeHandlerFactory.class);</span>
+
+    private ConstructorLibrary constructorLibrary;
+
+<span class="fc" id="L41">    public ObjectFieldMapTypeHandlerFactory(ConstructorLibrary constructorLibrary) {</span>
+<span class="fc" id="L42">        this.constructorLibrary = constructorLibrary;</span>
+<span class="fc" id="L43">    }</span>
+
+    @Override
+    public &lt;T&gt; Optional&lt;TypeHandler&lt;T&gt;&gt; create(TypeInfo&lt;T&gt; typeInfo, TypeHandlerContext context) {
+<span class="fc" id="L47">        Class&lt;? super T&gt; typeClass = typeInfo.getRawType();</span>
+
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (!Modifier.isAbstract(typeClass.getModifiers())</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">                &amp;&amp; !typeClass.isLocalClass()</span>
+<span class="pc bpc" id="L51" title="1 of 4 branches missed.">                &amp;&amp; !(typeClass.isMemberClass() &amp;&amp; !Modifier.isStatic(typeClass.getModifiers()))) {</span>
+<span class="fc" id="L52">            Map&lt;Field, TypeHandler&lt;?&gt;&gt; fieldTypeHandlerMap = Maps.newLinkedHashMap();</span>
+
+<span class="fc" id="L54">            getResolvedFields(typeInfo).forEach(</span>
+                    (field, fieldType) -&gt;
+                    {
+<span class="fc" id="L57">                        Optional&lt;TypeHandler&lt;?&gt;&gt; declaredFieldTypeHandler =</span>
+<span class="fc" id="L58">                                context.getTypeHandlerLibrary().getTypeHandler(fieldType);</span>
+
+<span class="fc" id="L60">                        TypeInfo&lt;?&gt; fieldTypeInfo = TypeInfo.of(fieldType);</span>
+
+<span class="fc" id="L62">                        fieldTypeHandlerMap.put(</span>
+                                field,
+                                new RuntimeDelegatingTypeHandler(
+<span class="fc" id="L65">                                        declaredFieldTypeHandler.orElse(null),</span>
+                                        fieldTypeInfo,
+                                        context
+                                )
+                        );
+<span class="fc" id="L70">                    }</span>
+            );
+
+<span class="fc" id="L73">            ObjectFieldMapTypeHandler&lt;T&gt; mappedHandler =</span>
+<span class="fc" id="L74">                    new ObjectFieldMapTypeHandler&lt;&gt;(constructorLibrary.get(typeInfo), fieldTypeHandlerMap);</span>
+
+<span class="fc" id="L76">            return Optional.of(mappedHandler);</span>
+        }
+
+<span class="fc" id="L79">        return Optional.empty();</span>
+    }
+
+    private &lt;T&gt; Map&lt;Field, Type&gt; getResolvedFields(TypeInfo&lt;T&gt; typeInfo) {
+<span class="fc" id="L83">        Map&lt;Field, Type&gt; fields = Maps.newLinkedHashMap();</span>
+
+<span class="fc" id="L85">        Type type = typeInfo.getType();</span>
+<span class="fc" id="L86">        Class&lt;? super T&gt; rawType = typeInfo.getRawType();</span>
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        while (!Object.class.equals(rawType)) {</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">            for (Field field : rawType.getDeclaredFields()) {</span>
+<span class="fc bfc" id="L90" title="All 4 branches covered.">                if (Modifier.isTransient(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) {</span>
+<span class="fc" id="L91">                    continue;</span>
+                }
+
+<span class="fc" id="L94">                field.setAccessible(true);</span>
+<span class="fc" id="L95">                Type fieldType = ReflectionUtil.resolveType(type, field.getGenericType());</span>
+<span class="fc" id="L96">                fields.put(field, fieldType);</span>
+            }
+
+<span class="fc" id="L99">            rawType = rawType.getSuperclass();</span>
+        }
+
+<span class="fc" id="L102">        return fields;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

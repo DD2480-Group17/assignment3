@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config</a> &gt; <span class="el_source">SecurityConfig.java</span></div><h1>SecurityConfig.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.config;
+
+import com.google.common.collect.Maps;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import org.terasology.identity.ClientIdentity;
+import org.terasology.identity.PrivateIdentityCertificate;
+import org.terasology.identity.PublicIdentityCertificate;
+
+import java.lang.reflect.Type;
+import java.security.Permission;
+import java.security.SecurityPermission;
+import java.util.Collections;
+import java.util.Map;
+
+/**
+ *
+ */
+<span class="fc" id="L40">public class SecurityConfig {</span>
+<span class="fc" id="L41">    public static final SecurityPermission PRIVATE_CERTIFICATE_ACCESS_PERMISSION = new SecurityPermission(&quot;PRIVATE_CERTIFICATE_ACCESS_PERMISSION&quot;);</span>
+<span class="fc" id="L42">    public static final SecurityPermission CERTIFICATE_WRITE_PERMISSION = new SecurityPermission(&quot;CERTIFICATE_WRITE_PERMISSION&quot;);</span>
+
+    private PublicIdentityCertificate serverPublicCertificate;
+    private PrivateIdentityCertificate serverPrivateCertificate;
+<span class="fc" id="L46">    private Map&lt;PublicIdentityCertificate, ClientIdentity&gt; clientCertificates = Maps.newHashMap();</span>
+
+    public PublicIdentityCertificate getServerPublicCertificate() {
+<span class="fc" id="L49">        return serverPublicCertificate;</span>
+    }
+
+    private void checkPermission(Permission permission) {
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">        if (System.getSecurityManager() != null) {</span>
+<span class="fc" id="L54">            System.getSecurityManager().checkPermission(permission);</span>
+        }
+<span class="fc" id="L56">    }</span>
+
+    public PrivateIdentityCertificate getServerPrivateCertificate() {
+<span class="fc" id="L59">        checkPermission(PRIVATE_CERTIFICATE_ACCESS_PERMISSION);</span>
+<span class="fc" id="L60">        return serverPrivateCertificate;</span>
+    }
+
+    public void setServerCredentials(PublicIdentityCertificate publicCert, PrivateIdentityCertificate privateCert) {
+<span class="fc" id="L64">        checkPermission(CERTIFICATE_WRITE_PERMISSION);</span>
+<span class="fc" id="L65">        this.serverPublicCertificate = publicCert;</span>
+<span class="fc" id="L66">        this.serverPrivateCertificate = privateCert;</span>
+<span class="fc" id="L67">    }</span>
+
+    public ClientIdentity getIdentity(PublicIdentityCertificate serverCertificate) {
+<span class="fc" id="L70">        return clientCertificates.get(serverCertificate);</span>
+    }
+
+    public Map&lt;PublicIdentityCertificate, ClientIdentity&gt; getAllIdentities() {
+<span class="nc" id="L74">        return Collections.unmodifiableMap(clientCertificates);</span>
+    }
+
+    public void addIdentity(PublicIdentityCertificate serverCertificate, ClientIdentity identity) {
+<span class="fc" id="L78">        checkPermission(CERTIFICATE_WRITE_PERMISSION);</span>
+<span class="fc" id="L79">        clientCertificates.put(serverCertificate, identity);</span>
+<span class="fc" id="L80">    }</span>
+
+    public void clearIdentities() {
+<span class="nc" id="L83">        checkPermission(CERTIFICATE_WRITE_PERMISSION);</span>
+<span class="nc" id="L84">        clientCertificates.clear();</span>
+<span class="nc" id="L85">    }</span>
+
+<span class="fc" id="L87">    public static class Handler implements JsonSerializer&lt;SecurityConfig&gt;, JsonDeserializer&lt;SecurityConfig&gt; {</span>
+
+        public static final String SERVER_PUBLIC_CERTIFICATE = &quot;serverPublicCertificate&quot;;
+        public static final String SERVER_PRIVATE_CERTIFICATE = &quot;serverPrivateCertificate&quot;;
+        public static final String CLIENT_IDENTITIES = &quot;clientIdentities&quot;;
+
+        @Override
+        public SecurityConfig deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="nc" id="L95">            SecurityConfig result = new SecurityConfig();</span>
+<span class="nc" id="L96">            JsonObject jsonObject = json.getAsJsonObject();</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            if (jsonObject.has(SERVER_PUBLIC_CERTIFICATE)) {</span>
+<span class="nc" id="L98">                result.serverPublicCertificate = context.deserialize(jsonObject.getAsJsonObject(SERVER_PUBLIC_CERTIFICATE), PublicIdentityCertificate.class);</span>
+            }
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            if (jsonObject.has(SERVER_PRIVATE_CERTIFICATE)) {</span>
+<span class="nc" id="L101">                result.serverPrivateCertificate = context.deserialize(jsonObject.getAsJsonObject(SERVER_PRIVATE_CERTIFICATE), PrivateIdentityCertificate.class);</span>
+            }
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            if (jsonObject.has(CLIENT_IDENTITIES)) {</span>
+<span class="nc" id="L104">                JsonArray clientArray = jsonObject.getAsJsonArray(CLIENT_IDENTITIES);</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                for (JsonElement jsonEntry : clientArray) {</span>
+<span class="nc" id="L106">                    ClientEntry entry = context.deserialize(jsonEntry, ClientEntry.class);</span>
+<span class="nc" id="L107">                    result.addIdentity(entry.server, new ClientIdentity(entry.clientPublic, entry.clientPrivate));</span>
+<span class="nc" id="L108">                }</span>
+            }
+<span class="nc" id="L110">            return result;</span>
+        }
+
+        @Override
+        public JsonElement serialize(SecurityConfig src, Type typeOfSrc, JsonSerializationContext context) {
+<span class="fc" id="L115">            JsonObject result = new JsonObject();</span>
+<span class="fc" id="L116">            result.add(SERVER_PUBLIC_CERTIFICATE, context.serialize(src.serverPublicCertificate));</span>
+<span class="fc" id="L117">            result.add(SERVER_PRIVATE_CERTIFICATE, context.serialize(src.serverPrivateCertificate));</span>
+<span class="fc" id="L118">            JsonArray clientArray = new JsonArray();</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">            for (Map.Entry&lt;PublicIdentityCertificate, ClientIdentity&gt; entry : src.clientCertificates.entrySet()) {</span>
+<span class="fc" id="L120">                ClientEntry clientEntry = new ClientEntry();</span>
+<span class="fc" id="L121">                clientEntry.server = entry.getKey();</span>
+<span class="fc" id="L122">                clientEntry.clientPublic = entry.getValue().getPlayerPublicCertificate();</span>
+<span class="fc" id="L123">                clientEntry.clientPrivate = entry.getValue().getPlayerPrivateCertificate();</span>
+<span class="fc" id="L124">                clientArray.add(context.serialize(clientEntry));</span>
+<span class="fc" id="L125">            }</span>
+<span class="fc" id="L126">            result.add(CLIENT_IDENTITIES, clientArray);</span>
+<span class="fc" id="L127">            return result;</span>
+        }
+    }
+
+    private static class ClientEntry {
+        public PublicIdentityCertificate server;
+        public PublicIdentityCertificate clientPublic;
+        public PrivateIdentityCertificate clientPrivate;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

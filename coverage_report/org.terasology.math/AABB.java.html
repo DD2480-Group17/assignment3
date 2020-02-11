@@ -1,0 +1,490 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AABB.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.math</a> &gt; <span class="el_source">AABB.java</span></div><h1>AABB.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.math;
+
+import com.google.common.base.Objects;
+import gnu.trove.list.TFloatList;
+import org.terasology.math.geom.Matrix3f;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3d;
+import org.terasology.math.geom.Vector3f;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+/**
+ * An axis-aligned bounding box. Provides basic support for inclusion and intersection tests.
+ */
+public final class AABB {
+
+    public static final float DEFAULT_MARGIN = 0.01f;
+    public static final float HALVING_FACTOR = 0.5f;
+    private final Vector3f min;
+    private final Vector3f max;
+
+    private Vector3f[] vertices;
+
+<span class="fc" id="L42">    private AABB(Vector3f min, Vector3f max) {</span>
+<span class="fc" id="L43">        this.min = min;</span>
+<span class="fc" id="L44">        this.max = max;</span>
+<span class="fc" id="L45">    }</span>
+
+    /**
+     * Creates a new AABB from the given minimum and maximum points, both inclusive.
+     *
+     * @param min The minimum of the AABB.
+     * @param max The maximum of the AABB.
+     * @return The created AABB.
+     */
+    public static AABB createMinMax(Vector3f min, Vector3f max) {
+<span class="fc" id="L55">        return new AABB(new Vector3f(min), new Vector3f(max));</span>
+    }
+
+    /**
+     * Creates a new AABB with the given center and extents.
+     *
+     * @param center The center of the AABB.
+     * @param extent The extent of the AABB.
+     * @return The created AABB.
+     */
+    public static AABB createCenterExtent(Vector3f center, Vector3f extent) {
+<span class="nc" id="L66">        Vector3f min = new Vector3f(center);</span>
+<span class="nc" id="L67">        min.sub(extent);</span>
+<span class="nc" id="L68">        Vector3f max = new Vector3f(center);</span>
+<span class="nc" id="L69">        max.add(extent);</span>
+<span class="nc" id="L70">        return new AABB(min, max);</span>
+    }
+
+    /**
+     * Creates an empty AABB that does not contain any points.
+     *
+     * @return The created AABB.
+     */
+    public static AABB createEmpty() {
+<span class="fc" id="L79">        return new AABB(new Vector3f(), new Vector3f());</span>
+    }
+
+    /**
+     * Creates a new AABB that encapsulates a set of AABBs.
+     *
+     * @param others The other AABBs that'll define the extents of the new one.
+     */
+    public static AABB createEncompassing(Iterable&lt;AABB&gt; others) {
+        Vector3f min;
+        Vector3f max;
+<span class="nc" id="L90">        Iterator&lt;AABB&gt; i = others.iterator();</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (i.hasNext()) {</span>
+<span class="nc" id="L92">            AABB next = i.next();</span>
+<span class="nc" id="L93">            min = next.getMin();</span>
+<span class="nc" id="L94">            max = next.getMax();</span>
+<span class="nc" id="L95">        } else {</span>
+<span class="nc" id="L96">            return createEmpty();</span>
+        }
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        while (i.hasNext()) {</span>
+<span class="nc" id="L99">            AABB next = i.next();</span>
+<span class="nc" id="L100">            Vector3f otherMin = next.getMin();</span>
+<span class="nc" id="L101">            Vector3f otherMax = next.getMax();</span>
+<span class="nc" id="L102">            Vector3fUtil.min(min, otherMin, min);</span>
+<span class="nc" id="L103">            Vector3fUtil.max(max, otherMax, max);</span>
+<span class="nc" id="L104">        }</span>
+<span class="nc" id="L105">        return new AABB(min, max);</span>
+    }
+
+    /**
+     * Creates a new AABB that contains the vertices as represented by a {@link TFloatList}.
+     *
+     * @param vertices The vertices to encompass. It is assumed that the X, Y, Z components of each
+     *                 vertex are stored consecutively in the {@link TFloatList}.
+     *
+     *                 For the {@code i}th vertex in the list, the X, Y, and Z components
+     *                 are stored at indices {@code 3 * i}, {@code 3 * i + 1}, and
+     *                 {@code 3 * i + 2} respectively.
+     *
+     * @return The created AABB.
+     */
+    public static AABB createEncompasing(TFloatList vertices) {
+<span class="nc" id="L121">        int vertexCount = vertices.size() / 3;</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        if (vertexCount == 0) {</span>
+<span class="nc" id="L123">            return AABB.createEmpty();</span>
+        }
+
+<span class="nc" id="L126">        Vector3f min = new Vector3f(vertices.get(0), vertices.get(1), vertices.get(2));</span>
+<span class="nc" id="L127">        Vector3f max = new Vector3f(vertices.get(0), vertices.get(1), vertices.get(2));</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        for (int index = 1; index &lt; vertexCount; ++index) {</span>
+<span class="nc" id="L129">            min.x = Math.min(min.x, vertices.get(3 * index));</span>
+<span class="nc" id="L130">            max.x = Math.max(max.x, vertices.get(3 * index));</span>
+<span class="nc" id="L131">            min.y = Math.min(min.y, vertices.get(3 * index + 1));</span>
+<span class="nc" id="L132">            max.y = Math.max(max.y, vertices.get(3 * index + 1));</span>
+<span class="nc" id="L133">            min.z = Math.min(min.z, vertices.get(3 * index + 2));</span>
+<span class="nc" id="L134">            max.z = Math.max(max.z, vertices.get(3 * index + 2));</span>
+        }
+<span class="nc" id="L136">        return AABB.createMinMax(min, max);</span>
+    }
+
+    /**
+     * @return The distance from the center to the max node
+     */
+    public Vector3f getExtents() {
+<span class="nc" id="L143">        Vector3f dimensions = new Vector3f(max);</span>
+<span class="nc" id="L144">        dimensions.sub(min);</span>
+<span class="nc" id="L145">        dimensions.scale(HALVING_FACTOR);</span>
+<span class="nc" id="L146">        return dimensions;</span>
+    }
+
+    public Vector3f getCenter() {
+<span class="nc" id="L150">        Vector3f dimensions = new Vector3f(max);</span>
+<span class="nc" id="L151">        dimensions.add(min);</span>
+<span class="nc" id="L152">        dimensions.scale(HALVING_FACTOR);</span>
+<span class="nc" id="L153">        return dimensions;</span>
+    }
+
+    public Vector3f getMin() {
+<span class="fc" id="L157">        return new Vector3f(min);</span>
+    }
+
+    public Vector3f getMax() {
+<span class="fc" id="L161">        return new Vector3f(max);</span>
+    }
+
+    /**
+     * Get a new AABB which have a new location base on the offset
+     * @param offset The offset between the current AABB and the new AABB
+     * @return the new AABB
+     */
+    public AABB move(Vector3f offset) {
+<span class="nc" id="L170">        Vector3f newMin = new Vector3f(min);</span>
+<span class="nc" id="L171">        newMin.add(offset);</span>
+<span class="nc" id="L172">        Vector3f newMax = new Vector3f(max);</span>
+<span class="nc" id="L173">        newMax.add(offset);</span>
+<span class="nc" id="L174">        return new AABB(newMin, newMax);</span>
+    }
+
+    /**
+     * Transform this AABB into a new AABB with the given rotation, offset and scale.
+     *
+     * @param rotation The rotation from the current AABB to the new AABB.
+     * @param offset The offset between the current AABB and the new AABB.
+     * @param scale The scale of the new AABB with respect to the old AABB.
+     * @return The new transformed AABB.
+     */
+    public AABB transform(Quat4f rotation, Vector3f offset, float scale) {
+<span class="nc" id="L186">        Transform transform = new Transform(offset, rotation, scale);</span>
+<span class="nc" id="L187">        return transform(transform);</span>
+    }
+
+    /**
+     * Transform this AABB into a new AABB with the given rotation, offset and scale as represented by the {@link Transform}.
+     *
+     * @param transform The {@link Transform} representing the offset, rotation, and scale transformation from this AABB to the new AABB.
+     * @return the new transformed AABB.
+     */
+    public AABB transform(Transform transform) {
+<span class="nc" id="L197">        return transform(transform, DEFAULT_MARGIN);</span>
+    }
+
+    public AABB transform(Transform transform, float margin) {
+        // Adaptation of method AabbUtil2.transformAabb from the TeraBullet library.
+<span class="nc" id="L202">        Vector3f localHalfExtents = new Vector3f();</span>
+<span class="nc" id="L203">        localHalfExtents.sub(max, min);</span>
+<span class="nc" id="L204">        localHalfExtents.mul(HALVING_FACTOR);</span>
+
+<span class="nc" id="L206">        localHalfExtents.x += margin;</span>
+<span class="nc" id="L207">        localHalfExtents.y += margin;</span>
+<span class="nc" id="L208">        localHalfExtents.z += margin;</span>
+
+<span class="nc" id="L210">        Vector3f localCenter = new Vector3f(max);</span>
+<span class="nc" id="L211">        localCenter.add(min);</span>
+<span class="nc" id="L212">        localCenter.mul(HALVING_FACTOR);</span>
+
+<span class="nc" id="L214">        Matrix3f absBasis = transform.getBasis();</span>
+
+<span class="nc" id="L216">        absBasis.m00 = Math.abs(absBasis.m00);</span>
+<span class="nc" id="L217">        absBasis.m01 = Math.abs(absBasis.m01);</span>
+<span class="nc" id="L218">        absBasis.m02 = Math.abs(absBasis.m02);</span>
+<span class="nc" id="L219">        absBasis.m10 = Math.abs(absBasis.m10);</span>
+<span class="nc" id="L220">        absBasis.m11 = Math.abs(absBasis.m11);</span>
+<span class="nc" id="L221">        absBasis.m12 = Math.abs(absBasis.m12);</span>
+<span class="nc" id="L222">        absBasis.m20 = Math.abs(absBasis.m20);</span>
+<span class="nc" id="L223">        absBasis.m21 = Math.abs(absBasis.m21);</span>
+<span class="nc" id="L224">        absBasis.m22 = Math.abs(absBasis.m22);</span>
+
+<span class="nc" id="L226">        Vector3f center = new Vector3f(localCenter);</span>
+<span class="nc" id="L227">        absBasis.transform(center);</span>
+<span class="nc" id="L228">        center.add(transform.origin);</span>
+
+<span class="nc" id="L230">        Vector3f extent = new Vector3f();</span>
+
+<span class="nc" id="L232">        extent.x = absBasis.getRow(0).dot(localHalfExtents);</span>
+<span class="nc" id="L233">        extent.y = absBasis.getRow(1).dot(localHalfExtents);</span>
+<span class="nc" id="L234">        extent.z = absBasis.getRow(2).dot(localHalfExtents);</span>
+
+<span class="nc" id="L236">        Vector3f worldMin = new Vector3f();</span>
+<span class="nc" id="L237">        worldMin.sub(center, extent);</span>
+
+<span class="nc" id="L239">        Vector3f worldMax = new Vector3f(center).add(extent);</span>
+
+<span class="nc" id="L241">        return AABB.createMinMax(worldMin, worldMax);</span>
+    }
+
+    /**
+     * Returns true if this AABB overlaps the given AABB.
+     *
+     * @param aabb2 The AABB to check for overlapping
+     * @return True if overlapping
+     */
+    public boolean overlaps(AABB aabb2) {
+<span class="nc bnc" id="L251" title="All 12 branches missed.">        return !(max.x &lt; aabb2.min.x || min.x &gt; aabb2.max.x)</span>
+                &amp;&amp; !(max.y &lt; aabb2.min.y || min.y &gt; aabb2.max.y)
+                &amp;&amp; !(max.z &lt; aabb2.min.z || min.z &gt; aabb2.max.z);
+    }
+
+    /**
+     * Returns true if the AABB contains the given point.
+     *
+     * @param point The point to check for inclusion
+     * @return True if containing
+     */
+    public boolean contains(Vector3d point) {
+<span class="nc bnc" id="L263" title="All 12 branches missed.">        return !(max.x &lt; point.x || min.x &gt;= point.x)</span>
+                &amp;&amp; !(max.y &lt; point.y || min.y &gt;= point.y)
+                &amp;&amp; !(max.z &lt; point.z || min.z &gt;= point.z);
+    }
+
+    /**
+     * Returns true if the AABB contains the given point.
+     *
+     * @param point The point to check for inclusion
+     * @return True if containing
+     */
+    public boolean contains(Vector3f point) {
+<span class="nc bnc" id="L275" title="All 12 branches missed.">        return !(max.x &lt; point.x || min.x &gt;= point.x)</span>
+                &amp;&amp; !(max.y &lt; point.y || min.y &gt;= point.y)
+                &amp;&amp; !(max.z &lt; point.z || min.z &gt;= point.z);
+    }
+
+    /**
+     * Returns the closest point on the AABB to a given point.
+     *
+     * @param p The point
+     * @return The point on the AABB closest to the given point
+     */
+    public Vector3f closestPointOnAABBToPoint(Vector3f p) {
+<span class="nc" id="L287">        Vector3f r = new Vector3f(p);</span>
+
+<span class="nc bnc" id="L289" title="All 2 branches missed.">        if (p.x &lt; min.x) {</span>
+<span class="nc" id="L290">            r.x = min.x;</span>
+        }
+<span class="nc bnc" id="L292" title="All 2 branches missed.">        if (p.x &gt; max.x) {</span>
+<span class="nc" id="L293">            r.x = max.x;</span>
+        }
+<span class="nc bnc" id="L295" title="All 2 branches missed.">        if (p.y &lt; min.y) {</span>
+<span class="nc" id="L296">            r.y = min.y;</span>
+        }
+<span class="nc bnc" id="L298" title="All 2 branches missed.">        if (p.y &gt; max.y) {</span>
+<span class="nc" id="L299">            r.y = max.y;</span>
+        }
+<span class="nc bnc" id="L301" title="All 2 branches missed.">        if (p.z &lt; min.z) {</span>
+<span class="nc" id="L302">            r.z = min.z;</span>
+        }
+<span class="nc bnc" id="L304" title="All 2 branches missed.">        if (p.z &gt; max.z) {</span>
+<span class="nc" id="L305">            r.z = max.z;</span>
+        }
+
+<span class="nc" id="L308">        return r;</span>
+    }
+
+    /**
+     * Returns the normal of the plane closest to the given origin.
+     *
+     * @param pointOnAABB A point on the AABB
+     * @param origin      The origin
+     * @param testX       True if the x-axis should be tested
+     * @param testY       True if the y-axis should be tested
+     * @param testZ       True if the z-axis should be tested
+     * @return The normal
+     */
+    public Vector3f normalForPlaneClosestToOrigin(Vector3f pointOnAABB, Vector3f origin, boolean testX, boolean testY, boolean testZ) {
+<span class="nc" id="L322">        List&lt;Vector3f&gt; normals = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L324" title="All 4 branches missed.">        if (pointOnAABB.z == min.z &amp;&amp; testZ) {</span>
+<span class="nc" id="L325">            normals.add(new Vector3f(0, 0, -1));</span>
+        }
+<span class="nc bnc" id="L327" title="All 4 branches missed.">        if (pointOnAABB.z == max.z &amp;&amp; testZ) {</span>
+<span class="nc" id="L328">            normals.add(new Vector3f(0, 0, 1));</span>
+        }
+<span class="nc bnc" id="L330" title="All 4 branches missed.">        if (pointOnAABB.x == min.x &amp;&amp; testX) {</span>
+<span class="nc" id="L331">            normals.add(new Vector3f(-1, 0, 0));</span>
+        }
+<span class="nc bnc" id="L333" title="All 4 branches missed.">        if (pointOnAABB.x == max.x &amp;&amp; testX) {</span>
+<span class="nc" id="L334">            normals.add(new Vector3f(1, 0, 0));</span>
+        }
+<span class="nc bnc" id="L336" title="All 4 branches missed.">        if (pointOnAABB.y == min.y &amp;&amp; testY) {</span>
+<span class="nc" id="L337">            normals.add(new Vector3f(0, -1, 0));</span>
+        }
+<span class="nc bnc" id="L339" title="All 4 branches missed.">        if (pointOnAABB.y == max.y &amp;&amp; testY) {</span>
+<span class="nc" id="L340">            normals.add(new Vector3f(0, 1, 0));</span>
+        }
+
+<span class="nc" id="L343">        float minDistance = Float.MAX_VALUE;</span>
+<span class="nc" id="L344">        Vector3f closestNormal = new Vector3f();</span>
+
+<span class="nc bnc" id="L346" title="All 2 branches missed.">        for (Vector3f n : normals) {</span>
+<span class="nc" id="L347">            Vector3f diff = new Vector3f(centerPointForNormal(n));</span>
+<span class="nc" id="L348">            diff.sub(origin);</span>
+
+<span class="nc" id="L350">            float distance = diff.length();</span>
+
+<span class="nc bnc" id="L352" title="All 2 branches missed.">            if (distance &lt; minDistance) {</span>
+<span class="nc" id="L353">                minDistance = distance;</span>
+<span class="nc" id="L354">                closestNormal = n;</span>
+            }
+<span class="nc" id="L356">        }</span>
+
+<span class="nc" id="L358">        return closestNormal;</span>
+    }
+
+    /**
+     * Returns the center point of one of the six planes for the given normal.
+     *
+     * @param normal The normal
+     * @return The center point
+     */
+    public Vector3f centerPointForNormal(Vector3f normal) {
+<span class="nc bnc" id="L368" title="All 6 branches missed.">        if (normal.x == 1 &amp;&amp; normal.y == 0 &amp;&amp; normal.z == 0) {</span>
+<span class="nc" id="L369">            return new Vector3f(max.x, getCenter().y, getCenter().z);</span>
+        }
+<span class="nc bnc" id="L371" title="All 6 branches missed.">        if (normal.x == -1 &amp;&amp; normal.y == 0 &amp;&amp; normal.z == 0) {</span>
+<span class="nc" id="L372">            return new Vector3f(min.x, getCenter().y, getCenter().z);</span>
+        }
+<span class="nc bnc" id="L374" title="All 6 branches missed.">        if (normal.x == 0 &amp;&amp; normal.y == 0 &amp;&amp; normal.z == 1) {</span>
+<span class="nc" id="L375">            return new Vector3f(getCenter().x, getCenter().y, max.z);</span>
+        }
+<span class="nc bnc" id="L377" title="All 6 branches missed.">        if (normal.x == 0 &amp;&amp; normal.y == 0 &amp;&amp; normal.z == -1) {</span>
+<span class="nc" id="L378">            return new Vector3f(getCenter().x, getCenter().y, min.z);</span>
+        }
+<span class="nc bnc" id="L380" title="All 6 branches missed.">        if (normal.x == 0 &amp;&amp; normal.y == 1 &amp;&amp; normal.z == 0) {</span>
+<span class="nc" id="L381">            return new Vector3f(getCenter().x, max.y, getCenter().z);</span>
+        }
+<span class="nc bnc" id="L383" title="All 6 branches missed.">        if (normal.x == 0 &amp;&amp; normal.y == -1 &amp;&amp; normal.z == 0) {</span>
+<span class="nc" id="L384">            return new Vector3f(getCenter().x, min.y, getCenter().z);</span>
+        }
+
+<span class="nc" id="L387">        return new Vector3f();</span>
+    }
+
+    public float minX() {
+<span class="nc" id="L391">        return min.x;</span>
+    }
+
+    public float minY() {
+<span class="nc" id="L395">        return min.y;</span>
+    }
+
+    public float minZ() {
+<span class="nc" id="L399">        return min.z;</span>
+    }
+
+    public float maxX() {
+<span class="nc" id="L403">        return max.x;</span>
+    }
+
+    public float maxY() {
+<span class="nc" id="L407">        return max.y;</span>
+    }
+
+    public float maxZ() {
+<span class="nc" id="L411">        return max.z;</span>
+    }
+
+    /**
+     * Returns the vertices of this AABB.
+     *
+     * @return The vertices
+     */
+    public Vector3f[] getVertices() {
+<span class="nc bnc" id="L420" title="All 2 branches missed.">        if (vertices == null) {</span>
+<span class="nc" id="L421">            vertices = new Vector3f[8];</span>
+
+            // Front
+<span class="nc" id="L424">            vertices[0] = new Vector3f(min.x, min.y, max.z);</span>
+<span class="nc" id="L425">            vertices[1] = new Vector3f(max.x, min.y, max.z);</span>
+<span class="nc" id="L426">            vertices[2] = new Vector3f(max.x, max.y, max.z);</span>
+<span class="nc" id="L427">            vertices[3] = new Vector3f(min.x, max.y, max.z);</span>
+            // Back
+<span class="nc" id="L429">            vertices[4] = new Vector3f(min.x, min.y, min.z);</span>
+<span class="nc" id="L430">            vertices[5] = new Vector3f(max.x, min.y, min.z);</span>
+<span class="nc" id="L431">            vertices[6] = new Vector3f(max.x, max.y, min.z);</span>
+<span class="nc" id="L432">            vertices[7] = new Vector3f(min.x, max.y, min.z);</span>
+        }
+
+<span class="nc" id="L435">        return vertices;</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc bnc" id="L440" title="All 2 branches missed.">        if (this == obj) {</span>
+<span class="nc" id="L441">            return true;</span>
+        }
+<span class="nc bnc" id="L443" title="All 2 branches missed.">        if (obj instanceof AABB) {</span>
+<span class="nc" id="L444">            AABB other = (AABB) obj;</span>
+<span class="nc bnc" id="L445" title="All 4 branches missed.">            return Objects.equal(min, other.min) &amp;&amp; Objects.equal(max, other.max);</span>
+        }
+<span class="nc" id="L447">        return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L452">        return Objects.hashCode(min, max);</span>
+    }
+
+    /**
+     * Checks whether a given ray intersects the AABB.
+     *
+     * @param from The origin of the ray.
+     * @param direction The direction of the ray.
+     * @return True if the ray intersects the AABB, else false.
+     */
+    public boolean intersectRectangle(Vector3f from, Vector3f direction) {
+<span class="nc" id="L463">        Vector3f dirFrac = new Vector3f(</span>
+                1.0f / direction.x,
+                1.0f / direction.y,
+                1.0f / direction.z
+        );
+
+<span class="nc" id="L469">        float t1 = (min.x - from.x) * dirFrac.x;</span>
+<span class="nc" id="L470">        float t2 = (max.x - from.x) * dirFrac.x;</span>
+<span class="nc" id="L471">        float t3 = (min.y - from.y) * dirFrac.y;</span>
+<span class="nc" id="L472">        float t4 = (max.y - from.y) * dirFrac.y;</span>
+<span class="nc" id="L473">        float t5 = (min.z - from.z) * dirFrac.z;</span>
+<span class="nc" id="L474">        float t6 = (max.z - from.z) * dirFrac.z;</span>
+
+<span class="nc" id="L476">        float tmin = Math.max(Math.max(Math.min(t1, t2), Math.min(t3, t4)), Math.min(t5, t6));</span>
+<span class="nc" id="L477">        float tmax = Math.min(Math.min(Math.max(t1, t2), Math.max(t3, t4)), Math.max(t5, t6));</span>
+
+<span class="nc bnc" id="L479" title="All 2 branches missed.">        if (tmax &lt; 0) {</span>
+<span class="nc" id="L480">            return false;</span>
+        }
+
+<span class="nc bnc" id="L483" title="All 2 branches missed.">        if (tmin &gt; tmax) {</span>
+<span class="nc" id="L484">            return false;</span>
+        }
+
+<span class="nc" id="L487">        return true;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

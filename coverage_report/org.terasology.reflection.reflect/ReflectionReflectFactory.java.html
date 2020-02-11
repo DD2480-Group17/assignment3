@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReflectionReflectFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.reflection.reflect</a> &gt; <span class="el_source">ReflectionReflectFactory.java</span></div><h1>ReflectionReflectFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.reflection.reflect;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
+/**
+ * Reflection based implementation of ReflectFactory. Uses standard Java reflection to provide the necessary reflection functionality.
+ *
+ */
+<span class="fc" id="L31">public class ReflectionReflectFactory implements ReflectFactory {</span>
+<span class="fc" id="L32">    private static final Logger logger = LoggerFactory.getLogger(ReflectionReflectFactory.class);</span>
+
+    @Override
+    public &lt;T&gt; ObjectConstructor&lt;T&gt; createConstructor(Class&lt;T&gt; type) throws NoSuchMethodException {
+<span class="fc bfc" id="L36" title="All 2 branches covered.">        if (hasConstructor(type)) {</span>
+<span class="fc" id="L37">            return new ReflectionConstructor&lt;&gt;(type);</span>
+        }
+<span class="fc" id="L39">        return null;</span>
+    }
+
+    private &lt;T&gt; boolean hasConstructor(Class&lt;T&gt; type) {
+        try {
+<span class="pc bpc" id="L44" title="2 of 4 branches missed.">            return !type.isInterface() &amp;&amp; type.getDeclaredConstructor() != null;</span>
+<span class="fc" id="L45">        } catch (NoSuchMethodException e) {</span>
+<span class="fc" id="L46">            return false;</span>
+        }
+    }
+
+    @Override
+    public &lt;T&gt; FieldAccessor&lt;T, ?&gt; createFieldAccessor(Class&lt;T&gt; ownerType, Field field) {
+<span class="nc" id="L52">        return new ReflectionFieldAccessor&lt;&gt;(field, field.getType());</span>
+    }
+
+    @Override
+    public &lt;T, U&gt; FieldAccessor&lt;T, U&gt; createFieldAccessor(Class&lt;T&gt; ownerType, Field field, Class&lt;U&gt; fieldType) {
+<span class="fc" id="L57">        return new ReflectionFieldAccessor&lt;&gt;(field, fieldType);</span>
+    }
+
+    /**
+     * ObjectConstructor using a Java Constructor instance to construct the object
+     *
+     * @param &lt;T&gt;
+     */
+    private static class ReflectionConstructor&lt;T&gt; implements ObjectConstructor&lt;T&gt; {
+        private Class&lt;T&gt; type;
+        private Constructor&lt;T&gt; constructor;
+
+<span class="fc" id="L69">         ReflectionConstructor(Class&lt;T&gt; type) throws NoSuchMethodException {</span>
+<span class="fc" id="L70">            this.type = type;</span>
+<span class="fc" id="L71">            constructor = type.getDeclaredConstructor();</span>
+<span class="fc" id="L72">            constructor.setAccessible(true);</span>
+<span class="fc" id="L73">        }</span>
+
+        @Override
+        public T construct() {
+            try {
+<span class="fc" id="L78">                return constructor.newInstance();</span>
+<span class="nc" id="L79">            } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L80">                logger.error(&quot;Exception instantiating type: {}&quot;, type, e);</span>
+            }
+<span class="nc" id="L82">            return null;</span>
+        }
+    }
+
+    /**
+     * Field accessor using reflection to access the getter and setter methods, or the field directly if necessary.
+     *
+     * @param &lt;T&gt;
+     * @param &lt;U&gt;
+     */
+    private static class ReflectionFieldAccessor&lt;T, U&gt; implements FieldAccessor&lt;T, U&gt; {
+
+        private Field field;
+        private Method getter;
+        private Method setter;
+
+<span class="fc" id="L98">         ReflectionFieldAccessor(Field field, Class&lt;U&gt; fieldType) {</span>
+<span class="fc" id="L99">            this.field = field;</span>
+<span class="fc" id="L100">            getter = ReflectionUtil.findGetter(field.getName(), field.getDeclaringClass(), fieldType);</span>
+<span class="fc" id="L101">            setter = ReflectionUtil.findSetter(field.getName(), field.getDeclaringClass(), fieldType);</span>
+<span class="fc bfc" id="L102" title="All 4 branches covered.">            if (getter == null || setter == null) {</span>
+<span class="fc" id="L103">                field.setAccessible(true);</span>
+            }
+<span class="fc" id="L105">        }</span>
+
+        @Override
+        @SuppressWarnings(&quot;unchecked&quot;)
+        public U getValue(T target) {
+            try {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">                if (getter != null) {</span>
+<span class="fc" id="L112">                    return (U) (getter.invoke(target));</span>
+                }
+<span class="fc" id="L114">                return (U) field.get(target);</span>
+<span class="nc" id="L115">            } catch (InvocationTargetException | IllegalAccessException e) {</span>
+<span class="nc" id="L116">                logger.error(&quot;Exception during access of {} from {}&quot;, field.getName(), target.getClass(), e);</span>
+            }
+<span class="nc" id="L118">            return null;</span>
+        }
+
+        @Override
+        public void setValue(T target, U value) {
+            try {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">                if (setter != null) {</span>
+<span class="fc" id="L125">                    setter.invoke(target, value);</span>
+                } else {
+<span class="fc" id="L127">                    field.set(target, value);</span>
+                }
+<span class="nc" id="L129">            } catch (InvocationTargetException | IllegalAccessException e) {</span>
+<span class="nc" id="L130">                logger.error(&quot;Exception during setting of {} from {}&quot;, field.getName(), target.getClass(), e);</span>
+<span class="fc" id="L131">            }</span>
+<span class="fc" id="L132">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerHandshakeHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.network.internal</a> &gt; <span class="el_source">ServerHandshakeHandler.java</span></div><h1>ServerHandshakeHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.network.internal;
+
+import com.google.protobuf.ByteString;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelStateEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.identity.BadEncryptedDataException;
+import org.terasology.identity.CertificateGenerator;
+import org.terasology.identity.CertificatePair;
+import org.terasology.identity.IdentityConstants;
+import org.terasology.identity.PublicIdentityCertificate;
+import org.terasology.protobuf.NetData;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+
+/**
+ * Authentication handler for the server end of the handshake
+ */
+<span class="fc" id="L46">public class ServerHandshakeHandler extends SimpleChannelUpstreamHandler {</span>
+<span class="fc" id="L47">    private static final Logger logger = LoggerFactory.getLogger(ServerHandshakeHandler.class);</span>
+
+<span class="fc" id="L49">    private Config config = CoreRegistry.get(Config.class);</span>
+    private ServerConnectionHandler serverConnectionHandler;
+<span class="fc" id="L51">    private byte[] serverRandom = new byte[IdentityConstants.SERVER_CLIENT_RANDOM_LENGTH];</span>
+    private NetData.HandshakeHello serverHello;
+
+    @Override
+    public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
+<span class="fc" id="L56">        super.channelOpen(ctx, e);</span>
+<span class="fc" id="L57">        serverConnectionHandler = ctx.getPipeline().get(ServerConnectionHandler.class);</span>
+<span class="fc" id="L58">    }</span>
+
+    @Override
+    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
+<span class="fc" id="L62">        logger.info(&quot;Sending Server Hello&quot;);</span>
+
+<span class="fc" id="L64">        PublicIdentityCertificate serverPublicCert = config.getSecurity().getServerPublicCertificate();</span>
+<span class="fc" id="L65">        new SecureRandom().nextBytes(serverRandom);</span>
+
+<span class="fc" id="L67">        serverHello = NetData.HandshakeHello.newBuilder()</span>
+<span class="fc" id="L68">                .setRandom(ByteString.copyFrom(serverRandom))</span>
+<span class="fc" id="L69">                .setCertificate(NetMessageUtil.convert(serverPublicCert))</span>
+<span class="fc" id="L70">                .setTimestamp(System.currentTimeMillis())</span>
+<span class="fc" id="L71">                .build();</span>
+
+<span class="fc" id="L73">        e.getChannel().write(NetData.NetMessage.newBuilder()</span>
+<span class="fc" id="L74">                .setHandshakeHello(serverHello)</span>
+<span class="fc" id="L75">                .build());</span>
+<span class="fc" id="L76">    }</span>
+
+    @Override
+    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
+<span class="fc" id="L80">        NetData.NetMessage message = (NetData.NetMessage) e.getMessage();</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">        if (message.hasNewIdentityRequest()) {</span>
+<span class="fc" id="L82">            processNewIdentityRequest(message.getNewIdentityRequest(), ctx);</span>
+<span class="nc bnc" id="L83" title="All 4 branches missed.">        } else if (message.hasHandshakeHello() &amp;&amp; message.hasHandshakeVerification()) {</span>
+<span class="nc" id="L84">            processClientHandshake(message.getHandshakeHello(), message.getHandshakeVerification(), ctx);</span>
+        }
+<span class="fc" id="L86">    }</span>
+
+    private void processClientHandshake(NetData.HandshakeHello clientHello, NetData.HandshakeVerification handshakeVerification, ChannelHandlerContext ctx) {
+<span class="nc" id="L89">        logger.info(&quot;Received client certificate&quot;);</span>
+<span class="nc" id="L90">        PublicIdentityCertificate clientCert = NetMessageUtil.convert(clientHello.getCertificate());</span>
+
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (!clientCert.verifySignedBy(config.getSecurity().getServerPublicCertificate())) {</span>
+<span class="nc" id="L93">            logger.error(&quot;Received invalid client certificate, ending connection attempt&quot;);</span>
+<span class="nc" id="L94">            ctx.getChannel().close();</span>
+<span class="nc" id="L95">            return;</span>
+        }
+
+<span class="nc" id="L98">        byte[] clientSignature = handshakeVerification.getSignature().toByteArray();</span>
+<span class="nc" id="L99">        byte[] signatureData = HandshakeCommon.getSignatureData(serverHello, clientHello);</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (!clientCert.verify(signatureData, clientSignature)) {</span>
+<span class="nc" id="L101">            logger.error(&quot;Received invalid verification signature, ending connection attempt&quot;);</span>
+<span class="nc" id="L102">            ctx.getChannel().close();</span>
+<span class="nc" id="L103">            return;</span>
+        }
+
+<span class="nc" id="L106">        logger.info(&quot;Sending server verification&quot;);</span>
+<span class="nc" id="L107">        byte[] serverSignature = config.getSecurity().getServerPrivateCertificate().sign(signatureData);</span>
+<span class="nc" id="L108">        ctx.getChannel().write(NetData.NetMessage.newBuilder()</span>
+<span class="nc" id="L109">                .setHandshakeVerification(NetData.HandshakeVerification.newBuilder()</span>
+<span class="nc" id="L110">                        .setSignature(ByteString.copyFrom(serverSignature))).build());</span>
+
+        // Identity has been established, inform the server handler and withdraw from the pipeline
+<span class="nc" id="L113">        ctx.getPipeline().remove(this);</span>
+<span class="nc" id="L114">        serverConnectionHandler.channelAuthenticated(clientCert);</span>
+<span class="nc" id="L115">    }</span>
+
+    private void processNewIdentityRequest(NetData.NewIdentityRequest newIdentityRequest, ChannelHandlerContext ctx) {
+<span class="fc" id="L118">        logger.info(&quot;Received new identity request&quot;);</span>
+        try {
+<span class="fc" id="L120">            byte[] preMasterSecret = config.getSecurity().getServerPrivateCertificate().decrypt(newIdentityRequest.getPreMasterSecret().toByteArray());</span>
+<span class="fc" id="L121">            byte[] masterSecret = HandshakeCommon.generateMasterSecret(preMasterSecret, newIdentityRequest.getRandom().toByteArray(), serverRandom);</span>
+
+            // Generate a certificate pair for the client
+<span class="fc" id="L124">            CertificatePair clientCertificates = new CertificateGenerator().generate(config.getSecurity().getServerPrivateCertificate());</span>
+
+<span class="fc" id="L126">            NetData.CertificateSet certificateData = NetData.CertificateSet.newBuilder()</span>
+<span class="fc" id="L127">                    .setPublicCertificate(NetMessageUtil.convert(clientCertificates.getPublicCert()))</span>
+<span class="fc" id="L128">                    .setPrivateExponent(ByteString.copyFrom(clientCertificates.getPrivateCert().getExponent().toByteArray()))</span>
+<span class="fc" id="L129">                    .build();</span>
+
+<span class="fc" id="L131">            byte[] encryptedCert = null;</span>
+            try {
+<span class="fc" id="L133">                SecretKeySpec key = HandshakeCommon.generateSymmetricKey(masterSecret, newIdentityRequest.getRandom().toByteArray(), serverRandom);</span>
+<span class="fc" id="L134">                Cipher cipher = Cipher.getInstance(IdentityConstants.SYMMETRIC_ENCRYPTION_ALGORITHM);</span>
+<span class="fc" id="L135">                cipher.init(Cipher.ENCRYPT_MODE, key);</span>
+<span class="fc" id="L136">                encryptedCert = cipher.doFinal(certificateData.toByteArray());</span>
+<span class="nc" id="L137">            } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | BadPaddingException | IllegalBlockSizeException e) {</span>
+<span class="nc" id="L138">                logger.error(&quot;Unexpected error encrypting certificate for sending, ending connection attempt&quot;, e);</span>
+<span class="nc" id="L139">                ctx.getChannel().close();</span>
+<span class="nc" id="L140">                return;</span>
+<span class="fc" id="L141">            }</span>
+
+<span class="fc" id="L143">            ctx.getChannel().write(NetData.NetMessage.newBuilder()</span>
+<span class="fc" id="L144">                    .setProvisionIdentity(NetData.ProvisionIdentity.newBuilder()</span>
+<span class="fc" id="L145">                            .setEncryptedCertificates(ByteString.copyFrom(encryptedCert)))</span>
+<span class="fc" id="L146">                    .build());</span>
+
+            // Identity has been established, inform the server handler and withdraw from the pipeline
+<span class="fc" id="L149">            ctx.getPipeline().remove(this);</span>
+<span class="fc" id="L150">            serverConnectionHandler.channelAuthenticated(clientCertificates.getPublicCert());</span>
+<span class="nc" id="L151">        } catch (BadEncryptedDataException e) {</span>
+<span class="nc" id="L152">            logger.error(&quot;Received invalid encrypted pre-master secret, ending connection attempt&quot;);</span>
+<span class="nc" id="L153">            ctx.getChannel().close();</span>
+<span class="fc" id="L154">        }</span>
+<span class="fc" id="L155">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

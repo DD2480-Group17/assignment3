@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiScraper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.documentation</a> &gt; <span class="el_source">ApiScraper.java</span></div><h1>ApiScraper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.documentation;
+
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.SortedSetMultimap;
+import org.terasology.engine.module.ExternalApiWhitelist;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.sandbox.API;
+import org.terasology.testUtil.ModuleManagerFactory;
+
+import java.net.URL;
+import java.util.HashMap;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+
+/**
+ * Enumerates all classes and packages that are annotated with {@link API}.
+ */
+public final class ApiScraper {
+    private ApiScraper() {
+        // Private constructor, utility class
+    }
+
+    /**
+     * @param args (ignored)
+     * @throws Exception if the module environment cannot be loaded
+     */
+    public static void main(String[] args) throws Exception {
+<span class="nc" id="L44">        ModuleManager moduleManager = ModuleManagerFactory.create();</span>
+<span class="nc" id="L45">        ModuleEnvironment environment = moduleManager.getEnvironment();</span>
+<span class="nc" id="L46">        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();</span>
+
+<span class="nc" id="L48">        SortedSetMultimap&lt;String, String&gt; sortedApi = Multimaps.newSortedSetMultimap(new HashMap&lt;&gt;(), TreeSet::new);</span>
+
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        for (Class&lt;?&gt; apiClass : environment.getTypesAnnotatedWith(API.class)) {</span>
+            //System.out.println(&quot;Processing: &quot; + apiClass);
+<span class="nc" id="L52">            boolean isPackage = apiClass.isSynthetic();</span>
+            URL location;
+            String category;
+<span class="nc" id="L55">            String apiPackage = &quot;&quot;;</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">            if (isPackage) {</span>
+<span class="nc" id="L57">                apiPackage = apiClass.getPackage().getName();</span>
+<span class="nc" id="L58">                location = classLoader.getResource(apiPackage.replace('.', '/'));</span>
+            } else {
+
+<span class="nc" id="L61">                location = apiClass.getResource('/' + apiClass.getName().replace('.', '/') + &quot;.class&quot;);</span>
+            }
+
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            if (location == null) {</span>
+<span class="nc" id="L65">                System.out.println(&quot;Failed to get a class/package location, skipping &quot; + apiClass);</span>
+<span class="nc" id="L66">                continue;</span>
+            }
+
+<span class="nc bnc" id="L69" title="All 3 branches missed.">            switch (location.getProtocol()) {</span>
+                case &quot;jar&quot; :
+
+                    // Find out what jar it came from and consider that the category
+<span class="nc" id="L73">                    String categoryFragment = location.getPath();</span>
+                    //System.out.println(&quot;category fragment as path: &quot; + categoryFragment);
+<span class="nc" id="L75">                    int bang = categoryFragment.lastIndexOf(&quot;!&quot;);</span>
+<span class="nc" id="L76">                    int hyphen = categoryFragment.lastIndexOf(&quot;-&quot;, bang);</span>
+<span class="nc" id="L77">                    int slash = categoryFragment.lastIndexOf(&quot;/&quot;, hyphen);</span>
+<span class="nc" id="L78">                    category = categoryFragment.substring(slash + 1, hyphen);</span>
+                    //System.out.println(&quot;category fragment pared down: &quot; + category);
+
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                    if (isPackage) {</span>
+                        //System.out.println(&quot;Jar-based Package: &quot; + apiPackage + &quot;, came from &quot; + location);
+<span class="nc" id="L83">                        sortedApi.put(category, apiPackage + &quot; (PACKAGE)&quot;);</span>
+                    } else {
+                        //System.out.println(&quot;Jar-based Class: &quot; + apiClass + &quot;, came from &quot; + location);
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                        sortedApi.put(category, apiClass.getName() + (apiClass.isInterface() ? &quot; (INTERFACE)&quot; : &quot; (CLASS)&quot;));</span>
+                    }
+
+<span class="nc" id="L89">                    break;</span>
+
+                case &quot;file&quot; :
+
+                    // If file based we know it is local so organize it like that
+<span class="nc" id="L94">                    category = &quot;terasology engine&quot;;</span>
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                    if (isPackage) {</span>
+                        //System.out.println(&quot;Local Package: &quot; + apiPackage + &quot;, came from &quot; + location);
+<span class="nc" id="L98">                        sortedApi.put(category, apiPackage + &quot; (PACKAGE)&quot;);</span>
+                    } else {
+                        //System.out.println(&quot;Local Class: &quot; + apiClass + &quot;, came from &quot; + location);
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                        sortedApi.put(category, apiClass.getName() + (apiClass.isInterface() ? &quot; (INTERFACE)&quot; : &quot; (CLASS)&quot;));</span>
+                    }
+
+<span class="nc" id="L104">                    break;</span>
+
+                default :
+<span class="nc" id="L107">                    System.out.println(&quot;Unknown protocol for: &quot; + apiClass + &quot;, came from &quot; + location);</span>
+            }
+<span class="nc" id="L109">        }</span>
+<span class="nc" id="L110">        sortedApi.putAll(&quot;external&quot;, ExternalApiWhitelist.CLASSES.stream()</span>
+<span class="nc" id="L111">                .map(clazz-&gt;clazz.getName() + &quot; (CLASS)&quot;).collect(Collectors.toSet()));</span>
+<span class="nc" id="L112">        sortedApi.putAll(&quot;external&quot;, ExternalApiWhitelist.PACKAGES.stream()</span>
+<span class="nc" id="L113">                .map(packagee-&gt;packagee + &quot; (PACKAGE)&quot;).collect(Collectors.toSet()));</span>
+
+<span class="nc" id="L115">        System.out.println(&quot;# Modding API:\n&quot;);</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        for (String key : sortedApi.keySet()) {</span>
+<span class="nc" id="L117">            System.out.println(&quot;## &quot; + key + &quot;\n&quot;);</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            for (String value : sortedApi.get(key)) {</span>
+<span class="nc" id="L119">                System.out.println(&quot;* &quot; + value);</span>
+<span class="nc" id="L120">            }</span>
+<span class="nc" id="L121">            System.out.println(&quot;&quot;);</span>
+<span class="nc" id="L122">        }</span>
+<span class="nc" id="L123">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

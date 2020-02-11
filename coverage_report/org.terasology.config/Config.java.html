@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Config.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config</a> &gt; <span class="el_source">Config.java</span></div><h1>Config.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.config;
+
+import com.google.common.collect.Maps;
+import com.google.common.collect.SetMultimap;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import org.lwjgl.opengl.PixelFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.engine.subsystem.Resolution;
+import org.terasology.entitySystem.Component;
+import org.terasology.input.Input;
+import org.terasology.naming.Name;
+import org.terasology.naming.Version;
+import org.terasology.naming.gson.NameTypeAdapter;
+import org.terasology.naming.gson.VersionTypeAdapter;
+import org.terasology.utilities.gson.CaseInsensitiveEnumTypeAdapterFactory;
+import org.terasology.utilities.gson.InputHandler;
+import org.terasology.utilities.gson.ResolutionHandler;
+import org.terasology.utilities.gson.SetMultimapTypeAdapter;
+import org.terasology.utilities.gson.UriTypeAdapterFactory;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * Terasology user config. Holds the various global configuration information that the user can modify. It can be saved
+ * and loaded in a JSON format.
+ */
+public final class Config {
+    public static final String PROPERTY_OVERRIDE_DEFAULT_CONFIG = &quot;org.terasology.config.default.override&quot;;
+<span class="fc" id="L72">    private static final Logger logger = LoggerFactory.getLogger(Config.class);</span>
+
+    private RootConfig config;
+
+    private Context context;
+
+<span class="fc" id="L78">    public Config(Context context) {</span>
+<span class="fc" id="L79">        this.context = context;</span>
+<span class="fc" id="L80">    }</span>
+
+    public PermissionConfig getPermission() {
+<span class="nc" id="L83">        return config.getPermission();</span>
+    }
+
+    public InputConfig getInput() {
+<span class="nc" id="L87">        return config.getInput();</span>
+    }
+
+    public BindsConfig getBinds() {
+<span class="nc" id="L91">        return config.getBinds();</span>
+    }
+
+    public ModuleConfig getDefaultModSelection() {
+<span class="nc" id="L95">        return config.getDefaultModSelection();</span>
+    }
+
+    public NetworkConfig getNetwork() {
+<span class="fc" id="L99">        return config.getNetwork();</span>
+    }
+
+    public PlayerConfig getPlayer() {
+<span class="nc" id="L103">        return config.getPlayer();</span>
+    }
+
+    public SystemConfig getSystem() {
+<span class="fc" id="L107">        return config.getSystem();</span>
+    }
+
+    public RenderingConfig getRendering() {
+<span class="fc" id="L111">        return config.getRendering();</span>
+    }
+
+    public WorldGenerationConfig getWorldGeneration() {
+<span class="nc" id="L115">        return config.getWorldGeneration();</span>
+    }
+
+    public SecurityConfig getSecurity() {
+<span class="fc" id="L119">        return config.getSecurity();</span>
+    }
+
+    public NUIEditorConfig getNuiEditor() {
+<span class="nc" id="L123">        return config.getNuiEditor();</span>
+    }
+
+    public IdentityStorageServiceConfig getIdentityStorageService() {
+<span class="nc" id="L127">        return config.getIdentityStorageService();</span>
+    }
+
+    public TelemetryConfig getTelemetryConfig() {
+<span class="nc" id="L131">        return config.getTelemetryConfig();</span>
+    }
+
+    public String renderConfigAsJson(Object configObject) {
+<span class="nc" id="L135">        return createGson().toJsonTree(configObject).toString();</span>
+    }
+
+    public SelectModulesConfig getSelectModulesConfig() {
+<span class="nc" id="L139">        return config.getSelectModulesConfig();</span>
+    }
+
+    public UniverseConfig getUniverseConfig() {
+<span class="fc" id="L143">        return config.getUniverseConfig();</span>
+    }
+
+    public WebBrowserConfig getWebBrowserConfig() {
+<span class="nc" id="L147">        return config.getWebBrowserConfig();</span>
+    }
+
+    /**
+     * Saves this config to the default configuration file
+     */
+    public void save() {
+<span class="fc" id="L154">        try (BufferedWriter writer = Files.newBufferedWriter(getConfigFile(), TerasologyConstants.CHARSET)) {</span>
+<span class="fc" id="L155">            createGson().toJson(config, writer);</span>
+<span class="nc" id="L156">        } catch (IOException e) {</span>
+<span class="nc" id="L157">            logger.error(&quot;Failed to save config&quot;, e);</span>
+<span class="fc" id="L158">        }</span>
+<span class="fc" id="L159">    }</span>
+
+    public void loadDefaults() {
+<span class="fc" id="L162">        JsonObject jsonConfig = loadDefaultToJson();</span>
+<span class="fc" id="L163">        config = createGson().fromJson(jsonConfig, RootConfig.class);</span>
+<span class="fc" id="L164">    }</span>
+
+    public void load() {
+<span class="nc" id="L167">        JsonObject jsonConfig = loadDefaultToJson();</span>
+<span class="nc" id="L168">        Optional&lt;JsonObject&gt; defaultsConfig = loadFileToJson(getOverrideDefaultConfigFile());</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        if (defaultsConfig.isPresent()) {</span>
+<span class="nc" id="L170">            merge(jsonConfig, defaultsConfig.get());</span>
+        }
+<span class="nc" id="L172">        Optional&lt;JsonObject&gt; userConfig = loadFileToJson(getConfigFile());</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (userConfig.isPresent()) {</span>
+<span class="nc" id="L174">            merge(jsonConfig, userConfig.get());</span>
+        }
+
+<span class="nc" id="L177">        config = createGson().fromJson(jsonConfig, RootConfig.class);</span>
+<span class="nc" id="L178">    }</span>
+
+    private Path getOverrideDefaultConfigFile() {
+<span class="nc" id="L181">        return Paths.get(System.getProperty(PROPERTY_OVERRIDE_DEFAULT_CONFIG, &quot;&quot;));</span>
+    }
+
+    public JsonObject loadDefaultToJson() {
+<span class="fc" id="L185">        try (Reader baseReader = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream(&quot;/default.cfg&quot;)))) {</span>
+<span class="fc" id="L186">            return new JsonParser().parse(baseReader).getAsJsonObject();</span>
+<span class="nc" id="L187">        } catch (IOException e) {</span>
+<span class="nc" id="L188">            throw new RuntimeException(&quot;Missing default configuration file&quot;);</span>
+        }
+    }
+
+    public Optional&lt;JsonObject&gt; loadFileToJson(Path configPath) {
+<span class="nc bnc" id="L193" title="All 2 branches missed.">        if (Files.isRegularFile(configPath)) {</span>
+<span class="nc" id="L194">            try (Reader reader = Files.newBufferedReader(configPath, TerasologyConstants.CHARSET)) {</span>
+<span class="nc" id="L195">                JsonElement userConfig = new JsonParser().parse(reader);</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                if (userConfig.isJsonObject()) {</span>
+<span class="nc" id="L197">                    return Optional.of(userConfig.getAsJsonObject());</span>
+                }
+<span class="nc" id="L199">            } catch (IOException e) {</span>
+<span class="nc" id="L200">                logger.error(&quot;Failed to load config file {}, falling back on default config&quot;, configPath);</span>
+<span class="nc" id="L201">            }</span>
+        }
+<span class="nc" id="L203">        return Optional.empty();</span>
+    }
+
+    /**
+     * @return The default configuration file location
+     */
+    private Path getConfigFile() {
+<span class="fc" id="L210">        return PathManager.getInstance().getHomePath().resolve(&quot;config.cfg&quot;);</span>
+    }
+
+    protected static Gson createGson() {
+<span class="fc" id="L214">        return new GsonBuilder()</span>
+<span class="fc" id="L215">                .registerTypeAdapter(Name.class, new NameTypeAdapter())</span>
+<span class="fc" id="L216">                .registerTypeAdapter(Version.class, new VersionTypeAdapter())</span>
+<span class="fc" id="L217">                .registerTypeAdapter(BindsConfig.class, new BindsConfig.Handler())</span>
+<span class="fc" id="L218">                .registerTypeAdapter(SetMultimap.class, new SetMultimapTypeAdapter&lt;&gt;(Input.class))</span>
+<span class="fc" id="L219">                .registerTypeAdapter(SecurityConfig.class, new SecurityConfig.Handler())</span>
+<span class="fc" id="L220">                .registerTypeAdapter(Input.class, new InputHandler())</span>
+<span class="fc" id="L221">                .registerTypeAdapter(Resolution.class, new ResolutionHandler())</span>
+                //.registerTypeAdapter(UniverseConfig.class, new UniverseConfig.Handler())
+
+<span class="fc" id="L224">                .registerTypeAdapter(PixelFormat.class, new PixelFormatHandler())</span>
+<span class="fc" id="L225">                .registerTypeAdapterFactory(new CaseInsensitiveEnumTypeAdapterFactory())</span>
+<span class="fc" id="L226">                .registerTypeAdapterFactory(new UriTypeAdapterFactory())</span>
+<span class="fc" id="L227">                .setPrettyPrinting().create();</span>
+    }
+
+    private static Gson createGsonForModules() {
+<span class="nc" id="L231">        return new GsonBuilder()</span>
+<span class="nc" id="L232">                .registerTypeAdapterFactory(new CaseInsensitiveEnumTypeAdapterFactory())</span>
+<span class="nc" id="L233">                .registerTypeAdapterFactory(new UriTypeAdapterFactory())</span>
+<span class="nc" id="L234">                .setPrettyPrinting().create();</span>
+    }
+
+    private static void merge(JsonObject target, JsonObject from) {
+<span class="nc bnc" id="L238" title="All 2 branches missed.">        for (Map.Entry&lt;String, JsonElement&gt; entry : from.entrySet()) {</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">            if (entry.getValue().isJsonObject()) {</span>
+<span class="nc bnc" id="L240" title="All 4 branches missed.">                if (target.has(entry.getKey()) &amp;&amp; target.get(entry.getKey()).isJsonObject()) {</span>
+<span class="nc" id="L241">                    merge(target.get(entry.getKey()).getAsJsonObject(), entry.getValue().getAsJsonObject());</span>
+                } else {
+<span class="nc" id="L243">                    target.remove(entry.getKey());</span>
+<span class="nc" id="L244">                    target.add(entry.getKey(), entry.getValue());</span>
+                }
+            } else {
+<span class="nc" id="L247">                target.remove(entry.getKey());</span>
+<span class="nc" id="L248">                target.add(entry.getKey(), entry.getValue());</span>
+            }
+<span class="nc" id="L250">        }</span>
+<span class="nc" id="L251">    }</span>
+
+    /**
+     * @param uri the uri to look uo
+     * @return a set that contains all keys for that uri, never &lt;code&gt;null&lt;/code&gt;
+     */
+    public Set&lt;String&gt; getModuleConfigKeys(SimpleUri uri) {
+<span class="nc" id="L258">        Map&lt;String, JsonElement&gt; map = config.getModuleConfigs().get(uri);</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        if (map == null) {</span>
+<span class="nc" id="L260">            return Collections.emptySet();</span>
+        }
+<span class="nc" id="L262">        return Collections.unmodifiableSet(map.keySet());</span>
+    }
+
+    /**
+     * @param uri   the uri to look up
+     * @param key   the look-up key
+     * @param clazz the class to convert the data to
+     * @return a config component for the given uri and class or &lt;code&gt;null&lt;/code&gt;
+     */
+    public &lt;T extends Component&gt; T getModuleConfig(SimpleUri uri, String key, Class&lt;T&gt; clazz) {
+<span class="nc" id="L272">        Map&lt;String, JsonElement&gt; map = config.getModuleConfigs().get(uri);</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">        if (map == null) {</span>
+<span class="nc" id="L274">            return null;</span>
+        }
+
+<span class="nc" id="L277">        JsonElement element = map.get(key);</span>
+<span class="nc" id="L278">        Gson gson = createGsonForModules();</span>
+<span class="nc" id="L279">        return gson.fromJson(element, clazz);</span>
+    }
+
+    /**
+     * @param generatorUri the generator Uri
+     * @param configs      the new config params for the world generator
+     */
+    public void setModuleConfigs(SimpleUri generatorUri, Map&lt;String, Component&gt; configs) {
+<span class="nc" id="L287">        Gson gson = createGsonForModules();</span>
+<span class="nc" id="L288">        Map&lt;String, JsonElement&gt; map = Maps.newHashMap();</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">        for (Map.Entry&lt;String, Component&gt; entry : configs.entrySet()) {</span>
+<span class="nc" id="L290">            JsonElement json = gson.toJsonTree(entry.getValue());</span>
+<span class="nc" id="L291">            map.put(entry.getKey(), json);</span>
+<span class="nc" id="L292">        }</span>
+<span class="nc" id="L293">        config.getModuleConfigs().put(generatorUri, map);</span>
+<span class="nc" id="L294">    }</span>
+
+    private static class PixelFormatHandler implements JsonSerializer&lt;PixelFormat&gt;, JsonDeserializer&lt;PixelFormat&gt; {
+
+        @Override
+        public PixelFormat deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="pc bpc" id="L300" title="2 of 4 branches missed.">            if (json.isJsonPrimitive() &amp;&amp; json.getAsJsonPrimitive().isNumber()) {</span>
+<span class="fc" id="L301">                return new PixelFormat().withDepthBits(json.getAsInt());</span>
+            }
+<span class="nc" id="L303">            return new PixelFormat().withDepthBits(24);</span>
+        }
+
+        @Override
+        public JsonElement serialize(PixelFormat src, Type typeOfSrc, JsonSerializationContext context) {
+<span class="fc" id="L308">            return new JsonPrimitive(src.getDepthBits());</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

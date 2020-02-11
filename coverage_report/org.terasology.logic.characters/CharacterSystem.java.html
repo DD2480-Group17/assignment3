@@ -1,0 +1,442 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CharacterSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.characters</a> &gt; <span class="el_source">CharacterSystem.java</span></div><h1>CharacterSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.logic.characters;
+
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.EventPriority;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.input.binds.interaction.AttackButton;
+import org.terasology.input.cameraTarget.PlayerTargetSystem;
+import org.terasology.logic.characters.events.ActivationRequest;
+import org.terasology.logic.characters.events.ActivationRequestDenied;
+import org.terasology.logic.characters.events.AttackEvent;
+import org.terasology.logic.characters.events.AttackRequest;
+import org.terasology.logic.characters.events.DeathEvent;
+import org.terasology.logic.characters.events.OnItemUseEvent;
+import org.terasology.logic.characters.events.PlayerDeathEvent;
+import org.terasology.logic.characters.interactions.InteractionUtil;
+import org.terasology.logic.common.ActivateEvent;
+import org.terasology.logic.common.DisplayNameComponent;
+import org.terasology.logic.health.BeforeDestroyEvent;
+import org.terasology.logic.health.DestroyEvent;
+import org.terasology.logic.health.EngineDamageTypes;
+import org.terasology.logic.inventory.ItemComponent;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.players.PlayerCharacterComponent;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.NetworkSystem;
+import org.terasology.physics.CollisionGroup;
+import org.terasology.physics.HitResult;
+import org.terasology.physics.Physics;
+import org.terasology.physics.StandardCollisionGroup;
+import org.terasology.recording.DirectionAndOriginPosRecorderList;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.recording.RecordAndReplayStatus;
+import org.terasology.registry.In;
+import org.terasology.world.BlockEntityRegistry;
+import org.terasology.world.block.BlockComponent;
+import org.terasology.world.block.regions.ActAsBlockComponent;
+
+/**
+ */
+@RegisterSystem
+<span class="nc" id="L68">public class CharacterSystem extends BaseComponentSystem implements UpdateSubscriberSystem {</span>
+<span class="nc" id="L69">    public static final CollisionGroup[] DEFAULTPHYSICSFILTER = {StandardCollisionGroup.DEFAULT, StandardCollisionGroup.WORLD, StandardCollisionGroup.CHARACTER};</span>
+<span class="nc" id="L70">    private static final Logger logger = LoggerFactory.getLogger(CharacterSystem.class);</span>
+
+    @In
+    private Physics physics;
+
+    @In
+    private NetworkSystem networkSystem;
+
+    @In
+    private EntityManager entityManager;
+
+    @In
+    private Time time;
+
+    @In
+    private PlayerTargetSystem targetSystem;
+
+    @In
+    private BlockEntityRegistry blockRegistry;
+
+    @In
+    private DirectionAndOriginPosRecorderList directionAndOriginPosRecorderList;
+
+    @In
+    private RecordAndReplayCurrentStatus recordAndReplayCurrentStatus;
+
+    @ReceiveEvent
+    public void beforeDestroy(BeforeDestroyEvent event, EntityRef character, CharacterComponent characterComponent, AliveCharacterComponent aliveCharacterComponent) {
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (character.hasComponent(PlayerCharacterComponent.class)) {</span>
+            // Consume the BeforeDestroyEvent so that the DoDestroy event is never sent for player entities
+<span class="nc" id="L100">            event.consume();</span>
+            // PlayerDeathEvent only sent to the client for the player entity.
+<span class="nc" id="L102">            PlayerDeathEvent playerDeathEvent = new PlayerDeathEvent();</span>
+            //Store the details of the death in the event for display on the death screen
+<span class="nc" id="L104">            playerDeathEvent.damageTypeName = getDamageTypeName(event.getDamageType());</span>
+<span class="nc" id="L105">            playerDeathEvent.instigatorName = getInstigatorName(event.getInstigator());</span>
+<span class="nc" id="L106">            character.send(playerDeathEvent);</span>
+        }
+
+        // DeathEvent sent to client for any character entity.
+<span class="nc" id="L110">        DeathEvent deathEvent = new DeathEvent();</span>
+<span class="nc" id="L111">        deathEvent.damageTypeName = getDamageTypeName(event.getDamageType());</span>
+<span class="nc" id="L112">        deathEvent.instigatorName = getInstigatorName(event.getInstigator());</span>
+<span class="nc" id="L113">        characterComponent.controller.send(deathEvent);</span>
+
+<span class="nc" id="L115">        character.removeComponent(AliveCharacterComponent.class);</span>
+        // TODO: Don't just destroy, ragdoll or create particle effect or something (possible allow another system to handle)
+        //entity.removeComponent(CharacterComponent.class);
+        //entity.removeComponent(CharacterMovementComponent.class);
+<span class="nc" id="L119">    }</span>
+
+    /**
+     * Extracts the name from an entity.
+     * If the entity is a character, then the display name from the {@link ClientComponent#clientInfo} is used.
+     * Otherwise the entity itself is checked for a {@link DisplayNameComponent}.
+     * In the last case, the prefab name of the entity is used, e.g. &quot;engine:player&quot; will be parsed to &quot;Player&quot;.
+     * @param instigator The entity for which an instigator name is needed.
+     * @return The instigator name.
+     */
+    public String getInstigatorName(EntityRef instigator) {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        if (instigator.hasComponent(CharacterComponent.class)) {</span>
+<span class="nc" id="L131">            EntityRef instigatorClient = instigator.getComponent(CharacterComponent.class).controller;</span>
+<span class="nc" id="L132">            EntityRef instigatorClientInfo = instigatorClient.getComponent(ClientComponent.class).clientInfo;</span>
+<span class="nc" id="L133">            DisplayNameComponent displayNameComponent = instigatorClientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc" id="L134">            return displayNameComponent.name;</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        } else if (instigator.getParentPrefab() != null) {</span>
+            //A DisplayName can be specified in the entity prefab
+            //Otherwise, the game will attempt to generate one from the name of that prefab
+<span class="nc" id="L138">            Prefab parentPrefab = instigator.getParentPrefab();</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            if (parentPrefab.hasComponent(DisplayNameComponent.class)) {</span>
+<span class="nc" id="L140">                DisplayNameComponent displayNameComponent = parentPrefab.getComponent(DisplayNameComponent.class);</span>
+<span class="nc" id="L141">                return displayNameComponent.name;</span>
+            } else {
+<span class="nc" id="L143">                String instigatorName = parentPrefab.getName();</span>
+                //getParentPrefab.getName() returns a ResourceUrn String such as &quot;engine:player&quot;
+                //The following calls change the damage type to be more readable
+                //For instance, &quot;engine:player&quot; becomes &quot;Player&quot;
+<span class="nc" id="L147">                instigatorName = instigatorName.replaceAll(&quot;.*:(.*)&quot;, &quot;$1&quot;);</span>
+<span class="nc" id="L148">                instigatorName = Character.toUpperCase(instigatorName.charAt(0)) + instigatorName.substring(1);</span>
+<span class="nc" id="L149">                return instigatorName;</span>
+            }
+        } else {
+<span class="nc" id="L152">            return null;</span>
+        }
+
+    }
+
+    /**
+     * Extracts the damage type name from a prefab. If the prefab has a {@link DisplayNameComponent}, it will be used.
+     * Otherwise the damage type name is parsed, e.g. &quot;engine:directDamage&quot; will become &quot;Direct Damage&quot;.
+     * @param damageType The damage type prefab.
+     * @return A readable name for the damage type.
+     */
+    public String getDamageTypeName(Prefab damageType) {
+        //A DisplayName can be specified in the damage type prefab
+        //Otherwise, the game will attempt to generate one from the name of that prefab
+<span class="nc bnc" id="L166" title="All 2 branches missed.">        if (damageType.hasComponent(DisplayNameComponent.class)) {</span>
+<span class="nc" id="L167">            DisplayNameComponent displayNameComponent = damageType.getComponent(DisplayNameComponent.class);</span>
+<span class="nc" id="L168">            return displayNameComponent.name;</span>
+        } else {
+<span class="nc" id="L170">            logger.info(String.format(&quot;%s is missing a readable DisplayName&quot;, damageType.getName()));</span>
+<span class="nc" id="L171">            String damageTypeName = damageType.getName();</span>
+            //damageType.getName() returns a ResourceUrn String such as &quot;engine:directDamage&quot;
+            //The following calls change the damage type to be more readable
+            //For instance, &quot;engine:directDamage&quot; becomes &quot;Direct Damage&quot;
+<span class="nc" id="L175">            damageTypeName = damageTypeName.replaceAll(&quot;.*:(.*)&quot;, &quot;$1&quot;);</span>
+<span class="nc" id="L176">            damageTypeName = damageTypeName.replaceAll(&quot;([A-Z])&quot;, &quot; $1&quot;);</span>
+<span class="nc" id="L177">            damageTypeName = Character.toUpperCase(damageTypeName.charAt(0)) + damageTypeName.substring(1);</span>
+<span class="nc" id="L178">            return damageTypeName;</span>
+        }
+    }
+
+    @ReceiveEvent(components = {CharacterComponent.class}, netFilter = RegisterMode.CLIENT)
+    public void onAttackRequest(AttackButton event, EntityRef entity, CharacterHeldItemComponent characterHeldItemComponent) {
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        if (!event.isDown()) {</span>
+<span class="nc" id="L185">            return;</span>
+        }
+
+        boolean attackRequestIsValid;
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        if (networkSystem.getMode().isAuthority()) {</span>
+            // Let the AttackRequest handler trigger the OnItemUseEvent if this is a local client
+<span class="nc" id="L191">            attackRequestIsValid = true;</span>
+        } else {
+<span class="nc" id="L193">            OnItemUseEvent onItemUseEvent = new OnItemUseEvent();</span>
+<span class="nc" id="L194">            entity.send(onItemUseEvent);</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">            attackRequestIsValid = !onItemUseEvent.isConsumed();</span>
+        }
+
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        if (attackRequestIsValid) {</span>
+<span class="nc" id="L199">            EntityRef selectedItemEntity = characterHeldItemComponent.selectedItem;</span>
+<span class="nc" id="L200">            entity.send(new AttackRequest(selectedItemEntity));</span>
+<span class="nc" id="L201">            event.consume();</span>
+        }
+<span class="nc" id="L203">    }</span>
+
+    @ReceiveEvent(components = LocationComponent.class, netFilter = RegisterMode.AUTHORITY)
+    public void onAttackRequest(AttackRequest event, EntityRef character, CharacterComponent characterComponent) {
+        // if an item is used,  make sure this entity is allowed to attack with it
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        if (event.getItem().exists()) {</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            if (!character.equals(event.getItem().getOwner())) {</span>
+<span class="nc" id="L210">                return;</span>
+            }
+        }
+
+<span class="nc" id="L214">        OnItemUseEvent onItemUseEvent = new OnItemUseEvent();</span>
+<span class="nc" id="L215">        character.send(onItemUseEvent);</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        if (!onItemUseEvent.isConsumed()) {</span>
+<span class="nc" id="L217">            EntityRef gazeEntity = GazeAuthoritySystem.getGazeEntityForCharacter(character);</span>
+<span class="nc" id="L218">            LocationComponent gazeLocation = gazeEntity.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L219">            Vector3f direction = gazeLocation.getWorldDirection();</span>
+<span class="nc" id="L220">            Vector3f originPos = gazeLocation.getWorldPosition();</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">            if (recordAndReplayCurrentStatus.getStatus() == RecordAndReplayStatus.RECORDING) {</span>
+<span class="nc" id="L222">                directionAndOriginPosRecorderList.getAttackEventDirectionAndOriginPosRecorder().add(direction, originPos);</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">            } else if (recordAndReplayCurrentStatus.getStatus() == RecordAndReplayStatus.REPLAYING) {</span>
+<span class="nc" id="L224">                Vector3f[] data = directionAndOriginPosRecorderList.getAttackEventDirectionAndOriginPosRecorder().poll();</span>
+<span class="nc" id="L225">                direction = data[0];</span>
+<span class="nc" id="L226">                originPos = data[1];</span>
+            }
+
+<span class="nc" id="L229">            HitResult result = physics.rayTrace(originPos, direction, characterComponent.interactionRange, Sets.newHashSet(character), DEFAULTPHYSICSFILTER);</span>
+
+<span class="nc bnc" id="L231" title="All 2 branches missed.">            if (result.isHit()) {</span>
+<span class="nc" id="L232">                result.getEntity().send(new AttackEvent(character, event.getItem()));</span>
+            }
+        }
+<span class="nc" id="L235">    }</span>
+
+    @ReceiveEvent(components = {CharacterComponent.class})
+    public void onItemUse(OnItemUseEvent event, EntityRef entity, CharacterHeldItemComponent characterHeldItemComponent) {
+<span class="nc" id="L239">        long currentTime = time.getGameTimeInMs();</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        if (characterHeldItemComponent.nextItemUseTime &gt; currentTime) {</span>
+            // this character is not yet ready to use another item,  they are still cooling down from last use
+<span class="nc" id="L242">            event.consume();</span>
+<span class="nc" id="L243">            return;</span>
+        }
+
+<span class="nc" id="L246">        EntityRef selectedItemEntity = characterHeldItemComponent.selectedItem;</span>
+
+<span class="nc" id="L248">        characterHeldItemComponent.lastItemUsedTime = currentTime;</span>
+<span class="nc" id="L249">        characterHeldItemComponent.nextItemUseTime = currentTime;</span>
+<span class="nc" id="L250">        ItemComponent itemComponent = selectedItemEntity.getComponent(ItemComponent.class);</span>
+
+        // Add the cooldown time for the next use of this item.
+<span class="nc bnc" id="L253" title="All 2 branches missed.">        if (itemComponent != null) {</span>
+            // Send out this event so other systems can alter the cooldown time.
+<span class="nc" id="L255">            AffectItemUseCooldownTimeEvent affectItemUseCooldownTimeEvent = new AffectItemUseCooldownTimeEvent(itemComponent.cooldownTime);</span>
+<span class="nc" id="L256">            entity.send(affectItemUseCooldownTimeEvent);</span>
+<span class="nc" id="L257">            characterHeldItemComponent.nextItemUseTime += (long) affectItemUseCooldownTimeEvent.getResultValue();</span>
+<span class="nc" id="L258">        } else {</span>
+<span class="nc" id="L259">            characterHeldItemComponent.nextItemUseTime += 200;</span>
+        }
+
+<span class="nc" id="L262">        entity.saveComponent(characterHeldItemComponent);</span>
+<span class="nc" id="L263">    }</span>
+
+    @ReceiveEvent(priority = EventPriority.PRIORITY_TRIVIAL, netFilter = RegisterMode.AUTHORITY)
+    public void onAttackBlock(AttackEvent event, EntityRef entityRef, BlockComponent blockComponent) {
+<span class="nc" id="L267">        entityRef.send(new DestroyEvent(event.getInstigator(), event.getDirectCause(), EngineDamageTypes.PHYSICAL.get()));</span>
+<span class="nc" id="L268">    }</span>
+
+    @ReceiveEvent(priority = EventPriority.PRIORITY_TRIVIAL, netFilter = RegisterMode.AUTHORITY)
+    public void onAttackBlock(AttackEvent event, EntityRef entityRef, ActAsBlockComponent actAsBlockComponent) {
+<span class="nc" id="L272">        entityRef.send(new DestroyEvent(event.getInstigator(), event.getDirectCause(), EngineDamageTypes.PHYSICAL.get()));</span>
+<span class="nc" id="L273">    }</span>
+
+    @ReceiveEvent(components = {CharacterComponent.class, LocationComponent.class}, netFilter = RegisterMode.AUTHORITY)
+    public void onActivationRequest(ActivationRequest event, EntityRef character) {
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        if (isPredictionOfEventCorrect(character, event)) {</span>
+<span class="nc" id="L278">            OnItemUseEvent onItemUseEvent = new OnItemUseEvent();</span>
+<span class="nc" id="L279">            event.getInstigator().send(onItemUseEvent);</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">            if (!onItemUseEvent.isConsumed()) {</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">                if (event.getUsedOwnedEntity().exists()) {</span>
+<span class="nc" id="L282">                    event.getUsedOwnedEntity().send(new ActivateEvent(event));</span>
+                } else {
+<span class="nc" id="L284">                    event.getTarget().send(new ActivateEvent(event));</span>
+                }
+            }
+<span class="nc" id="L287">        } else {</span>
+<span class="nc" id="L288">            character.send(new ActivationRequestDenied(event.getActivationId()));</span>
+        }
+<span class="nc" id="L290">    }</span>
+
+    private boolean vectorsAreAboutEqual(Vector3f v1, Vector3f v2) {
+<span class="nc" id="L293">        Vector3f delta = new Vector3f();</span>
+<span class="nc" id="L294">        delta.add(v1);</span>
+<span class="nc" id="L295">        delta.sub(v2);</span>
+<span class="nc" id="L296">        float epsilon = 0.0001f;</span>
+<span class="nc" id="L297">        float deltaSquared = delta.lengthSquared();</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">        return deltaSquared &lt; epsilon;</span>
+    }
+
+    private String getPlayerNameFromCharacter(EntityRef character) {
+<span class="nc" id="L302">        CharacterComponent characterComponent = character.getComponent(CharacterComponent.class);</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">        if (characterComponent == null) {</span>
+<span class="nc" id="L304">            return &quot;?&quot;;</span>
+        }
+<span class="nc" id="L306">        EntityRef controller = characterComponent.controller;</span>
+
+<span class="nc" id="L308">        ClientComponent clientComponent = controller.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L309">        EntityRef clientInfo = clientComponent.clientInfo;</span>
+
+<span class="nc" id="L311">        DisplayNameComponent displayNameComponent = clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">        if (displayNameComponent == null) {</span>
+<span class="nc" id="L313">            return &quot;?&quot;;</span>
+        }
+
+<span class="nc" id="L316">        return displayNameComponent.name;</span>
+    }
+
+    private boolean isPredictionOfEventCorrect(EntityRef character, ActivationRequest event) {
+<span class="nc" id="L320">        CharacterComponent characterComponent = character.getComponent(CharacterComponent.class);</span>
+<span class="nc" id="L321">        EntityRef camera = GazeAuthoritySystem.getGazeEntityForCharacter(character);</span>
+<span class="nc" id="L322">        LocationComponent location = camera.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L323">        Vector3f direction = location.getWorldDirection();</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">        if (!(vectorsAreAboutEqual(event.getDirection(), direction))) {</span>
+<span class="nc" id="L325">            logger.error(&quot;Direction at client {} was different than direction at server {}&quot;, event.getDirection(), direction);</span>
+        }
+        // Assume the exact same value in case there are rounding mistakes:
+<span class="nc" id="L328">        direction = event.getDirection();</span>
+
+<span class="nc" id="L330">        Vector3f originPos = location.getWorldPosition();</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">        if (!(vectorsAreAboutEqual(event.getOrigin(), originPos))) {</span>
+<span class="nc" id="L332">            String msg = &quot;Player {} seems to have cheated: It stated that it performed an action from {} but the predicted position is {}&quot;;</span>
+<span class="nc" id="L333">            logger.info(msg, getPlayerNameFromCharacter(character), event.getOrigin(), originPos);</span>
+<span class="nc" id="L334">            return false;</span>
+        }
+
+<span class="nc bnc" id="L337" title="All 2 branches missed.">        if (event.isOwnedEntityUsage()) {</span>
+<span class="nc bnc" id="L338" title="All 2 branches missed.">            if (!event.getUsedOwnedEntity().exists()) {</span>
+<span class="nc" id="L339">                String msg = &quot;Denied activation attempt by {} since the used entity does not exist on the authority&quot;;</span>
+<span class="nc" id="L340">                logger.info(msg, getPlayerNameFromCharacter(character));</span>
+<span class="nc" id="L341">                return false;</span>
+            }
+<span class="nc bnc" id="L343" title="All 2 branches missed.">            if (!networkSystem.getOwnerEntity(event.getUsedOwnedEntity()).equals(networkSystem.getOwnerEntity(character))) {</span>
+<span class="nc" id="L344">                String msg = &quot;Denied activation attempt by {} since it does not own the entity at the authority&quot;;</span>
+<span class="nc" id="L345">                logger.info(msg, getPlayerNameFromCharacter(character));</span>
+<span class="nc" id="L346">                return false;</span>
+            }
+        } else {
+            // check for cheats so that data can later be trusted:
+<span class="nc bnc" id="L350" title="All 2 branches missed.">            if (event.getUsedOwnedEntity().exists()) {</span>
+<span class="nc" id="L351">                String msg = &quot;Denied activation attempt by {} since it is not properly marked as owned entity usage&quot;;</span>
+<span class="nc" id="L352">                logger.info(msg, getPlayerNameFromCharacter(character));</span>
+<span class="nc" id="L353">                return false;</span>
+            }
+        }
+
+<span class="nc bnc" id="L357" title="All 2 branches missed.">        if (event.isEventWithTarget()) {</span>
+<span class="nc bnc" id="L358" title="All 2 branches missed.">            if (!event.getTarget().exists()) {</span>
+<span class="nc" id="L359">                String msg = &quot;Denied activation attempt by {} since the target does not exist on the authority&quot;;</span>
+<span class="nc" id="L360">                logger.info(msg, getPlayerNameFromCharacter(character));</span>
+<span class="nc" id="L361">                return false; // can happen if target existed on client</span>
+            }
+
+<span class="nc" id="L364">            HitResult result = physics.rayTrace(originPos, direction, characterComponent.interactionRange, Sets.newHashSet(character), DEFAULTPHYSICSFILTER);</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">            if (!result.isHit()) {</span>
+<span class="nc" id="L366">                String msg = &quot;Denied activation attempt by {} since at the authority there was nothing to activate at that place&quot;;</span>
+<span class="nc" id="L367">                logger.info(msg, getPlayerNameFromCharacter(character));</span>
+<span class="nc" id="L368">                return false;</span>
+            }
+<span class="nc" id="L370">            EntityRef hitEntity = result.getEntity();</span>
+<span class="nc bnc" id="L371" title="All 2 branches missed.">            if (!hitEntity.equals(event.getTarget())) {</span>
+                /**
+                 * Tip for debugging this issue: Obtain the network id of hit entity and search it in both client and
+                 * server entity dump. When certain fields don't get replicated, then wrong entity might get hin in the
+                 * hit test.
+                 */
+<span class="nc" id="L377">                String msg = &quot;Denied activation attempt by {} since at the authority another entity would have been activated&quot;;</span>
+<span class="nc" id="L378">                logger.info(msg, getPlayerNameFromCharacter(character));</span>
+<span class="nc" id="L379">                return false;</span>
+            }
+
+<span class="nc bnc" id="L382" title="All 2 branches missed.">            if (!(vectorsAreAboutEqual(event.getHitPosition(), result.getHitPoint()))) {</span>
+<span class="nc" id="L383">                String msg = &quot;Denied activation attempt by {} since at the authority the object got hit at a differnt position&quot;;</span>
+<span class="nc" id="L384">                logger.info(msg, getPlayerNameFromCharacter(character));</span>
+<span class="nc" id="L385">                return false;</span>
+            }
+<span class="nc" id="L387">        } else {</span>
+            // In order to trust the data later we need to verify it even if it should be correct if no one cheats:
+<span class="nc bnc" id="L389" title="All 2 branches missed.">            if (event.getTarget().exists()) {</span>
+<span class="nc" id="L390">                String msg = &quot;Denied activation attempt by {} since the event was not properly labeled as having a target&quot;;</span>
+<span class="nc" id="L391">                logger.info(msg, getPlayerNameFromCharacter(character));</span>
+<span class="nc" id="L392">                return false;</span>
+            }
+<span class="nc bnc" id="L394" title="All 2 branches missed.">            if (!(vectorsAreAboutEqual(event.getHitPosition(), originPos))) {</span>
+<span class="nc" id="L395">                String msg = &quot;Denied activation attempt by {} since the event was not properly labeled as having a hit postion&quot;;</span>
+<span class="nc" id="L396">                logger.info(msg, getPlayerNameFromCharacter(character));</span>
+<span class="nc" id="L397">                return false;</span>
+            }
+        }
+<span class="nc" id="L400">        return true;</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L405">        Iterable&lt;EntityRef&gt; characterEntities = entityManager.getEntitiesWith(CharacterComponent.class, LocationComponent.class);</span>
+<span class="nc bnc" id="L406" title="All 2 branches missed.">        for (EntityRef characterEntity : characterEntities) {</span>
+<span class="nc" id="L407">            CharacterComponent characterComponent = characterEntity.getComponent(CharacterComponent.class);</span>
+<span class="nc bnc" id="L408" title="All 2 branches missed.">            if (characterComponent == null) {</span>
+<span class="nc" id="L409">                continue; // could have changed during events below</span>
+            }
+<span class="nc" id="L411">            LocationComponent characterLocation = characterEntity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L412" title="All 2 branches missed.">            if (characterLocation == null) {</span>
+<span class="nc" id="L413">                continue; // could have changed during events below</span>
+            }
+<span class="nc" id="L415">            EntityRef target = characterComponent.authorizedInteractionTarget;</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">            if (target.isActive()) {</span>
+
+<span class="nc" id="L418">                LocationComponent targetLocation = target.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L419" title="All 2 branches missed.">                if (targetLocation == null) {</span>
+<span class="nc" id="L420">                    continue; // could have changed during events below</span>
+                }
+<span class="nc" id="L422">                float maxInteractionRange = characterComponent.interactionRange;</span>
+<span class="nc bnc" id="L423" title="All 2 branches missed.">                if (isDistanceToLarge(characterLocation, targetLocation, maxInteractionRange)) {</span>
+<span class="nc" id="L424">                    InteractionUtil.cancelInteractionAsServer(characterEntity);</span>
+                }
+            }
+<span class="nc" id="L427">        }</span>
+<span class="nc" id="L428">    }</span>
+
+    private boolean isDistanceToLarge(LocationComponent characterLocation, LocationComponent targetLocation, float maxInteractionRange) {
+<span class="nc" id="L431">        float maxInteractionRangeSquared = maxInteractionRange * maxInteractionRange;</span>
+<span class="nc" id="L432">        Vector3f positionDelta = new Vector3f();</span>
+<span class="nc" id="L433">        positionDelta.add(characterLocation.getWorldPosition());</span>
+<span class="nc" id="L434">        positionDelta.sub(targetLocation.getWorldPosition());</span>
+<span class="nc" id="L435">        float interactionRangeSquared = positionDelta.lengthSquared();</span>
+        // add a small epsilon to have rounding mistakes be in favor of the player:
+<span class="nc" id="L437">        float epsilon = 0.00001f;</span>
+<span class="nc bnc" id="L438" title="All 2 branches missed.">        return interactionRangeSquared &gt; maxInteractionRangeSquared + epsilon;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

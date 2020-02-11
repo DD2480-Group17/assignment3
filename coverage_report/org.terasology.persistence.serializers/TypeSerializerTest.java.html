@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TypeSerializerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">TypeSerializerTest.java</span></div><h1>TypeSerializerTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.serializers;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import org.junit.jupiter.api.Test;
+import org.terasology.ModuleEnvironmentTest;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.naming.Name;
+import org.terasology.persistence.ModuleContext;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.annotations.SerializedName;
+import org.terasology.reflection.TypeInfo;
+import org.terasology.rendering.nui.Color;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+<span class="fc" id="L37">public class TypeSerializerTest extends ModuleEnvironmentTest {</span>
+<span class="fc" id="L38">    private static final SomeClass&lt;Integer&gt; INSTANCE = new SomeClass&lt;&gt;(0xdeadbeef);</span>
+    private static final String INSTANCE_JSON = &quot;{\&quot;generic-t\&quot;:-559038737,\&quot;list\&quot;:[50,51,-52,-53],\&quot;animals\&quot;:[{\&quot;class\&quot;:\&quot;org.terasology.persistence.serializers.TypeSerializerTest$Dog\&quot;,\&quot;tailPosition\&quot;:[3.15,54.51,-0.001],\&quot;data\&quot;:{\&quot;class\&quot;:\&quot;java.lang.Integer\&quot;,\&quot;content\&quot;:1}},{\&quot;class\&quot;:\&quot;org.terasology.persistence.serializers.TypeSerializerTest$Cheetah\&quot;,\&quot;spotColor\&quot;:[255,0,255,255],\&quot;data\&quot;:{\&quot;class\&quot;:\&quot;java.lang.Integer\&quot;,\&quot;content\&quot;:2}}]}&quot;;
+
+    static {
+<span class="fc" id="L42">        INSTANCE.list.addAll(Lists.newArrayList(50, 51, -52, -53));</span>
+
+<span class="fc" id="L44">        INSTANCE.animals.add(new Dog&lt;&gt;(1, new Vector3f(3.15f, 54.51f, -0.001f)));</span>
+
+<span class="fc" id="L46">        INSTANCE.animals.add(new Cheetah&lt;&gt;(2, Color.MAGENTA));</span>
+<span class="fc" id="L47">    }</span>
+
+    private TypeHandlerLibrary typeHandlerLibrary;
+    private ProtobufSerializer protobufSerializer;
+    private GsonSerializer gsonSerializer;
+
+    @Override
+    public void setup() {
+<span class="fc" id="L55">        ModuleContext.setContext(moduleManager.getEnvironment().get(new Name(&quot;unittest&quot;)));</span>
+
+<span class="fc" id="L57">        typeHandlerLibrary = TypeHandlerLibrary.forModuleEnvironment(moduleManager, typeRegistry);</span>
+
+<span class="fc" id="L59">        protobufSerializer = new ProtobufSerializer(typeHandlerLibrary);</span>
+<span class="fc" id="L60">        gsonSerializer = new GsonSerializer(typeHandlerLibrary);</span>
+<span class="fc" id="L61">    }</span>
+
+    @Test
+    public void testJsonSerialize() {
+<span class="fc" id="L65">        String serializedJson = gsonSerializer.toJson(INSTANCE, new TypeInfo&lt;SomeClass&lt;Integer&gt;&gt;() {</span>
+        });
+<span class="fc" id="L67">        assertEquals(INSTANCE_JSON, serializedJson);</span>
+<span class="fc" id="L68">    }</span>
+
+    @Test
+    public void testDeserialize() {
+<span class="fc" id="L72">        SomeClass&lt;Integer&gt; deserialized =</span>
+<span class="fc" id="L73">                gsonSerializer.fromJson(INSTANCE_JSON, new TypeInfo&lt;SomeClass&lt;Integer&gt;&gt;() {</span>
+                });
+
+<span class="fc" id="L76">        assertEquals(INSTANCE, deserialized);</span>
+<span class="fc" id="L77">    }</span>
+
+    @Test
+    public void testSerializeDeserialize() throws IOException {
+<span class="fc" id="L81">        byte[] bytes = protobufSerializer.toBytes(INSTANCE, new TypeInfo&lt;SomeClass&lt;Integer&gt;&gt;() {</span>
+        });
+
+<span class="fc" id="L84">        SomeClass&lt;Integer&gt; deserializedInstance =</span>
+<span class="fc" id="L85">                protobufSerializer.fromBytes(bytes, new TypeInfo&lt;SomeClass&lt;Integer&gt;&gt;() {</span>
+                });
+
+<span class="fc" id="L88">        assertEquals(INSTANCE, deserializedInstance);</span>
+<span class="fc" id="L89">    }</span>
+
+    private static class SomeClass&lt;T&gt; {
+        @SerializedName(&quot;generic-t&quot;)
+        private T data;
+<span class="fc" id="L94">        private List&lt;T&gt; list = Lists.newArrayList();</span>
+<span class="fc" id="L95">        private Set&lt;Animal&lt;?&gt;&gt; animals = Sets.newHashSet();</span>
+
+<span class="fc" id="L97">        private SomeClass(T data) {</span>
+<span class="fc" id="L98">            this.data = data;</span>
+<span class="fc" id="L99">        }</span>
+
+        @Override
+        public boolean equals(Object o) {
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">            if (this == o) {</span>
+<span class="nc" id="L104">                return true;</span>
+            }
+<span class="pc bpc" id="L106" title="2 of 4 branches missed.">            if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L107">                return false;</span>
+            }
+<span class="fc" id="L109">            SomeClass&lt;?&gt; someClass = (SomeClass&lt;?&gt;) o;</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">            return Objects.equals(data, someClass.data) &amp;&amp;</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                    Objects.equals(list, someClass.list) &amp;&amp;</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">                    Objects.equals(animals, someClass.animals);</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="nc" id="L117">            return Objects.hash(data, list, animals);</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="nc" id="L122">            return &quot;SomeClass{&quot; +</span>
+                    &quot;data=&quot; + data +
+                    &quot;, list=&quot; + list +
+                    &quot;, animals=&quot; + animals +
+                    '}';
+        }
+    }
+
+    private static class Animal&lt;T&gt; {
+        protected final T data;
+
+<span class="fc" id="L133">        private Animal(T data) {</span>
+<span class="fc" id="L134">            this.data = data;</span>
+<span class="fc" id="L135">        }</span>
+
+        @Override
+        public boolean equals(Object o) {
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">            if (this == o) {</span>
+<span class="nc" id="L140">                return true;</span>
+            }
+<span class="pc bpc" id="L142" title="2 of 4 branches missed.">            if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L143">                return false;</span>
+            }
+<span class="fc" id="L145">            Animal animal = (Animal) o;</span>
+<span class="fc" id="L146">            return Objects.equals(data, animal.data);</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="fc" id="L151">            return Objects.hash(data);</span>
+        }
+    }
+
+    private static class Dog&lt;T&gt; extends Animal&lt;T&gt; {
+        private final Vector3f tailPosition;
+
+        private Dog(T data, Vector3f tailPosition) {
+<span class="fc" id="L159">            super(data);</span>
+<span class="fc" id="L160">            this.tailPosition = tailPosition;</span>
+<span class="fc" id="L161">        }</span>
+
+        @Override
+        public boolean equals(Object o) {
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">            if (this == o) {</span>
+<span class="nc" id="L166">                return true;</span>
+            }
+<span class="pc bpc" id="L168" title="2 of 4 branches missed.">            if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L169">                return false;</span>
+            }
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">            if (!super.equals(o)) {</span>
+<span class="nc" id="L172">                return false;</span>
+            }
+<span class="fc" id="L174">            Dog dog = (Dog) o;</span>
+<span class="fc" id="L175">            return Objects.equals(tailPosition, dog.tailPosition);</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="nc" id="L180">            return &quot;Dog{&quot; +</span>
+                    &quot;name='&quot; + data + '\'' +
+                    &quot;, tailPosition=&quot; + tailPosition +
+                    '}';
+        }
+
+        @Override
+        public int hashCode() {
+<span class="fc" id="L188">            return Objects.hash(super.hashCode(), tailPosition);</span>
+        }
+    }
+
+    private static class Cheetah&lt;T&gt; extends Animal&lt;T&gt; {
+        private final Color spotColor;
+
+        private Cheetah(T data, Color spotColor) {
+<span class="fc" id="L196">            super(data);</span>
+<span class="fc" id="L197">            this.spotColor = spotColor;</span>
+<span class="fc" id="L198">        }</span>
+
+        @Override
+        public boolean equals(Object o) {
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">            if (this == o) {</span>
+<span class="nc" id="L203">                return true;</span>
+            }
+<span class="pc bpc" id="L205" title="2 of 4 branches missed.">            if (o == null || getClass() != o.getClass()) {</span>
+<span class="nc" id="L206">                return false;</span>
+            }
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">            if (!super.equals(o)) {</span>
+<span class="nc" id="L209">                return false;</span>
+            }
+<span class="fc" id="L211">            Cheetah cheetah = (Cheetah) o;</span>
+<span class="fc" id="L212">            return Objects.equals(spotColor, cheetah.spotColor);</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="nc" id="L217">            return &quot;Cheetah{&quot; +</span>
+                    &quot;name='&quot; + data + '\'' +
+                    &quot;, spotColor=&quot; + spotColor +
+                    '}';
+        }
+
+        @Override
+        public int hashCode() {
+<span class="fc" id="L225">            return Objects.hash(super.hashCode(), spotColor);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

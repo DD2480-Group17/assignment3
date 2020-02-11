@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CommandParameter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.console.commandSystem</a> &gt; <span class="el_source">CommandParameter.java</span></div><h1>CommandParameter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.console.commandSystem;
+
+import com.google.common.base.Preconditions;
+import com.google.common.primitives.Primitives;
+import org.terasology.context.Context;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.console.commandSystem.adapter.ParameterAdapterManager;
+import org.terasology.logic.console.commandSystem.exceptions.CommandParameterParseException;
+import org.terasology.logic.console.commandSystem.exceptions.SuggesterInstantiationException;
+import org.terasology.registry.InjectionHelper;
+
+import java.lang.reflect.Array;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ */
+public final class CommandParameter&lt;T&gt; implements Parameter {
+    private final String name;
+    private final Class&lt;T&gt; type;
+    private final CommandParameterSuggester&lt;T&gt; suggester;
+    private final boolean required;
+    private final ParameterAdapterManager parameterAdapterManager;
+
+    private CommandParameter(String name, Class&lt;T&gt; typeParam, boolean required, CommandParameterSuggester&lt;T&gt; suggester,
+<span class="fc" id="L43">                             ParameterAdapterManager parameterAdapterManager) {</span>
+<span class="fc" id="L44">        Preconditions.checkNotNull(name, &quot;The parameter name must not be null!&quot;);</span>
+
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">        if (name.length() &lt;= 0) {</span>
+<span class="nc" id="L47">            throw new IllegalArgumentException(&quot;The parameter name must not be empty!&quot;);</span>
+        }
+
+<span class="fc" id="L50">        Preconditions.checkNotNull(typeParam, &quot;The parameter type must not be null!&quot;);</span>
+
+        Class&lt;T&gt; resultType;
+
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        if (typeParam.isPrimitive()) {</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">            if (required) {</span>
+<span class="nc" id="L56">                resultType = Primitives.wrap(typeParam);</span>
+            } else {
+<span class="nc" id="L58">                throw new IllegalArgumentException(&quot;An optional parameter must not be primitive!&quot;</span>
+<span class="nc" id="L59">                        + &quot; Use &quot; + Primitives.wrap(typeParam).getSimpleName()</span>
+<span class="nc" id="L60">                        + &quot; instead of &quot; + typeParam.getSimpleName() + &quot;.&quot;);</span>
+            }
+        } else {
+<span class="fc" id="L63">            resultType = typeParam;</span>
+        }
+
+<span class="fc" id="L66">        Preconditions.checkNotNull(suggester, &quot;The suggester must not be null!&quot;);</span>
+
+<span class="fc" id="L68">        this.name = name;</span>
+<span class="fc" id="L69">        this.type = resultType;</span>
+<span class="fc" id="L70">        this.suggester = suggester;</span>
+<span class="fc" id="L71">        this.required = required;</span>
+<span class="fc" id="L72">        this.parameterAdapterManager = parameterAdapterManager;</span>
+<span class="fc" id="L73">    }</span>
+
+    public static &lt;T&gt; CommandParameter single(String name, Class&lt;T&gt; type, boolean required,
+                                              CommandParameterSuggester&lt;T&gt; suggester,
+                                              Context context) {
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">        if (type.isArray()) {</span>
+<span class="nc" id="L79">            throw new IllegalArgumentException(&quot;The type of a simple CommandParameterDefinition must not be an array!&quot;);</span>
+        }
+<span class="fc" id="L81">        ParameterAdapterManager parameterAdapterManager = context.get(ParameterAdapterManager.class);</span>
+<span class="fc" id="L82">        return new CommandParameter(name, type, required, suggester, parameterAdapterManager);</span>
+    }
+
+    public static &lt;T&gt; CommandParameter single(String name, Class&lt;T&gt; type, boolean required,
+                                              Class&lt;? extends CommandParameterSuggester&lt;T&gt;&gt; suggesterClass,
+                                              Context context)
+            throws SuggesterInstantiationException {
+<span class="nc" id="L89">        CommandParameterSuggester&lt;T&gt; suggester = optionallyCreateSuggestor(suggesterClass, context);</span>
+<span class="nc" id="L90">        return single(name, type, required, suggester, context);</span>
+    }
+
+    private static &lt;T&gt; CommandParameterSuggester&lt;T&gt; optionallyCreateSuggestor(
+            Class&lt;? extends CommandParameterSuggester&lt;T&gt;&gt; suggestorClass,
+            Context context) {
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        if (suggestorClass == null) {</span>
+<span class="nc" id="L97">            return null;</span>
+        }
+<span class="nc" id="L99">        return InjectionHelper.createWithConstructorInjection(suggestorClass, context);</span>
+    }
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public static CommandParameter single(String name, Class&lt;?&gt; type, boolean required,
+                                          Context context) {
+<span class="nc" id="L105">        return single(name, type, required, (CommandParameterSuggester) null, context);</span>
+    }
+
+    public static &lt;T&gt; CommandParameter array(String name, Class&lt;T&gt; childType, Character arrayDelimiter,
+                                             boolean required, CommandParameterSuggester&lt;T&gt; suggester,
+                                             Context  context) {
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (childType.isArray()) {</span>
+<span class="nc" id="L112">            throw new IllegalArgumentException(&quot;The child type of an array CommandParameterDefinition must not be an array!&quot;);</span>
+        }
+
+<span class="nc" id="L115">        Class&lt;?&gt; type = getArrayClass(childType);</span>
+<span class="nc" id="L116">        ParameterAdapterManager parameterAdapterManager = context.get(ParameterAdapterManager.class);</span>
+<span class="nc" id="L117">        return new CommandParameter(name, type, required, suggester, parameterAdapterManager);</span>
+    }
+
+    public static &lt;T&gt; CommandParameter array(String name, Class&lt;T&gt; childType, Character arrayDelimiter,
+                                             boolean required,
+                                             Class&lt;? extends CommandParameterSuggester&lt;T&gt;&gt; suggesterClass,
+                                             Context context)
+            throws SuggesterInstantiationException {
+<span class="nc" id="L125">        CommandParameterSuggester&lt;T&gt; suggester = optionallyCreateSuggestor(suggesterClass, context);</span>
+<span class="nc" id="L126">        return array(name, childType, arrayDelimiter, required, suggester, context);</span>
+    }
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public static CommandParameter array(String name, Class&lt;?&gt; childType, Character arrayDelimiter,
+                                         boolean required, Context context) {
+<span class="nc" id="L132">        return array(name, childType, arrayDelimiter, required, (CommandParameterSuggester) null,</span>
+                context);
+    }
+
+    public static &lt;T&gt; CommandParameter array(String name, Class&lt;T&gt; childType, boolean required,
+                                             CommandParameterSuggester&lt;T&gt; suggester,
+                                             Context context) {
+<span class="nc" id="L139">        return array(name, childType, null, required, suggester, context);</span>
+    }
+
+    public static &lt;T&gt; CommandParameter array(String name, Class&lt;T&gt; childType, boolean required,
+                                             Class&lt;? extends CommandParameterSuggester&lt;T&gt;&gt; suggesterClass,
+                                             Context context)
+            throws SuggesterInstantiationException {
+<span class="nc" id="L146">        CommandParameterSuggester&lt;T&gt; suggester = optionallyCreateSuggestor(suggesterClass, context);</span>
+<span class="nc" id="L147">        return array(name, childType, required, suggester, context);</span>
+    }
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public static CommandParameter array(String name, Class&lt;?&gt; childType, boolean required,
+                                         Context context) {
+<span class="nc" id="L153">        return array(name, childType, required, (CommandParameterSuggester) null, context);</span>
+    }
+
+    public static &lt;T&gt; CommandParameter varargs(String name, Class&lt;T&gt; childType, boolean required,
+                                               CommandParameterSuggester&lt;T&gt; suggester,
+                                               Context context) {
+<span class="nc" id="L159">        return array(name, childType, required, suggester, context);</span>
+    }
+
+    public static &lt;T&gt; CommandParameter varargs(String name, Class&lt;T&gt; childType, boolean required,
+                                               Class&lt;? extends CommandParameterSuggester&lt;T&gt;&gt; suggesterClass,
+                                               Context context)
+            throws SuggesterInstantiationException {
+<span class="nc" id="L166">        return varargs(name, childType, required, optionallyCreateSuggestor(suggesterClass, context), context);</span>
+    }
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public static CommandParameter varargs(String name, Class&lt;?&gt; childType, boolean required,
+                                           Context context) {
+<span class="nc" id="L172">        return varargs(name, childType, required, (CommandParameterSuggester) null, context);</span>
+    }
+
+    /**
+     * @param clazz The child class of the array class returned
+     * @return The array class of {@code clazz}
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    private static &lt;T&gt; Class&lt;? extends T[]&gt; getArrayClass(Class&lt;T&gt; clazz) {
+<span class="nc" id="L181">        return (Class&lt;? extends T[]&gt;) Array.newInstance(clazz, 0).getClass();</span>
+    }
+
+    public Object getValue(String param) throws CommandParameterParseException {
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        if (!isArray()) {</span>
+<span class="nc" id="L186">            return parse(param);</span>
+        } else {
+<span class="nc" id="L188">            return getArrayValue(Arrays.asList(param));</span>
+        }
+    }
+
+    public Object getArrayValue(List&lt;String&gt; params) throws CommandParameterParseException {
+<span class="nc" id="L193">        Object arrayInstance = Array.newInstance(getType(), params.size());</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        for (int i = 0; i &lt; params.size(); ++i) {</span>
+<span class="nc" id="L195">            Array.set(arrayInstance, i, parse(params.get(i)));</span>
+        }
+<span class="nc" id="L197">        return arrayInstance;</span>
+    }
+
+    private Object parse(String string) throws CommandParameterParseException {
+<span class="nc" id="L201">        Class&lt;?&gt; childType = getTypeNotPrimitive();</span>
+
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        if (parameterAdapterManager.isAdapterRegistered(childType)) {</span>
+            try {
+<span class="nc" id="L205">                return parameterAdapterManager.parse(childType, string);</span>
+<span class="nc" id="L206">            } catch (Error | Exception e) {</span>
+<span class="nc" id="L207">                throw new CommandParameterParseException(&quot;An error occurred while parsing &quot; + getType().getCanonicalName(), e, string);</span>
+            }
+        }
+
+<span class="nc" id="L211">        throw new CommandParameterParseException(&quot;Cannot parse a &quot; + childType.getCanonicalName(), string);</span>
+    }
+
+    public String convertToString(Object object) {
+<span class="nc" id="L215">        return parameterAdapterManager.convertToString(object, (Class&lt;? super Object&gt;) getType());</span>
+    }
+
+    public Set&lt;T&gt; suggest(EntityRef sender, Object... parameters) {
+<span class="nc" id="L219">        return suggester.suggest(sender, parameters);</span>
+    }
+
+    public String getUsage() {
+<span class="fc" id="L223">        String simpleTypeName = getType().getSimpleName();</span>
+<span class="fc" id="L224">        StringBuilder usage = new StringBuilder(simpleTypeName);</span>
+
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">        if (hasName()) {</span>
+<span class="fc" id="L227">            usage.append(' ').append(getName());</span>
+        }
+
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">        if (isArray()) {</span>
+<span class="nc" id="L231">            usage.insert(0, '(');</span>
+<span class="nc" id="L232">            usage.append(&quot;...)&quot;);</span>
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">        } else if (isRequired()) {</span>
+<span class="fc" id="L234">            usage.insert(0, '&lt;');</span>
+<span class="fc" id="L235">            usage.append('&gt;');</span>
+        } else {
+<span class="nc" id="L237">            usage.insert(0, '(');</span>
+<span class="nc" id="L238">            usage.append(')');</span>
+        }
+
+<span class="fc" id="L241">        return usage.toString();</span>
+    }
+
+    public boolean isArray() {
+<span class="fc" id="L245">        return type.isArray();</span>
+    }
+
+    public boolean hasName() {
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">        return name.length() &gt; 0;</span>
+    }
+
+    public String getName() {
+<span class="fc" id="L253">        return name;</span>
+    }
+
+    public Class&lt;?&gt; getType() {
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">        if (type.isArray()) {</span>
+<span class="nc" id="L258">            return type.getComponentType();</span>
+        }
+
+<span class="fc" id="L261">        return type;</span>
+    }
+
+    public Class&lt;?&gt; getTypeNotPrimitive() {
+<span class="nc" id="L265">        Class&lt;?&gt; componentType = getType();</span>
+
+<span class="nc bnc" id="L267" title="All 2 branches missed.">        if (componentType.isPrimitive()) {</span>
+<span class="nc" id="L268">            return Primitives.wrap(componentType);</span>
+        } else {
+<span class="nc" id="L270">            return componentType;</span>
+        }
+    }
+
+    public Class&lt;T&gt; getTypeRaw() {
+<span class="fc" id="L275">        return type;</span>
+    }
+
+    public CommandParameterSuggester&lt;T&gt; getSuggester() {
+<span class="nc" id="L279">        return suggester;</span>
+    }
+
+    public boolean isRequired() {
+<span class="pc bpc" id="L283" title="2 of 4 branches missed.">        return required &amp;&amp; !isArray();</span>
+    }
+
+    @Override
+    public Optional&lt;? extends Class&lt;?&gt;&gt; getProvidedType() {
+<span class="fc" id="L288">        return Optional.of(getTypeRaw());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

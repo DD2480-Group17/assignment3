@@ -1,0 +1,832 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldRendererImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.world</a> &gt; <span class="el_source">WorldRendererImpl.java</span></div><h1>WorldRendererImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.world;
+
+import java.util.List;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.engine.subsystem.lwjgl.GLBufferPool;
+import org.terasology.engine.subsystem.lwjgl.LwjglGraphics;
+import org.terasology.logic.console.Console;
+import org.terasology.logic.console.commandSystem.MethodCommand;
+import org.terasology.logic.console.commandSystem.annotations.Command;
+import org.terasology.logic.console.commandSystem.annotations.CommandParam;
+import org.terasology.logic.permission.PermissionManager;
+import org.terasology.logic.players.LocalPlayerSystem;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.rendering.ShaderManager;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.cameras.OpenVRStereoCamera;
+import org.terasology.rendering.cameras.PerspectiveCamera;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.Node;
+import org.terasology.rendering.dag.RenderGraph;
+import org.terasology.rendering.dag.RenderPipelineTask;
+import org.terasology.rendering.dag.RenderTaskListGenerator;
+import org.terasology.rendering.dag.nodes.AlphaRejectBlocksNode;
+import org.terasology.rendering.dag.nodes.AmbientOcclusionNode;
+import org.terasology.rendering.dag.nodes.ApplyDeferredLightingNode;
+import org.terasology.rendering.dag.nodes.BackdropNode;
+import org.terasology.rendering.dag.nodes.BackdropReflectionNode;
+import org.terasology.rendering.dag.nodes.BloomBlurNode;
+import org.terasology.rendering.dag.nodes.BlurredAmbientOcclusionNode;
+import org.terasology.rendering.dag.nodes.BufferClearingNode;
+import org.terasology.rendering.dag.nodes.DeferredMainLightNode;
+import org.terasology.rendering.dag.nodes.DeferredPointLightsNode;
+import org.terasology.rendering.dag.nodes.DownSamplerForExposureNode;
+import org.terasology.rendering.dag.nodes.FinalPostProcessingNode;
+import org.terasology.rendering.dag.nodes.HazeNode;
+import org.terasology.rendering.dag.nodes.HighPassNode;
+import org.terasology.rendering.dag.nodes.InitialPostProcessingNode;
+import org.terasology.rendering.dag.nodes.LateBlurNode;
+import org.terasology.rendering.dag.nodes.LightShaftsNode;
+import org.terasology.rendering.dag.nodes.OpaqueBlocksNode;
+import org.terasology.rendering.dag.nodes.OpaqueObjectsNode;
+import org.terasology.rendering.dag.nodes.OutlineNode;
+import org.terasology.rendering.dag.nodes.OutputToHMDNode;
+import org.terasology.rendering.dag.nodes.OutputToScreenNode;
+import org.terasology.rendering.dag.nodes.OverlaysNode;
+import org.terasology.rendering.dag.nodes.PrePostCompositeNode;
+import org.terasology.rendering.dag.nodes.RefractiveReflectiveBlocksNode;
+import org.terasology.rendering.dag.nodes.ShadowMapNode;
+import org.terasology.rendering.dag.nodes.SimpleBlendMaterialsNode;
+import org.terasology.rendering.dag.nodes.ToneMappingNode;
+import org.terasology.rendering.dag.nodes.UpdateExposureNode;
+import org.terasology.rendering.dag.nodes.WorldReflectionNode;
+import org.terasology.rendering.dag.stateChanges.SetViewportToSizeOf;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.ScreenGrabber;
+import org.terasology.rendering.opengl.SwappableFBO;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.opengl.fbms.ImmutableFBOs;
+import org.terasology.rendering.opengl.fbms.ShadowMapResolutionDependentFBOs;
+import org.terasology.rendering.openvrprovider.OpenVRProvider;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
+import org.terasology.utilities.Assets;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.chunks.ChunkProvider;
+import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
+import static org.lwjgl.opengl.GL11.GL_CULL_FACE;
+import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
+import static org.lwjgl.opengl.GL11.GL_STENCIL_BUFFER_BIT;
+import static org.lwjgl.opengl.GL11.glDisable;
+import static org.lwjgl.opengl.GL11.glViewport;
+import static org.terasology.rendering.dag.nodes.DownSamplerForExposureNode.FBO_16X16_CONFIG;
+import static org.terasology.rendering.dag.nodes.DownSamplerForExposureNode.FBO_1X1_CONFIG;
+import static org.terasology.rendering.dag.nodes.DownSamplerForExposureNode.FBO_2X2_CONFIG;
+import static org.terasology.rendering.dag.nodes.DownSamplerForExposureNode.FBO_4X4_CONFIG;
+import static org.terasology.rendering.dag.nodes.DownSamplerForExposureNode.FBO_8X8_CONFIG;
+import static org.terasology.rendering.dag.nodes.LateBlurNode.FIRST_LATE_BLUR_FBO_URI;
+import static org.terasology.rendering.dag.nodes.LateBlurNode.SECOND_LATE_BLUR_FBO_URI;
+import static org.terasology.rendering.opengl.ScalingFactors.FULL_SCALE;
+import static org.terasology.rendering.opengl.ScalingFactors.HALF_SCALE;
+import static org.terasology.rendering.opengl.ScalingFactors.ONE_16TH_SCALE;
+import static org.terasology.rendering.opengl.ScalingFactors.ONE_32TH_SCALE;
+import static org.terasology.rendering.opengl.ScalingFactors.ONE_8TH_SCALE;
+import static org.terasology.rendering.opengl.ScalingFactors.QUARTER_SCALE;
+
+/**
+ * Renders the 3D world, including background, overlays and first person/in hand objects. 2D UI elements are dealt with elsewhere.
+ * &lt;p&gt;
+ * This implementation includes support for OpenVR, through which HTC Vive and Oculus Rift is supported.
+ * &lt;p&gt;
+ * This implementation works closely with a number of support objects, in particular:
+ * &lt;p&gt;
+ * TODO: update this section to include new, relevant objects
+ * - a RenderableWorld instance, providing acceleration structures caching blocks requiring different rendering treatments&lt;br/&gt;
+ */
+public final class WorldRendererImpl implements WorldRenderer {
+    /*
+     * Presumably, the eye height should be context.get(Config.class).getPlayer().getEyeHeight() above the ground plane.
+     * It's not, so for now, we use this factor to adjust for the disparity.
+     */
+    private static final float GROUND_PLANE_HEIGHT_DISPARITY = -0.7f;
+<span class="nc" id="L125">    private RenderGraph renderGraph = new RenderGraph();</span>
+
+    private boolean isFirstRenderingStageForCurrentFrame;
+    private final RenderQueuesHelper renderQueues;
+    private final Context context;
+    private final BackdropProvider backdropProvider;
+    private final WorldProvider worldProvider;
+    private final RenderableWorld renderableWorld;
+    private final ShaderManager shaderManager;
+    private final SubmersibleCamera playerCamera;
+
+    private final OpenVRProvider vrProvider;
+
+    private float timeSmoothedMainLightIntensity;
+    private RenderingStage currentRenderingStage;
+
+    private float millisecondsSinceRenderingStart;
+    private float secondsSinceLastFrame;
+    private int statChunkMeshEmpty;
+    private int statChunkNotReady;
+    private int statRenderedTriangles;
+
+    private final RenderingConfig renderingConfig;
+    private final Console console;
+
+    private RenderTaskListGenerator renderTaskListGenerator;
+    private boolean requestedTaskListRefresh;
+    private List&lt;RenderPipelineTask&gt; renderPipelineTaskList;
+    private ShadowMapNode shadowMapNode;
+
+    private ImmutableFBOs immutableFBOs;
+    private DisplayResolutionDependentFBOs displayResolutionDependentFBOs;
+    private ShadowMapResolutionDependentFBOs shadowMapResolutionDependentFBOs;
+
+    /**
+     * Instantiates a WorldRenderer implementation.
+     * &lt;p&gt;
+     * This particular implementation works as deferred shader. The scene is rendered multiple times per frame
+     * in a number of separate passes (each stored in GPU buffers) and the passes are combined throughout the
+     * rendering pipeline to calculate per-pixel lighting and other effects.
+     * &lt;p&gt;
+     * Transparencies are handled through alpha rejection (i.e. ground plants) and alpha-based blending.
+     * An exception to this is water, which is handled separately to allow for reflections and refractions, if enabled.
+     * &lt;p&gt;
+     * By the time it is fully instantiated this implementation is already connected to all the support objects
+     * it requires and is ready to render via the render(RenderingStage) method.
+     *
+     * @param context    a context object, to obtain instances of classes such as the rendering config.
+     * @param bufferPool a GLBufferPool, to be passed to the RenderableWorld instance used by this implementation.
+     */
+<span class="nc" id="L175">    public WorldRendererImpl(Context context, GLBufferPool bufferPool) {</span>
+<span class="nc" id="L176">        this.context = context;</span>
+<span class="nc" id="L177">        this.worldProvider = context.get(WorldProvider.class);</span>
+<span class="nc" id="L178">        this.backdropProvider = context.get(BackdropProvider.class);</span>
+<span class="nc" id="L179">        this.renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L180">        this.shaderManager = context.get(ShaderManager.class);</span>
+        // TODO: Instantiate the VR provider at a more reasonable location, and just obtain it via context here.
+<span class="nc" id="L182">        vrProvider = OpenVRProvider.getInstance();</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        if (renderingConfig.isVrSupport()) {</span>
+<span class="nc" id="L184">            context.put(OpenVRProvider.class, vrProvider);</span>
+            // If vrProvider.init() returns false, this means that we are unable to initialize VR hardware for some
+            // reason (for example, no HMD is connected). In that case, even though the configuration requests
+            // vrSupport, we fall back on rendering to the main display. The reason for init failure can be read from
+            // the log.
+<span class="nc bnc" id="L189" title="All 2 branches missed.">            if (vrProvider.init()) {</span>
+<span class="nc" id="L190">                playerCamera = new OpenVRStereoCamera(vrProvider, worldProvider, renderingConfig);</span>
+                /*
+                * The origin of OpenVR's coordinate system lies on the ground of the user. We have to move this origin
+                * such that the ground plane of the rendering system and the ground plane of the room the VR user is
+                * in match.
+                 */
+<span class="nc" id="L196">                vrProvider.getState().setGroundPlaneYOffset(</span>
+<span class="nc" id="L197">                        GROUND_PLANE_HEIGHT_DISPARITY - context.get(Config.class).getPlayer().getEyeHeight());</span>
+<span class="nc" id="L198">                currentRenderingStage = RenderingStage.LEFT_EYE;</span>
+            } else {
+<span class="nc" id="L200">                playerCamera = new PerspectiveCamera(worldProvider, renderingConfig, context.get(DisplayDevice.class));</span>
+<span class="nc" id="L201">                currentRenderingStage = RenderingStage.MONO;</span>
+            }
+        } else {
+<span class="nc" id="L204">            playerCamera = new PerspectiveCamera(worldProvider, renderingConfig, context.get(DisplayDevice.class));</span>
+<span class="nc" id="L205">            currentRenderingStage = RenderingStage.MONO;</span>
+        }
+        // TODO: won't need localPlayerSystem here once camera is in the ES proper
+<span class="nc" id="L208">        LocalPlayerSystem localPlayerSystem = context.get(LocalPlayerSystem.class);</span>
+<span class="nc" id="L209">        localPlayerSystem.setPlayerCamera(playerCamera);</span>
+
+<span class="nc" id="L211">        renderableWorld = new RenderableWorldImpl(worldProvider, context.get(ChunkProvider.class), bufferPool, playerCamera);</span>
+<span class="nc" id="L212">        renderQueues = renderableWorld.getRenderQueues();</span>
+
+<span class="nc" id="L214">        initRenderingSupport();</span>
+
+<span class="nc" id="L216">        console = context.get(Console.class);</span>
+<span class="nc" id="L217">        MethodCommand.registerAvailable(this, console, context);</span>
+<span class="nc" id="L218">    }</span>
+
+    private void initRenderingSupport() {
+<span class="nc" id="L221">        ScreenGrabber screenGrabber = new ScreenGrabber(context);</span>
+<span class="nc" id="L222">        context.put(ScreenGrabber.class, screenGrabber);</span>
+
+<span class="nc" id="L224">        immutableFBOs = new ImmutableFBOs();</span>
+<span class="nc" id="L225">        displayResolutionDependentFBOs = new DisplayResolutionDependentFBOs(context.get(Config.class).getRendering(), screenGrabber, context.get(DisplayDevice.class));</span>
+<span class="nc" id="L226">        shadowMapResolutionDependentFBOs = new ShadowMapResolutionDependentFBOs();</span>
+
+<span class="nc" id="L228">        context.put(DisplayResolutionDependentFBOs.class, displayResolutionDependentFBOs);</span>
+<span class="nc" id="L229">        context.put(ImmutableFBOs.class, immutableFBOs);</span>
+<span class="nc" id="L230">        context.put(ShadowMapResolutionDependentFBOs.class, shadowMapResolutionDependentFBOs);</span>
+
+<span class="nc" id="L232">        shaderManager.initShaders();</span>
+
+<span class="nc" id="L234">        context.put(WorldRenderer.class, this);</span>
+<span class="nc" id="L235">        context.put(RenderQueuesHelper.class, renderQueues);</span>
+<span class="nc" id="L236">        context.put(RenderableWorld.class, renderableWorld);</span>
+<span class="nc" id="L237">        initRenderGraph();</span>
+<span class="nc" id="L238">    }</span>
+
+    private void initRenderGraph() {
+<span class="nc" id="L241">        addGBufferClearingNodes(renderGraph);</span>
+
+<span class="nc" id="L243">        addSkyNodes(renderGraph);</span>
+
+<span class="nc" id="L245">        addWorldRenderingNodes(renderGraph);</span>
+
+<span class="nc" id="L247">        addLightingNodes(renderGraph);</span>
+
+<span class="nc" id="L249">        add3dDecorationNodes(renderGraph);</span>
+
+<span class="nc" id="L251">        addReflectionAndRefractionNodes(renderGraph);</span>
+
+<span class="nc" id="L253">        addPrePostProcessingNodes(renderGraph);</span>
+
+<span class="nc" id="L255">        addBloomNodes(renderGraph);</span>
+
+<span class="nc" id="L257">        addExposureNodes(renderGraph);</span>
+
+<span class="nc" id="L259">        addInitialPostProcessingNodes(renderGraph);</span>
+
+<span class="nc" id="L261">        addFinalPostProcessingNodes(renderGraph);</span>
+
+<span class="nc" id="L263">        addOutputNodes(renderGraph);</span>
+
+<span class="nc" id="L265">        renderTaskListGenerator = new RenderTaskListGenerator();</span>
+<span class="nc" id="L266">        requestTaskListRefresh();</span>
+<span class="nc" id="L267">    }</span>
+
+    private void addGBufferClearingNodes(RenderGraph renderGraph) {
+<span class="nc" id="L270">        SwappableFBO gBufferPair = displayResolutionDependentFBOs.getGBufferPair();</span>
+
+<span class="nc" id="L272">        BufferClearingNode lastUpdatedGBufferClearingNode = new BufferClearingNode(&quot;lastUpdatedGBufferClearingNode&quot;,</span>
+<span class="nc" id="L273">                context, gBufferPair.getLastUpdatedFbo(), GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);</span>
+<span class="nc" id="L274">        renderGraph.addNode(lastUpdatedGBufferClearingNode);</span>
+
+<span class="nc" id="L276">        BufferClearingNode staleGBufferClearingNode = new BufferClearingNode(&quot;staleGBufferClearingNode&quot;,</span>
+<span class="nc" id="L277">                context, gBufferPair.getStaleFbo(), GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);</span>
+<span class="nc" id="L278">        renderGraph.addNode(staleGBufferClearingNode);</span>
+<span class="nc" id="L279">    }</span>
+
+    private void addSkyNodes(RenderGraph renderGraph) {
+<span class="nc" id="L282">        Node backdropNode = new BackdropNode(&quot;backdropNode&quot;, context);</span>
+<span class="nc" id="L283">        renderGraph.addNode(backdropNode);</span>
+
+<span class="nc" id="L285">        FBOConfig intermediateHazeConfig = new FBOConfig(HazeNode.INTERMEDIATE_HAZE_FBO_URI, ONE_16TH_SCALE, FBO.Type.DEFAULT);</span>
+<span class="nc" id="L286">        FBO intermediateHazeFbo = displayResolutionDependentFBOs.request(intermediateHazeConfig);</span>
+
+<span class="nc" id="L288">        HazeNode intermediateHazeNode = new HazeNode(&quot;intermediateHazeNode&quot;,</span>
+<span class="nc" id="L289">                context, displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo(), intermediateHazeFbo);</span>
+<span class="nc" id="L290">        renderGraph.addNode(intermediateHazeNode);</span>
+
+<span class="nc" id="L292">        FBOConfig finalHazeConfig = new FBOConfig(HazeNode.FINAL_HAZE_FBO_URI, ONE_32TH_SCALE, FBO.Type.DEFAULT);</span>
+<span class="nc" id="L293">        FBO finalHazeFbo = displayResolutionDependentFBOs.request(finalHazeConfig);</span>
+
+<span class="nc" id="L295">        HazeNode finalHazeNode = new HazeNode(&quot;finalHazeNode&quot;, context, intermediateHazeFbo, finalHazeFbo);</span>
+<span class="nc" id="L296">        renderGraph.addNode(finalHazeNode);</span>
+
+<span class="nc" id="L298">        Node lastUpdatedGBufferClearingNode = renderGraph.findNode(&quot;engine:lastUpdatedGBufferClearingNode&quot;);</span>
+<span class="nc" id="L299">        renderGraph.connect(lastUpdatedGBufferClearingNode, backdropNode, intermediateHazeNode, finalHazeNode);</span>
+<span class="nc" id="L300">    }</span>
+
+    private void addWorldRenderingNodes(RenderGraph renderGraph) {
+        /* Ideally, world rendering nodes only depend on the gBufferClearingNode. However,
+        since the haze is produced by blurring the content of the gBuffer and we only want
+        the sky color to contribute  to the haze, the world rendering nodes need to run
+        after finalHazeNode, so that the landscape and other meshes are not part of the haze.
+
+        Strictly speaking however, it is only the hazeIntermediateNode that should be processed
+        before the world rendering nodes. Here we have chosen to also ensure that finalHazeNode is
+        processed before the world rendering nodes - not because it's necessary, but to keep all
+        the haze-related nodes together. */
+<span class="nc" id="L312">        Node finalHazeNode = renderGraph.findNode(&quot;engine:finalHazeNode&quot;);</span>
+
+<span class="nc" id="L314">        Node opaqueObjectsNode = new OpaqueObjectsNode(&quot;opaqueObjectsNode&quot;, context);</span>
+<span class="nc" id="L315">        renderGraph.addNode(opaqueObjectsNode);</span>
+<span class="nc" id="L316">        renderGraph.connect(finalHazeNode, opaqueObjectsNode);</span>
+
+<span class="nc" id="L318">        Node opaqueBlocksNode = new OpaqueBlocksNode(&quot;opaqueBlocksNode&quot;, context);</span>
+<span class="nc" id="L319">        renderGraph.addNode(opaqueBlocksNode);</span>
+<span class="nc" id="L320">        renderGraph.connect(finalHazeNode, opaqueBlocksNode);</span>
+
+<span class="nc" id="L322">        Node alphaRejectBlocksNode = new AlphaRejectBlocksNode(&quot;alphaRejectBlocksNode&quot;, context);</span>
+<span class="nc" id="L323">        renderGraph.addNode(alphaRejectBlocksNode);</span>
+<span class="nc" id="L324">        renderGraph.connect(finalHazeNode, alphaRejectBlocksNode);</span>
+
+<span class="nc" id="L326">        Node overlaysNode = new OverlaysNode(&quot;overlaysNode&quot;, context);</span>
+<span class="nc" id="L327">        renderGraph.addNode(overlaysNode);</span>
+<span class="nc" id="L328">        renderGraph.connect(finalHazeNode, overlaysNode);</span>
+
+<span class="nc" id="L330">        renderGraph.connect(opaqueObjectsNode, overlaysNode);</span>
+<span class="nc" id="L331">        renderGraph.connect(opaqueBlocksNode, overlaysNode);</span>
+<span class="nc" id="L332">        renderGraph.connect(alphaRejectBlocksNode, overlaysNode);</span>
+<span class="nc" id="L333">    }</span>
+
+    private void addLightingNodes(RenderGraph renderGraph) {
+<span class="nc" id="L336">        Node opaqueObjectsNode = renderGraph.findNode(&quot;engine:opaqueObjectsNode&quot;);</span>
+<span class="nc" id="L337">        Node opaqueBlocksNode = renderGraph.findNode(&quot;engine:opaqueBlocksNode&quot;);</span>
+<span class="nc" id="L338">        Node alphaRejectBlocksNode = renderGraph.findNode(&quot;engine:alphaRejectBlocksNode&quot;);</span>
+<span class="nc" id="L339">        Node lastUpdatedGBufferClearingNode = renderGraph.findNode(&quot;engine:lastUpdatedGBufferClearingNode&quot;);</span>
+<span class="nc" id="L340">        Node staleGBufferClearingNode = renderGraph.findNode(&quot;engine:staleGBufferClearingNode&quot;);</span>
+
+<span class="nc" id="L342">        FBOConfig shadowMapConfig = new FBOConfig(ShadowMapNode.SHADOW_MAP_FBO_URI, FBO.Type.NO_COLOR).useDepthBuffer();</span>
+<span class="nc" id="L343">        BufferClearingNode shadowMapClearingNode = new BufferClearingNode(&quot;shadowMapClearingNode&quot;,</span>
+                context, shadowMapConfig, shadowMapResolutionDependentFBOs, GL_DEPTH_BUFFER_BIT);
+<span class="nc" id="L345">        renderGraph.addNode(shadowMapClearingNode);</span>
+
+<span class="nc" id="L347">        shadowMapNode = new ShadowMapNode(&quot;shadowMapNode&quot;, context);</span>
+<span class="nc" id="L348">        renderGraph.addNode(shadowMapNode);</span>
+<span class="nc" id="L349">        renderGraph.connect(shadowMapClearingNode, shadowMapNode);</span>
+
+<span class="nc" id="L351">        Node deferredPointLightsNode = new DeferredPointLightsNode(&quot;deferredPointLightsNode&quot;, context);</span>
+<span class="nc" id="L352">        renderGraph.addNode(deferredPointLightsNode);</span>
+<span class="nc" id="L353">        renderGraph.connect(opaqueObjectsNode, deferredPointLightsNode);</span>
+<span class="nc" id="L354">        renderGraph.connect(opaqueBlocksNode, deferredPointLightsNode);</span>
+<span class="nc" id="L355">        renderGraph.connect(alphaRejectBlocksNode, deferredPointLightsNode);</span>
+
+<span class="nc" id="L357">        Node deferredMainLightNode = new DeferredMainLightNode(&quot;deferredMainLightNode&quot;, context);</span>
+<span class="nc" id="L358">        renderGraph.addNode(deferredMainLightNode);</span>
+<span class="nc" id="L359">        renderGraph.connect(shadowMapNode, deferredMainLightNode);</span>
+<span class="nc" id="L360">        renderGraph.connect(opaqueObjectsNode, deferredMainLightNode);</span>
+<span class="nc" id="L361">        renderGraph.connect(opaqueBlocksNode, deferredMainLightNode);</span>
+<span class="nc" id="L362">        renderGraph.connect(alphaRejectBlocksNode, deferredMainLightNode);</span>
+<span class="nc" id="L363">        renderGraph.connect(deferredPointLightsNode, deferredMainLightNode);</span>
+
+<span class="nc" id="L365">        Node applyDeferredLightingNode = new ApplyDeferredLightingNode(&quot;applyDeferredLightingNode&quot;, context);</span>
+<span class="nc" id="L366">        renderGraph.addNode(applyDeferredLightingNode);</span>
+<span class="nc" id="L367">        renderGraph.connect(deferredMainLightNode, applyDeferredLightingNode);</span>
+<span class="nc" id="L368">        renderGraph.connect(deferredPointLightsNode, applyDeferredLightingNode);</span>
+<span class="nc" id="L369">        renderGraph.connect(lastUpdatedGBufferClearingNode, applyDeferredLightingNode);</span>
+<span class="nc" id="L370">        renderGraph.connect(staleGBufferClearingNode, applyDeferredLightingNode);</span>
+<span class="nc" id="L371">    }</span>
+
+    private void add3dDecorationNodes(RenderGraph renderGraph) {
+<span class="nc" id="L374">        Node opaqueObjectsNode = renderGraph.findNode(&quot;engine:opaqueObjectsNode&quot;);</span>
+<span class="nc" id="L375">        Node opaqueBlocksNode = renderGraph.findNode(&quot;engine:opaqueBlocksNode&quot;);</span>
+<span class="nc" id="L376">        Node alphaRejectBlocksNode = renderGraph.findNode(&quot;engine:alphaRejectBlocksNode&quot;);</span>
+<span class="nc" id="L377">        Node applyDeferredLightingNode = renderGraph.findNode(&quot;engine:applyDeferredLightingNode&quot;);</span>
+
+<span class="nc" id="L379">        Node outlineNode = new OutlineNode(&quot;outlineNode&quot;, context);</span>
+<span class="nc" id="L380">        renderGraph.addNode(outlineNode);</span>
+<span class="nc" id="L381">        renderGraph.connect(opaqueObjectsNode, outlineNode);</span>
+<span class="nc" id="L382">        renderGraph.connect(opaqueBlocksNode, outlineNode);</span>
+<span class="nc" id="L383">        renderGraph.connect(alphaRejectBlocksNode, outlineNode);</span>
+
+<span class="nc" id="L385">        Node ambientOcclusionNode = new AmbientOcclusionNode(&quot;ambientOcclusionNode&quot;, context);</span>
+<span class="nc" id="L386">        renderGraph.addNode(ambientOcclusionNode);</span>
+<span class="nc" id="L387">        renderGraph.connect(opaqueObjectsNode, ambientOcclusionNode);</span>
+<span class="nc" id="L388">        renderGraph.connect(opaqueBlocksNode, ambientOcclusionNode);</span>
+<span class="nc" id="L389">        renderGraph.connect(alphaRejectBlocksNode, ambientOcclusionNode);</span>
+        // TODO: At this stage, it is unclear -why- this connection is required, we just know that it's required. Investigate.
+<span class="nc" id="L391">        renderGraph.connect(applyDeferredLightingNode, ambientOcclusionNode);</span>
+
+<span class="nc" id="L393">        Node blurredAmbientOcclusionNode = new BlurredAmbientOcclusionNode(&quot;blurredAmbientOcclusionNode&quot;, context);</span>
+<span class="nc" id="L394">        renderGraph.addNode(blurredAmbientOcclusionNode);</span>
+<span class="nc" id="L395">        renderGraph.connect(ambientOcclusionNode, blurredAmbientOcclusionNode);</span>
+<span class="nc" id="L396">    }</span>
+
+    private void addReflectionAndRefractionNodes(RenderGraph renderGraph) {
+<span class="nc" id="L399">        FBOConfig reflectedBufferConfig = new FBOConfig(BackdropReflectionNode.REFLECTED_FBO_URI, HALF_SCALE, FBO.Type.DEFAULT).useDepthBuffer();</span>
+<span class="nc" id="L400">        BufferClearingNode reflectedBufferClearingNode = new BufferClearingNode(&quot;reflectedBufferClearingNode&quot;,</span>
+                context, reflectedBufferConfig, displayResolutionDependentFBOs, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+<span class="nc" id="L402">        renderGraph.addNode(reflectedBufferClearingNode);</span>
+
+<span class="nc" id="L404">        Node reflectedBackdropNode = new BackdropReflectionNode(&quot;reflectedBackdropNode&quot;, context);</span>
+<span class="nc" id="L405">        renderGraph.addNode(reflectedBackdropNode);</span>
+
+<span class="nc" id="L407">        Node worldReflectionNode = new WorldReflectionNode(&quot;worldReflectionNode&quot;, context);</span>
+<span class="nc" id="L408">        renderGraph.addNode(worldReflectionNode);</span>
+
+<span class="nc" id="L410">        renderGraph.connect(reflectedBufferClearingNode, reflectedBackdropNode, worldReflectionNode);</span>
+
+<span class="nc" id="L412">        FBOConfig reflectedRefractedBufferConfig = new FBOConfig(RefractiveReflectiveBlocksNode.REFRACTIVE_REFLECTIVE_FBO_URI,</span>
+<span class="nc" id="L413">                FULL_SCALE, FBO.Type.HDR).useNormalBuffer();</span>
+<span class="nc" id="L414">        BufferClearingNode reflectedRefractedBufferClearingNode = new BufferClearingNode(&quot;reflectedRefractedBufferClearingNode&quot;,</span>
+                context, reflectedRefractedBufferConfig, displayResolutionDependentFBOs, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+<span class="nc" id="L416">        renderGraph.addNode(reflectedRefractedBufferClearingNode);</span>
+
+<span class="nc" id="L418">        Node chunksRefractiveReflectiveNode = new RefractiveReflectiveBlocksNode(&quot;chunksRefractiveReflectiveNode&quot;, context);</span>
+<span class="nc" id="L419">        renderGraph.addNode(chunksRefractiveReflectiveNode);</span>
+
+<span class="nc" id="L421">        Node applyDeferredLightingNode = renderGraph.findNode(&quot;engine:applyDeferredLightingNode&quot;);</span>
+<span class="nc" id="L422">        renderGraph.connect(reflectedRefractedBufferClearingNode, chunksRefractiveReflectiveNode);</span>
+<span class="nc" id="L423">        renderGraph.connect(worldReflectionNode, chunksRefractiveReflectiveNode);</span>
+        // TODO: At this stage, it is unclear -why- this connection is required, we just know that it's required. Investigate.
+<span class="nc" id="L425">        renderGraph.connect(applyDeferredLightingNode, chunksRefractiveReflectiveNode);</span>
+        // TODO: consider having a non-rendering node for FBO.attachDepthBufferTo() methods
+<span class="nc" id="L427">    }</span>
+
+    private void addPrePostProcessingNodes(RenderGraph renderGraph) {
+        // Pre-post-processing, just one more interaction with 3D data (semi-transparent objects, in SimpleBlendMaterialsNode)
+        // and then it's 2D post-processing all the way to the image shown on the display.
+
+<span class="nc" id="L433">        Node overlaysNode = renderGraph.findNode(&quot;engine:overlaysNode&quot;);</span>
+<span class="nc" id="L434">        Node finalHazeNode = renderGraph.findNode(&quot;engine:finalHazeNode&quot;);</span>
+<span class="nc" id="L435">        Node chunksRefractiveReflectiveNode = renderGraph.findNode(&quot;engine:chunksRefractiveReflectiveNode&quot;);</span>
+<span class="nc" id="L436">        Node applyDeferredLightingNode = renderGraph.findNode(&quot;engine:applyDeferredLightingNode&quot;);</span>
+<span class="nc" id="L437">        Node outlineNode = renderGraph.findNode(&quot;engine:outlineNode&quot;);</span>
+<span class="nc" id="L438">        Node blurredAmbientOcclusionNode = renderGraph.findNode(&quot;engine:blurredAmbientOcclusionNode&quot;);</span>
+
+<span class="nc" id="L440">        Node prePostCompositeNode = new PrePostCompositeNode(&quot;prePostCompositeNode&quot;, context);</span>
+<span class="nc" id="L441">        renderGraph.addNode(prePostCompositeNode);</span>
+<span class="nc" id="L442">        renderGraph.connect(overlaysNode, prePostCompositeNode);</span>
+<span class="nc" id="L443">        renderGraph.connect(finalHazeNode, prePostCompositeNode);</span>
+<span class="nc" id="L444">        renderGraph.connect(chunksRefractiveReflectiveNode, prePostCompositeNode);</span>
+<span class="nc" id="L445">        renderGraph.connect(applyDeferredLightingNode, prePostCompositeNode);</span>
+<span class="nc" id="L446">        renderGraph.connect(outlineNode, prePostCompositeNode);</span>
+<span class="nc" id="L447">        renderGraph.connect(blurredAmbientOcclusionNode, prePostCompositeNode);</span>
+
+<span class="nc" id="L449">        Node simpleBlendMaterialsNode = new SimpleBlendMaterialsNode(&quot;simpleBlendMaterialsNode&quot;, context);</span>
+<span class="nc" id="L450">        renderGraph.addNode(simpleBlendMaterialsNode);</span>
+<span class="nc" id="L451">        renderGraph.connect(prePostCompositeNode, simpleBlendMaterialsNode);</span>
+<span class="nc" id="L452">    }</span>
+
+    private void addBloomNodes(RenderGraph renderGraph) {
+        // Bloom Effect: one high-pass filter and three blur passes
+
+<span class="nc" id="L457">        Node highPassNode = new HighPassNode(&quot;highPassNode&quot;, context);</span>
+<span class="nc" id="L458">        renderGraph.addNode(highPassNode);</span>
+
+<span class="nc" id="L460">        FBOConfig halfScaleBloomConfig = new FBOConfig(BloomBlurNode.HALF_SCALE_FBO_URI, HALF_SCALE, FBO.Type.DEFAULT);</span>
+<span class="nc" id="L461">        FBO halfScaleBloomFbo = displayResolutionDependentFBOs.request(halfScaleBloomConfig);</span>
+
+<span class="nc" id="L463">        BloomBlurNode halfScaleBlurredBloomNode = new BloomBlurNode(&quot;halfScaleBlurredBloomNode&quot;,</span>
+<span class="nc" id="L464">                context, displayResolutionDependentFBOs.get(HighPassNode.HIGH_PASS_FBO_URI), halfScaleBloomFbo);</span>
+<span class="nc" id="L465">        renderGraph.addNode(halfScaleBlurredBloomNode);</span>
+
+<span class="nc" id="L467">        FBOConfig quarterScaleBloomConfig = new FBOConfig(BloomBlurNode.QUARTER_SCALE_FBO_URI, QUARTER_SCALE, FBO.Type.DEFAULT);</span>
+<span class="nc" id="L468">        FBO quarterScaleBloomFbo = displayResolutionDependentFBOs.request(quarterScaleBloomConfig);</span>
+
+<span class="nc" id="L470">        BloomBlurNode quarterScaleBlurredBloomNode = new BloomBlurNode(&quot;quarterScaleBlurredBloomNode&quot;, context, halfScaleBloomFbo, quarterScaleBloomFbo);</span>
+<span class="nc" id="L471">        renderGraph.addNode(quarterScaleBlurredBloomNode);</span>
+
+<span class="nc" id="L473">        FBOConfig one8thScaleBloomConfig = new FBOConfig(BloomBlurNode.ONE_8TH_SCALE_FBO_URI, ONE_8TH_SCALE, FBO.Type.DEFAULT);</span>
+<span class="nc" id="L474">        FBO one8thScaleBloomFbo = displayResolutionDependentFBOs.request(one8thScaleBloomConfig);</span>
+
+<span class="nc" id="L476">        BloomBlurNode one8thScaleBlurredBloomNode = new BloomBlurNode(&quot;one8thScaleBlurredBloomNode&quot;, context, quarterScaleBloomFbo, one8thScaleBloomFbo);</span>
+<span class="nc" id="L477">        renderGraph.addNode(one8thScaleBlurredBloomNode);</span>
+
+<span class="nc" id="L479">        Node simpleBlendMaterialsNode = renderGraph.findNode(&quot;engine:simpleBlendMaterialsNode&quot;);</span>
+<span class="nc" id="L480">        renderGraph.connect(simpleBlendMaterialsNode, highPassNode, halfScaleBlurredBloomNode,</span>
+                                        quarterScaleBlurredBloomNode, one8thScaleBlurredBloomNode);
+<span class="nc" id="L482">    }</span>
+
+    private void addExposureNodes(RenderGraph renderGraph) {
+<span class="nc" id="L485">        FBOConfig gBuffer2Config = displayResolutionDependentFBOs.getFboConfig(new SimpleUri(&quot;engine:fbo.gBuffer2&quot;)); // TODO: Remove the hard coded value here</span>
+<span class="nc" id="L486">        DownSamplerForExposureNode exposureDownSamplerTo16pixels = new DownSamplerForExposureNode(&quot;exposureDownSamplerTo16pixels&quot;,</span>
+                context, gBuffer2Config, displayResolutionDependentFBOs, FBO_16X16_CONFIG, immutableFBOs);
+<span class="nc" id="L488">        renderGraph.addNode(exposureDownSamplerTo16pixels);</span>
+
+<span class="nc" id="L490">        DownSamplerForExposureNode exposureDownSamplerTo8pixels = new DownSamplerForExposureNode(&quot;exposureDownSamplerTo8pixels&quot;,</span>
+                context, FBO_16X16_CONFIG, immutableFBOs, FBO_8X8_CONFIG, immutableFBOs);
+<span class="nc" id="L492">        renderGraph.addNode(exposureDownSamplerTo8pixels);</span>
+
+<span class="nc" id="L494">        DownSamplerForExposureNode exposureDownSamplerTo4pixels = new DownSamplerForExposureNode(&quot;exposureDownSamplerTo4pixels&quot;,</span>
+                context, FBO_8X8_CONFIG, immutableFBOs, FBO_4X4_CONFIG, immutableFBOs);
+<span class="nc" id="L496">        renderGraph.addNode(exposureDownSamplerTo4pixels);</span>
+
+<span class="nc" id="L498">        DownSamplerForExposureNode exposureDownSamplerTo2pixels = new DownSamplerForExposureNode(&quot;exposureDownSamplerTo2pixels&quot;,</span>
+                context, FBO_4X4_CONFIG, immutableFBOs, FBO_2X2_CONFIG, immutableFBOs);
+<span class="nc" id="L500">        renderGraph.addNode(exposureDownSamplerTo2pixels);</span>
+
+<span class="nc" id="L502">        DownSamplerForExposureNode exposureDownSamplerTo1pixel = new DownSamplerForExposureNode(&quot;exposureDownSamplerTo1pixel&quot;,</span>
+                context, FBO_2X2_CONFIG, immutableFBOs, FBO_1X1_CONFIG, immutableFBOs);
+<span class="nc" id="L504">        renderGraph.addNode(exposureDownSamplerTo1pixel);</span>
+
+<span class="nc" id="L506">        Node updateExposureNode = new UpdateExposureNode(&quot;updateExposureNode&quot;, context);</span>
+<span class="nc" id="L507">        renderGraph.addNode(updateExposureNode);</span>
+
+<span class="nc" id="L509">        Node simpleBlendMaterialsNode = renderGraph.findNode(&quot;engine:simpleBlendMaterialsNode&quot;);</span>
+<span class="nc" id="L510">        renderGraph.connect(simpleBlendMaterialsNode, exposureDownSamplerTo16pixels, exposureDownSamplerTo8pixels,</span>
+                            exposureDownSamplerTo4pixels, exposureDownSamplerTo2pixels, exposureDownSamplerTo1pixel,
+                            updateExposureNode);
+<span class="nc" id="L513">    }</span>
+
+    private void addInitialPostProcessingNodes(RenderGraph renderGraph) {
+<span class="nc" id="L516">        Node simpleBlendMaterialsNode = renderGraph.findNode(&quot;engine:simpleBlendMaterialsNode&quot;);</span>
+<span class="nc" id="L517">        Node one8thScaleBlurredBloomNode = renderGraph.findNode(&quot;engine:one8thScaleBlurredBloomNode&quot;);</span>
+
+        // Light shafts
+<span class="nc" id="L520">        Node lightShaftsNode = new LightShaftsNode(&quot;lightShaftsNode&quot;, context);</span>
+<span class="nc" id="L521">        renderGraph.addNode(lightShaftsNode);</span>
+<span class="nc" id="L522">        renderGraph.connect(simpleBlendMaterialsNode, lightShaftsNode);</span>
+
+        // Adding the bloom and light shafts to the gBuffer
+<span class="nc" id="L525">        Node initialPostProcessingNode = new InitialPostProcessingNode(&quot;initialPostProcessingNode&quot;, context);</span>
+<span class="nc" id="L526">        renderGraph.addNode(initialPostProcessingNode);</span>
+<span class="nc" id="L527">        renderGraph.connect(lightShaftsNode, initialPostProcessingNode);</span>
+<span class="nc" id="L528">        renderGraph.connect(one8thScaleBlurredBloomNode, initialPostProcessingNode);</span>
+<span class="nc" id="L529">    }</span>
+
+    private void addFinalPostProcessingNodes(RenderGraph renderGraph) {
+<span class="nc" id="L532">        Node initialPostProcessingNode = renderGraph.findNode(&quot;engine:initialPostProcessingNode&quot;);</span>
+<span class="nc" id="L533">        Node updateExposureNode = renderGraph.findNode(&quot;engine:updateExposureNode&quot;);</span>
+
+<span class="nc" id="L535">        Node toneMappingNode = new ToneMappingNode(&quot;toneMappingNode&quot;, context);</span>
+<span class="nc" id="L536">        renderGraph.addNode(toneMappingNode);</span>
+<span class="nc" id="L537">        renderGraph.connect(updateExposureNode, toneMappingNode);</span>
+<span class="nc" id="L538">        renderGraph.connect(initialPostProcessingNode, toneMappingNode);</span>
+
+        // Late Blur nodes: assisting Motion Blur and Depth-of-Field effects
+<span class="nc" id="L541">        FBOConfig firstLateBlurConfig = new FBOConfig(FIRST_LATE_BLUR_FBO_URI, HALF_SCALE, FBO.Type.DEFAULT);</span>
+<span class="nc" id="L542">        FBO firstLateBlurFbo = displayResolutionDependentFBOs.request(firstLateBlurConfig);</span>
+
+<span class="nc" id="L544">        LateBlurNode firstLateBlurNode = new LateBlurNode(&quot;firstLateBlurNode&quot;, context,</span>
+<span class="nc" id="L545">                displayResolutionDependentFBOs.get(ToneMappingNode.TONE_MAPPING_FBO_URI), firstLateBlurFbo);</span>
+<span class="nc" id="L546">        renderGraph.addNode(firstLateBlurNode);</span>
+
+<span class="nc" id="L548">        FBOConfig secondLateBlurConfig = new FBOConfig(SECOND_LATE_BLUR_FBO_URI, HALF_SCALE, FBO.Type.DEFAULT);</span>
+<span class="nc" id="L549">        FBO secondLateBlurFbo = displayResolutionDependentFBOs.request(secondLateBlurConfig);</span>
+
+<span class="nc" id="L551">        LateBlurNode secondLateBlurNode = new LateBlurNode(&quot;secondLateBlurNode&quot;, context, firstLateBlurFbo, secondLateBlurFbo);</span>
+<span class="nc" id="L552">        renderGraph.addNode(secondLateBlurNode);</span>
+
+<span class="nc" id="L554">        Node finalPostProcessingNode = new FinalPostProcessingNode(&quot;finalPostProcessingNode&quot;, context);</span>
+<span class="nc" id="L555">        renderGraph.addNode(finalPostProcessingNode);</span>
+
+<span class="nc" id="L557">        renderGraph.connect(toneMappingNode, firstLateBlurNode, secondLateBlurNode, finalPostProcessingNode);</span>
+<span class="nc" id="L558">    }</span>
+
+    private void addOutputNodes(RenderGraph renderGraph) {
+<span class="nc" id="L561">        Node finalPostProcessingNode = renderGraph.findNode(&quot;engine:finalPostProcessingNode&quot;);</span>
+
+<span class="nc" id="L563">        Node outputToVRFrameBufferNode = new OutputToHMDNode(&quot;outputToVRFrameBufferNode&quot;, context);</span>
+<span class="nc" id="L564">        renderGraph.addNode(outputToVRFrameBufferNode);</span>
+<span class="nc" id="L565">        renderGraph.connect(finalPostProcessingNode, outputToVRFrameBufferNode);</span>
+
+<span class="nc" id="L567">        Node outputToScreenNode = new OutputToScreenNode(&quot;outputToScreenNode&quot;, context);</span>
+<span class="nc" id="L568">        renderGraph.addNode(outputToScreenNode);</span>
+<span class="nc" id="L569">        renderGraph.connect(finalPostProcessingNode, outputToScreenNode);</span>
+<span class="nc" id="L570">    }</span>
+
+    @Override
+    public float getSecondsSinceLastFrame() {
+<span class="nc" id="L574">        return secondsSinceLastFrame;</span>
+    }
+
+    @Override
+    public Material getMaterial(String assetId) {
+<span class="nc" id="L579">        return Assets.getMaterial(assetId).orElseThrow(() -&gt;</span>
+<span class="nc" id="L580">                new RuntimeException(&quot;Failed to resolve required asset: '&quot; + assetId + &quot;'&quot;));</span>
+    }
+
+    @Override
+    public void onChunkLoaded(Vector3i pos) {
+<span class="nc" id="L585">        renderableWorld.onChunkLoaded(pos);</span>
+<span class="nc" id="L586">    }</span>
+
+    @Override
+    public void onChunkUnloaded(Vector3i pos) {
+<span class="nc" id="L590">        renderableWorld.onChunkUnloaded(pos);</span>
+<span class="nc" id="L591">    }</span>
+
+    @Override
+    public boolean pregenerateChunks() {
+<span class="nc" id="L595">        return renderableWorld.pregenerateChunks();</span>
+    }
+
+    @Override
+    public void update(float deltaInSeconds) {
+<span class="nc" id="L600">        secondsSinceLastFrame += deltaInSeconds;</span>
+<span class="nc" id="L601">    }</span>
+
+    private void resetStats() {
+<span class="nc" id="L604">        statChunkMeshEmpty = 0;</span>
+<span class="nc" id="L605">        statChunkNotReady = 0;</span>
+<span class="nc" id="L606">        statRenderedTriangles = 0;</span>
+<span class="nc" id="L607">    }</span>
+
+    @Override
+    public void increaseTrianglesCount(int increase) {
+<span class="nc" id="L611">        statRenderedTriangles += increase;</span>
+<span class="nc" id="L612">    }</span>
+
+    @Override
+    public void increaseNotReadyChunkCount(int increase) {
+<span class="nc" id="L616">        statChunkNotReady += increase;</span>
+<span class="nc" id="L617">    }</span>
+
+    private void preRenderUpdate(RenderingStage renderingStage) {
+<span class="nc" id="L620">        resetStats();</span>
+
+<span class="nc" id="L622">        currentRenderingStage = renderingStage;</span>
+
+<span class="nc bnc" id="L624" title="All 4 branches missed.">        if (currentRenderingStage == RenderingStage.MONO || currentRenderingStage == RenderingStage.LEFT_EYE) {</span>
+<span class="nc" id="L625">            isFirstRenderingStageForCurrentFrame = true;</span>
+        } else {
+<span class="nc" id="L627">            isFirstRenderingStageForCurrentFrame = false;</span>
+        }
+
+        // this is done to execute this code block only once per frame
+        // instead of once per eye in a stereo setup.
+<span class="nc bnc" id="L632" title="All 2 branches missed.">        if (isFirstRenderingStageForCurrentFrame) {</span>
+<span class="nc" id="L633">            timeSmoothedMainLightIntensity = TeraMath.lerp(timeSmoothedMainLightIntensity, getMainLightIntensityAt(playerCamera.getPosition()), secondsSinceLastFrame);</span>
+
+<span class="nc" id="L635">            playerCamera.update(secondsSinceLastFrame);</span>
+
+<span class="nc" id="L637">            renderableWorld.update();</span>
+<span class="nc" id="L638">            renderableWorld.generateVBOs();</span>
+<span class="nc" id="L639">            secondsSinceLastFrame = 0;</span>
+
+<span class="nc" id="L641">            displayResolutionDependentFBOs.update();</span>
+
+<span class="nc" id="L643">            millisecondsSinceRenderingStart += secondsSinceLastFrame * 1000;  // updates the variable animations are based on.</span>
+        }
+
+<span class="nc bnc" id="L646" title="All 2 branches missed.">        if (currentRenderingStage != RenderingStage.MONO) {</span>
+<span class="nc" id="L647">            playerCamera.updateFrustum();</span>
+        }
+
+        // this line needs to be here as deep down it relies on the camera's frustrum, updated just above.
+<span class="nc" id="L651">        renderableWorld.queueVisibleChunks(isFirstRenderingStageForCurrentFrame);</span>
+
+<span class="nc bnc" id="L653" title="All 2 branches missed.">        if (requestedTaskListRefresh) {</span>
+<span class="nc" id="L654">            List&lt;Node&gt; orderedNodes = renderGraph.getNodesInTopologicalOrder();</span>
+<span class="nc" id="L655">            renderPipelineTaskList = renderTaskListGenerator.generateFrom(orderedNodes);</span>
+<span class="nc" id="L656">            requestedTaskListRefresh = false;</span>
+        }
+<span class="nc" id="L658">    }</span>
+
+    /**
+     * TODO: update javadocs
+     * This method triggers the execution of the rendering pipeline and, eventually, sends the output to the display
+     * or to a file, when grabbing a screenshot.
+     * &lt;p&gt;
+     * In this particular implementation this method can be called once per frame, when rendering to a standard display,
+     * or twice, each time with a different rendering stage, when rendering to the head mounted display.
+     * &lt;p&gt;
+     * PerformanceMonitor.startActivity/endActivity statements are used in this method and in those it executes,
+     * to provide statistics regarding the ongoing rendering and its individual steps (i.e. rendering shadows,
+     * reflections, 2D filters...).
+     *
+     * @param renderingStage &quot;MONO&quot; for standard rendering and &quot;LEFT_EYE&quot; or &quot;RIGHT_EYE&quot; for stereoscopic displays.
+     */
+    @Override
+    public void render(RenderingStage renderingStage) {
+<span class="nc" id="L676">        preRenderUpdate(renderingStage);</span>
+
+        // TODO: Add a method here to check wireframe configuration and regenerate &quot;renderPipelineTask&quot; accordingly.
+
+        // The following line re-establish OpenGL defaults, so that the nodes/tasks can rely on them.
+        // A place where Terasology overrides the defaults is LwjglGraphics.initOpenGLParams(), but
+        // there could be potentially other places, i.e. in the UI code. In the rendering engine we'd like
+        // to eventually rely on a default OpenGL state.
+<span class="nc" id="L684">        glDisable(GL_CULL_FACE);</span>
+<span class="nc" id="L685">        FBO lastUpdatedGBuffer = displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo();</span>
+<span class="nc" id="L686">        glViewport(0, 0, lastUpdatedGBuffer.width(), lastUpdatedGBuffer.height());</span>
+        //glDisable(GL_DEPTH_TEST);
+        //glDisable(GL_NORMALIZE); // currently keeping these as they are, until we find where they are used.
+        //glDepthFunc(GL_LESS);
+
+<span class="nc" id="L691">        renderPipelineTaskList.forEach(RenderPipelineTask::process);</span>
+
+        // this line re-establish Terasology defaults, so that the rest of the application can rely on them.
+<span class="nc" id="L694">        LwjglGraphics.initOpenGLParams();</span>
+
+<span class="nc" id="L696">        playerCamera.updatePrevViewProjectionMatrix();</span>
+<span class="nc" id="L697">    }</span>
+
+    @Override
+    public void requestTaskListRefresh() {
+<span class="nc" id="L701">        requestedTaskListRefresh = true;</span>
+<span class="nc" id="L702">    }</span>
+
+    @Override
+    public boolean isFirstRenderingStageForCurrentFrame() {
+<span class="nc" id="L706">        return isFirstRenderingStageForCurrentFrame;</span>
+    }
+
+    /**
+     * Disposes of support objects used by this implementation.
+     */
+    @Override
+    public void dispose() {
+<span class="nc" id="L714">        renderableWorld.dispose();</span>
+<span class="nc" id="L715">        worldProvider.dispose();</span>
+<span class="nc" id="L716">        renderGraph.dispose();</span>
+        // TODO: Shift this to a better place, after a RenderGraph class has been implemented.
+<span class="nc" id="L718">        SetViewportToSizeOf.disposeDefaultInstance();</span>
+<span class="nc" id="L719">    }</span>
+
+    @Override
+    public void setViewDistance(ViewDistance viewDistance) {
+<span class="nc" id="L723">        renderableWorld.updateChunksInProximity(viewDistance);</span>
+<span class="nc" id="L724">    }</span>
+
+    @Override
+    public float getTimeSmoothedMainLightIntensity() {
+<span class="nc" id="L728">        return timeSmoothedMainLightIntensity;</span>
+    }
+
+    @Override
+    public float getRenderingLightIntensityAt(Vector3f pos) {
+<span class="nc" id="L733">        float rawLightValueSun = worldProvider.getSunlight(pos) / 15.0f;</span>
+<span class="nc" id="L734">        float rawLightValueBlock = worldProvider.getLight(pos) / 15.0f;</span>
+
+<span class="nc" id="L736">        float lightValueSun = (float) Math.pow(BLOCK_LIGHT_SUN_POW, (1.0f - rawLightValueSun) * 16.0) * rawLightValueSun;</span>
+<span class="nc" id="L737">        lightValueSun *= backdropProvider.getDaylight();</span>
+        // TODO: Hardcoded factor and value to compensate for daylight tint and night brightness
+<span class="nc" id="L739">        lightValueSun *= 0.9f;</span>
+<span class="nc" id="L740">        lightValueSun += 0.05f;</span>
+
+<span class="nc" id="L742">        float lightValueBlock = (float) Math.pow(BLOCK_LIGHT_POW, (1.0f - (double)rawLightValueBlock) * 16.0f) * rawLightValueBlock * BLOCK_INTENSITY_FACTOR;</span>
+
+<span class="nc" id="L744">        return Math.max(lightValueBlock, lightValueSun);</span>
+    }
+
+    @Override
+    public float getMainLightIntensityAt(Vector3f position) {
+<span class="nc" id="L749">        return backdropProvider.getDaylight() * worldProvider.getSunlight(position) / 15.0f;</span>
+    }
+
+    @Override
+    public float getBlockLightIntensityAt(Vector3f position) {
+<span class="nc" id="L754">        return worldProvider.getLight(position) / 15.0f;</span>
+    }
+
+    @Override
+    public String getMetrics() {
+<span class="nc" id="L759">        String stringToReturn = &quot;&quot;;</span>
+<span class="nc" id="L760">        stringToReturn += renderableWorld.getMetrics();</span>
+<span class="nc" id="L761">        stringToReturn += &quot;Empty Mesh Chunks: &quot;;</span>
+<span class="nc" id="L762">        stringToReturn += statChunkMeshEmpty;</span>
+<span class="nc" id="L763">        stringToReturn += &quot;\n&quot;;</span>
+<span class="nc" id="L764">        stringToReturn += &quot;Unready Chunks: &quot;;</span>
+<span class="nc" id="L765">        stringToReturn += statChunkNotReady;</span>
+<span class="nc" id="L766">        stringToReturn += &quot;\n&quot;;</span>
+<span class="nc" id="L767">        stringToReturn += &quot;Rendered Triangles: &quot;;</span>
+<span class="nc" id="L768">        stringToReturn += statRenderedTriangles;</span>
+<span class="nc" id="L769">        stringToReturn += &quot;\n&quot;;</span>
+<span class="nc" id="L770">        return stringToReturn;</span>
+    }
+
+    @Override
+    public float getMillisecondsSinceRenderingStart() {
+<span class="nc" id="L775">        return millisecondsSinceRenderingStart;</span>
+    }
+
+    @Override
+    public SubmersibleCamera getActiveCamera() {
+<span class="nc" id="L780">        return playerCamera;</span>
+    }
+
+    @Override
+    public Camera getLightCamera() {
+        //FIXME: remove this method
+<span class="nc" id="L786">        return shadowMapNode.shadowMapCamera;</span>
+    }
+
+    @Override
+    public RenderingStage getCurrentRenderStage() {
+<span class="nc" id="L791">        return currentRenderingStage;</span>
+    }
+
+    @Override
+    public RenderGraph getRenderGraph() {
+<span class="nc" id="L796">        return renderGraph;</span>
+    }
+
+    /**
+     * Forces a recompilation of all shaders. This command, backed by Gestalt's monitoring feature,
+     * allows developers to hot-swap shaders for easy development.
+     *
+     * To run the command simply type &quot;recompileShaders&quot; and then press Enter in the console.
+     */
+    @Command(shortDescription = &quot;Forces a recompilation of shaders.&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public void recompileShaders() {
+<span class="nc" id="L807">        console.addMessage(&quot;Recompiling shaders... &quot;, false);</span>
+<span class="nc" id="L808">        shaderManager.recompileAllShaders();</span>
+<span class="nc" id="L809">        console.addMessage(&quot;done!&quot;);</span>
+<span class="nc" id="L810">    }</span>
+
+    /**
+     * Acts as an interface between the console and the Nodes. All parameters passed to command are redirected to the
+     * concerned Nodes, which in turn take care of executing them.
+     *
+     * Usage:
+     *      dagCommandNode &lt;nodeUri&gt; &lt;command&gt; &lt;parameters&gt;
+     *
+     * Example:
+     *      dagNodeCommand engine:outputToScreenNode setFbo engine:fbo.ssao
+     */
+    @Command(shortDescription = &quot;Debugging command for DAG.&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public void dagNodeCommand(@CommandParam(&quot;nodeUri&quot;) final String nodeUri, @CommandParam(&quot;command&quot;) final String command,
+                               @CommandParam(value = &quot;arguments&quot;) final String... arguments) {
+<span class="nc" id="L825">        Node node = renderGraph.findNode(nodeUri);</span>
+<span class="nc bnc" id="L826" title="All 2 branches missed.">        if (node == null) {</span>
+<span class="nc" id="L827">            throw new RuntimeException((&quot;No node is associated with URI '&quot; + nodeUri + &quot;'&quot;));</span>
+        }
+<span class="nc" id="L829">        node.handleCommand(command, arguments);</span>
+<span class="nc" id="L830">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

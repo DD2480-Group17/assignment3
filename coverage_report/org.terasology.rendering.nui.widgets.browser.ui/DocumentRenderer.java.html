@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DocumentRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets.browser.ui</a> &gt; <span class="el_source">DocumentRenderer.java</span></div><h1>DocumentRenderer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets.browser.ui;
+
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.widgets.browser.data.DocumentData;
+import org.terasology.rendering.nui.widgets.browser.data.ParagraphData;
+import org.terasology.rendering.nui.widgets.browser.data.basic.flow.ContainerRenderSpace;
+import org.terasology.rendering.nui.widgets.browser.ui.style.DefaultDocumentRenderStyle;
+import org.terasology.rendering.nui.widgets.browser.ui.style.DocumentRenderStyle;
+import org.terasology.rendering.nui.widgets.browser.ui.style.FallbackDocumentRenderStyle;
+import org.terasology.rendering.nui.widgets.browser.ui.style.FallbackParagraphRenderStyle;
+import org.terasology.rendering.nui.widgets.browser.ui.style.ParagraphRenderStyle;
+
+import java.util.Collection;
+
+public final class DocumentRenderer {
+    private DocumentRenderer() {
+    }
+
+    public static Vector2i getDocumentPreferredSize(DocumentData documentData, Font defaultFont, Color defaultColor, int availableWidth) {
+<span class="nc" id="L39">        DefaultDocumentRenderStyle defaultDocumentRenderStyle = new DefaultDocumentRenderStyle(defaultFont, defaultColor);</span>
+
+<span class="nc" id="L41">        DocumentRenderStyle documentRenderStyle = getDocumentRenderStyle(defaultDocumentRenderStyle, documentData);</span>
+
+<span class="nc" id="L43">        Collection&lt;ParagraphData&gt; paragraphs = documentData.getParagraphs();</span>
+<span class="nc" id="L44">        int minParagraphsWidth = getParagraphsMinimumWidth(availableWidth, documentRenderStyle, paragraphs);</span>
+
+<span class="nc" id="L46">        int documentSideMargins = documentRenderStyle.getDocumentMarginLeft().getValue(availableWidth)</span>
+<span class="nc" id="L47">                + documentRenderStyle.getDocumentMarginRight().getValue(availableWidth);</span>
+<span class="nc" id="L48">        int documentWidth = Math.max(availableWidth, minParagraphsWidth + documentSideMargins);</span>
+
+<span class="nc" id="L50">        ContainerFlowContainerRenderSpace containerRenderSpace = new ContainerFlowContainerRenderSpace(documentWidth);</span>
+<span class="nc" id="L51">        int preferredHeight = Math.max(</span>
+<span class="nc" id="L52">                getParagraphsPreferredHeight(documentRenderStyle, paragraphs, containerRenderSpace, 0),</span>
+<span class="nc" id="L53">                containerRenderSpace.getNextClearYPosition(ParagraphRenderStyle.ClearStyle.BOTH));</span>
+
+<span class="nc" id="L55">        int documentVerticalMargins = documentRenderStyle.getDocumentMarginTop().getValue(documentWidth)</span>
+<span class="nc" id="L56">                + documentRenderStyle.getDocumentMarginBottom().getValue(documentWidth);</span>
+
+        // Bring back the document indents to sides
+<span class="nc" id="L59">        return new Vector2i(documentWidth, preferredHeight + documentVerticalMargins);</span>
+    }
+
+    public static int getParagraphsMinimumWidth(int availableWidth, ParagraphRenderStyle baseParagraphRenderStyle, Collection&lt;ParagraphData&gt; paragraphs) {
+<span class="nc" id="L63">        int minParagraphsWidth = 0;</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        for (ParagraphData paragraphData : paragraphs) {</span>
+<span class="nc" id="L65">            ParagraphRenderStyle paragraphRenderStyle = getParagraphRenderStyle(baseParagraphRenderStyle, paragraphData);</span>
+<span class="nc" id="L66">            int paragraphSideIndent = paragraphRenderStyle.getParagraphMarginLeft().getValue(availableWidth)</span>
+<span class="nc" id="L67">                    + paragraphRenderStyle.getParagraphMarginRight().getValue(availableWidth)</span>
+<span class="nc" id="L68">                    + paragraphRenderStyle.getParagraphPaddingLeft().getValue(availableWidth)</span>
+<span class="nc" id="L69">                    + paragraphRenderStyle.getParagraphPaddingRight().getValue(availableWidth);</span>
+<span class="nc" id="L70">            int paragraphMinWidth = Math.max(paragraphRenderStyle.getParagraphMinimumWidth().getValue(availableWidth),</span>
+<span class="nc" id="L71">                    paragraphData.getParagraphContents().getContentsMinWidth(paragraphRenderStyle));</span>
+<span class="nc" id="L72">            minParagraphsWidth = Math.max(minParagraphsWidth, paragraphSideIndent + paragraphMinWidth);</span>
+<span class="nc" id="L73">        }</span>
+<span class="nc" id="L74">        return minParagraphsWidth;</span>
+    }
+
+    public static int getParagraphsPreferredHeight(ParagraphRenderStyle baseRenderStyle, Collection&lt;ParagraphData&gt; paragraphs,
+                                                   ContainerRenderSpace containerRenderSpace, int yStart) {
+<span class="nc" id="L79">        int containerWidth = containerRenderSpace.getContainerWidth();</span>
+<span class="nc" id="L80">        int yShift = yStart;</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        for (ParagraphData paragraphData : paragraphs) {</span>
+<span class="nc" id="L82">            ParagraphRenderStyle paragraphRenderStyle = getParagraphRenderStyle(baseRenderStyle, paragraphData);</span>
+
+<span class="nc" id="L84">            ParagraphRenderStyle.ClearStyle clearStyle = paragraphRenderStyle.getClearStyle();</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            if (clearStyle != ParagraphRenderStyle.ClearStyle.NONE) {</span>
+<span class="nc" id="L86">                yShift = Math.max(yShift, containerRenderSpace.getNextClearYPosition(clearStyle));</span>
+            }
+
+<span class="nc" id="L89">            ParagraphRenderStyle.FloatStyle floatStyle = paragraphRenderStyle.getFloatStyle();</span>
+<span class="nc bnc" id="L90" title="All 4 branches missed.">            if (floatStyle == ParagraphRenderStyle.FloatStyle.LEFT</span>
+                    || floatStyle == ParagraphRenderStyle.FloatStyle.RIGHT) {
+<span class="nc" id="L92">                int paragraphMinWidth = Math.max(paragraphRenderStyle.getParagraphMinimumWidth().getValue(containerWidth),</span>
+<span class="nc" id="L93">                        paragraphData.getParagraphContents().getContentsMinWidth(paragraphRenderStyle));</span>
+<span class="nc" id="L94">                int paragraphSideIndent = paragraphRenderStyle.getParagraphMarginLeft().getValue(containerWidth)</span>
+<span class="nc" id="L95">                        + paragraphRenderStyle.getParagraphMarginRight().getValue(containerWidth)</span>
+<span class="nc" id="L96">                        + paragraphRenderStyle.getParagraphPaddingLeft().getValue(containerWidth)</span>
+<span class="nc" id="L97">                        + paragraphRenderStyle.getParagraphPaddingRight().getValue(containerWidth);</span>
+
+<span class="nc" id="L99">                int height = paragraphRenderStyle.getParagraphMarginTop().getValue(containerWidth)</span>
+<span class="nc" id="L100">                        + paragraphRenderStyle.getParagraphPaddingTop().getValue(containerWidth);</span>
+
+<span class="nc" id="L102">                height += paragraphData.getParagraphContents().getPreferredContentsHeight(paragraphRenderStyle, 0,</span>
+                        new ContainerFlowContainerRenderSpace(paragraphMinWidth), paragraphSideIndent);
+
+<span class="nc" id="L105">                height += paragraphRenderStyle.getParagraphPaddingBottom().getValue(containerWidth)</span>
+<span class="nc" id="L106">                        + paragraphRenderStyle.getParagraphMarginBottom().getValue(containerWidth);</span>
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                if (floatStyle == ParagraphRenderStyle.FloatStyle.LEFT) {</span>
+<span class="nc" id="L109">                    Rect2i position = containerRenderSpace.addLeftFloat(yShift, paragraphMinWidth, height);</span>
+<span class="nc" id="L110">                    yShift = position.minY();</span>
+<span class="nc" id="L111">                } else {</span>
+<span class="nc" id="L112">                    Rect2i position = containerRenderSpace.addRightFloat(yShift, paragraphMinWidth, height);</span>
+<span class="nc" id="L113">                    yShift = position.minY();</span>
+                }
+<span class="nc" id="L115">            } else {</span>
+<span class="nc" id="L116">                yShift += paragraphRenderStyle.getParagraphMarginTop().getValue(containerWidth)</span>
+<span class="nc" id="L117">                        + paragraphRenderStyle.getParagraphPaddingTop().getValue(containerWidth);</span>
+
+<span class="nc" id="L119">                int paragraphSideIndent = paragraphRenderStyle.getParagraphMarginLeft().getValue(containerWidth)</span>
+<span class="nc" id="L120">                        + paragraphRenderStyle.getParagraphMarginRight().getValue(containerWidth)</span>
+<span class="nc" id="L121">                        + paragraphRenderStyle.getParagraphPaddingLeft().getValue(containerWidth)</span>
+<span class="nc" id="L122">                        + paragraphRenderStyle.getParagraphPaddingRight().getValue(containerWidth);</span>
+
+<span class="nc" id="L124">                yShift += paragraphData.getParagraphContents().getPreferredContentsHeight(paragraphRenderStyle, yShift, containerRenderSpace, paragraphSideIndent);</span>
+
+<span class="nc" id="L126">                yShift += paragraphRenderStyle.getParagraphPaddingBottom().getValue(containerWidth)</span>
+<span class="nc" id="L127">                        + paragraphRenderStyle.getParagraphMarginBottom().getValue(containerWidth);</span>
+            }
+<span class="nc" id="L129">        }</span>
+<span class="nc" id="L130">        return yShift - yStart;</span>
+    }
+
+    public static void drawDocumentInRegion(DocumentData documentData, Canvas canvas, Font defaultFont, Color defaultColor,
+                                            Vector2i size, ParagraphRenderable.HyperlinkRegister register) {
+<span class="nc" id="L135">        DefaultDocumentRenderStyle defaultDocumentRenderStyle = new DefaultDocumentRenderStyle(defaultFont, defaultColor);</span>
+
+<span class="nc" id="L137">        DocumentRenderStyle documentRenderStyle = getDocumentRenderStyle(defaultDocumentRenderStyle, documentData);</span>
+
+<span class="nc" id="L139">        int documentWidth = size.x;</span>
+<span class="nc" id="L140">        int documentMarginLeft = documentRenderStyle.getDocumentMarginLeft().getValue(documentWidth);</span>
+<span class="nc" id="L141">        int documentMarginRight = documentRenderStyle.getDocumentMarginRight().getValue(documentWidth);</span>
+
+<span class="nc" id="L143">        int documentMarginTop = documentRenderStyle.getDocumentMarginTop().getValue(documentWidth);</span>
+
+<span class="nc" id="L145">        Color backgroundColor = documentRenderStyle.getBackgroundColor();</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        if (backgroundColor != null) {</span>
+<span class="nc" id="L147">            canvas.drawFilledRectangle(canvas.getRegion(), backgroundColor);</span>
+        }
+
+<span class="nc" id="L150">        Collection&lt;ParagraphData&gt; paragraphs = documentData.getParagraphs();</span>
+
+<span class="nc" id="L152">        ContainerFlowContainerRenderSpace renderSpace = new ContainerFlowContainerRenderSpace(documentWidth);</span>
+
+<span class="nc" id="L154">        renderParagraphs(canvas, register, documentRenderStyle, documentMarginLeft, documentMarginTop, documentMarginLeft, documentMarginRight, paragraphs, renderSpace);</span>
+<span class="nc" id="L155">    }</span>
+
+    public static void renderParagraphs(Canvas canvas, ParagraphRenderable.HyperlinkRegister register, ParagraphRenderStyle baseRenderStyle,
+                                        int xShift, int startY, int leftIndent, int rightIndent, Collection&lt;ParagraphData&gt; paragraphs,
+                                        ContainerRenderSpace containerRenderSpace) {
+<span class="nc" id="L160">        int containerWidth = containerRenderSpace.getContainerWidth();</span>
+
+<span class="nc" id="L162">        int yShift = startY;</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        for (ParagraphData paragraphData : paragraphs) {</span>
+<span class="nc" id="L164">            yShift += renderParagraph(canvas, register, baseRenderStyle, xShift, leftIndent, rightIndent, containerRenderSpace,</span>
+                    containerWidth, yShift, paragraphData);
+<span class="nc" id="L166">        }</span>
+<span class="nc" id="L167">    }</span>
+
+    public static int renderParagraph(Canvas canvas, ParagraphRenderable.HyperlinkRegister register, ParagraphRenderStyle baseRenderStyle,
+                                      int xShift, int leftIndent, int rightIndent, ContainerRenderSpace containerRenderSpace, int containerWidth,
+                                      int startY, ParagraphData paragraphData) {
+<span class="nc" id="L172">        int yShift = startY;</span>
+<span class="nc" id="L173">        ParagraphRenderable paragraphContents = paragraphData.getParagraphContents();</span>
+
+<span class="nc" id="L175">        ParagraphRenderStyle paragraphRenderStyle = getParagraphRenderStyle(baseRenderStyle, paragraphData);</span>
+
+<span class="nc" id="L177">        ParagraphRenderStyle.ClearStyle clearStyle = paragraphRenderStyle.getClearStyle();</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if (clearStyle != ParagraphRenderStyle.ClearStyle.NONE) {</span>
+<span class="nc" id="L179">            yShift = Math.max(yShift, containerRenderSpace.getNextClearYPosition(clearStyle));</span>
+        }
+
+<span class="nc" id="L182">        ParagraphRenderStyle.FloatStyle floatStyle = paragraphRenderStyle.getFloatStyle();</span>
+<span class="nc bnc" id="L183" title="All 4 branches missed.">        if (floatStyle == ParagraphRenderStyle.FloatStyle.LEFT</span>
+                || floatStyle == ParagraphRenderStyle.FloatStyle.RIGHT) {
+<span class="nc" id="L185">            int leftParagraphIndent = paragraphRenderStyle.getParagraphMarginLeft().getValue(containerWidth)</span>
+<span class="nc" id="L186">                    + paragraphRenderStyle.getParagraphPaddingLeft().getValue(containerWidth);</span>
+<span class="nc" id="L187">            int rightParagraphIndent = paragraphRenderStyle.getParagraphMarginRight().getValue(containerWidth)</span>
+<span class="nc" id="L188">                    + paragraphRenderStyle.getParagraphPaddingRight().getValue(containerWidth);</span>
+
+<span class="nc" id="L190">            int paragraphWidth = Math.max(paragraphRenderStyle.getParagraphMinimumWidth().getValue(containerWidth),</span>
+<span class="nc" id="L191">                    paragraphContents.getContentsMinWidth(paragraphRenderStyle) + leftParagraphIndent + rightParagraphIndent);</span>
+
+<span class="nc" id="L193">            int height = paragraphRenderStyle.getParagraphMarginTop().getValue(containerWidth)</span>
+<span class="nc" id="L194">                    + paragraphRenderStyle.getParagraphPaddingTop().getValue(containerWidth);</span>
+
+<span class="nc" id="L196">            int paragraphHeight = paragraphContents.getPreferredContentsHeight(paragraphRenderStyle, 0,</span>
+                    new ContainerFlowContainerRenderSpace(paragraphWidth), leftParagraphIndent + rightParagraphIndent);
+
+<span class="nc" id="L199">            height += paragraphHeight;</span>
+
+<span class="nc" id="L201">            height += paragraphRenderStyle.getParagraphPaddingBottom().getValue(containerWidth)</span>
+<span class="nc" id="L202">                    + paragraphRenderStyle.getParagraphMarginBottom().getValue(containerWidth);</span>
+
+            Rect2i position;
+<span class="nc bnc" id="L205" title="All 2 branches missed.">            if (floatStyle == ParagraphRenderStyle.FloatStyle.LEFT) {</span>
+<span class="nc" id="L206">                position = containerRenderSpace.addLeftFloat(yShift, paragraphWidth, height);</span>
+            } else {
+<span class="nc" id="L208">                position = containerRenderSpace.addRightFloat(yShift, paragraphWidth, height);</span>
+            }
+
+<span class="nc" id="L211">            Rect2i paragraphBorderRegion =</span>
+<span class="nc" id="L212">                    Rect2i.createFromMinAndMax(position.minX() + paragraphRenderStyle.getParagraphMarginLeft().getValue(containerWidth),</span>
+<span class="nc" id="L213">                            position.minY() + paragraphRenderStyle.getParagraphMarginTop().getValue(containerWidth),</span>
+<span class="nc" id="L214">                            position.maxX() - paragraphRenderStyle.getParagraphMarginRight().getValue(containerWidth) - 1,</span>
+<span class="nc" id="L215">                            position.maxY() - paragraphRenderStyle.getParagraphMarginBottom().getValue(containerWidth) - 1);</span>
+
+<span class="nc" id="L217">            Color paragraphBackground = paragraphRenderStyle.getParagraphBackground();</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">            if (paragraphBackground != null) {</span>
+<span class="nc" id="L219">                canvas.drawFilledRectangle(paragraphBorderRegion, paragraphBackground);</span>
+            }
+
+<span class="nc" id="L222">            Vector2i paragraphStart = new Vector2i(position.minX(),</span>
+<span class="nc" id="L223">                    position.minY()</span>
+<span class="nc" id="L224">                            + paragraphRenderStyle.getParagraphMarginTop().getValue(containerWidth)</span>
+<span class="nc" id="L225">                            + paragraphRenderStyle.getParagraphPaddingTop().getValue(containerWidth));</span>
+
+<span class="nc" id="L227">            paragraphContents.renderContents(canvas, paragraphStart, new ContainerFlowContainerRenderSpace(paragraphWidth),</span>
+<span class="nc" id="L228">                    leftParagraphIndent, rightParagraphIndent, paragraphRenderStyle, paragraphRenderStyle.getHorizontalAlignment(), register);</span>
+
+<span class="nc" id="L230">            yShift = position.minY();</span>
+<span class="nc" id="L231">        } else {</span>
+<span class="nc" id="L232">            yShift += paragraphRenderStyle.getParagraphMarginTop().getValue(containerWidth);</span>
+
+<span class="nc" id="L234">            int leftParagraphIndent = paragraphRenderStyle.getParagraphMarginLeft().getValue(containerWidth)</span>
+<span class="nc" id="L235">                    + paragraphRenderStyle.getParagraphPaddingLeft().getValue(containerWidth);</span>
+<span class="nc" id="L236">            int rightParagraphIndent = paragraphRenderStyle.getParagraphMarginRight().getValue(containerWidth)</span>
+<span class="nc" id="L237">                    + paragraphRenderStyle.getParagraphPaddingRight().getValue(containerWidth);</span>
+
+<span class="nc" id="L239">            int paragraphHeight = paragraphContents.getPreferredContentsHeight(paragraphRenderStyle,</span>
+<span class="nc" id="L240">                    yShift + paragraphRenderStyle.getParagraphPaddingTop().getValue(containerWidth), containerRenderSpace,</span>
+                    leftIndent + leftParagraphIndent + rightParagraphIndent + rightIndent);
+
+<span class="nc" id="L243">            Color paragraphBackground = paragraphRenderStyle.getParagraphBackground();</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            if (paragraphBackground != null) {</span>
+<span class="nc" id="L245">                int borderAdvance = 0;</span>
+<span class="nc" id="L246">                int borderHeight = paragraphHeight + paragraphRenderStyle.getParagraphPaddingTop().getValue(containerWidth)</span>
+<span class="nc" id="L247">                        + paragraphRenderStyle.getParagraphPaddingBottom().getValue(containerWidth);</span>
+
+<span class="nc bnc" id="L249" title="All 2 branches missed.">                while (borderAdvance &lt; borderHeight) {</span>
+<span class="nc" id="L250">                    int backgroundStart = yShift + borderAdvance;</span>
+<span class="nc" id="L251">                    int availableBackgroundWidth = containerRenderSpace.getWidthForVerticalPosition(backgroundStart);</span>
+<span class="nc" id="L252">                    int backgroundAdvance = containerRenderSpace.getAdvanceForVerticalPosition(backgroundStart);</span>
+<span class="nc" id="L253">                    int maxSpace = containerRenderSpace.getNextWidthChange(backgroundStart);</span>
+
+<span class="nc" id="L255">                    Rect2i backgroundRegion =</span>
+<span class="nc" id="L256">                            Rect2i.createFromMinAndSize(</span>
+<span class="nc" id="L257">                                    xShift + paragraphRenderStyle.getParagraphMarginLeft().getValue(containerWidth) + backgroundAdvance,</span>
+                                    backgroundStart,
+                                    availableBackgroundWidth - 1,
+<span class="nc" id="L260">                                    Math.min(maxSpace, borderHeight - borderAdvance) - 1);</span>
+
+<span class="nc" id="L262">                    canvas.drawFilledRectangle(backgroundRegion, paragraphBackground);</span>
+
+<span class="nc" id="L264">                    borderAdvance += maxSpace - backgroundStart;</span>
+<span class="nc" id="L265">                }</span>
+            }
+
+<span class="nc" id="L268">            yShift += paragraphRenderStyle.getParagraphPaddingTop().getValue(containerWidth);</span>
+
+<span class="nc" id="L270">            paragraphContents.renderContents(canvas, new Vector2i(xShift, yShift), containerRenderSpace, leftIndent + leftParagraphIndent,</span>
+<span class="nc" id="L271">                    rightIndent + rightParagraphIndent, paragraphRenderStyle, paragraphRenderStyle.getHorizontalAlignment(), register);</span>
+
+<span class="nc" id="L273">            yShift += paragraphHeight;</span>
+
+<span class="nc" id="L275">            yShift += paragraphRenderStyle.getParagraphPaddingBottom().getValue(containerWidth);</span>
+
+<span class="nc" id="L277">            yShift += paragraphRenderStyle.getParagraphMarginBottom().getValue(containerWidth);</span>
+        }
+<span class="nc" id="L279">        return yShift - startY;</span>
+    }
+
+    private static DocumentRenderStyle getDocumentRenderStyle(DefaultDocumentRenderStyle defaultDocumentRenderStyle, DocumentData document) {
+<span class="nc" id="L283">        DocumentRenderStyle documentStyle = document.getDocumentRenderStyle();</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        if (documentStyle == null) {</span>
+<span class="nc" id="L285">            return defaultDocumentRenderStyle;</span>
+        }
+<span class="nc" id="L287">        return new FallbackDocumentRenderStyle(documentStyle, defaultDocumentRenderStyle);</span>
+    }
+
+
+    private static ParagraphRenderStyle getParagraphRenderStyle(ParagraphRenderStyle documentRenderStyle, ParagraphData paragraphData) {
+<span class="nc" id="L292">        ParagraphRenderStyle paragraphStyle = paragraphData.getParagraphRenderStyle();</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        if (paragraphStyle == null) {</span>
+<span class="nc" id="L294">            return documentRenderStyle;</span>
+        }
+<span class="nc" id="L296">        return new FallbackParagraphRenderStyle(paragraphStyle, documentRenderStyle);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

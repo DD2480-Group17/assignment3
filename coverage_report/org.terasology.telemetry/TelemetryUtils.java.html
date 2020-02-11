@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TelemetryUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.telemetry</a> &gt; <span class="el_source">TelemetryUtils.java</span></div><h1>TelemetryUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.telemetry;
+
+import ch.qos.logback.classic.LoggerContext;
+import com.snowplowanalytics.snowplow.tracker.Subject;
+import com.snowplowanalytics.snowplow.tracker.Tracker;
+import com.snowplowanalytics.snowplow.tracker.emitter.Emitter;
+import com.snowplowanalytics.snowplow.tracker.events.Unstructured;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.facade.TelemetryConfiguration;
+import org.terasology.context.Context;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.module.sandbox.API;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.telemetry.logstash.TelemetryLogstashAppender;
+import org.terasology.telemetry.metrics.Metric;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Utils methods for telemetry.
+ */
+@API
+public final class TelemetryUtils {
+
+<span class="nc" id="L45">    private static final Logger logger = LoggerFactory.getLogger(TelemetryUtils.class);</span>
+
+    private TelemetryUtils() {
+        // static utility class, no instance needed
+    }
+
+    /**
+     * Fetch metric in {@link org.terasology.context.Context} and send to the server.
+     * This method could be used in the modules.
+     * @param context The game context
+     * @param metricClass The class of the metric which we want to track
+     * @param nameSpace The name the class tracking this metric.
+     */
+    public static void fetchMetricAndSend(Context context, Class metricClass, String nameSpace) {
+<span class="nc" id="L59">        Emitter emitter = context.get(Emitter.class);</span>
+<span class="nc" id="L60">        Metrics metrics = context.get(Metrics.class);</span>
+<span class="nc" id="L61">        TelemetryConfiguration telemetryConfiguration = context.get(TelemetryConfiguration.class);</span>
+<span class="nc bnc" id="L62" title="All 6 branches missed.">        if (emitter != null &amp;&amp; metrics != null &amp;&amp; telemetryConfiguration != null) {</span>
+<span class="nc" id="L63">            Optional&lt;Metric&gt; metricOptional = metrics.getMetric(metricClass);</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            if (metricOptional.isPresent()) {</span>
+<span class="nc" id="L65">                Metric metric = metricOptional.get();</span>
+<span class="nc" id="L66">                Optional&lt;Unstructured&gt; unstructuredOptional = metric.getUnstructuredMetric();</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">                if (unstructuredOptional.isPresent()) {</span>
+<span class="nc" id="L68">                    Unstructured unstructured = unstructuredOptional.get();</span>
+<span class="nc" id="L69">                    trackMetric(emitter, nameSpace, unstructured, metric, telemetryConfiguration);</span>
+                }
+            }
+<span class="nc" id="L72">        } else {</span>
+<span class="nc" id="L73">            logger.error(&quot;Emitter or metrics or telemetryConfiguration is not in context&quot;);</span>
+        }
+<span class="nc" id="L75">    }</span>
+
+    /**
+     * fetch metric in {@link org.terasology.telemetry.Metrics} and send to the server.
+     * @param metrics Metrics class in the game context.
+     * @param metricClass The class of metric.
+     * @param emitter Emitter sending telemetry to the server.
+     * @param nameSpace The name the class tracking this metric.
+     * @param bindingMap the binding map contains fields who has user's permission.
+     */
+    public static void fetchMetricAndSend(Metrics metrics, Class metricClass, Emitter emitter, String nameSpace, Map&lt;String, Boolean&gt; bindingMap) {
+<span class="nc" id="L86">        Optional&lt;Metric&gt; optional = metrics.getMetric(metricClass);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (optional.isPresent()) {</span>
+<span class="nc" id="L88">            Metric metric = optional.get();</span>
+<span class="nc" id="L89">            Optional&lt;Unstructured&gt; unstructuredOptional = metric.getUnstructuredMetric();</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            if (unstructuredOptional.isPresent()) {</span>
+<span class="nc" id="L91">                Unstructured unstructured = unstructuredOptional.get();</span>
+<span class="nc" id="L92">                trackMetric(emitter, nameSpace, unstructured, metric, bindingMap);</span>
+            }
+        }
+<span class="nc" id="L95">    }</span>
+
+    /**
+     * Fetch metric in {@link org.terasology.telemetry.Metrics} and send to the server.
+     * @param emitter Emitter sending telemetry to the server.
+     * @param nameSpace The name the class tracking this metric.
+     * @param event The new event.
+     * @param metric the Metric class instance that this event belongs to.
+     * @param telemetryConfiguration the telemetryConfiguration adapter which could be used in modules.
+     */
+    public static void trackMetric(Emitter emitter, String nameSpace, Unstructured event, Metric metric, TelemetryConfiguration telemetryConfiguration) {
+<span class="nc" id="L106">        AccessController.doPrivileged((PrivilegedAction&lt;Object&gt;) () -&gt; {</span>
+<span class="nc" id="L107">            Context context = CoreRegistry.get(Context.class);</span>
+<span class="nc" id="L108">            DisplayDevice display = context.get(DisplayDevice.class);</span>
+<span class="nc bnc" id="L109" title="All 4 branches missed.">            if (telemetryConfiguration.fetchBindingSize() == 0 &amp;&amp; display.isHeadless()) {</span>
+<span class="nc" id="L110">                trackMetric(emitter, nameSpace, event);</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">            } else if (telemetryConfiguration.fetchBindingSize() != 0) {</span>
+<span class="nc" id="L112">                TelemetryCategory telemetryCategory = metric.getClass().getAnnotation(TelemetryCategory.class);</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">                if (telemetryCategory != null) {</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">                    if (telemetryConfiguration.containsField(telemetryCategory.id())) {</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                        if ((telemetryConfiguration.get(telemetryCategory.id()))) {</span>
+<span class="nc" id="L116">                            trackMetric(emitter, nameSpace, event);</span>
+                        }
+                    }
+                }
+            }
+<span class="nc" id="L121">            return null;</span>
+        });
+<span class="nc" id="L123">    }</span>
+
+    /**
+     * track a metric.
+     * @param emitter Emitter sending telemetry to the server.
+     * @param nameSpace The name the class tracking this metric.
+     * @param event The new event.
+     * @param metric the Metric class instance that this event belongs to.
+     * @param bindingMap the binding map contains fields who has user's permission.
+     */
+    public static void trackMetric(Emitter emitter, String nameSpace, Unstructured event, Metric metric, Map&lt;String, Boolean&gt; bindingMap) {
+<span class="nc" id="L134">        AccessController.doPrivileged((PrivilegedAction&lt;Object&gt;) () -&gt; {</span>
+<span class="nc" id="L135">            Context context = CoreRegistry.get(Context.class);</span>
+<span class="nc" id="L136">            DisplayDevice display = context.get(DisplayDevice.class);</span>
+<span class="nc bnc" id="L137" title="All 4 branches missed.">            if (bindingMap.size() == 0 &amp;&amp; display.isHeadless()) {</span>
+<span class="nc" id="L138">                trackMetric(emitter, nameSpace, event);</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            } else if (bindingMap.size() != 0) {</span>
+<span class="nc" id="L140">                TelemetryCategory telemetryCategory = metric.getClass().getAnnotation(TelemetryCategory.class);</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                if (telemetryCategory != null) {</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                    if (bindingMap.containsKey(telemetryCategory.id())) {</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">                        if ((bindingMap.get(telemetryCategory.id()))) {</span>
+<span class="nc" id="L144">                            trackMetric(emitter, nameSpace, event);</span>
+                        }
+                    }
+                }
+            }
+<span class="nc" id="L149">            return null;</span>
+        });
+<span class="nc" id="L151">    }</span>
+
+    /**
+     * track a metric without in spite of user's telemetry configuration.
+     * It's rather a method for test.
+     * @param emitter Emitter sending telemetry to the server.
+     * @param nameSpace The name the class tracking this metric.
+     * @param event The new event.
+     */
+    public static void trackMetric(Emitter emitter, String nameSpace, Unstructured event) {
+<span class="nc" id="L161">        AccessController.doPrivileged((PrivilegedAction&lt;Object&gt;) () -&gt; {</span>
+<span class="nc" id="L162">            Subject subject = new Subject.SubjectBuilder()</span>
+<span class="nc" id="L163">                    .userId(TelemetryParams.userId)</span>
+<span class="nc" id="L164">                    .ipAddress(&quot;anonymous&quot;)</span>
+<span class="nc" id="L165">                    .build();</span>
+
+<span class="nc" id="L167">            Tracker tracker = new Tracker.TrackerBuilder(emitter, nameSpace, TelemetryParams.APP_ID_TERASOLOGY)</span>
+<span class="nc" id="L168">                    .subject(subject)</span>
+<span class="nc" id="L169">                    .platform(TelemetryParams.PLATFORM_DESKTOP)</span>
+<span class="nc" id="L170">                    .build();</span>
+<span class="nc" id="L171">            tracker.track(event);</span>
+
+<span class="nc" id="L173">            return null;</span>
+        });
+<span class="nc" id="L175">    }</span>
+
+    /**
+     * Transform a map to a string map.
+     * @param map the map with key type and value unknown.
+     * @return a string map.
+     */
+    public static Map&lt;String, String&gt; toStringMap(Map&lt;?, ?&gt; map) {
+<span class="nc" id="L183">        Map&lt;String, String&gt; stringMap = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        for (Map.Entry&lt;?, ?&gt; entry : map.entrySet()) {</span>
+<span class="nc" id="L185">            stringMap.put(entry.getKey().toString(), entry.getValue().toString());</span>
+<span class="nc" id="L186">        }</span>
+<span class="nc" id="L187">        return stringMap;</span>
+    }
+
+    /**
+     * Fetch the logstash appender in the logger context.
+     * @return the {@link TelemetryLogstashAppender} in the logger context.
+     */
+    public static TelemetryLogstashAppender fetchTelemetryLogstashAppender() {
+        TelemetryLogstashAppender appender;
+        try {
+<span class="nc" id="L197">            LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();</span>
+<span class="nc" id="L198">            appender = (TelemetryLogstashAppender) lc.getLogger(Logger.ROOT_LOGGER_NAME).getAppender(&quot;LOGSTASH&quot;);</span>
+<span class="nc" id="L199">        } catch (Exception e) {</span>
+<span class="nc" id="L200">            logger.error(&quot;Error when fetching TelemetryLogstashAppender&quot;, e);</span>
+<span class="nc" id="L201">            return null;</span>
+<span class="nc" id="L202">        }</span>
+<span class="nc" id="L203">        return appender;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

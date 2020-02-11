@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerCommands.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.console.commands</a> &gt; <span class="el_source">ServerCommands.java</span></div><h1>ServerCommands.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.console.commands;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.engine.GameEngine;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.logic.common.DisplayNameComponent;
+import org.terasology.logic.console.Console;
+import org.terasology.logic.console.commandSystem.annotations.Command;
+import org.terasology.logic.console.commandSystem.annotations.CommandParam;
+import org.terasology.logic.console.commandSystem.annotations.Sender;
+import org.terasology.logic.console.suggesters.UsernameSuggester;
+import org.terasology.logic.permission.PermissionManager;
+import org.terasology.logic.players.PlayerUtil;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.network.Client;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.ClientInfoComponent;
+import org.terasology.network.NetworkComponent;
+import org.terasology.network.NetworkSystem;
+import org.terasology.persistence.StorageManager;
+import org.terasology.registry.In;
+import org.terasology.world.chunks.ChunkProvider;
+
+/**
+ * Commands to administer a remote server
+ *
+ */
+@RegisterSystem
+<span class="nc" id="L49">public class ServerCommands extends BaseComponentSystem {</span>
+
+<span class="nc" id="L51">    private static final Logger logger = LoggerFactory.getLogger(ServerCommands.class);</span>
+
+    @In
+    private EntityManager entityManager;
+
+    @In
+    private StorageManager storageManager;
+
+    @In
+    private ChunkProvider chunkProvider;
+
+    @In
+    private NetworkSystem networkSystem;
+
+    @In
+    private Config config;
+
+    @In
+    private GameEngine gameEngine;
+
+    @Command(shortDescription = &quot;Shutdown the server&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.SERVER_MANAGEMENT_PERMISSION)
+    public String shutdownServer(@Sender EntityRef sender) {
+
+        // TODO: verify permissions of sender
+
+<span class="nc" id="L77">        EntityRef clientInfo = sender.getComponent(ClientComponent.class).clientInfo;</span>
+<span class="nc" id="L78">        DisplayNameComponent name = clientInfo.getComponent(DisplayNameComponent.class);</span>
+
+<span class="nc" id="L80">        logger.info(&quot;Shutdown triggered by {}&quot;, name.name);</span>
+
+<span class="nc" id="L82">        gameEngine.shutdown();</span>
+
+<span class="nc" id="L84">        return &quot;Server shutdown triggered&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Kick user by name&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.USER_MANAGEMENT_PERMISSION)
+    public String kickUser(@CommandParam(&quot;username&quot;) String username) {
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        for (EntityRef clientEntity : entityManager.getEntitiesWith(ClientComponent.class)) {</span>
+<span class="nc" id="L92">            EntityRef clientInfo = clientEntity.getComponent(ClientComponent.class).clientInfo;</span>
+
+<span class="nc" id="L94">            DisplayNameComponent name = clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">            if (username.equalsIgnoreCase(name.name)) {</span>
+
+<span class="nc" id="L97">                return kick(clientEntity);</span>
+            }
+<span class="nc" id="L99">        }</span>
+
+<span class="nc" id="L101">        throw new IllegalArgumentException(&quot;No such user '&quot; + username + &quot;'&quot;);</span>
+    }
+
+    @Command(shortDescription = &quot;Rename a user&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.USER_MANAGEMENT_PERMISSION)
+    public String renameUser(
+            @CommandParam(value = &quot;userName&quot;, suggester = UsernameSuggester.class) String userName,
+            @CommandParam(value = &quot;newUserName&quot;) String newUserName) {
+<span class="nc" id="L109">        Iterable&lt;EntityRef&gt; clientInfoEntities = entityManager.getEntitiesWith(ClientInfoComponent.class);</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        for (EntityRef clientInfo : clientInfoEntities) {</span>
+<span class="nc" id="L111">            DisplayNameComponent nameComp = clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">            if (newUserName.equalsIgnoreCase(nameComp.name)) {</span>
+<span class="nc" id="L113">                throw new IllegalArgumentException(&quot;New user name is already in use&quot;);</span>
+            }
+<span class="nc" id="L115">        }</span>
+
+
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        for (EntityRef clientInfo : clientInfoEntities) {</span>
+<span class="nc" id="L119">            DisplayNameComponent nameComp = clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if (userName.equalsIgnoreCase(nameComp.name)) {</span>
+<span class="nc" id="L121">                nameComp.name = newUserName;</span>
+<span class="nc" id="L122">                clientInfo.saveComponent(nameComp);</span>
+<span class="nc" id="L123">                return &quot;User &quot; + userName + &quot; has been renamed to &quot; + newUserName;</span>
+            }
+<span class="nc" id="L125">        }</span>
+
+<span class="nc" id="L127">        throw new IllegalArgumentException(&quot;No such user '&quot; + userName + &quot;'&quot;);</span>
+    }
+
+    @Command(shortDescription = &quot;Kick user by ID&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.USER_MANAGEMENT_PERMISSION)
+    public String kickUserByID(@CommandParam(&quot;userId&quot;) int userId) {
+
+        // TODO: verify permissions of sender
+
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        for (EntityRef clientEntity : entityManager.getEntitiesWith(ClientComponent.class)) {</span>
+<span class="nc" id="L137">            EntityRef clientInfo = clientEntity.getComponent(ClientComponent.class).clientInfo;</span>
+<span class="nc" id="L138">            NetworkComponent nc = clientInfo.getComponent(NetworkComponent.class);</span>
+
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            if (userId == nc.getNetworkId()) {</span>
+<span class="nc" id="L141">                return kick(clientEntity);</span>
+            }
+<span class="nc" id="L143">        }</span>
+
+<span class="nc" id="L145">        throw new IllegalArgumentException(&quot;No such user with ID &quot; + userId);</span>
+    }
+
+    @Command(shortDescription = &quot;List users&quot;,
+            requiredPermission = PermissionManager.USER_MANAGEMENT_PERMISSION)
+    public String listUsers() {
+
+<span class="nc" id="L152">        StringBuilder stringBuilder = new StringBuilder();</span>
+
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        for (EntityRef clientInfo : entityManager.getEntitiesWith(ClientInfoComponent.class)) {</span>
+
+<span class="nc" id="L156">            DisplayNameComponent dnc = clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc" id="L157">            NetworkComponent nc = clientInfo.getComponent(NetworkComponent.class);</span>
+
+<span class="nc" id="L159">            String playerText = PlayerUtil.getColoredPlayerName(clientInfo);</span>
+
+<span class="nc" id="L161">            String line = String.format(&quot;%s - %s (%d)&quot;, playerText, dnc.description, nc.getNetworkId());</span>
+
+<span class="nc" id="L163">            stringBuilder.append(line);</span>
+<span class="nc" id="L164">            stringBuilder.append(Console.NEW_LINE);</span>
+<span class="nc" id="L165">        }</span>
+
+<span class="nc" id="L167">        return stringBuilder.toString();</span>
+    }
+
+    private String kick(EntityRef clientEntity) {
+<span class="nc" id="L171">        Client client = networkSystem.getOwner(clientEntity);</span>
+
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (!client.isLocal()) {</span>
+<span class="nc" id="L174">            EntityRef clientInfo = clientEntity.getComponent(ClientComponent.class).clientInfo;</span>
+<span class="nc" id="L175">            DisplayNameComponent name = clientInfo.getComponent(DisplayNameComponent.class);</span>
+
+<span class="nc" id="L177">            logger.info(&quot;Kicking user {}&quot;, name.name);</span>
+
+<span class="nc" id="L179">            networkSystem.forceDisconnect(client);</span>
+<span class="nc" id="L180">            return &quot;User kick triggered for '&quot; + name.name + &quot;'&quot;;</span>
+        }
+
+<span class="nc" id="L183">        return &quot;Request declined&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Triggers the creation of a save game&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.SERVER_MANAGEMENT_PERMISSION)
+    public void save() {
+<span class="nc" id="L189">        storageManager.requestSaving();</span>
+<span class="nc" id="L190">    }</span>
+
+    @Command(shortDescription = &quot;Invalidates the specified chunk and recreates it (requires storage manager disabled)&quot;, runOnServer = true)
+    public String reloadChunk(@CommandParam(&quot;x&quot;) int x, @CommandParam(&quot;y&quot;) int y, @CommandParam(&quot;z&quot;) int z) {
+<span class="nc" id="L194">        Vector3i pos = new Vector3i(x, y, z);</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        if (config.getSystem().isWriteSaveGamesEnabled()) {</span>
+<span class="nc" id="L196">            return &quot;Writing save games is enabled! Invalidating chunk has no effect&quot;;</span>
+        }
+<span class="nc" id="L198">        boolean success = chunkProvider.reloadChunk(pos);</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        return success</span>
+                ? &quot;Cleared chunk &quot; + pos + &quot; from cache and triggered reload&quot;
+                : &quot;Chunk &quot; + pos + &quot; did not exist in the cache&quot;;
+    }
+
+    @Command(shortDescription = &quot;Deletes the current world and generated new chunks&quot;, runOnServer = true)
+    public void purgeWorld() {
+<span class="nc" id="L206">        chunkProvider.purgeWorld();</span>
+<span class="nc" id="L207">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

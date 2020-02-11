@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SettingImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config.flexible.internal</a> &gt; <span class="el_source">SettingImpl.java</span></div><h1>SettingImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.config.flexible.internal;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.flexible.Setting;
+import org.terasology.config.flexible.SettingChangeListener;
+import org.terasology.config.flexible.constraints.SettingConstraint;
+import org.terasology.reflection.TypeInfo;
+
+import java.util.Set;
+
+/**
+ * {@inheritDoc}
+ *
+ * @param &lt;T&gt; The type of the value this {@link SettingImpl} contains.
+ */
+class SettingImpl&lt;T&gt; implements Setting&lt;T&gt; {
+<span class="fc" id="L35">    private static final Logger LOGGER = LoggerFactory.getLogger(SettingImpl.class);</span>
+
+    private final T defaultValue;
+    private final TypeInfo&lt;T&gt; valueType;
+
+    private final String humanReadableName;
+    private final String description;
+
+    private final SettingConstraint&lt;T&gt; constraint;
+<span class="fc" id="L44">    private final Set&lt;SettingChangeListener&lt;T&gt;&gt; subscribers = Sets.newHashSet();</span>
+
+    protected T value;
+
+    /**
+     * Creates a new {@link SettingImpl} with the given id, default value and constraint.
+     *
+     * @param valueType The {@link TypeInfo} describing the type of values t
+     * @param defaultValue      The default value of the setting.
+     * @param constraint        The constraint that the setting values must satisfy.
+     * @param humanReadableName The human readable name of the setting.
+     * @param description       A description of the setting.
+     */
+    SettingImpl(TypeInfo&lt;T&gt; valueType, T defaultValue, SettingConstraint&lt;T&gt; constraint,
+<span class="fc" id="L58">                String humanReadableName, String description) {</span>
+<span class="fc" id="L59">        this.valueType = valueType;</span>
+<span class="fc" id="L60">        this.humanReadableName = humanReadableName;</span>
+<span class="fc" id="L61">        this.description = description;</span>
+
+<span class="fc" id="L63">        this.constraint = constraint;</span>
+
+<span class="fc" id="L65">        Preconditions.checkNotNull(defaultValue, &quot;The default value for a Setting cannot be null.&quot;);</span>
+
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        if (isConstraintUnsatisfiedBy(defaultValue)) {</span>
+<span class="nc" id="L68">            throw new IllegalArgumentException(&quot;The default value must be a valid value. &quot; +</span>
+                                                   &quot;Check the logs for more information.&quot;);
+        }
+
+<span class="fc" id="L72">        this.defaultValue = defaultValue;</span>
+<span class="fc" id="L73">        this.value = this.defaultValue;</span>
+<span class="fc" id="L74">    }</span>
+
+    private void dispatchChangedEvent(T oldValue) {
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        for (SettingChangeListener&lt;T&gt; subscriber : subscribers) {</span>
+<span class="fc" id="L78">            subscriber.onValueChanged(this, oldValue);</span>
+<span class="fc" id="L79">        }</span>
+<span class="fc" id="L80">    }</span>
+
+    private boolean isConstraintUnsatisfiedBy(T theValue) {
+<span class="fc bfc" id="L83" title="All 4 branches covered.">        if (constraint == null || constraint.isSatisfiedBy(theValue)) {</span>
+<span class="fc" id="L84">            return false;</span>
+        } else {
+<span class="fc" id="L86">            constraint.warnUnsatisfiedBy(theValue);</span>
+<span class="fc" id="L87">            return true;</span>
+        }
+    }
+
+    @Override
+    public boolean subscribe(SettingChangeListener&lt;T&gt; listener) {
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        if (listener == null) {</span>
+<span class="nc" id="L94">            LOGGER.warn(&quot;Cannot add a null subscriber to a Setting.&quot;);</span>
+<span class="nc" id="L95">            return false;</span>
+        }
+
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        if (subscribers.contains(listener)) {</span>
+<span class="nc" id="L99">            return false;</span>
+        }
+
+<span class="fc" id="L102">        subscribers.add(listener);</span>
+
+<span class="fc" id="L104">        return true;</span>
+    }
+
+    @Override
+    public boolean unsubscribe(SettingChangeListener&lt;T&gt; listener) {
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        if (!subscribers.contains(listener)) {</span>
+<span class="nc" id="L110">            return false;</span>
+        }
+
+<span class="fc" id="L113">        subscribers.remove(listener);</span>
+
+<span class="fc" id="L115">        return true;</span>
+    }
+
+    @Override
+    public boolean hasSubscribers() {
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        return !subscribers.isEmpty();</span>
+    }
+
+    @Override
+    public TypeInfo&lt;T&gt; getValueType() {
+<span class="nc" id="L125">        return valueType;</span>
+    }
+
+    @Override
+    public SettingConstraint&lt;T&gt; getConstraint() {
+<span class="fc" id="L130">        return constraint;</span>
+    }
+
+    @Override
+    public T getDefaultValue() {
+<span class="fc" id="L135">        return defaultValue;</span>
+    }
+
+    @Override
+    public T get() {
+<span class="fc" id="L140">        return value;</span>
+    }
+
+    @Override
+    public boolean set(T newValue) {
+<span class="fc" id="L145">        Preconditions.checkNotNull(newValue, &quot;The value of a setting cannot be null.&quot;);</span>
+
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        if (isConstraintUnsatisfiedBy(newValue)) {</span>
+<span class="fc" id="L148">            return false;</span>
+        }
+
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">        if (newValue.equals(this.value)) {</span>
+<span class="nc" id="L152">            return false;</span>
+        }
+
+<span class="fc" id="L155">        T oldValue = this.value;</span>
+
+<span class="fc" id="L157">        this.value = newValue;</span>
+
+<span class="fc" id="L159">        dispatchChangedEvent(oldValue);</span>
+
+<span class="fc" id="L161">        return true;</span>
+    }
+
+    @Override
+    public String getHumanReadableName() {
+<span class="fc" id="L166">        return humanReadableName;</span>
+    }
+
+    @Override
+    public String getDescription() {
+<span class="fc" id="L171">        return description;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

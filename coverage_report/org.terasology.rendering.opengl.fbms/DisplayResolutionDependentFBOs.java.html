@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DisplayResolutionDependentFBOs.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.opengl.fbms</a> &gt; <span class="el_source">DisplayResolutionDependentFBOs.java</span></div><h1>DisplayResolutionDependentFBOs.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.opengl.fbms;
+
+import org.lwjgl.opengl.Display;
+import org.terasology.config.RenderingConfig;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.rendering.nui.layers.mainMenu.videoSettings.ScreenshotSize;
+import org.terasology.rendering.opengl.AbstractFBOsManager;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.ScreenGrabber;
+import org.terasology.rendering.opengl.SwappableFBO;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+
+import static org.terasology.config.RenderingConfig.FBO_SCALE;
+import static org.terasology.engine.subsystem.lwjgl.LwjglDisplayDevice.DISPLAY_RESOLUTION_CHANGE;
+import static org.terasology.rendering.opengl.ScalingFactors.FULL_SCALE;
+
+/**
+ * An instance of this class manages FBOs that need to be regenerated on resolution changes.
+ *
+ * The FBOs are regenerated when the display resolution changes or when a screenshot is triggered
+ * and the screenshot resolution differs from the display resolution.
+ *
+ * Before and after regeneration an event is fired to any subscribers of the instance.
+ * See method propertyChange(PropertyChangeEvent) for details.
+ *
+ * An instance of this class also generates a number of default FBOs: see the constructor for details.
+ */
+public class DisplayResolutionDependentFBOs extends AbstractFBOsManager implements PropertyChangeListener {
+<span class="nc" id="L48">    public static final SimpleUri FINAL_BUFFER = new SimpleUri(&quot;engine:fbo.finalBuffer&quot;);</span>
+    public static final String PRE_FBO_REGENERATION = &quot;preFboRegeneration&quot;;
+    public static final String POST_FBO_REGENERATION = &quot;postFboRegeneration&quot;;
+
+    private SwappableFBO gBufferPair;
+
+<span class="nc" id="L54">    private FBO.Dimensions fullScale = new FBO.Dimensions();</span>
+    private RenderingConfig renderingConfig;
+    private ScreenGrabber screenGrabber;
+
+    private boolean wasTakingScreenshotLastFrame;
+
+    /**
+     * The constructor: returns an instance of this class, subscribes it and generates the default FBOs.
+     *
+     * The returned instance is subscribed to the RenderingConfig.FBO_SCALE and DisplayDevice.DISPLAY_RESOLUTION_CHANGE
+     * settings, so that changes to either properties trigger the regeneration of the FBOs handled by this manager,
+     * if necessary.
+     *
+     * This constructor also initializes the SwappableFBOs of the GBuffer and the buffer identified by the
+     * SimpleUri stored in DisplayResolutionDependentFBOs.FINAL_BUFFER.
+     *
+     * @param renderingConfig the RenderingConfig instance.
+     * @param screenGrabber the ScreenGrabber instance.
+     * @param displayDevice the DisplayDevice instance
+     */
+<span class="nc" id="L74">    public DisplayResolutionDependentFBOs(RenderingConfig renderingConfig, ScreenGrabber screenGrabber, DisplayDevice displayDevice) {</span>
+<span class="nc" id="L75">        this.renderingConfig = renderingConfig;</span>
+<span class="nc" id="L76">        this.screenGrabber = screenGrabber;</span>
+
+<span class="nc" id="L78">        renderingConfig.subscribe(FBO_SCALE, this);</span>
+
+<span class="nc" id="L80">        displayDevice.subscribe(DISPLAY_RESOLUTION_CHANGE, this);</span>
+
+<span class="nc" id="L82">        updateFullScale();</span>
+<span class="nc" id="L83">        generateDefaultFBOs();</span>
+<span class="nc" id="L84">    }</span>
+
+    private void generateDefaultFBOs() {
+<span class="nc" id="L87">        FBO gBuffer1 = generateWithDimensions(new FBOConfig(new SimpleUri(&quot;engine:fbo.gBuffer1&quot;), FULL_SCALE, FBO.Type.HDR)</span>
+<span class="nc" id="L88">                .useDepthBuffer().useNormalBuffer().useLightBuffer().useStencilBuffer(), fullScale);</span>
+<span class="nc" id="L89">        FBO gBuffer2 = generateWithDimensions(new FBOConfig(new SimpleUri(&quot;engine:fbo.gBuffer2&quot;), FULL_SCALE, FBO.Type.HDR)</span>
+<span class="nc" id="L90">                .useDepthBuffer().useNormalBuffer().useLightBuffer().useStencilBuffer(), fullScale);</span>
+<span class="nc" id="L91">        generateWithDimensions(new FBOConfig(FINAL_BUFFER, FULL_SCALE, FBO.Type.DEFAULT), fullScale);</span>
+
+<span class="nc" id="L93">        gBufferPair = new SwappableFBO(gBuffer1, gBuffer2);</span>
+<span class="nc" id="L94">    }</span>
+
+    @Override
+    public FBO request(FBOConfig fboConfig) {
+        FBO fbo;
+<span class="nc" id="L99">        SimpleUri fboName = fboConfig.getName();</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (fboConfigs.containsKey(fboName)) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">            if (!fboConfig.equals(fboConfigs.get(fboName))) {</span>
+<span class="nc" id="L102">                throw new IllegalArgumentException(&quot;Requested FBO is already available with different configuration&quot;);</span>
+            }
+<span class="nc" id="L104">            fbo = fboLookup.get(fboConfig.getName());</span>
+        } else {
+<span class="nc" id="L106">            fbo = generateWithDimensions(fboConfig, fullScale.multiplyBy(fboConfig.getScale()));</span>
+        }
+<span class="nc" id="L108">        retain(fboName);</span>
+<span class="nc" id="L109">        return fbo;</span>
+    }
+
+    private void updateFullScale() {
+<span class="nc" id="L113">        fullScale.setDimensions(Display.getWidth(), Display.getHeight());</span>
+<span class="nc" id="L114">        fullScale.multiplySelfBy(renderingConfig.getFboScale() / 100f);</span>
+<span class="nc" id="L115">    }</span>
+
+    /**
+     * Invoked before real-rendering starts
+     */
+    public void update() {
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        if (!screenGrabber.isTakingScreenshot()) {</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">            if (wasTakingScreenshotLastFrame) {</span>
+<span class="nc" id="L123">                updateFullScale();</span>
+<span class="nc" id="L124">                regenerateFbos();</span>
+
+<span class="nc" id="L126">                wasTakingScreenshotLastFrame = false;</span>
+            }
+        } else {
+<span class="nc" id="L129">            ScreenshotSize screenshotSize = renderingConfig.getScreenshotSize();</span>
+            // TODO: Remove dependency on Display
+<span class="nc" id="L131">            fullScale.setDimensions(screenshotSize.getWidth(Display.getWidth()),</span>
+<span class="nc" id="L132">                    screenshotSize.getHeight(Display.getHeight()));</span>
+<span class="nc" id="L133">            regenerateFbos();</span>
+
+<span class="nc" id="L135">            wasTakingScreenshotLastFrame = true;</span>
+        }
+<span class="nc" id="L137">    }</span>
+
+    private void regenerateFbos() {
+<span class="nc" id="L140">        propertyChangeSupport.firePropertyChange(PRE_FBO_REGENERATION, 0, 1);</span>
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        for (SimpleUri urn : fboConfigs.keySet()) {</span>
+<span class="nc" id="L143">            FBOConfig fboConfig = getFboConfig(urn);</span>
+<span class="nc" id="L144">            fboConfig.setDimensions(fullScale.multiplyBy(fboConfig.getScale()));</span>
+<span class="nc" id="L145">            FBO.recreate(get(urn), getFboConfig(urn));</span>
+<span class="nc" id="L146">        }</span>
+
+<span class="nc" id="L148">        propertyChangeSupport.firePropertyChange(POST_FBO_REGENERATION, 0, 1);</span>
+
+        // Note that the &quot;old&quot; and &quot;new&quot; values (0 and 1) in the above calls aren't actually
+        // used: they are only necessary to ensure that the event is fired up correctly.
+<span class="nc" id="L152">   }</span>
+
+    private void disposeAllFbos() {
+        // TODO: This should be public, and should be called while disposing an object of this class, to prevent leaks.
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        for (SimpleUri urn : fboConfigs.keySet()) {</span>
+<span class="nc" id="L157">            fboLookup.get(urn).dispose();</span>
+<span class="nc" id="L158">        }</span>
+<span class="nc" id="L159">        fboLookup.clear();</span>
+<span class="nc" id="L160">    }</span>
+
+    /**
+     * Returns the GBuffer FBOs as a SwappableFBO instance.
+     *
+     * The GBuffer is constituted by a special pair of FBOs working in tandem: rendering nodes can use one of the
+     * FBOs to read from while writing to the other FBO in the pair.
+     *
+     * @return a SwappableFBO object containing the two GBuffer FBOs.
+     */
+    public SwappableFBO getGBufferPair() {
+<span class="nc" id="L171">        return gBufferPair;</span>
+    }
+
+    /**
+     * This method triggers the regeneration of the managed FBOs.
+     *
+     * The regeneration takes place only if the PropertyChangeEvent passed to the method has
+     * a property name equal to LwjglDisplayDevice.DISPLAY_RESOLUTION_CHANGE or RenderingConfig.FBO_SCALE.
+     *
+     * Before and after the FBO regeneration event are fired to all subscribers of the manager, with
+     * property names PRE_FBO_REGENERATION and POST_FBO_REGENERATION respectively.
+     *
+     * @param propertyChangeEvent a PropertyChangeEvent instance with name LwjglDisplayDevice.DISPLAY_RESOLUTION_CHANGE
+     *                            or RenderingConfig.FBO_SCALE.
+     */
+    public void propertyChange(PropertyChangeEvent propertyChangeEvent) {
+<span class="nc bnc" id="L187" title="All 4 branches missed.">        if (propertyChangeEvent.getPropertyName().equals(DISPLAY_RESOLUTION_CHANGE) || propertyChangeEvent.getPropertyName().equals(FBO_SCALE)) {</span>
+<span class="nc" id="L188">            updateFullScale();</span>
+<span class="nc" id="L189">            regenerateFbos();</span>
+        }
+<span class="nc" id="L191">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

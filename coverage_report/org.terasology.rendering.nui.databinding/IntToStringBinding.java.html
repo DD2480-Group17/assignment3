@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IntToStringBinding.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.databinding</a> &gt; <span class="el_source">IntToStringBinding.java</span></div><h1>IntToStringBinding.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.nui.databinding;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Range;
+import com.google.common.primitives.Ints;
+
+/**
+ * Links a Integer-{@link Binding} to a String-{@link Binding}.
+ * Also allows to restrict the valid value to a {@link Range}.
+ */
+public final class IntToStringBinding implements Binding&lt;String&gt; {
+
+    private final Binding&lt;Integer&gt; intBinding;
+    private final Range&lt;Integer&gt; validRange;
+    
+    /**
+     * @param intBinding the original binding
+     */
+    public IntToStringBinding(Binding&lt;Integer&gt; intBinding) {
+<span class="nc" id="L36">        this(intBinding, Range.&lt;Integer&gt;all());</span>
+<span class="nc" id="L37">    }</span>
+    
+<span class="nc" id="L39">    public IntToStringBinding(Binding&lt;Integer&gt; intBinding, Range&lt;Integer&gt; validRange) {</span>
+<span class="nc" id="L40">        Preconditions.checkNotNull(intBinding, &quot;the binding must not be null&quot;);</span>
+<span class="nc" id="L41">        Preconditions.checkNotNull(validRange, &quot;the valid range must not be null&quot;);</span>
+        
+<span class="nc" id="L43">        this.intBinding = intBinding;</span>
+<span class="nc" id="L44">        this.validRange = validRange;</span>
+<span class="nc" id="L45">    }</span>
+
+    /**
+     * @return the value or empty string if the original binding returns &lt;code&gt;null&lt;/code&gt;
+     */
+    @Override
+    public String get() {
+<span class="nc" id="L52">        Integer i = intBinding.get();</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">        return i == null ? &quot;&quot; : i.toString();</span>
+    }
+
+    @Override
+    public void set(String text) {
+<span class="nc" id="L58">        Integer val = Ints.tryParse(text);</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">        if (val != null &amp;&amp; validRange.contains(val)) {</span>
+            // An alternative would be to clamp the value to min/max
+<span class="nc" id="L61">            intBinding.set(val);</span>
+        }
+<span class="nc" id="L63">    }</span>
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

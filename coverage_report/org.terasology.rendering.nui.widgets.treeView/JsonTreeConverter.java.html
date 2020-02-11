@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JsonTreeConverter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets.treeView</a> &gt; <span class="el_source">JsonTreeConverter.java</span></div><h1>JsonTreeConverter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets.treeView;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+
+import java.util.Map;
+
+/**
+ * A utility class that converts a {@link JsonElement} to a {@link JsonTree} and vice versa.
+ */
+public final class JsonTreeConverter {
+    private JsonTreeConverter() {
+    }
+
+    /**
+     * @param json The {@link JsonElement} to be converted to a {@link JsonTree}.
+     * @return A tree representation of the JSON hierarchy.
+     */
+    public static JsonTree serialize(JsonElement json) {
+<span class="fc" id="L38">        return serialize(null, json);</span>
+    }
+
+    /**
+     * @param name The name to be given to this node (if null, is replaced by a default name).
+     * @param json The {@link JsonElement} to be converted to a {@link JsonTree}.
+     * @return A tree representation of the JSON hierarchy.
+     */
+    private static JsonTree serialize(String name, JsonElement json) {
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (json.isJsonPrimitive()) {</span>
+<span class="fc" id="L48">            JsonPrimitive primitive = json.getAsJsonPrimitive();</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">            if (primitive.isBoolean()) {</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">                return new JsonTree(new JsonTreeValue(name, json.getAsBoolean(),</span>
+                    name != null ? JsonTreeValue.Type.KEY_VALUE_PAIR : JsonTreeValue.Type.VALUE));
+<span class="fc bfc" id="L52" title="All 2 branches covered.">            } else if (primitive.isNumber()) {</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">                return new JsonTree(new JsonTreeValue(name, json.getAsNumber(),</span>
+                    name != null ? JsonTreeValue.Type.KEY_VALUE_PAIR : JsonTreeValue.Type.VALUE));
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">            } else if (primitive.isString()) {</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">                return new JsonTree(new JsonTreeValue(name, json.getAsString(),</span>
+                    name != null ? JsonTreeValue.Type.KEY_VALUE_PAIR : JsonTreeValue.Type.VALUE));
+            } else {
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                return new JsonTree(new JsonTreeValue(name, null, name != null ? JsonTreeValue.Type.KEY_VALUE_PAIR : JsonTreeValue.Type.VALUE));</span>
+            }
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        } else if (json.isJsonArray()) {</span>
+<span class="fc" id="L62">            JsonTree tree = new JsonTree(new JsonTreeValue(name, null, JsonTreeValue.Type.ARRAY));</span>
+<span class="fc" id="L63">            JsonArray array = json.getAsJsonArray();</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">            for (int i = 0; i &lt; array.size(); i++) {</span>
+<span class="fc" id="L65">                tree.addChild(serialize(array.get(i)));</span>
+            }
+<span class="fc" id="L67">            return tree;</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        } else if (json.isJsonObject()) {</span>
+<span class="fc" id="L69">            JsonTree tree = new JsonTree(new JsonTreeValue(name, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="fc" id="L70">            JsonObject object = json.getAsJsonObject();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonElement&gt; entry : object.entrySet()) {</span>
+<span class="fc" id="L72">                tree.addChild(serialize(entry.getKey(), entry.getValue()));</span>
+<span class="fc" id="L73">            }</span>
+<span class="fc" id="L74">            return tree;</span>
+        } else {
+<span class="nc" id="L76">            return new JsonTree(new JsonTreeValue(name, null, JsonTreeValue.Type.NULL));</span>
+        }
+    }
+
+    /**
+     * @param tree A tree hierarchy based on a {@link JsonElement} as generated by the serialize() method.
+     * @return The initial {@link JsonElement} reconstructed from the tree.
+     */
+    public static JsonElement deserialize(Tree&lt;JsonTreeValue&gt; tree) {
+<span class="fc" id="L85">        JsonTreeValue value = tree.getValue();</span>
+<span class="fc bfc" id="L86" title="All 4 branches covered.">        if (value.getType() == JsonTreeValue.Type.KEY_VALUE_PAIR || value.getType() == JsonTreeValue.Type.VALUE) {</span>
+<span class="fc" id="L87">            Object primitive = value.getValue();</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">            if (primitive instanceof Boolean) {</span>
+<span class="fc" id="L89">                return new JsonPrimitive((Boolean) primitive);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">            } else if (primitive instanceof Number) {</span>
+<span class="fc" id="L91">                return new JsonPrimitive((Number) primitive);</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            } else if (primitive instanceof String) {</span>
+<span class="fc" id="L93">                return new JsonPrimitive((String) primitive);</span>
+            } else {
+<span class="nc" id="L95">                return JsonNull.INSTANCE;</span>
+            }
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        } else if (value.getType() == JsonTreeValue.Type.ARRAY) {</span>
+<span class="fc" id="L98">            JsonArray array = new JsonArray();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">            for (Tree&lt;JsonTreeValue&gt; child : tree.getChildren()) {</span>
+<span class="fc" id="L100">                array.add(deserialize(child));</span>
+<span class="fc" id="L101">            }</span>
+<span class="fc" id="L102">            return array;</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">        } else if (value.getType() == JsonTreeValue.Type.OBJECT) {</span>
+<span class="fc" id="L104">            JsonObject object = new JsonObject();</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            for (Tree&lt;JsonTreeValue&gt; child : tree.getChildren()) {</span>
+<span class="fc" id="L106">                object.add(child.getValue().getKey(), deserialize(child));</span>
+<span class="fc" id="L107">            }</span>
+<span class="fc" id="L108">            return object;</span>
+        } else {
+<span class="nc" id="L110">            return JsonNull.INSTANCE;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

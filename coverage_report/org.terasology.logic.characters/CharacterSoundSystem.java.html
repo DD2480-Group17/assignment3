@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CharacterSoundSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.characters</a> &gt; <span class="el_source">CharacterSoundSystem.java</span></div><h1>CharacterSoundSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.characters;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.audio.StaticSound;
+import org.terasology.audio.events.PlaySoundEvent;
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.logic.characters.events.FootstepEvent;
+import org.terasology.logic.characters.events.JumpEvent;
+import org.terasology.logic.characters.events.OnEnterBlockEvent;
+import org.terasology.logic.characters.events.PlayerDeathEvent;
+import org.terasology.logic.characters.events.SwimStrokeEvent;
+import org.terasology.logic.characters.events.VerticalCollisionEvent;
+import org.terasology.logic.health.DoDestroyEvent;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.players.event.OnPlayerRespawnedEvent;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.In;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.utilities.random.Random;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+
+import java.util.List;
+
+/**
+ */
+@RegisterSystem(RegisterMode.ALWAYS)
+<span class="nc" id="L50">public class CharacterSoundSystem extends BaseComponentSystem {</span>
+
+    public static final long MIN_TIME = 10;
+
+<span class="nc" id="L54">    private static final Logger logger = LoggerFactory.getLogger(CharacterSoundSystem.class);</span>
+    private static final float LANDING_VOLUME_MODIFIER = 0.2f; //The sound volume is multiplied by this number
+    private static final float LANDING_VELOCITY_THRESHOLD = 7; //How fast do you have to be falling for the sound to play
+    private static final float LANDING_VOLUME_MAX = 2; //The maximum modifier value
+<span class="nc" id="L58">    private Random random = new FastRandom();</span>
+
+    @In
+    private Time time;
+
+    @In
+    private WorldProvider worldProvider;
+
+    @ReceiveEvent
+    public void onFootstep(FootstepEvent event, EntityRef entity, LocationComponent locationComponent, CharacterSoundComponent characterSounds) {
+
+<span class="nc" id="L69">        List&lt;StaticSound&gt; footstepSounds = characterSounds.footstepSounds;</span>
+
+        // Check if the block the character is standing on has footstep sounds
+<span class="nc" id="L72">        Vector3i blockPos = new Vector3i(locationComponent.getLocalPosition());</span>
+<span class="nc" id="L73">        blockPos.y--; // The block *below* the character's feet is interesting to us</span>
+<span class="nc" id="L74">        Block block = worldProvider.getBlock(blockPos);</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (block != null) {</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            if (block.getSounds() == null) {</span>
+<span class="nc" id="L77">                logger.error(&quot;Block '{}' has no sounds&quot;, block.getURI());</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            } else if (!block.getSounds().getStepSounds().isEmpty()) {</span>
+<span class="nc" id="L79">                footstepSounds = block.getSounds().getStepSounds();</span>
+            }
+        }
+
+<span class="nc bnc" id="L83" title="All 4 branches missed.">        if (footstepSounds.size() &gt; 0 &amp;&amp; characterSounds.lastSoundTime + MIN_TIME &lt; time.getGameTimeInMs()) {</span>
+<span class="nc" id="L84">            StaticSound sound = random.nextItem(footstepSounds);</span>
+<span class="nc" id="L85">            entity.send(new PlaySoundEvent(entity, sound, characterSounds.footstepVolume));</span>
+<span class="nc" id="L86">            characterSounds.lastSoundTime = time.getGameTimeInMs();</span>
+<span class="nc" id="L87">            entity.saveComponent(characterSounds);</span>
+        }
+<span class="nc" id="L89">    }</span>
+
+    @ReceiveEvent
+    public void onJump(JumpEvent event, EntityRef entity, CharacterSoundComponent characterSounds) {
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (characterSounds.lastSoundTime + MIN_TIME &lt; time.getGameTimeInMs()) {</span>
+<span class="nc" id="L94">            StaticSound sound = null;</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">            if (characterSounds.jumpSounds.size() &gt; 0) {</span>
+<span class="nc" id="L96">                sound = random.nextItem(characterSounds.jumpSounds);</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            } else if (characterSounds.footstepSounds.size() &gt; 0) {</span>
+<span class="nc" id="L98">                sound = random.nextItem(characterSounds.footstepSounds);</span>
+            }
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            if (sound != null) {</span>
+<span class="nc" id="L101">                entity.send(new PlaySoundEvent(entity, sound, characterSounds.jumpVolume));</span>
+<span class="nc" id="L102">                characterSounds.lastSoundTime = time.getGameTimeInMs();</span>
+<span class="nc" id="L103">                entity.saveComponent(characterSounds);</span>
+            }
+        }
+<span class="nc" id="L106">    }</span>
+
+    @ReceiveEvent
+    public void onLanded(VerticalCollisionEvent event, EntityRef entity, CharacterSoundComponent characterSounds) {
+<span class="nc" id="L110">        Vector3f velocity = event.getVelocity();</span>
+<span class="nc" id="L111">        float soundVolumeModifier = (velocity.y * -1 - LANDING_VELOCITY_THRESHOLD) * LANDING_VOLUME_MODIFIER;</span>
+
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        if (soundVolumeModifier &lt;= 0f) {</span>
+<span class="nc" id="L114">            return;</span>
+        }
+
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (soundVolumeModifier &gt; LANDING_VOLUME_MAX) {</span>
+<span class="nc" id="L118">            soundVolumeModifier = LANDING_VOLUME_MAX;</span>
+        }
+
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        if (characterSounds.lastSoundTime + MIN_TIME &lt; time.getGameTimeInMs()) {</span>
+<span class="nc" id="L122">            StaticSound sound = null;</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">            if (characterSounds.landingSounds.size() &gt; 0) {</span>
+<span class="nc" id="L124">                sound = random.nextItem(characterSounds.landingSounds);</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">            } else if (characterSounds.footstepSounds.size() &gt; 0) {</span>
+<span class="nc" id="L126">                sound = random.nextItem(characterSounds.footstepSounds);</span>
+            }
+<span class="nc bnc" id="L128" title="All 2 branches missed.">            if (sound != null) {</span>
+<span class="nc" id="L129">                entity.send(new PlaySoundEvent(entity, sound, characterSounds.landingVolume * soundVolumeModifier));</span>
+<span class="nc" id="L130">                characterSounds.lastSoundTime = time.getGameTimeInMs();</span>
+<span class="nc" id="L131">                entity.saveComponent(characterSounds);</span>
+            }
+        }
+<span class="nc" id="L134">    }</span>
+
+    @ReceiveEvent
+    public void onDeath(DoDestroyEvent event, EntityRef entity, CharacterSoundComponent characterSounds) {
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        if (characterSounds.deathSounds.size() &gt; 0) {</span>
+<span class="nc" id="L139">            StaticSound sound = random.nextItem(characterSounds.deathSounds);</span>
+<span class="nc" id="L140">            entity.send(new PlaySoundEvent(entity, sound, characterSounds.deathVolume));</span>
+        }
+<span class="nc" id="L142">    }</span>
+
+    @ReceiveEvent
+    public void onPlayerDeath(PlayerDeathEvent event, EntityRef character) {
+<span class="nc" id="L146">        CharacterSoundComponent characterSounds = character.getComponent(CharacterSoundComponent.class);</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        if (characterSounds.deathSounds.size() &gt; 0) {</span>
+<span class="nc" id="L148">            StaticSound sound = random.nextItem(characterSounds.deathSounds);</span>
+<span class="nc" id="L149">            character.send(new PlaySoundEvent(character, sound, characterSounds.deathVolume));</span>
+        }
+<span class="nc" id="L151">    }</span>
+
+    @ReceiveEvent
+    public void onRespawn(OnPlayerRespawnedEvent event, EntityRef character, CharacterSoundComponent characterSounds) {
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (characterSounds.respawnSounds.size() &gt; 0) {</span>
+<span class="nc" id="L156">            StaticSound sound = random.nextItem(characterSounds.respawnSounds);</span>
+<span class="nc" id="L157">            character.send(new PlaySoundEvent(character, sound, characterSounds.respawnVolume));</span>
+        }
+<span class="nc" id="L159">    }</span>
+
+    @ReceiveEvent
+    public void onSwimStroke(SwimStrokeEvent event, EntityRef entity, CharacterSoundComponent characterSounds) {
+<span class="nc bnc" id="L163" title="All 4 branches missed.">        if (characterSounds.swimSounds.size() &gt; 0 &amp;&amp; characterSounds.lastSoundTime + MIN_TIME &lt; time.getGameTimeInMs()) {</span>
+<span class="nc" id="L164">            StaticSound sound = random.nextItem(characterSounds.swimSounds);</span>
+<span class="nc" id="L165">            entity.send(new PlaySoundEvent(entity, sound, characterSounds.swimmingVolume));</span>
+<span class="nc" id="L166">            characterSounds.lastSoundTime = time.getGameTimeInMs();</span>
+<span class="nc" id="L167">            entity.saveComponent(characterSounds);</span>
+        }
+<span class="nc" id="L169">    }</span>
+
+    @ReceiveEvent
+    public void onEnterBlock(OnEnterBlockEvent event, EntityRef entity, CharacterSoundComponent characterSounds) {
+        // only play this sound if the feet hit the water
+<span class="nc bnc" id="L174" title="All 4 branches missed.">        if (event.getCharacterRelativePosition().y == 0 &amp;&amp; characterSounds.lastSoundTime + MIN_TIME &lt; time.getGameTimeInMs()) {</span>
+<span class="nc" id="L175">            boolean oldBlockIsLiquid = event.getOldBlock().isLiquid();</span>
+<span class="nc" id="L176">            boolean newBlockIsLiquid = event.getNewBlock().isLiquid();</span>
+<span class="nc" id="L177">            StaticSound sound = null;</span>
+<span class="nc bnc" id="L178" title="All 4 branches missed.">            if (!oldBlockIsLiquid &amp;&amp; newBlockIsLiquid) {</span>
+<span class="nc" id="L179">                sound = random.nextItem(characterSounds.enterWaterSounds);</span>
+<span class="nc bnc" id="L180" title="All 4 branches missed.">            } else if (oldBlockIsLiquid &amp;&amp; !newBlockIsLiquid) {</span>
+<span class="nc" id="L181">                sound = random.nextItem(characterSounds.leaveWaterSounds);</span>
+            }
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            if (sound != null) {</span>
+<span class="nc" id="L184">                entity.send(new PlaySoundEvent(entity, sound, characterSounds.diveVolume));</span>
+<span class="nc" id="L185">                characterSounds.lastSoundTime = time.getGameTimeInMs();</span>
+<span class="nc" id="L186">                entity.saveComponent(characterSounds);</span>
+            }
+        }
+<span class="nc" id="L189">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

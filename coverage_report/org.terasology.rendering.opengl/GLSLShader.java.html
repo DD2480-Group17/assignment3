@@ -1,0 +1,429 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GLSLShader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.opengl</a> &gt; <span class="el_source">GLSLShader.java</span></div><h1>GLSLShader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.opengl;
+
+import com.google.common.base.Charsets;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.google.common.io.CharStreams;
+import gnu.trove.iterator.TIntIntIterator;
+import gnu.trove.map.TIntIntMap;
+import gnu.trove.map.hash.TIntIntHashMap;
+import org.lwjgl.opengl.ARBShaderObjects;
+import org.lwjgl.opengl.GL20;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.engine.GameThread;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.assets.shader.Shader;
+import org.terasology.rendering.assets.shader.ShaderData;
+import org.terasology.rendering.assets.shader.ShaderParameterMetadata;
+import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.primitives.ChunkVertexFlag;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.world.block.tiles.WorldAtlas;
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Map;
+import java.util.Set;
+
+import static org.terasology.rendering.dag.nodes.AmbientOcclusionNode.SSAO_KERNEL_ELEMENTS;
+import static org.terasology.rendering.dag.nodes.AmbientOcclusionNode.SSAO_NOISE_SIZE;
+
+/**
+ * GLSL Shader Program Instance class.
+ * &lt;p&gt;
+ * Provides actual shader compilation and manipulation support.
+ * &lt;/p&gt;
+ */
+public class GLSLShader extends Shader {
+
+<span class="nc" id="L67">    private static final Logger logger = LoggerFactory.getLogger(GLSLShader.class);</span>
+
+<span class="nc" id="L69">    private static String includedFunctionsVertex = &quot;&quot;;</span>
+<span class="nc" id="L70">    private static String includedFunctionsFragment = &quot;&quot;;</span>
+<span class="nc" id="L71">    private static String includedDefines = &quot;&quot;;</span>
+<span class="nc" id="L72">    private static String includedUniforms = &quot;&quot;;</span>
+
+    static {
+<span class="nc" id="L75">        try (</span>
+<span class="nc" id="L76">                InputStreamReader vertStream = getInputStreamReaderFromResource(&quot;org/terasology/include/globalFunctionsVertIncl.glsl&quot;);</span>
+<span class="nc" id="L77">                InputStreamReader fragStream = getInputStreamReaderFromResource(&quot;org/terasology/include/globalFunctionsFragIncl.glsl&quot;);</span>
+<span class="nc" id="L78">                InputStreamReader uniformsStream = getInputStreamReaderFromResource(&quot;org/terasology/include/globalUniformsIncl.glsl&quot;);</span>
+<span class="nc" id="L79">                InputStreamReader definesStream = getInputStreamReaderFromResource(&quot;org/terasology/include/globalDefinesIncl.glsl&quot;)</span>
+        ) {
+<span class="nc" id="L81">            includedFunctionsVertex = CharStreams.toString(vertStream);</span>
+<span class="nc" id="L82">            includedFunctionsFragment = CharStreams.toString(fragStream);</span>
+<span class="nc" id="L83">            includedDefines = CharStreams.toString(uniformsStream);</span>
+<span class="nc" id="L84">            includedUniforms = CharStreams.toString(definesStream);</span>
+<span class="nc" id="L85">        } catch (IOException e) {</span>
+<span class="nc" id="L86">            logger.error(&quot;Failed to load Include shader resources&quot;);</span>
+<span class="nc" id="L87">        }</span>
+<span class="nc" id="L88">    }</span>
+
+<span class="nc" id="L90">    private EnumSet&lt;ShaderProgramFeature&gt; availableFeatures = Sets.newEnumSet(Collections.emptyList(), ShaderProgramFeature.class);</span>
+
+    private ShaderData shaderProgramBase;
+<span class="nc" id="L93">    private Map&lt;String, ShaderParameterMetadata&gt; parameters = Maps.newHashMap();</span>
+
+<span class="nc" id="L95">    private Config config = CoreRegistry.get(Config.class);</span>
+
+    private DisposalAction disposalAction;
+
+    public GLSLShader(ResourceUrn urn, AssetType&lt;?, ShaderData&gt; assetType, ShaderData data) {
+<span class="nc" id="L100">        super(urn, assetType);</span>
+<span class="nc" id="L101">        disposalAction = new DisposalAction(urn);</span>
+<span class="nc" id="L102">        getDisposalHook().setDisposeAction(disposalAction);</span>
+<span class="nc" id="L103">        reload(data);</span>
+<span class="nc" id="L104">    }</span>
+
+    private static InputStreamReader getInputStreamReaderFromResource(String resource) {
+<span class="nc" id="L107">        InputStream resourceStream = GLSLShader.class.getClassLoader().getResourceAsStream(resource);</span>
+<span class="nc" id="L108">        return new InputStreamReader(resourceStream, Charsets.UTF_8);</span>
+    }
+
+    // made package-private after CheckStyle suggestion
+    Set&lt;ShaderProgramFeature&gt; getAvailableFeatures() {
+<span class="nc" id="L113">        return availableFeatures;</span>
+    }
+
+    // made package-private after CheckStyle suggestion
+    int linkShaderProgram(int featureHash) {
+<span class="nc" id="L118">        int shaderProgram = GL20.glCreateProgram();</span>
+
+<span class="nc" id="L120">        GL20.glAttachShader(shaderProgram, disposalAction.fragmentPrograms.get(featureHash));</span>
+<span class="nc" id="L121">        GL20.glAttachShader(shaderProgram, disposalAction.vertexPrograms.get(featureHash));</span>
+<span class="nc" id="L122">        GL20.glLinkProgram(shaderProgram);</span>
+<span class="nc" id="L123">        GL20.glValidateProgram(shaderProgram);</span>
+<span class="nc" id="L124">        return shaderProgram;</span>
+    }
+
+    @Override
+    public void recompile() {
+<span class="nc" id="L129">        registerAllShaderPermutations();</span>
+        // TODO: reload materials
+<span class="nc" id="L131">    }</span>
+
+    @Override
+    public ShaderParameterMetadata getParameter(String desc) {
+<span class="nc" id="L135">        return parameters.get(desc);</span>
+    }
+
+    @Override
+    public Iterable&lt;ShaderParameterMetadata&gt; listParameters() {
+<span class="nc" id="L140">        return parameters.values();</span>
+    }
+
+    private StringBuilder createShaderBuilder() {
+<span class="nc" id="L144">        String preProcessorPreamble = &quot;#version 120\n&quot;;</span>
+
+        // TODO: Implement a system for this - this has gotten way out of hand.
+<span class="nc" id="L147">        WorldAtlas worldAtlas = CoreRegistry.get(WorldAtlas.class);</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (worldAtlas != null) {</span>
+<span class="nc" id="L149">            preProcessorPreamble += &quot;#define TEXTURE_OFFSET &quot; + worldAtlas.getRelativeTileSize() + &quot;\n&quot;;</span>
+        } else {
+<span class="nc" id="L151">            preProcessorPreamble += &quot;#define TEXTURE_OFFSET 0.06125\n&quot;;</span>
+        }
+<span class="nc" id="L153">        RenderingConfig renderConfig = config.getRendering();</span>
+
+<span class="nc" id="L155">        preProcessorPreamble += &quot;#define BLOCK_LIGHT_POW &quot; + WorldRenderer.BLOCK_LIGHT_POW + &quot;\n&quot;;</span>
+<span class="nc" id="L156">        preProcessorPreamble += &quot;#define BLOCK_LIGHT_SUN_POW &quot; + WorldRenderer.BLOCK_LIGHT_SUN_POW + &quot;\n&quot;;</span>
+<span class="nc" id="L157">        preProcessorPreamble += &quot;#define BLOCK_INTENSITY_FACTOR &quot; + WorldRenderer.BLOCK_INTENSITY_FACTOR + &quot;\n&quot;;</span>
+<span class="nc" id="L158">        preProcessorPreamble += &quot;#define SHADOW_MAP_RESOLUTION &quot; + (float) renderConfig.getShadowMapResolution() + &quot;\n&quot;;</span>
+<span class="nc" id="L159">        preProcessorPreamble += &quot;#define SSAO_KERNEL_ELEMENTS &quot; + SSAO_KERNEL_ELEMENTS + &quot;\n&quot;;</span>
+<span class="nc" id="L160">        preProcessorPreamble += &quot;#define SSAO_NOISE_SIZE &quot; + SSAO_NOISE_SIZE + &quot;\n&quot;;</span>
+        // TODO: This shouldn't be hardcoded
+<span class="nc" id="L162">        preProcessorPreamble += &quot;#define TEXTURE_OFFSET_EFFECTS &quot; + 0.0625f + &quot;\n&quot;;</span>
+
+<span class="nc" id="L164">        StringBuilder builder = new StringBuilder().append(preProcessorPreamble);</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (renderConfig.isVolumetricFog()) {</span>
+<span class="nc" id="L166">            builder.append(&quot;#define VOLUMETRIC_FOG \n&quot;);</span>
+        }
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        if (renderConfig.isAnimateGrass()) {</span>
+<span class="nc" id="L170">            builder.append(&quot;#define ANIMATED_GRASS \n&quot;);</span>
+        }
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        if (renderConfig.isAnimateWater()) {</span>
+<span class="nc" id="L173">            builder.append(&quot;#define ANIMATED_WATER \n&quot;);</span>
+        }
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        if (renderConfig.getBlurIntensity() == 0) {</span>
+<span class="nc" id="L176">            builder.append(&quot;#define NO_BLUR \n&quot;);</span>
+        }
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if (renderConfig.isFlickeringLight()) {</span>
+<span class="nc" id="L179">            builder.append(&quot;#define FLICKERING_LIGHT \n&quot;);</span>
+        }
+<span class="nc bnc" id="L181" title="All 2 branches missed.">        if (renderConfig.isVignette()) {</span>
+<span class="nc" id="L182">            builder.append(&quot;#define VIGNETTE \n&quot;);</span>
+        }
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        if (renderConfig.isBloom()) {</span>
+<span class="nc" id="L185">            builder.append(&quot;#define BLOOM \n&quot;);</span>
+        }
+<span class="nc bnc" id="L187" title="All 2 branches missed.">        if (renderConfig.isMotionBlur()) {</span>
+<span class="nc" id="L188">            builder.append(&quot;#define MOTION_BLUR \n&quot;);</span>
+        }
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if (renderConfig.isSsao()) {</span>
+<span class="nc" id="L191">            builder.append(&quot;#define SSAO \n&quot;);</span>
+        }
+<span class="nc bnc" id="L193" title="All 2 branches missed.">        if (renderConfig.isFilmGrain()) {</span>
+<span class="nc" id="L194">            builder.append(&quot;#define FILM_GRAIN \n&quot;);</span>
+        }
+<span class="nc bnc" id="L196" title="All 2 branches missed.">        if (renderConfig.isOutline()) {</span>
+<span class="nc" id="L197">            builder.append(&quot;#define OUTLINE \n&quot;);</span>
+        }
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        if (renderConfig.isLightShafts()) {</span>
+<span class="nc" id="L200">            builder.append(&quot;#define LIGHT_SHAFTS \n&quot;);</span>
+        }
+<span class="nc bnc" id="L202" title="All 2 branches missed.">        if (renderConfig.isDynamicShadows()) {</span>
+<span class="nc" id="L203">            builder.append(&quot;#define DYNAMIC_SHADOWS \n&quot;);</span>
+        }
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        if (renderConfig.isNormalMapping()) {</span>
+<span class="nc" id="L206">            builder.append(&quot;#define NORMAL_MAPPING \n&quot;);</span>
+        }
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        if (renderConfig.isParallaxMapping()) {</span>
+<span class="nc" id="L209">            builder.append(&quot;#define PARALLAX_MAPPING \n&quot;);</span>
+        }
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        if (renderConfig.isDynamicShadowsPcfFiltering()) {</span>
+<span class="nc" id="L212">            builder.append(&quot;#define DYNAMIC_SHADOWS_PCF \n&quot;);</span>
+        }
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        if (renderConfig.isCloudShadows()) {</span>
+<span class="nc" id="L215">            builder.append(&quot;#define CLOUD_SHADOWS \n&quot;);</span>
+        }
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        if (renderConfig.isLocalReflections()) {</span>
+<span class="nc" id="L218">            builder.append(&quot;#define LOCAL_REFLECTIONS \n&quot;);</span>
+        }
+<span class="nc bnc" id="L220" title="All 2 branches missed.">        if (renderConfig.isInscattering()) {</span>
+<span class="nc" id="L221">            builder.append(&quot;#define INSCATTERING \n&quot;);</span>
+        }
+        // TODO A 3D wizard should take a look at this. Configurable for the moment to make better comparisons possible.
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        if (renderConfig.isClampLighting()) {</span>
+<span class="nc" id="L225">            builder.append(&quot;#define CLAMP_LIGHTING \n&quot;);</span>
+        }
+
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        for (ChunkVertexFlag vertexFlag : ChunkVertexFlag.values()) {</span>
+<span class="nc" id="L229">            builder.append(&quot;#define &quot;).append(vertexFlag.getDefineName()).append(&quot; int(&quot;).append(vertexFlag.getValue()).append(&quot;) \n&quot;);</span>
+        }
+
+<span class="nc" id="L232">        return builder;</span>
+    }
+
+    private void updateAvailableFeatures() {
+<span class="nc" id="L236">        availableFeatures.clear();</span>
+
+        // Check which features are used in the shaders and update the available features mask accordingly
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        for (ShaderProgramFeature feature : ShaderProgramFeature.values()) {</span>
+
+            // TODO: Have our own shader language and parse this stuff out properly
+<span class="nc bnc" id="L242" title="All 2 branches missed.">            if (shaderProgramBase.getFragmentProgram().contains(feature.toString())) {</span>
+<span class="nc" id="L243">                logger.debug(&quot;Fragment shader feature '&quot; + feature.toString() + &quot;' is available...&quot;);</span>
+<span class="nc" id="L244">                availableFeatures.add(feature);</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">            } else if (shaderProgramBase.getVertexProgram().contains(feature.toString())) {</span>
+<span class="nc" id="L246">                logger.debug(&quot;Vertex shader feature '&quot; + feature.toString() + &quot;' is available...&quot;);</span>
+<span class="nc" id="L247">                availableFeatures.add(feature);</span>
+            }
+        }
+<span class="nc" id="L250">    }</span>
+
+    /**
+     * Compiles all combination of available features and stores them in two maps for
+     * lookup based on a unique hash of features.
+     */
+    private void registerAllShaderPermutations() {
+<span class="nc" id="L257">        Set&lt;Set&lt;ShaderProgramFeature&gt;&gt; allPermutations = Sets.powerSet(availableFeatures);</span>
+
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        for (Set&lt;ShaderProgramFeature&gt; permutation : allPermutations) {</span>
+<span class="nc" id="L260">            int fragShaderId = compileShader(GL20.GL_FRAGMENT_SHADER, permutation);</span>
+<span class="nc" id="L261">            int vertShaderId = compileShader(GL20.GL_VERTEX_SHADER, permutation);</span>
+
+<span class="nc bnc" id="L263" title="All 4 branches missed.">            if (compileSuccess(fragShaderId) &amp;&amp; compileSuccess(vertShaderId)) {</span>
+<span class="nc" id="L264">                int featureHash = ShaderProgramFeature.getBitset(permutation);</span>
+<span class="nc" id="L265">                disposalAction.fragmentPrograms.put(featureHash, fragShaderId);</span>
+<span class="nc" id="L266">                disposalAction.vertexPrograms.put(featureHash, vertShaderId);</span>
+<span class="nc" id="L267">            } else {</span>
+<span class="nc" id="L268">                throw new RuntimeException(String.format(&quot;Shader '%s' failed to compile for features '%s'.%n%n&quot;</span>
+                                + &quot;Vertex Shader Info: %n%s%n&quot;
+                                + &quot;Fragment Shader Info: %n%s&quot;,
+<span class="nc" id="L271">                        getUrn(), permutation,</span>
+<span class="nc" id="L272">                        getLogInfo(vertShaderId), getLogInfo(fragShaderId)));</span>
+            }
+<span class="nc" id="L274">        }</span>
+
+<span class="nc" id="L276">        logger.debug(&quot;Compiled {} permutations for {}.&quot;, allPermutations.size(), getUrn());</span>
+<span class="nc" id="L277">    }</span>
+
+    private String assembleShader(int type, Set&lt;ShaderProgramFeature&gt; features) {
+<span class="nc" id="L280">        StringBuilder shader = createShaderBuilder();</span>
+
+        // Add the activated features for this shader
+<span class="nc bnc" id="L283" title="All 2 branches missed.">        for (ShaderProgramFeature feature : features) {</span>
+<span class="nc" id="L284">            shader.append(&quot;#define &quot;).append(feature.name()).append(&quot;\n&quot;);</span>
+<span class="nc" id="L285">        }</span>
+
+<span class="nc" id="L287">        shader.append(&quot;\n&quot;);</span>
+
+<span class="nc" id="L289">        shader.append(includedDefines);</span>
+<span class="nc" id="L290">        shader.append(includedUniforms);</span>
+
+<span class="nc bnc" id="L292" title="All 2 branches missed.">        if (type == GL20.GL_FRAGMENT_SHADER) {</span>
+<span class="nc" id="L293">            shader.append(includedFunctionsFragment);</span>
+<span class="nc" id="L294">            shader.append(&quot;\n&quot;);</span>
+<span class="nc" id="L295">            shader.append(shaderProgramBase.getFragmentProgram());</span>
+        } else {
+<span class="nc" id="L297">            shader.append(includedFunctionsVertex);</span>
+<span class="nc" id="L298">            shader.append(&quot;\n&quot;);</span>
+<span class="nc" id="L299">            shader.append(shaderProgramBase.getVertexProgram());</span>
+        }
+
+<span class="nc" id="L302">        return shader.toString();</span>
+    }
+
+    private void dumpCode(int type, Set&lt;ShaderProgramFeature&gt; features, String sourceCode) {
+<span class="nc" id="L306">        String debugShaderType = &quot;UNKNOWN&quot;;</span>
+<span class="nc" id="L307">        int featureHash = ShaderProgramFeature.getBitset(features);</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">        if (type == GL20.GL_FRAGMENT_SHADER) {</span>
+<span class="nc" id="L309">            debugShaderType = &quot;FRAGMENT&quot;;</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">        } else if (type == GL20.GL_VERTEX_SHADER) {</span>
+<span class="nc" id="L311">            debugShaderType = &quot;VERTEX&quot;;</span>
+        }
+
+        // Dump all final shader sources to the log directory
+<span class="nc" id="L315">        final String strippedTitle = getUrn().toString().replace(&quot;:&quot;, &quot;-&quot;);</span>
+
+        // example: fragment_shader-engine-font_0.glsl
+<span class="nc" id="L318">        String fname = debugShaderType.toLowerCase() + &quot;_&quot; + strippedTitle + &quot;_&quot; + featureHash + &quot;.glsl&quot;;</span>
+<span class="nc" id="L319">        Path path = PathManager.getInstance().getShaderLogPath().resolve(fname);</span>
+<span class="nc" id="L320">        try (BufferedWriter writer = Files.newBufferedWriter(path, TerasologyConstants.CHARSET)) {</span>
+<span class="nc" id="L321">            writer.write(sourceCode);</span>
+<span class="nc" id="L322">        } catch (IOException e) {</span>
+<span class="nc" id="L323">            logger.error(&quot;Failed to dump shader source.&quot;);</span>
+<span class="nc" id="L324">        }</span>
+<span class="nc" id="L325">    }</span>
+
+    private int compileShader(int type, Set&lt;ShaderProgramFeature&gt; features) {
+<span class="nc" id="L328">        int shaderId = GL20.glCreateShader(type);</span>
+
+<span class="nc" id="L330">        String shader = assembleShader(type, features);</span>
+
+<span class="nc bnc" id="L332" title="All 2 branches missed.">        if (config.getRendering().isDumpShaders()) {</span>
+<span class="nc" id="L333">            dumpCode(type, features, shader);</span>
+        }
+
+<span class="nc" id="L336">        GL20.glShaderSource(shaderId, shader);</span>
+<span class="nc" id="L337">        GL20.glCompileShader(shaderId);</span>
+
+<span class="nc" id="L339">        return shaderId;</span>
+    }
+
+    private String getLogInfo(int shaderId) {
+<span class="nc" id="L343">        int length = ARBShaderObjects.glGetObjectParameteriARB(shaderId, ARBShaderObjects.GL_OBJECT_INFO_LOG_LENGTH_ARB);</span>
+
+<span class="nc bnc" id="L345" title="All 2 branches missed.">        if (length &gt; 0) {</span>
+<span class="nc" id="L346">            return ARBShaderObjects.glGetInfoLogARB(shaderId, length);</span>
+        }
+
+<span class="nc" id="L349">        return &quot;No Info&quot;;</span>
+    }
+
+    private boolean compileSuccess(int shaderId) {
+<span class="nc" id="L353">        int compileStatus = ARBShaderObjects.glGetObjectParameteriARB(shaderId, ARBShaderObjects.GL_OBJECT_COMPILE_STATUS_ARB);</span>
+        //int linkStatus = ARBShaderObjects.glGetObjectParameteriARB(shaderId, ARBShaderObjects.GL_OBJECT_LINK_STATUS_ARB);
+        //int validateStatus = ARBShaderObjects.glGetObjectParameteriARB(shaderId, ARBShaderObjects.GL_OBJECT_VALIDATE_STATUS_ARB);
+
+
+<span class="nc bnc" id="L358" title="All 2 branches missed.">        if (compileStatus == 0 /*|| linkStatus == 0 || validateStatus == 0*/) {</span>
+<span class="nc" id="L359">            return false;</span>
+        }
+
+        //logger.info(&quot;Shader '{}' successfully compiled.&quot;, getURI());
+<span class="nc" id="L363">        return true;</span>
+    }
+
+    @Override
+    protected void doReload(ShaderData data) {
+        try {
+<span class="nc" id="L369">            GameThread.synch(() -&gt; {</span>
+<span class="nc" id="L370">                logger.debug(&quot;Recompiling shader {}.&quot;, getUrn());</span>
+
+<span class="nc" id="L372">                disposalAction.disposeData();</span>
+<span class="nc" id="L373">                shaderProgramBase = data;</span>
+<span class="nc" id="L374">                parameters.clear();</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">                for (ShaderParameterMetadata metadata : shaderProgramBase.getParameterMetadata()) {</span>
+<span class="nc" id="L376">                    parameters.put(metadata.getName(), metadata);</span>
+<span class="nc" id="L377">                }</span>
+<span class="nc" id="L378">                updateAvailableFeatures();</span>
+                try {
+<span class="nc" id="L380">                    recompile();</span>
+<span class="nc" id="L381">                } catch (RuntimeException e) {</span>
+<span class="nc" id="L382">                    logger.warn(e.getMessage());</span>
+<span class="nc" id="L383">                }</span>
+<span class="nc" id="L384">            });</span>
+<span class="nc" id="L385">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L386">            logger.error(&quot;Failed to reload {}&quot;, getUrn(), e);</span>
+<span class="nc" id="L387">        }</span>
+<span class="nc" id="L388">    }</span>
+
+    private static class DisposalAction implements Runnable {
+
+        private final ResourceUrn urn;
+
+<span class="nc" id="L394">        private TIntIntMap fragmentPrograms = new TIntIntHashMap();</span>
+<span class="nc" id="L395">        private TIntIntMap vertexPrograms = new TIntIntHashMap();</span>
+
+        // made package-private after CheckStyle's suggestion
+<span class="nc" id="L398">        DisposalAction(ResourceUrn urn) {</span>
+<span class="nc" id="L399">            this.urn = urn;</span>
+<span class="nc" id="L400">        }</span>
+
+        @Override
+        public void run() {
+<span class="nc" id="L404">            logger.debug(&quot;Disposing shader {}.&quot;, urn);</span>
+            try {
+<span class="nc" id="L406">                GameThread.synch(this::disposeData);</span>
+<span class="nc" id="L407">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L408">                logger.error(&quot;Failed to dispose {}&quot;, urn, e);</span>
+<span class="nc" id="L409">            }</span>
+<span class="nc" id="L410">        }</span>
+
+        private void disposeData() {
+<span class="nc" id="L413">            TIntIntIterator it = fragmentPrograms.iterator();</span>
+<span class="nc bnc" id="L414" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L415">                it.advance();</span>
+<span class="nc" id="L416">                GL20.glDeleteShader(it.value());</span>
+            }
+<span class="nc" id="L418">            fragmentPrograms.clear();</span>
+
+<span class="nc" id="L420">            it = vertexPrograms.iterator();</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L422">                it.advance();</span>
+<span class="nc" id="L423">                GL20.glDeleteShader(it.value());</span>
+            }
+<span class="nc" id="L425">            vertexPrograms.clear();</span>
+<span class="nc" id="L426">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

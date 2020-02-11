@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TelemetrySubSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.subsystem.common</a> &gt; <span class="el_source">TelemetrySubSystem.java</span></div><h1>TelemetrySubSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.subsystem.common;
+
+import ch.qos.logback.classic.LoggerContext;
+import com.snowplowanalytics.snowplow.tracker.emitter.Emitter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.config.TelemetryConfig;
+import org.terasology.config.facade.TelemetryConfiguration;
+import org.terasology.config.facade.TelemetryConfigurationImpl;
+import org.terasology.context.Context;
+import org.terasology.engine.subsystem.EngineSubsystem;
+import org.terasology.telemetry.Metrics;
+import org.terasology.telemetry.TelemetryEmitter;
+import org.terasology.telemetry.logstash.TelemetryLogstashAppender;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+
+import static org.terasology.telemetry.TelemetryEmitter.DEFAULT_COLLECTOR_HOST;
+import static org.terasology.telemetry.TelemetryEmitter.DEFAULT_COLLECTOR_PORT;
+import static org.terasology.telemetry.TelemetryEmitter.DEFAULT_COLLECTOR_PROTOCOL;
+
+/**
+ * This is a telemetry engine sub system.
+ * It will initialise all the telemetry stuff such as the {@link com.snowplowanalytics.snowplow.tracker.emitter.Emitter} and configure the {@link org.terasology.telemetry.logstash.TelemetryLogstashAppender}.
+ * It will also adds the {@link org.terasology.telemetry.Metrics} and the {@link org.terasology.telemetry.TelemetryEmitter} to the context so that we can be use them later in other class for telemetry.
+ * @see &lt;a href=&quot;https://github.com/GabrielXia/telemetry/wiki&quot;&gt;https://github.com/GabrielXia/telemetry/wiki&lt;/a&gt;
+ */
+<span class="nc" id="L45">public class TelemetrySubSystem implements EngineSubsystem {</span>
+
+<span class="nc" id="L47">    private static final Logger logger = LoggerFactory.getLogger(TelemetrySubSystem.class);</span>
+
+    private Metrics metrics;
+
+    private Emitter emitter;
+
+    @Override
+    public String getName() {
+<span class="nc" id="L55">        return &quot;Telemetry&quot;;</span>
+    }
+
+    @Override
+    public void preInitialise(Context rootContext) {
+
+        // Add metrics to context, this helps show metric values in ui
+<span class="nc" id="L62">        metrics = new Metrics();</span>
+<span class="nc" id="L63">        rootContext.put(Metrics.class, metrics);</span>
+
+        // Add snowplow emitter to context, contributors can use this emitter to emit other event
+<span class="nc" id="L66">        emitter = TelemetryEmitter.builder().build();</span>
+<span class="nc" id="L67">        rootContext.put(Emitter.class, emitter);</span>
+<span class="nc" id="L68">    }</span>
+
+    @Override
+    public void postInitialise(Context rootContext) {
+
+<span class="nc" id="L73">        metrics.initialise(rootContext);</span>
+
+        // Add the telemetryConfig adapter to context. It could be used in modules.
+<span class="nc" id="L76">        Config config = rootContext.get(Config.class);</span>
+<span class="nc" id="L77">        TelemetryConfig telemetryConfig = config.getTelemetryConfig();</span>
+<span class="nc" id="L78">        TelemetryConfiguration telemetryConfiguration = new TelemetryConfigurationImpl(telemetryConfig);</span>
+<span class="nc" id="L79">        rootContext.put(TelemetryConfiguration.class, telemetryConfiguration);</span>
+
+<span class="nc" id="L81">        addTelemetryLogstashAppender(rootContext);</span>
+<span class="nc" id="L82">        setTelemetryDestination(rootContext);</span>
+<span class="nc" id="L83">    }</span>
+
+    private void addTelemetryLogstashAppender(Context rootContext) {
+<span class="nc" id="L86">        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();</span>
+<span class="nc" id="L87">        TelemetryLogstashAppender telemetryLogstashAppender = new TelemetryLogstashAppender(rootContext);</span>
+<span class="nc" id="L88">        lc.getLogger(Logger.ROOT_LOGGER_NAME).addAppender(telemetryLogstashAppender);</span>
+
+<span class="nc" id="L90">        Config config = rootContext.get(Config.class);</span>
+<span class="nc" id="L91">        TelemetryConfig telemetryConfig = config.getTelemetryConfig();</span>
+<span class="nc" id="L92">        String errorReportingDestination = telemetryConfig.getErrorReportingDestination();</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (errorReportingDestination == null) {</span>
+<span class="nc" id="L94">            errorReportingDestination = TelemetryLogstashAppender.DEFAULT_LOGSTASH_HOST + &quot;:&quot; + TelemetryLogstashAppender.DEFAULT_LOGSTASH_PORT;</span>
+<span class="nc" id="L95">            telemetryConfig.setErrorReportingDestination(errorReportingDestination);</span>
+        }
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (telemetryConfig.isErrorReportingEnabled()) {</span>
+<span class="nc" id="L98">            telemetryLogstashAppender.addDestination(errorReportingDestination);</span>
+<span class="nc" id="L99">            telemetryLogstashAppender.start();</span>
+        }
+<span class="nc" id="L101">    }</span>
+
+    private void setTelemetryDestination(Context rootContext) {
+<span class="nc" id="L104">        Config config = rootContext.get(Config.class);</span>
+<span class="nc" id="L105">        TelemetryConfig telemetryConfig = config.getTelemetryConfig();</span>
+<span class="nc" id="L106">        String telemetryDestination = telemetryConfig.getTelemetryDestination();</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (telemetryDestination != null) {</span>
+            try {
+<span class="nc" id="L109">                URL url = new URL(telemetryDestination);</span>
+<span class="nc" id="L110">                TelemetryEmitter telemetryEmitter = (TelemetryEmitter) emitter;</span>
+<span class="nc" id="L111">                telemetryEmitter.changeUrl(url);</span>
+<span class="nc" id="L112">            } catch (MalformedURLException e) {</span>
+<span class="nc" id="L113">                logger.error(&quot;URL malformed&quot;, e);</span>
+<span class="nc" id="L114">            }</span>
+        } else {
+<span class="nc" id="L116">            telemetryConfig.setTelemetryDestination(TelemetryEmitter.getDefaultCollectorURL(</span>
+<span class="nc" id="L117">                    DEFAULT_COLLECTOR_PROTOCOL, DEFAULT_COLLECTOR_HOST, DEFAULT_COLLECTOR_PORT).toString());</span>
+        }
+<span class="nc" id="L119">    }</span>
+    
+    @Override
+    public void shutdown() {
+
+        // shutdown emitter
+<span class="nc" id="L125">        TelemetryEmitter telemetryEmitter = (TelemetryEmitter) emitter;</span>
+<span class="nc" id="L126">        telemetryEmitter.close();</span>
+<span class="nc" id="L127">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TerasologyTestingEnvironment.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology</a> &gt; <span class="el_source">TerasologyTestingEnvironment.java</span></div><h1>TerasologyTestingEnvironment.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology;
+
+import org.jboss.shrinkwrap.api.ShrinkWrap;
+import org.jboss.shrinkwrap.api.nio.file.ShrinkWrapFileSystems;
+import org.jboss.shrinkwrap.api.spec.JavaArchive;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.terasology.context.Context;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.engine.EngineTime;
+import org.terasology.engine.Time;
+import org.terasology.engine.bootstrap.EntitySystemSetupUtil;
+import org.terasology.engine.modes.loadProcesses.LoadPrefabs;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.game.Game;
+import org.terasology.logic.console.Console;
+import org.terasology.logic.console.ConsoleImpl;
+import org.terasology.naming.Name;
+import org.terasology.network.NetworkSystem;
+import org.terasology.network.internal.NetworkSystemImpl;
+import org.terasology.persistence.StorageManager;
+import org.terasology.persistence.internal.ReadWriteStorageManager;
+import org.terasology.recording.CharacterStateEventPositionMap;
+import org.terasology.recording.DirectionAndOriginPosRecorderList;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.recording.RecordAndReplaySerializer;
+import org.terasology.recording.RecordAndReplayUtils;
+import org.terasology.recording.RecordedEventStore;
+import org.terasology.reflection.TypeRegistry;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+
+import java.nio.file.FileSystem;
+import java.nio.file.Path;
+
+import static org.mockito.Mockito.mock;
+
+/**
+ * A base class for unit test classes to inherit to run in a Terasology environment - with LWJGL set up and so forth
+ *
+ */
+<span class="fc" id="L61">public abstract class TerasologyTestingEnvironment {</span>
+    protected static Context context;
+
+    private static ModuleManager moduleManager;
+
+    private static HeadlessEnvironment env;
+
+    protected EngineTime mockTime;
+    private EngineEntityManager engineEntityManager;
+
+    @BeforeAll
+    public static void setupEnvironment() throws Exception {
+<span class="fc" id="L73">        final JavaArchive homeArchive = ShrinkWrap.create(JavaArchive.class);</span>
+<span class="fc" id="L74">        final FileSystem vfs = ShrinkWrapFileSystems.newFileSystem(homeArchive);</span>
+<span class="fc" id="L75">        PathManager.getInstance().useOverrideHomePath(vfs.getPath(&quot;&quot;));</span>
+        /*
+         * Create at least for each class a new headless environemnt as it is fast and prevents side effects
+         * (Reusing a headless environment after other tests have modified the core registry isn't really clean)
+         */
+<span class="fc" id="L80">        env = new HeadlessEnvironment(new Name(&quot;engine&quot;));</span>
+<span class="fc" id="L81">        context = env.getContext();</span>
+<span class="fc" id="L82">        moduleManager = context.get(ModuleManager.class);</span>
+
+<span class="fc" id="L84">    }</span>
+
+    @BeforeEach
+    public void setup() throws Exception {
+<span class="fc" id="L88">        context.put(ModuleManager.class, moduleManager);</span>
+<span class="fc" id="L89">        RecordAndReplayCurrentStatus recordAndReplayCurrentStatus = context.get(RecordAndReplayCurrentStatus.class);</span>
+
+<span class="fc" id="L91">        mockTime = mock(EngineTime.class);</span>
+<span class="fc" id="L92">        context.put(Time.class, mockTime);</span>
+<span class="fc" id="L93">        NetworkSystemImpl networkSystem = new NetworkSystemImpl(mockTime, context);</span>
+<span class="fc" id="L94">        context.put(Game.class, new Game());</span>
+<span class="fc" id="L95">        context.put(NetworkSystem.class, networkSystem);</span>
+<span class="fc" id="L96">        EntitySystemSetupUtil.addReflectionBasedLibraries(context);</span>
+<span class="fc" id="L97">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="fc" id="L98">        engineEntityManager = context.get(EngineEntityManager.class);</span>
+<span class="fc" id="L99">        BlockManager mockBlockManager = context.get(BlockManager.class); // 'mock' added to avoid hiding a field</span>
+<span class="fc" id="L100">        ExtraBlockDataManager extraDataManager = context.get(ExtraBlockDataManager.class);</span>
+<span class="fc" id="L101">        RecordedEventStore recordedEventStore = new RecordedEventStore();</span>
+<span class="fc" id="L102">        RecordAndReplayUtils recordAndReplayUtils = new RecordAndReplayUtils();</span>
+<span class="fc" id="L103">        context.put(RecordAndReplayUtils.class, recordAndReplayUtils);</span>
+<span class="fc" id="L104">        CharacterStateEventPositionMap characterStateEventPositionMap = new CharacterStateEventPositionMap();</span>
+<span class="fc" id="L105">        context.put(CharacterStateEventPositionMap.class, characterStateEventPositionMap);</span>
+<span class="fc" id="L106">        DirectionAndOriginPosRecorderList directionAndOriginPosRecorderList = new DirectionAndOriginPosRecorderList();</span>
+<span class="fc" id="L107">        context.put(DirectionAndOriginPosRecorderList.class, directionAndOriginPosRecorderList);</span>
+<span class="fc" id="L108">        RecordAndReplaySerializer recordAndReplaySerializer = new RecordAndReplaySerializer(engineEntityManager, recordedEventStore, recordAndReplayUtils, characterStateEventPositionMap, directionAndOriginPosRecorderList, moduleManager, context.get(TypeRegistry.class));</span>
+<span class="fc" id="L109">        context.put(RecordAndReplaySerializer.class, recordAndReplaySerializer);</span>
+
+<span class="fc" id="L111">        Path savePath = PathManager.getInstance().getSavePath(&quot;world1&quot;);</span>
+<span class="fc" id="L112">        context.put(StorageManager.class, new ReadWriteStorageManager(savePath, moduleManager.getEnvironment(),</span>
+                engineEntityManager, mockBlockManager, extraDataManager, recordAndReplaySerializer, recordAndReplayUtils, recordAndReplayCurrentStatus));
+
+<span class="fc" id="L115">        ComponentSystemManager componentSystemManager = new ComponentSystemManager(context);</span>
+<span class="fc" id="L116">        context.put(ComponentSystemManager.class, componentSystemManager);</span>
+<span class="fc" id="L117">        LoadPrefabs prefabLoadStep = new LoadPrefabs(context);</span>
+
+<span class="fc" id="L119">        boolean complete = false;</span>
+<span class="fc" id="L120">        prefabLoadStep.begin();</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        while (!complete) {</span>
+<span class="fc" id="L122">            complete = prefabLoadStep.step();</span>
+        }
+<span class="fc" id="L124">        context.get(ComponentSystemManager.class).initialise();</span>
+<span class="fc" id="L125">        context.put(Console.class, new ConsoleImpl(context));</span>
+<span class="fc" id="L126">    }</span>
+
+    @AfterAll
+    public static void tearDown() throws Exception {
+<span class="fc" id="L130">        env.close();</span>
+<span class="fc" id="L131">    }</span>
+
+
+    public EngineEntityManager getEntityManager() {
+<span class="fc" id="L135">        return engineEntityManager;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

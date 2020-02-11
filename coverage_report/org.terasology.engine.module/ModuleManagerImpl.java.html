@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModuleManagerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.module</a> &gt; <span class="el_source">ModuleManagerImpl.java</span></div><h1>ModuleManagerImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.module;
+
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.Asset;
+import org.terasology.config.Config;
+import org.terasology.config.SystemConfig;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.module.ClasspathModule;
+import org.terasology.module.DependencyInfo;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.ModuleLoader;
+import org.terasology.module.ModuleMetadata;
+import org.terasology.module.ModuleMetadataJsonAdapter;
+import org.terasology.module.ModulePathScanner;
+import org.terasology.module.ModuleRegistry;
+import org.terasology.module.TableModuleRegistry;
+import org.terasology.module.sandbox.APIScanner;
+import org.terasology.module.sandbox.BytecodeInjector;
+import org.terasology.module.sandbox.ModuleSecurityManager;
+import org.terasology.module.sandbox.ModuleSecurityPolicy;
+import org.terasology.module.sandbox.PermissionProviderFactory;
+import org.terasology.module.sandbox.StandardPermissionProviderFactory;
+import org.terasology.module.sandbox.WarnOnlyProviderFactory;
+import org.terasology.naming.Name;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.lang.reflect.ReflectPermission;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.Policy;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+public class ModuleManagerImpl implements ModuleManager {
+<span class="fc" id="L63">    private static final Logger logger = LoggerFactory.getLogger(ModuleManagerImpl.class);</span>
+<span class="fc" id="L64">    private StandardPermissionProviderFactory permissionProviderFactory = new StandardPermissionProviderFactory();</span>
+<span class="fc" id="L65">    private PermissionProviderFactory wrappingPermissionProviderFactory = new WarnOnlyProviderFactory(permissionProviderFactory);</span>
+
+    private ModuleRegistry registry;
+    private ModuleEnvironment environment;
+    private ModuleMetadataJsonAdapter metadataReader;
+    private ModuleInstallManager installManager;
+
+    public ModuleManagerImpl(String masterServerAddress) {
+<span class="fc" id="L73">        this(masterServerAddress, Collections.emptyList());</span>
+<span class="fc" id="L74">    }</span>
+
+<span class="fc" id="L76">    public ModuleManagerImpl(String masterServerAddress, List&lt;Class&lt;?&gt;&gt; classesOnClasspathsToAddToEngine) {</span>
+<span class="fc" id="L77">        metadataReader = new ModuleMetadataJsonAdapter();</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        for (ModuleExtension ext : StandardModuleExtension.values()) {</span>
+<span class="fc" id="L79">            metadataReader.registerExtension(ext.getKey(), ext.getValueType());</span>
+        }
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        for (ModuleExtension ext : ExtraDataModuleExtension.values()) {</span>
+<span class="fc" id="L82">            metadataReader.registerExtension(ext.getKey(), ext.getValueType());</span>
+        }
+        Module engineModule;
+<span class="fc" id="L85">        try (Reader reader = new InputStreamReader(getClass().getResourceAsStream(&quot;/engine-module.txt&quot;), TerasologyConstants.CHARSET)) {</span>
+<span class="fc" id="L86">            ModuleMetadata metadata = metadataReader.read(reader);</span>
+<span class="fc" id="L87">            List&lt;Class&lt;?&gt;&gt; additionalClassesList = new ArrayList&lt;&gt;(classesOnClasspathsToAddToEngine.size() + 2);</span>
+<span class="fc" id="L88">            additionalClassesList.add(Module.class); // provide access to gestalt-module.jar</span>
+<span class="fc" id="L89">            additionalClassesList.add(Asset.class); // provide access to gestalt-asset-core.jar</span>
+<span class="fc" id="L90">            additionalClassesList.addAll(classesOnClasspathsToAddToEngine); // provide access to any facade-provided classes</span>
+<span class="fc" id="L91">            Class&lt;?&gt;[] additionalClassesArray = new Class[additionalClassesList.size()];</span>
+<span class="fc" id="L92">            additionalClassesArray = additionalClassesList.toArray(additionalClassesArray);</span>
+<span class="fc" id="L93">            engineModule = ClasspathModule.create(metadata, getClass(), additionalClassesArray);</span>
+<span class="nc" id="L94">        } catch (IOException e) {</span>
+<span class="nc" id="L95">            throw new RuntimeException(&quot;Failed to read engine metadata&quot;, e);</span>
+<span class="nc" id="L96">        } catch (URISyntaxException e) {</span>
+<span class="nc" id="L97">            throw new RuntimeException(&quot;Failed to convert engine library location to path&quot;, e);</span>
+<span class="fc" id="L98">        }</span>
+
+<span class="fc" id="L100">        registry = new TableModuleRegistry();</span>
+<span class="fc" id="L101">        registry.add(engineModule);</span>
+
+<span class="fc" id="L103">        loadModulesFromClassPath();</span>
+
+<span class="fc" id="L105">        ModulePathScanner scanner = new ModulePathScanner(new ModuleLoader(metadataReader));</span>
+<span class="fc" id="L106">        scanner.getModuleLoader().setModuleInfoPath(TerasologyConstants.MODULE_INFO_FILENAME);</span>
+<span class="fc" id="L107">        scanner.scan(registry, PathManager.getInstance().getModulePaths());</span>
+
+<span class="fc" id="L109">        DependencyInfo engineDep = new DependencyInfo();</span>
+<span class="fc" id="L110">        engineDep.setId(engineModule.getId());</span>
+<span class="fc" id="L111">        engineDep.setMinVersion(engineModule.getVersion());</span>
+<span class="fc" id="L112">        engineDep.setMaxVersion(engineModule.getVersion().getNextPatchVersion());</span>
+
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        registry.stream().filter(mod -&gt; mod != engineModule).forEach(mod -&gt; mod.getMetadata().getDependencies().add(engineDep));</span>
+
+<span class="fc" id="L116">        setupSandbox();</span>
+<span class="fc" id="L117">        loadEnvironment(Sets.newHashSet(engineModule), true);</span>
+<span class="fc" id="L118">        installManager = new ModuleInstallManager(this, masterServerAddress);</span>
+<span class="fc" id="L119">    }</span>
+
+    public ModuleManagerImpl(Config config) {
+<span class="nc" id="L122">        this(config, Collections.emptyList());</span>
+<span class="nc" id="L123">    }</span>
+
+    public ModuleManagerImpl(Config config, List&lt;Class&lt;?&gt;&gt; classesOnClasspathsToAddToEngine) {
+<span class="nc" id="L126">        this(config.getNetwork().getMasterServer(), classesOnClasspathsToAddToEngine);</span>
+<span class="nc" id="L127">    }</span>
+
+    /**
+     * Overrides modules in modules/ with those specified via -classpath in the JVM
+     */
+    private void loadModulesFromClassPath() {
+        // Only attempt this if we're using the standard URLClassLoader
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">        if (ClassLoader.getSystemClassLoader() instanceof URLClassLoader) {</span>
+<span class="fc" id="L135">            URLClassLoader urlClassLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();</span>
+<span class="fc" id="L136">            ModuleLoader loader = new ModuleLoader(metadataReader);</span>
+            Enumeration&lt;URL&gt; moduleInfosInClassPath;
+<span class="fc" id="L138">            loader.setModuleInfoPath(TerasologyConstants.MODULE_INFO_FILENAME);</span>
+
+            // We're looking for jars on the classpath with a module.txt
+            try {
+<span class="fc" id="L142">                moduleInfosInClassPath = urlClassLoader.findResources(TerasologyConstants.MODULE_INFO_FILENAME.toString());</span>
+<span class="nc" id="L143">            } catch (IOException e) {</span>
+<span class="nc" id="L144">                logger.warn(&quot;Failed to search for classpath modules: {}&quot;, e);</span>
+<span class="nc" id="L145">                return;</span>
+<span class="fc" id="L146">            }</span>
+
+<span class="fc bfc" id="L148" title="All 2 branches covered.">            for (URL url : Collections.list(moduleInfosInClassPath)) {</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">                if (!url.getProtocol().equalsIgnoreCase(&quot;jar&quot;)) {</span>
+<span class="fc" id="L150">                    continue;</span>
+                }
+
+<span class="nc" id="L153">                try (Reader reader = new InputStreamReader(url.openStream(), TerasologyConstants.CHARSET)) {</span>
+<span class="nc" id="L154">                    ModuleMetadata metaData = metadataReader.read(reader);</span>
+<span class="nc" id="L155">                    String displayName = metaData.getDisplayName().toString();</span>
+<span class="nc" id="L156">                    Name id = metaData.getId();</span>
+
+                    // if the display name is empty or the id is null, this probably isn't a Terasology module
+<span class="nc bnc" id="L159" title="All 4 branches missed.">                    if (null == id || displayName.equalsIgnoreCase(&quot;&quot;)) {</span>
+<span class="nc" id="L160">                        logger.warn(&quot;Found a module-like JAR on the class path with no id or display name. Skipping&quot;);</span>
+<span class="nc" id="L161">                        logger.warn(&quot;{}&quot;, url);</span>
+                        continue;
+                    }
+
+<span class="nc" id="L165">                    logger.info(&quot;Loading module {} from class path at {}&quot;, displayName, url.getFile());</span>
+
+                    // the url contains a protocol, and points to the module.txt
+                    // we need to trim both of those away to get the module's path
+<span class="nc" id="L169">                    String targetFile = url.getFile()</span>
+<span class="nc" id="L170">                            .replace(&quot;file:&quot;, &quot;&quot;)</span>
+<span class="nc" id="L171">                            .replace(&quot;!/&quot; + TerasologyConstants.MODULE_INFO_FILENAME, &quot;&quot;)</span>
+<span class="nc" id="L172">                            .replace(&quot;/&quot; + TerasologyConstants.MODULE_INFO_FILENAME, &quot;&quot;);</span>
+
+                    // Windows specific check - Path doesn't like /C:/... style Strings indicating files
+<span class="nc bnc" id="L175" title="All 2 branches missed.">                    if (targetFile.matches(&quot;/[a-zA-Z]:.*&quot;)) {</span>
+<span class="nc" id="L176">                        targetFile = targetFile.substring(1);</span>
+                    }
+
+<span class="nc" id="L179">                    Path path = Paths.get(targetFile);</span>
+
+<span class="nc" id="L181">                    Module module = loader.load(path);</span>
+<span class="nc" id="L182">                    registry.add(module);</span>
+<span class="nc" id="L183">                } catch (IOException e) {</span>
+<span class="nc" id="L184">                    logger.warn(&quot;Failed to load module.txt for classpath module {}&quot;, url);</span>
+<span class="nc" id="L185">                }</span>
+<span class="nc" id="L186">            }</span>
+        }
+<span class="fc" id="L188">    }</span>
+
+    private void setupSandbox() {
+<span class="fc" id="L191">        ExternalApiWhitelist.CLASSES.stream().forEach(clazz -&gt;</span>
+<span class="fc" id="L192">                permissionProviderFactory.getBasePermissionSet().addAPIClass(clazz));</span>
+<span class="fc" id="L193">        ExternalApiWhitelist.PACKAGES.stream().forEach(packagee -&gt;</span>
+<span class="fc" id="L194">                permissionProviderFactory.getBasePermissionSet().addAPIPackage(packagee));</span>
+
+<span class="fc" id="L196">        APIScanner apiScanner = new APIScanner(permissionProviderFactory);</span>
+<span class="fc" id="L197">        registry.stream().filter(Module::isOnClasspath).forEach(apiScanner::scan);</span>
+
+<span class="fc" id="L199">        permissionProviderFactory.getBasePermissionSet().grantPermission(&quot;com.google.gson&quot;, ReflectPermission.class);</span>
+<span class="fc" id="L200">        permissionProviderFactory.getBasePermissionSet().grantPermission(&quot;com.google.gson.internal&quot;, ReflectPermission.class);</span>
+
+<span class="fc" id="L202">        Policy.setPolicy(new ModuleSecurityPolicy());</span>
+<span class="fc" id="L203">        System.setSecurityManager(new ModuleSecurityManager());</span>
+<span class="fc" id="L204">    }</span>
+
+    @Override
+    public ModuleRegistry getRegistry() {
+<span class="fc" id="L208">        return registry;</span>
+    }
+
+    @Override
+    public ModuleInstallManager getInstallManager() {
+<span class="nc" id="L213">        return installManager;</span>
+    }
+
+    @Override
+    public ModuleEnvironment getEnvironment() {
+<span class="fc" id="L218">        return environment;</span>
+    }
+
+    @Override
+    public ModuleEnvironment loadEnvironment(Set&lt;Module&gt; modules, boolean asPrimary) {
+<span class="fc" id="L223">        Set&lt;Module&gt; finalModules = Sets.newLinkedHashSet(modules);</span>
+<span class="fc" id="L224">        finalModules.addAll(registry.stream().filter(Module::isOnClasspath).collect(Collectors.toList()));</span>
+        ModuleEnvironment newEnvironment;
+<span class="fc" id="L226">        boolean permissiveSecurityEnabled = Boolean.parseBoolean(System.getProperty(SystemConfig.PERMISSIVE_SECURITY_ENABLED_PROPERTY));</span>
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">        if (permissiveSecurityEnabled) {</span>
+<span class="nc" id="L228">            newEnvironment = new ModuleEnvironment(finalModules, wrappingPermissionProviderFactory, Collections.&lt;BytecodeInjector&gt;emptyList());</span>
+        } else {
+<span class="fc" id="L230">            newEnvironment = new ModuleEnvironment(finalModules, permissionProviderFactory, Collections.&lt;BytecodeInjector&gt;emptyList());</span>
+        }
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">        if (asPrimary) {</span>
+<span class="fc" id="L233">            environment = newEnvironment;</span>
+        }
+<span class="fc" id="L235">        return newEnvironment;</span>
+    }
+
+    @Override
+    public ModuleMetadataJsonAdapter getModuleMetadataReader() {
+<span class="nc" id="L240">        return metadataReader;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

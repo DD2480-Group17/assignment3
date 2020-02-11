@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetworkOwnershipTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.network.internal</a> &gt; <span class="el_source">NetworkOwnershipTest.java</span></div><h1>NetworkOwnershipTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.network.internal;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.engine.EngineTime;
+import org.terasology.engine.bootstrap.EntitySystemSetupUtil;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.entity.internal.PojoEntityManager;
+import org.terasology.entitySystem.metadata.EventLibrary;
+import org.terasology.network.NetworkComponent;
+import org.terasology.network.NetworkSystem;
+import org.terasology.testUtil.ModuleManagerFactory;
+import org.terasology.world.BlockEntityRegistry;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ */
+<span class="fc" id="L45">public class NetworkOwnershipTest extends TerasologyTestingEnvironment {</span>
+
+    private static EngineEntityManager entityManager;
+    private NetworkSystemImpl networkSystem;
+    private NetClient client;
+    private EntityRef clientEntity;
+
+
+    @BeforeEach
+    public void setup() throws Exception {
+<span class="fc" id="L55">        super.setup();</span>
+<span class="fc" id="L56">        ModuleManager moduleManager = ModuleManagerFactory.create();</span>
+<span class="fc" id="L57">        context.put(ModuleManager.class, moduleManager);</span>
+<span class="fc" id="L58">        EngineTime mockTime = mock(EngineTime.class);</span>
+<span class="fc" id="L59">        networkSystem = new NetworkSystemImpl(mockTime, context);</span>
+<span class="fc" id="L60">        networkSystem.setContext(context);</span>
+<span class="fc" id="L61">        context.put(NetworkSystem.class, networkSystem);</span>
+
+<span class="fc" id="L63">        EntitySystemSetupUtil.addReflectionBasedLibraries(context);</span>
+<span class="fc" id="L64">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="fc" id="L65">        entityManager = (PojoEntityManager) context.get(EntityManager.class);</span>
+<span class="fc" id="L66">        context.put(ComponentSystemManager.class, new ComponentSystemManager(context));</span>
+<span class="fc" id="L67">        entityManager.clear();</span>
+<span class="fc" id="L68">        client = mock(NetClient.class);</span>
+<span class="fc" id="L69">        NetworkComponent clientNetComp = new NetworkComponent();</span>
+<span class="fc" id="L70">        clientNetComp.replicateMode = NetworkComponent.ReplicateMode.OWNER;</span>
+<span class="fc" id="L71">        clientEntity = entityManager.create(clientNetComp);</span>
+<span class="fc" id="L72">        when(client.getEntity()).thenReturn(clientEntity);</span>
+<span class="fc" id="L73">        when(client.getId()).thenReturn(&quot;dummyID&quot;);</span>
+<span class="fc" id="L74">        networkSystem.mockHost();</span>
+<span class="fc" id="L75">        networkSystem.connectToEntitySystem(entityManager, context.get(EventLibrary.class), mock(BlockEntityRegistry.class));</span>
+<span class="fc" id="L76">        networkSystem.registerNetworkEntity(clientEntity);</span>
+<span class="fc" id="L77">        context.put(ServerConnectListManager.class, new ServerConnectListManager(context));</span>
+<span class="fc" id="L78">    }</span>
+
+    private void connectClient() {
+<span class="fc" id="L81">        networkSystem.addClient(client);</span>
+<span class="fc" id="L82">        networkSystem.update();</span>
+<span class="fc" id="L83">        verify(client).setNetInitial(clientEntity.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L84">    }</span>
+
+    @Test
+    public void testClientSentNetInitialForNewNetworkEntity() {
+<span class="fc" id="L88">        connectClient();</span>
+<span class="fc" id="L89">        EntityRef entity = entityManager.create(new NetworkComponent());</span>
+<span class="fc" id="L90">        networkSystem.registerNetworkEntity(entity);</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        assertTrue(entity.getComponent(NetworkComponent.class).getNetworkId() != 0);</span>
+<span class="fc" id="L92">        verify(client).setNetInitial(entity.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L93">    }</span>
+
+    @Test
+    public void testClientSentNetInitialForExistingNetworkEntityOnConnect() {
+<span class="fc" id="L97">        EntityRef entity = entityManager.create(new NetworkComponent());</span>
+<span class="fc" id="L98">        networkSystem.registerNetworkEntity(entity);</span>
+<span class="fc" id="L99">        connectClient();</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        assertTrue(entity.getComponent(NetworkComponent.class).getNetworkId() != 0);</span>
+<span class="fc" id="L101">        verify(client).setNetInitial(entity.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L102">    }</span>
+
+    @Test
+    public void testClientNoInitialEntityIfNotOwnedAndReplicateToOwner() {
+<span class="fc" id="L106">        connectClient();</span>
+<span class="fc" id="L107">        NetworkComponent netComp = new NetworkComponent();</span>
+<span class="fc" id="L108">        netComp.replicateMode = NetworkComponent.ReplicateMode.OWNER;</span>
+<span class="fc" id="L109">        EntityRef entity = entityManager.create(netComp);</span>
+
+<span class="fc" id="L111">        networkSystem.registerNetworkEntity(entity);</span>
+
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">        assertTrue(entity.getComponent(NetworkComponent.class).getNetworkId() != 0);</span>
+
+<span class="fc" id="L115">        verify(client, times(0)).setNetInitial(entity.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L116">    }</span>
+
+    @Test
+    public void testClientSentInitialIfOwnedEntityRegistered() {
+<span class="fc" id="L120">        connectClient();</span>
+<span class="fc" id="L121">        EntityBuilder builder = entityManager.newBuilder();</span>
+<span class="fc" id="L122">        NetworkComponent netComp = builder.addComponent(new NetworkComponent());</span>
+<span class="fc" id="L123">        netComp.replicateMode = NetworkComponent.ReplicateMode.OWNER;</span>
+<span class="fc" id="L124">        builder.setOwner(clientEntity);</span>
+<span class="fc" id="L125">        EntityRef entity = builder.build();</span>
+
+<span class="fc" id="L127">        networkSystem.registerNetworkEntity(entity);</span>
+
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">        assertTrue(entity.getComponent(NetworkComponent.class).getNetworkId() != 0);</span>
+<span class="fc" id="L130">        verify(client).setNetInitial(entity.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L131">    }</span>
+
+    @Test
+    public void testClientSentInitialOnlyOnce() {
+<span class="fc" id="L135">        EntityBuilder builder = entityManager.newBuilder();</span>
+<span class="fc" id="L136">        NetworkComponent netComp = builder.addComponent(new NetworkComponent());</span>
+<span class="fc" id="L137">        netComp.replicateMode = NetworkComponent.ReplicateMode.OWNER;</span>
+<span class="fc" id="L138">        builder.setOwner(clientEntity);</span>
+<span class="fc" id="L139">        EntityRef entity = builder.build();</span>
+
+<span class="fc" id="L141">        networkSystem.registerNetworkEntity(entity);</span>
+<span class="fc" id="L142">        connectClient();</span>
+<span class="fc" id="L143">        networkSystem.updateOwnership(entity);</span>
+
+<span class="fc" id="L145">        verify(client, times(1)).setNetInitial(entity.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L146">    }</span>
+
+    @Test
+    public void testClientSentInitialForOwnershipChain() {
+<span class="fc" id="L150">        NetworkComponent netCompA = new NetworkComponent();</span>
+<span class="fc" id="L151">        netCompA.replicateMode = NetworkComponent.ReplicateMode.OWNER;</span>
+<span class="fc" id="L152">        EntityRef entityA = entityManager.create(netCompA);</span>
+
+<span class="fc" id="L154">        EntityBuilder builder = entityManager.newBuilder();</span>
+<span class="fc" id="L155">        NetworkComponent netCompB = builder.addComponent(new NetworkComponent());</span>
+<span class="fc" id="L156">        netCompB.replicateMode = NetworkComponent.ReplicateMode.OWNER;</span>
+<span class="fc" id="L157">        builder.setOwner(entityA);</span>
+<span class="fc" id="L158">        EntityRef entityB = builder.build();</span>
+
+<span class="fc" id="L160">        networkSystem.registerNetworkEntity(entityA);</span>
+<span class="fc" id="L161">        networkSystem.registerNetworkEntity(entityB);</span>
+<span class="fc" id="L162">        connectClient();</span>
+<span class="fc" id="L163">        verify(client, times(0)).setNetInitial(entityA.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L164">        verify(client, times(0)).setNetInitial(entityB.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L165">        entityA.setOwner(clientEntity);</span>
+<span class="fc" id="L166">        networkSystem.updateOwnership(entityA);</span>
+
+<span class="fc" id="L168">        verify(client, times(1)).setNetInitial(entityA.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L169">        verify(client, times(1)).setNetInitial(entityB.getComponent(NetworkComponent.class).getNetworkId());</span>
+<span class="fc" id="L170">    }</span>
+
+    @Test
+    public void testClientSendInitialForRelevantOwnedItems() {
+<span class="fc" id="L174">        EntityBuilder builder = entityManager.newBuilder();</span>
+<span class="fc" id="L175">        NetworkComponent netCompA = builder.addComponent(new NetworkComponent());</span>
+<span class="fc" id="L176">        netCompA.replicateMode = NetworkComponent.ReplicateMode.RELEVANT;</span>
+<span class="fc" id="L177">        builder.setOwner(clientEntity);</span>
+<span class="fc" id="L178">        EntityRef entityA = builder.build();</span>
+
+<span class="fc" id="L180">        networkSystem.registerNetworkEntity(entityA);</span>
+<span class="fc" id="L181">        connectClient();</span>
+<span class="fc" id="L182">        verify(client, times(1)).setNetInitial(entityA.getComponent(NetworkComponent.class).getNetworkId());</span>
+
+<span class="fc" id="L184">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

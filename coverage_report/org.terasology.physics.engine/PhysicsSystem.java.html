@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhysicsSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.physics.engine</a> &gt; <span class="el_source">PhysicsSystem.java</span></div><h1>PhysicsSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.physics.engine;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeDeactivateComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnChangedComponent;
+import org.terasology.entitySystem.event.EventPriority;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.location.LocationResynchEvent;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.network.NetworkComponent;
+import org.terasology.network.NetworkSystem;
+import org.terasology.physics.CollisionGroup;
+import org.terasology.physics.HitResult;
+import org.terasology.physics.StandardCollisionGroup;
+import org.terasology.physics.components.RigidBodyComponent;
+import org.terasology.physics.components.TriggerComponent;
+import org.terasology.physics.events.ChangeVelocityEvent;
+import org.terasology.physics.events.CollideEvent;
+import org.terasology.physics.events.ForceEvent;
+import org.terasology.physics.events.ImpulseEvent;
+import org.terasology.physics.events.PhysicsResynchEvent;
+import org.terasology.physics.events.ImpactEvent;
+import org.terasology.physics.events.EntityImpactEvent;
+import org.terasology.physics.events.BlockImpactEvent;
+import org.terasology.registry.In;
+import org.terasology.world.OnChangedBlock;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockComponent;
+
+import com.google.common.collect.Lists;
+
+import java.util.Iterator;
+import java.util.List;
+
+/**
+ * The PhysicsSystem is a bridging class between the event system and the
+ * physics engine. It translates events into changes to the physics engine and
+ * translates output of the physics engine into events. It also calls the update
+ * method of the PhysicsEngine every frame.
+ *
+ */
+@RegisterSystem
+<span class="nc" id="L71">public class PhysicsSystem extends BaseComponentSystem implements UpdateSubscriberSystem {</span>
+
+<span class="nc" id="L73">    private static final Logger logger = LoggerFactory.getLogger(PhysicsSystem.class);</span>
+    private static final long TIME_BETWEEN_NETSYNCS = 500;
+<span class="nc" id="L75">    private static final CollisionGroup[] DEFAULT_COLLISION_GROUP = {StandardCollisionGroup.WORLD, StandardCollisionGroup.CHARACTER, StandardCollisionGroup.DEFAULT};</span>
+    private static final float COLLISION_DAMPENING_MULTIPLIER = 0.5f;
+    @In
+    private Time time;
+    @In
+    private NetworkSystem networkSystem;
+    @In
+    private EntityManager entityManager;
+    @In
+    private PhysicsEngine physics;
+    @In
+    private WorldProvider worldProvider;
+
+    private long lastNetsync;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L92">        lastNetsync = 0;</span>
+<span class="nc" id="L93">    }</span>
+
+    @ReceiveEvent(components = {RigidBodyComponent.class, LocationComponent.class}, priority = EventPriority.PRIORITY_NORMAL)
+    public void newRigidBody(OnActivatedComponent event, EntityRef entity) {
+        //getter also creates the rigid body
+<span class="nc" id="L98">        physics.getRigidBody(entity);</span>
+<span class="nc" id="L99">    }</span>
+
+    @ReceiveEvent(components = {TriggerComponent.class, LocationComponent.class})
+    //update also creates the trigger
+    public void newTrigger(OnActivatedComponent event, EntityRef entity) {
+<span class="nc" id="L104">        physics.updateTrigger(entity);</span>
+<span class="nc" id="L105">    }</span>
+
+    @ReceiveEvent(components = {RigidBodyComponent.class})
+    public void onImpulse(ImpulseEvent event, EntityRef entity) {
+<span class="nc" id="L109">        physics.getRigidBody(entity).applyImpulse(event.getImpulse());</span>
+<span class="nc" id="L110">    }</span>
+
+    @ReceiveEvent(components = {RigidBodyComponent.class})
+    public void onForce(ForceEvent event, EntityRef entity) {
+<span class="nc" id="L114">        physics.getRigidBody(entity).applyForce(event.getForce());</span>
+<span class="nc" id="L115">    }</span>
+
+    @ReceiveEvent(components = {RigidBodyComponent.class})
+    public void onChangeVelocity(ChangeVelocityEvent event, EntityRef entity) {
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (event.getAngularVelocity() != null) {</span>
+<span class="nc" id="L120">            physics.getRigidBody(entity).setAngularVelocity(event.getAngularVelocity());</span>
+        }
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        if (event.getLinearVelocity() != null) {</span>
+<span class="nc" id="L123">            physics.getRigidBody(entity).setLinearVelocity(event.getLinearVelocity());</span>
+        }
+<span class="nc" id="L125">    }</span>
+
+    @ReceiveEvent(components = {RigidBodyComponent.class, LocationComponent.class})
+    public void removeRigidBody(BeforeDeactivateComponent event, EntityRef entity) {
+<span class="nc" id="L129">        physics.removeRigidBody(entity);</span>
+<span class="nc" id="L130">    }</span>
+
+    @ReceiveEvent(components = {TriggerComponent.class, LocationComponent.class})
+    public void removeTrigger(BeforeDeactivateComponent event, EntityRef entity) {
+<span class="nc" id="L134">        physics.removeTrigger(entity);</span>
+<span class="nc" id="L135">    }</span>
+
+    @ReceiveEvent(components = {TriggerComponent.class, LocationComponent.class})
+    public void updateTrigger(OnChangedComponent event, EntityRef entity) {
+<span class="nc" id="L139">        physics.updateTrigger(entity);</span>
+<span class="nc" id="L140">    }</span>
+
+    @ReceiveEvent(components = {RigidBodyComponent.class, LocationComponent.class})
+    public void updateRigidBody(OnChangedComponent event, EntityRef entity) {
+<span class="nc" id="L144">        physics.updateRigidBody(entity);</span>
+<span class="nc" id="L145">    }</span>
+
+    @ReceiveEvent(components = {BlockComponent.class})
+    public void onBlockAltered(OnChangedBlock event, EntityRef entity) {
+<span class="nc" id="L149">        physics.awakenArea(event.getBlockPosition().toVector3f(), 0.6f);</span>
+<span class="nc" id="L150">    }</span>
+
+    @ReceiveEvent
+    public void onItemImpact(ImpactEvent event, EntityRef entity) {
+<span class="nc" id="L154">        RigidBody rigidBody = physics.getRigidBody(entity);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (rigidBody != null) {</span>
+<span class="nc" id="L156">            Vector3f vImpactNormal = new Vector3f(event.getImpactNormal());</span>
+<span class="nc" id="L157">            Vector3f vImpactPoint = new Vector3f(event.getImpactPoint());</span>
+<span class="nc" id="L158">            Vector3f vImpactSpeed = new Vector3f(event.getImpactSpeed());</span>
+
+<span class="nc" id="L160">            float speedFactor = vImpactSpeed.length();</span>
+<span class="nc" id="L161">            vImpactNormal.normalize();</span>
+<span class="nc" id="L162">            vImpactSpeed.normalize();</span>
+
+<span class="nc" id="L164">            float dotImpactNormal = vImpactSpeed.dot(vImpactNormal);</span>
+
+<span class="nc" id="L166">            Vector3f impactResult = vImpactNormal.mul(dotImpactNormal);</span>
+<span class="nc" id="L167">            impactResult = vImpactSpeed.sub(impactResult.mul(2.0f));</span>
+<span class="nc" id="L168">            impactResult.normalize();</span>
+
+<span class="nc" id="L170">            Vector3f vNewLocationVector = (new Vector3f(impactResult)).mul(event.getTravelDistance());</span>
+<span class="nc" id="L171">            Vector3f vNewPosition = (new Vector3f(vImpactPoint)).add(vNewLocationVector);</span>
+<span class="nc" id="L172">            Vector3f vNewVelocity = (new Vector3f(impactResult)).mul(speedFactor * COLLISION_DAMPENING_MULTIPLIER);</span>
+
+<span class="nc" id="L174">            rigidBody.setLocation(vNewPosition);</span>
+<span class="nc" id="L175">            rigidBody.setLinearVelocity(vNewVelocity);</span>
+<span class="nc" id="L176">            rigidBody.setAngularVelocity(vNewVelocity);</span>
+        }
+<span class="nc" id="L178">    }</span>
+
+    @Override
+    public void update(float delta) {
+
+<span class="nc" id="L183">        PerformanceMonitor.startActivity(&quot;Physics Renderer&quot;);</span>
+<span class="nc" id="L184">        physics.update(time.getGameDelta());</span>
+<span class="nc" id="L185">        PerformanceMonitor.endActivity();</span>
+
+        //Update the velocity from physics engine bodies to Components:
+<span class="nc" id="L188">        Iterator&lt;EntityRef&gt; iter = physics.physicsEntitiesIterator();</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        while (iter.hasNext()) {</span>
+<span class="nc" id="L190">            EntityRef entity = iter.next();</span>
+<span class="nc" id="L191">            RigidBodyComponent comp = entity.getComponent(RigidBodyComponent.class);</span>
+<span class="nc" id="L192">            RigidBody body = physics.getRigidBody(entity);</span>
+
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            if (body.isActive()) {</span>
+<span class="nc" id="L195">                body.getLinearVelocity(comp.velocity);</span>
+<span class="nc" id="L196">                body.getAngularVelocity(comp.angularVelocity);</span>
+
+<span class="nc" id="L198">                Vector3f vLocation = Vector3f.zero();</span>
+<span class="nc" id="L199">                body.getLocation(vLocation);</span>
+
+<span class="nc" id="L201">                Vector3f vDirection = new Vector3f(comp.velocity);</span>
+<span class="nc" id="L202">                float fDistanceThisFrame = vDirection.length();</span>
+<span class="nc" id="L203">                vDirection.normalize();</span>
+
+<span class="nc" id="L205">                fDistanceThisFrame = fDistanceThisFrame * delta;</span>
+
+                while (true) {
+<span class="nc" id="L208">                    HitResult hitInfo = physics.rayTrace(vLocation, vDirection, fDistanceThisFrame + 0.5f, DEFAULT_COLLISION_GROUP);</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">                    if (hitInfo.isHit()) {</span>
+<span class="nc" id="L210">                        Block hitBlock = worldProvider.getBlock(hitInfo.getBlockPosition());</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                        if (hitBlock != null) {</span>
+<span class="nc" id="L212">                            Vector3f vTravelledDistance = vLocation.sub(hitInfo.getHitPoint());</span>
+<span class="nc" id="L213">                            float fTravelledDistance  = vTravelledDistance.length();</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                            if (fTravelledDistance &gt; fDistanceThisFrame) {</span>
+<span class="nc" id="L215">                                break;</span>
+                            }
+<span class="nc bnc" id="L217" title="All 2 branches missed.">                            if (hitBlock.isPenetrable()) {</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">                                if (!hitInfo.getEntity().hasComponent(BlockComponent.class)) {</span>
+<span class="nc" id="L219">                                    entity.send(new EntityImpactEvent(hitInfo.getHitPoint(), hitInfo.getHitNormal(), comp.velocity, fDistanceThisFrame, hitInfo.getEntity()));</span>
+<span class="nc" id="L220">                                    break;</span>
+                                }
+<span class="nc" id="L222">                                fDistanceThisFrame = fDistanceThisFrame - fTravelledDistance; // decrease the remaining distance to check if we hit a block</span>
+<span class="nc" id="L223">                                vLocation = hitInfo.getHitPoint();</span>
+                            } else {
+<span class="nc" id="L225">                                entity.send(new BlockImpactEvent(hitInfo.getHitPoint(), hitInfo.getHitNormal(), comp.velocity, fDistanceThisFrame, hitInfo.getEntity()));</span>
+<span class="nc" id="L226">                                break;</span>
+                            }
+                        } else {
+                            break;
+                        }
+                    } else  {
+                        break;
+                    }
+<span class="nc" id="L234">                }</span>
+            }
+<span class="nc" id="L236">        }</span>
+
+<span class="nc bnc" id="L238" title="All 4 branches missed.">        if (networkSystem.getMode().isServer() &amp;&amp; time.getGameTimeInMs() - TIME_BETWEEN_NETSYNCS &gt; lastNetsync) {</span>
+<span class="nc" id="L239">            sendSyncMessages();</span>
+<span class="nc" id="L240">            lastNetsync = time.getGameTimeInMs();</span>
+        }
+
+<span class="nc" id="L243">        List&lt;CollisionPair&gt; collisionPairs = physics.getCollisionPairs();</span>
+
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        for (CollisionPair pair : collisionPairs) {</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">            if (pair.b.exists()) {</span>
+<span class="nc" id="L247">                short bCollisionGroup = getCollisionGroupFlag(pair.b);</span>
+<span class="nc" id="L248">                short aCollidesWith = getCollidesWithGroupFlag(pair.a);</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">                if ((bCollisionGroup &amp; aCollidesWith) != 0</span>
+<span class="nc bnc" id="L250" title="All 4 branches missed.">                        || (pair.b.hasComponent(BlockComponent.class) &amp;&amp; !pair.a.hasComponent(BlockComponent.class))) {</span>
+<span class="nc" id="L251">                    pair.a.send(new CollideEvent(pair.b, pair.pointA, pair.pointB, pair.distance, pair.normal));</span>
+                }
+            }
+<span class="nc bnc" id="L254" title="All 2 branches missed.">            if (pair.a.exists()) {</span>
+<span class="nc" id="L255">                short aCollisionGroup = getCollisionGroupFlag(pair.a);</span>
+<span class="nc" id="L256">                short bCollidesWith = getCollidesWithGroupFlag(pair.b);</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">                if ((aCollisionGroup &amp; bCollidesWith) != 0</span>
+<span class="nc bnc" id="L258" title="All 4 branches missed.">                        || (pair.a.hasComponent(BlockComponent.class) &amp;&amp; !pair.b.hasComponent(BlockComponent.class))) {</span>
+<span class="nc" id="L259">                    pair.b.send(new CollideEvent(pair.a, pair.pointB, pair.pointA, pair.distance, new Vector3f(pair.normal).invert()));</span>
+                }
+            }
+<span class="nc" id="L262">        }</span>
+<span class="nc" id="L263">    }</span>
+
+    private short getCollisionGroupFlag(EntityRef entity) {
+<span class="nc" id="L266">        CollisionGroup collisionGroup = StandardCollisionGroup.NONE;</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">        if (entity.hasComponent(TriggerComponent.class)) {</span>
+<span class="nc" id="L268">            TriggerComponent entityTrigger = entity.getComponent(TriggerComponent.class);</span>
+<span class="nc" id="L269">            collisionGroup = entityTrigger.collisionGroup;</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">        } else if (entity.hasComponent(RigidBodyComponent.class)) {</span>
+<span class="nc" id="L271">            RigidBodyComponent entityRigidBody = entity.getComponent(RigidBodyComponent.class);</span>
+<span class="nc" id="L272">            collisionGroup = entityRigidBody.collisionGroup;</span>
+        }
+<span class="nc" id="L274">        return collisionGroup.getFlag();</span>
+    }
+
+    private short getCollidesWithGroupFlag(EntityRef entity) {
+<span class="nc" id="L278">        List&lt;CollisionGroup&gt; collidesWithGroup = Lists.&lt;CollisionGroup&gt;newArrayList(StandardCollisionGroup.NONE);</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">        if (entity.hasComponent(TriggerComponent.class)) {</span>
+<span class="nc" id="L280">            TriggerComponent entityTrigger = entity.getComponent(TriggerComponent.class);</span>
+<span class="nc" id="L281">            collidesWithGroup = entityTrigger.detectGroups;</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">        } else if (entity.hasComponent(RigidBodyComponent.class)) {</span>
+<span class="nc" id="L283">            RigidBodyComponent entityRigidBody = entity.getComponent(RigidBodyComponent.class);</span>
+<span class="nc" id="L284">            collidesWithGroup = entityRigidBody.collidesWith;</span>
+        }
+<span class="nc" id="L286">        short flag = 0;</span>
+<span class="nc" id="L287">        Iterator&lt;CollisionGroup&gt; iter = collidesWithGroup.iterator();</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">        while (iter.hasNext()) {</span>
+<span class="nc" id="L289">            CollisionGroup group = iter.next();</span>
+<span class="nc" id="L290">            flag |= group.getFlag();</span>
+<span class="nc" id="L291">        }</span>
+<span class="nc" id="L292">        return flag;</span>
+    }
+
+    private void sendSyncMessages() {
+<span class="nc" id="L296">        Iterator&lt;EntityRef&gt; iter = physics.physicsEntitiesIterator();</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        while (iter.hasNext()) {</span>
+<span class="nc" id="L298">            EntityRef entity = iter.next();</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">            if (entity.hasComponent(NetworkComponent.class)) {</span>
+                //TODO after implementing rigidbody interface
+<span class="nc" id="L301">                RigidBody body = physics.getRigidBody(entity);</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">                if (body.isActive()) {</span>
+<span class="nc" id="L303">                    entity.send(new LocationResynchEvent(body.getLocation(new Vector3f()), body.getOrientation(new Quat4f())));</span>
+<span class="nc" id="L304">                    entity.send(new PhysicsResynchEvent(body.getLinearVelocity(new Vector3f()), body.getAngularVelocity(new Vector3f())));</span>
+                }
+            }
+<span class="nc" id="L307">        }</span>
+<span class="nc" id="L308">    }</span>
+
+    @ReceiveEvent(components = {RigidBodyComponent.class, LocationComponent.class}, netFilter = RegisterMode.REMOTE_CLIENT)
+    public void resynchPhysics(PhysicsResynchEvent event, EntityRef entity) {
+<span class="nc" id="L312">        logger.debug(&quot;Received resynch event&quot;);</span>
+<span class="nc" id="L313">        RigidBody body = physics.getRigidBody(entity);</span>
+<span class="nc" id="L314">        body.setVelocity(event.getVelocity(), event.getAngularVelocity());</span>
+<span class="nc" id="L315">    }</span>
+
+    @ReceiveEvent(components = {RigidBodyComponent.class, LocationComponent.class}, netFilter = RegisterMode.REMOTE_CLIENT)
+    public void resynchLocation(LocationResynchEvent event, EntityRef entity) {
+<span class="nc" id="L319">        logger.debug(&quot;Received location resynch event&quot;);</span>
+<span class="nc" id="L320">        RigidBody body = physics.getRigidBody(entity);</span>
+<span class="nc" id="L321">        body.setTransform(event.getPosition(), event.getRotation());</span>
+<span class="nc" id="L322">    }</span>
+
+    public static class CollisionPair {
+
+        EntityRef a;
+        EntityRef b;
+        Vector3f pointA;
+        Vector3f pointB;
+        float distance;
+        Vector3f normal;
+
+
+<span class="nc" id="L334">        public CollisionPair(EntityRef a, EntityRef b, Vector3f pointA, Vector3f pointb, float distance, Vector3f normal) {</span>
+<span class="nc" id="L335">            this.a = a;</span>
+<span class="nc" id="L336">            this.b = b;</span>
+<span class="nc" id="L337">            this.pointA = pointA;</span>
+<span class="nc" id="L338">            this.pointB = pointb;</span>
+<span class="nc" id="L339">            this.distance = distance;</span>
+<span class="nc" id="L340">            this.normal = normal;</span>
+<span class="nc" id="L341">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

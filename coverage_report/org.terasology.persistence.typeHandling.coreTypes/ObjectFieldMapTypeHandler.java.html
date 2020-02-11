@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectFieldMapTypeHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.coreTypes</a> &gt; <span class="el_source">ObjectFieldMapTypeHandler.java</span></div><h1>ObjectFieldMapTypeHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.coreTypes;
+
+import com.google.common.base.Defaults;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.PersistedDataSerializer;
+import org.terasology.persistence.typeHandling.TypeHandler;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.annotations.SerializedName;
+import org.terasology.reflection.reflect.ObjectConstructor;
+
+import java.lang.reflect.Field;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+
+/**
+ * Serializes objects as a fieldName -&gt; fieldValue map. It is used as the last resort while serializing an
+ * object through a {@link TypeHandlerLibrary}.
+ */
+public class ObjectFieldMapTypeHandler&lt;T&gt; extends TypeHandler&lt;T&gt; {
+
+<span class="fc" id="L40">    private static final Logger logger = LoggerFactory.getLogger(ObjectFieldMapTypeHandler.class);</span>
+
+<span class="fc" id="L42">    private Map&lt;String, Field&gt; fieldByName = Maps.newHashMap();</span>
+    private Map&lt;Field, TypeHandler&lt;?&gt;&gt; mappedFields;
+    private ObjectConstructor&lt;T&gt; constructor;
+
+<span class="fc" id="L46">    public ObjectFieldMapTypeHandler(ObjectConstructor&lt;T&gt; constructor, Map&lt;Field, TypeHandler&lt;?&gt;&gt; fieldTypeHandlers) {</span>
+<span class="fc" id="L47">        this.constructor = constructor;</span>
+<span class="fc" id="L48">        this.mappedFields = fieldTypeHandlers;</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        for (Field field : fieldTypeHandlers.keySet()) {</span>
+<span class="fc" id="L50">            this.fieldByName.put(getFieldName(field), field);</span>
+<span class="fc" id="L51">        }</span>
+<span class="fc" id="L52">    }</span>
+
+    @Override
+    public PersistedData serializeNonNull(T value, PersistedDataSerializer serializer) {
+<span class="fc" id="L56">        Map&lt;String, PersistedData&gt; mappedData = Maps.newLinkedHashMap();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        for (Map.Entry&lt;Field, TypeHandler&lt;?&gt;&gt; entry : mappedFields.entrySet()) {</span>
+<span class="fc" id="L58">            Field field = entry.getKey();</span>
+
+            Object val;
+
+            try {
+<span class="fc" id="L63">                val = field.get(value);</span>
+<span class="nc" id="L64">            } catch (IllegalAccessException e) {</span>
+<span class="nc" id="L65">                logger.error(&quot;Field {} is inaccessible&quot;, field);</span>
+<span class="nc" id="L66">                continue;</span>
+<span class="fc" id="L67">            }</span>
+
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">            if (!Objects.equals(val, Defaults.defaultValue(field.getType()))) {</span>
+<span class="fc" id="L70">                TypeHandler handler = entry.getValue();</span>
+<span class="fc" id="L71">                PersistedData fieldValue = handler.serialize(val, serializer);</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">                if (fieldValue != null) {</span>
+<span class="fc" id="L73">                    mappedData.put(getFieldName(field), fieldValue);</span>
+                }
+            }
+<span class="fc" id="L76">        }</span>
+<span class="fc" id="L77">        return serializer.serialize(mappedData);</span>
+    }
+
+    private String getFieldName(Field field) {
+<span class="fc" id="L81">        SerializedName serializedName = field.getAnnotation(SerializedName.class);</span>
+
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        if (serializedName == null) {</span>
+<span class="fc" id="L84">            return field.getName();</span>
+        }
+        
+<span class="fc" id="L87">        return serializedName.value();</span>
+    }
+
+    @Override
+    public Optional&lt;T&gt; deserialize(PersistedData data) {
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if (!data.isValueMap()) {</span>
+<span class="nc" id="L93">            return Optional.empty();</span>
+        }
+
+        try {
+<span class="fc" id="L97">            T result = constructor.construct();</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            for (Map.Entry&lt;String, PersistedData&gt; entry : data.getAsValueMap().entrySet()) {</span>
+<span class="fc" id="L99">                String fieldName = entry.getKey();</span>
+<span class="fc" id="L100">                Field field = fieldByName.get(fieldName);</span>
+
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">                if (field == null) {</span>
+<span class="nc" id="L103">                    logger.error(&quot;Cound not find field with name {}&quot;, fieldName);</span>
+<span class="nc" id="L104">                    continue;</span>
+                }
+
+<span class="fc" id="L107">                TypeHandler handler = mappedFields.get(field);</span>
+<span class="fc" id="L108">                Optional&lt;?&gt; fieldValue = handler.deserialize(entry.getValue());</span>
+
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">                if (fieldValue.isPresent()) {</span>
+<span class="fc" id="L111">                    field.set(result, fieldValue.get());</span>
+                } else {
+<span class="nc" id="L113">                    logger.error(&quot;Could not deserialize field {}&quot;, field.getName());</span>
+                }
+<span class="fc" id="L115">            }</span>
+<span class="fc" id="L116">            return Optional.ofNullable(result);</span>
+<span class="nc" id="L117">        } catch (Exception e) {</span>
+<span class="nc" id="L118">            logger.error(&quot;Unable to deserialize {}&quot;, data, e);</span>
+        }
+<span class="nc" id="L120">        return Optional.empty();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

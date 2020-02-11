@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIButton.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIButton.java</span></div><h1>UIButton.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.terasology.audio.StaticSound;
+import org.terasology.input.MouseInput;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.ActivatableWidget;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.TabbingManager;
+import org.terasology.rendering.nui.TextLineBuilder;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
+import org.terasology.utilities.Assets;
+
+import java.util.List;
+
+/**
+ * A widget displaying a clickable button, containing text and an optional image
+ */
+public class UIButton extends ActivatableWidget {
+    public static final String DOWN_MODE = &quot;down&quot;;
+
+    /**
+     * The {@link Binding} containing the {@link TextureRegion} corresponding to the image shown on this button
+     */
+<span class="nc" id="L47">    @LayoutConfig</span>
+    private Binding&lt;TextureRegion&gt; image = new DefaultBinding&lt;&gt;();
+
+    /**
+     * The {@code Binding} containing the text to be shown on this button
+     */
+<span class="nc" id="L53">    @LayoutConfig</span>
+    private Binding&lt;String&gt; text = new DefaultBinding&lt;&gt;(&quot;&quot;);
+
+    /**
+     * The {@code Binding} containing the {@link StaticSound} to be played when this button is clicked
+     */
+<span class="nc" id="L59">    @LayoutConfig</span>
+<span class="nc" id="L60">    private Binding&lt;StaticSound&gt; clickSound = new DefaultBinding&lt;&gt;(Assets.getSound(&quot;engine:click&quot;).get());</span>
+
+    /**
+     * The {@code Binding} containing the float representing the volume of the click sound, 1.0 by default
+     */
+<span class="nc" id="L65">    @LayoutConfig</span>
+<span class="nc" id="L66">    private Binding&lt;Float&gt; clickVolume = new DefaultBinding&lt;&gt;(1.0f);</span>
+
+    /**
+     * Whether the button is currently being pressed
+     */
+    private boolean down;
+
+    /**
+     * An {@link InteractionListener} that listens for mouse interaction with this button
+     */
+<span class="nc" id="L76">    private InteractionListener interactionListener = new BaseInteractionListener() {</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+<span class="nc" id="L81">                down = true;</span>
+<span class="nc" id="L82">                return true;</span>
+            }
+<span class="nc" id="L84">            return false;</span>
+        }
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                if (isMouseOver()) {</span>
+<span class="nc" id="L91">                    activateWidget();</span>
+                }
+<span class="nc" id="L93">                down = false;</span>
+            }
+<span class="nc" id="L95">        }</span>
+    };
+
+    /**
+     * The {@code Binding} containing the boolean representing of active status, false by default.
+     */
+<span class="nc" id="L101">    private Binding&lt;Boolean&gt; active = new DefaultBinding&lt;&gt;(false);</span>
+
+    /**
+     * Creates an empty {@code UIButton}.
+     */
+<span class="nc" id="L106">    public UIButton() {</span>
+<span class="nc" id="L107">    }</span>
+
+    /**
+     * Creates an empty {@code UIButton} with the given id.
+     *
+     * @param id The id assigned to this {@code UIButton}
+     */
+    public UIButton(String id) {
+<span class="nc" id="L115">        super(id);</span>
+<span class="nc" id="L116">    }</span>
+
+    /**
+     * Creates a {@code UIButton} with the given id, containing the given text.
+     *
+     * @param id The id assigned to this {@code UIButton}
+     * @param text The text shown on this {@code UIButton}
+     */
+    public UIButton(String id, String text) {
+<span class="nc" id="L125">        super(id);</span>
+<span class="nc" id="L126">        this.text.set(text);</span>
+<span class="nc" id="L127">    }</span>
+
+    /**
+     * Creates a {@code UIButton} with the given id, containing the text in the given {@code Binding}.
+     *
+     * @param id The id assigned to this {@code UIButton}
+     * @param text The {@code Binding} containing the text shown on this {@code UIButton}
+     */
+    public UIButton(String id, Binding&lt;String&gt; text) {
+<span class="nc" id="L136">        super(id);</span>
+<span class="nc" id="L137">        this.text = text;</span>
+<span class="nc" id="L138">    }</span>
+
+    /**
+     * Handles how the {@code UIButton} is drawn.
+     * This is called every frame.
+     *
+     * @param canvas The {@link Canvas} on which this {@code UIButton} is drawn
+     */
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (image.get() != null) {</span>
+<span class="nc" id="L149">            canvas.drawTexture(image.get());</span>
+        }
+<span class="nc" id="L151">        canvas.drawText(text.get());</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (isEnabled()) {</span>
+<span class="nc" id="L153">            canvas.addInteractionRegion(interactionListener);</span>
+        }
+<span class="nc" id="L155">    }</span>
+
+    /**
+     * Retrieves the preferred content size of the {@code UIButton}.
+     * This is the minimum size this layout will take, given no space restrictions.
+     *
+     * @param canvas The {@code Canvas} on which the {@code UIButton} is drawn
+     * @param areaHint A {@link Vector2i} representing the available space for this {@code UIButton}
+     * @return A {@link Vector2i} representing the preferred content size of the {@code UIButton}
+     */
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i areaHint) {
+<span class="nc" id="L167">        Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L168">        List&lt;String&gt; lines = TextLineBuilder.getLines(font, text.get(), areaHint.getX());</span>
+<span class="nc" id="L169">        return font.getSize(lines);</span>
+    }
+
+    /**
+     * Retrieves the current mode of this {@code UIButton}.
+     * &lt;p&gt;&lt;ul&gt;
+     * &lt;li&gt; DISABLED_MODE - The {@code UIButton} is disabled
+     * &lt;li&gt; DOWN_MODE - The {@code UIButton} is being pressed or active
+     * &lt;li&gt; HOVER_MODE - The mouse is hovering over the {@code UIButton}
+     * &lt;li&gt; DEFAULT_MODE - The default mode if no other modes are applicable
+     * &lt;/ul&gt;&lt;/p&gt;
+     *
+     * @return A {@code String} representing the current mode of this {@code UIButton}
+     */
+    @Override
+    public String getMode() {
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        if (!isEnabled()) {</span>
+<span class="nc" id="L186">            return DISABLED_MODE;</span>
+<span class="nc bnc" id="L187" title="All 8 branches missed.">        } else if (down || isActive() || (TabbingManager.focusedWidget != null &amp;&amp; TabbingManager.focusedWidget.equals(this))) {</span>
+<span class="nc" id="L188">            return DOWN_MODE;</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        } else if (interactionListener.isMouseOver()) {</span>
+<span class="nc" id="L190">            return HOVER_MODE;</span>
+        }
+<span class="nc" id="L192">        return DEFAULT_MODE;</span>
+    }
+
+    @Override
+    protected void activateWidget() {
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        if (getClickSound() != null) {</span>
+<span class="nc" id="L198">            getClickSound().play(getClickVolume());</span>
+        }
+<span class="nc" id="L200">        super.activateWidget();</span>
+<span class="nc" id="L201">    }</span>
+
+    /**
+     * Binds the text to be shown on this {@code UIButton}.
+     *
+     * @param binding The {@code Binding} containing the text
+     */
+    public void bindText(Binding&lt;String&gt; binding) {
+<span class="nc" id="L209">        this.text = binding;</span>
+<span class="nc" id="L210">    }</span>
+
+    /**
+     * Retrieves the text shown on this {@code UIButton}.
+     *
+     * @return The text shown on this {@code UIButton}
+     */
+    public String getText() {
+<span class="nc" id="L218">        return text.get();</span>
+    }
+
+    /**
+     * Sets the text shown on this {@code UIButton}.
+     *
+     * @param text The text to be shown on this {@code UIButton}
+     */
+    public void setText(String text) {
+<span class="nc" id="L227">        this.text.set(text);</span>
+<span class="nc" id="L228">    }</span>
+
+    /**
+     * Binds the image shown on this {@code UIButton}.
+     *
+     * @param binding The {@code Binding} containing the {@code TextureRegion} corresponding to the image
+     */
+    public void bindImage(Binding&lt;TextureRegion&gt; binding) {
+<span class="nc" id="L236">        this.image = binding;</span>
+<span class="nc" id="L237">    }</span>
+
+    /**
+     * Sets the image shown on this {@code UIButton}.
+     *
+     * @param image The {@code TextureRegion} corresponding to the image
+     */
+    public void setImage(TextureRegion image) {
+<span class="nc" id="L245">        this.image.set(image);</span>
+<span class="nc" id="L246">    }</span>
+
+    /**
+     * Retrieves the the image shown on this {@code UIButton}.
+     *
+     * @return A {@code TextureRegion} corresponding to the image
+     */
+    public TextureRegion getImage() {
+<span class="nc" id="L254">        return image.get();</span>
+    }
+
+    /**
+     * Binds the click sound played when this {@code UIButton} is clicked.
+     *
+     * @param binding The {@code Binding} containing the {@code StaticSound} corresponding to the click sound
+     */
+    public void bindClickSound(Binding&lt;StaticSound&gt; binding) {
+<span class="nc" id="L263">        clickSound = binding;</span>
+<span class="nc" id="L264">    }</span>
+
+    /**
+     * Retrieves the click sound played when this {@code UIButton} is clicked.
+     *
+     * @return A {@code StaticSound} corresponding to the click sound
+     */
+    public StaticSound getClickSound() {
+<span class="nc" id="L272">        return clickSound.get();</span>
+    }
+
+    /**
+     * Sets the click sound played when this {@code UIButton} is clicked.
+     *
+     * @param val A {@code StaticSound} corresponding to the click sound
+     */
+    public void setClickSound(StaticSound val) {
+<span class="nc" id="L281">        clickSound.set(val);</span>
+<span class="nc" id="L282">    }</span>
+
+    /**
+     * Binds the volume of the click sound.
+     *
+     * @param binding The {@code Binding} containing the float representing the volume the click sound
+     */
+    public void bindClickVolume(Binding&lt;Float&gt; binding) {
+<span class="nc" id="L290">        clickVolume = binding;</span>
+<span class="nc" id="L291">    }</span>
+
+    /**
+     * Retrieves the volume of the click sound.
+     *
+     * @return A float representing the volume of the click sound
+     */
+    public float getClickVolume() {
+<span class="nc" id="L299">        return clickVolume.get();</span>
+    }
+
+    /**
+     * Sets the volume of the click sound.
+     *
+     * @param val The float representing the volume of the click sound
+     */
+    public void setClickVolume(float val) {
+<span class="nc" id="L308">        clickVolume.set(val);</span>
+<span class="nc" id="L309">    }</span>
+
+    /**
+     * Subscribes a listener that is called whenever this {@code UIButton} is activated.
+     *
+     * @param listener The {@link ActivateEventListener} to be subscribed
+     */
+    public void subscribe(ActivateEventListener listener) {
+<span class="nc" id="L317">        listeners.add(listener);</span>
+<span class="nc" id="L318">    }</span>
+
+    /**
+     * Unsubscribes a listener from this {@code UIButton}.
+     *
+     * @param listener The {@code ActivateEventListener}to be unsubscribed
+     */
+    public void unsubscribe(ActivateEventListener listener) {
+<span class="nc" id="L326">        listeners.remove(listener);</span>
+<span class="nc" id="L327">    }</span>
+
+    /**
+     * Sets the active status of this {@code UIButton}.
+     */
+    public void setActive(boolean val) {
+<span class="nc" id="L333">        this.active.set(val);</span>
+<span class="nc" id="L334">    }</span>
+
+    /**
+     * Returns if the button is active or not.
+     */
+    public boolean isActive() {
+<span class="nc" id="L340">        return active.get();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

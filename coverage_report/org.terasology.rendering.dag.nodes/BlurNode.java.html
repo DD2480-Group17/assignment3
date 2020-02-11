@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlurNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">BlurNode.java</span></div><h1>BlurNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.context.Context;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.dag.ConditionDependentNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetViewportToSizeOf;
+import org.terasology.rendering.opengl.FBO;
+
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+
+/**
+ * A BlurNode takes the content of the color buffer attached to the input FBO and generates
+ * a blurred version of it in the color buffer attached to the output FBO.
+ */
+public class BlurNode extends ConditionDependentNode {
+<span class="nc" id="L35">    private static final ResourceUrn BLUR_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.blur&quot;);</span>
+
+    protected float blurRadius;
+
+    private Material blurMaterial;
+
+    private FBO inputFbo;
+    private FBO outputFbo;
+
+    /**
+     * Constructs a BlurNode instance.
+     *
+     * @param inputFbo The input fbo, containing the image to be blurred.
+     * @param outputFbo The output fbo, to store the blurred image.
+     * @param blurRadius the blur radius: higher values cause higher blur. The shader's default is 16.0f.
+     */
+    public BlurNode(String nodeUri, Context context, FBO inputFbo, FBO outputFbo, float blurRadius) {
+<span class="nc" id="L52">        super(nodeUri, context);</span>
+
+<span class="nc" id="L54">        this.blurRadius = blurRadius;</span>
+
+<span class="nc" id="L56">        this.inputFbo = inputFbo;</span>
+<span class="nc" id="L57">        this.outputFbo = outputFbo;</span>
+<span class="nc" id="L58">        addDesiredStateChange(new BindFbo(outputFbo));</span>
+<span class="nc" id="L59">        addDesiredStateChange(new SetViewportToSizeOf(outputFbo));</span>
+
+<span class="nc" id="L61">        addDesiredStateChange(new EnableMaterial(BLUR_MATERIAL_URN));</span>
+<span class="nc" id="L62">        this.blurMaterial = getMaterial(BLUR_MATERIAL_URN);</span>
+<span class="nc" id="L63">    }</span>
+
+    /**
+     * Performs the blur.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L70">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+        // TODO: these shader-related operations should go in their own StateChange implementations
+<span class="nc" id="L73">        blurMaterial.setFloat(&quot;radius&quot;, blurRadius, true);</span>
+<span class="nc" id="L74">        blurMaterial.setFloat2(&quot;texelSize&quot;, 1.0f / outputFbo.width(), 1.0f / outputFbo.height(), true);</span>
+
+        // TODO: binding the color buffer of an FBO should also be done in its own StateChange implementation
+<span class="nc" id="L77">        inputFbo.bindTexture();</span>
+
+<span class="nc" id="L79">        renderFullscreenQuad();</span>
+
+<span class="nc" id="L81">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L82">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

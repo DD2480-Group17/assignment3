@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SkeletalMeshData.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.skeletalmesh</a> &gt; <span class="el_source">SkeletalMeshData.java</span></div><h1>SkeletalMeshData.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.assets.skeletalmesh;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import gnu.trove.list.TIntList;
+import gnu.trove.list.array.TIntArrayList;
+import org.terasology.assets.AssetData;
+import org.terasology.math.AABB;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+/**
+ */
+public class SkeletalMeshData implements AssetData {
+
+    private Bone rootBone;
+<span class="nc" id="L38">    private Map&lt;String, Bone&gt; boneLookup = Maps.newHashMap();</span>
+<span class="nc" id="L39">    private List&lt;Bone&gt; bones = Lists.newArrayList();</span>
+<span class="nc" id="L40">    private List&lt;Vector2f&gt; uvs = ImmutableList.of();</span>
+<span class="nc" id="L41">    private List&lt;BoneWeight&gt; weights = Lists.newArrayList();</span>
+<span class="nc" id="L42">    private TIntList vertexStartWeights = new TIntArrayList();</span>
+<span class="nc" id="L43">    private TIntList vertexWeightCounts = new TIntArrayList();</span>
+<span class="nc" id="L44">    private TIntList indices = new TIntArrayList();</span>
+    private AABB staticAABB;
+
+    public SkeletalMeshData(List&lt;Bone&gt; bones, List&lt;BoneWeight&gt; weights, List&lt;Vector2f&gt; uvs, TIntList vertexStartWeights,
+<span class="nc" id="L48">                            TIntList vertexWeightCounts, TIntList indices, AABB staticAABB) {</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        for (Bone bone : bones) {</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            if (bone.getParent() == null) {</span>
+<span class="nc" id="L51">                rootBone = bone;</span>
+<span class="nc" id="L52">                break;</span>
+            }
+<span class="nc" id="L54">        }</span>
+<span class="nc" id="L55">        this.bones.addAll(bones);</span>
+<span class="nc" id="L56">        this.weights.addAll(weights);</span>
+<span class="nc" id="L57">        this.uvs = ImmutableList.copyOf(uvs);</span>
+<span class="nc" id="L58">        this.vertexStartWeights.addAll(vertexStartWeights);</span>
+<span class="nc" id="L59">        this.vertexWeightCounts.addAll(vertexWeightCounts);</span>
+<span class="nc" id="L60">        this.indices.addAll(indices);</span>
+<span class="nc" id="L61">        this.staticAABB = staticAABB;</span>
+
+<span class="nc" id="L63">        calculateNormals();</span>
+<span class="nc" id="L64">    }</span>
+
+
+
+    public Collection&lt;Bone&gt; getBones() {
+<span class="nc" id="L69">        return bones;</span>
+    }
+
+    public Bone getRootBone() {
+<span class="nc" id="L73">        return rootBone;</span>
+    }
+
+    public List&lt;Vector3f&gt; getBindPoseVertexPositions() {
+<span class="nc" id="L77">        List&lt;Vector3f&gt; positions = Lists.newArrayListWithCapacity(bones.size());</span>
+<span class="nc" id="L78">        List&lt;Quat4f&gt; rotations = Lists.newArrayListWithCapacity(getBones().size());</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        for (Bone bone : bones) {</span>
+<span class="nc" id="L80">            positions.add(bone.getObjectPosition());</span>
+<span class="nc" id="L81">            rotations.add(bone.getObjectRotation());</span>
+<span class="nc" id="L82">        }</span>
+<span class="nc" id="L83">        return getVertexPositions(positions, rotations);</span>
+    }
+
+    public List&lt;Vector3f&gt; getBindPoseVertexNormals() {
+<span class="nc" id="L87">        List&lt;Vector3f&gt; positions = Lists.newArrayListWithCapacity(bones.size());</span>
+<span class="nc" id="L88">        List&lt;Quat4f&gt; rotations = Lists.newArrayListWithCapacity(getBones().size());</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        for (Bone bone : bones) {</span>
+<span class="nc" id="L90">            positions.add(bone.getObjectPosition());</span>
+<span class="nc" id="L91">            rotations.add(bone.getObjectRotation());</span>
+<span class="nc" id="L92">        }</span>
+<span class="nc" id="L93">        return getVertexNormals(positions, rotations);</span>
+    }
+
+    public List&lt;Vector3f&gt; getVertexPositions(List&lt;Vector3f&gt; bonePositions, List&lt;Quat4f&gt; boneRotations) {
+<span class="nc" id="L97">        List&lt;Vector3f&gt; results = Lists.newArrayListWithCapacity(getVertexCount());</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        for (int i = 0; i &lt; vertexStartWeights.size(); ++i) {</span>
+<span class="nc" id="L99">            Vector3f vertexPos = new Vector3f();</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            for (int weightIndexOffset = 0; weightIndexOffset &lt; vertexWeightCounts.get(i); ++weightIndexOffset) {</span>
+<span class="nc" id="L101">                int weightIndex = vertexStartWeights.get(i) + weightIndexOffset;</span>
+<span class="nc" id="L102">                BoneWeight weight = weights.get(weightIndex);</span>
+
+<span class="nc" id="L104">                Vector3f current = boneRotations.get(weight.getBoneIndex()).rotate(weight.getPosition(), new Vector3f());</span>
+<span class="nc" id="L105">                current.add(bonePositions.get(weight.getBoneIndex()));</span>
+<span class="nc" id="L106">                current.scale(weight.getBias());</span>
+<span class="nc" id="L107">                vertexPos.add(current);</span>
+            }
+<span class="nc" id="L109">            results.add(vertexPos);</span>
+        }
+<span class="nc" id="L111">        return results;</span>
+    }
+
+    public List&lt;Vector3f&gt; getVertexNormals(List&lt;Vector3f&gt; bonePositions, List&lt;Quat4f&gt; boneRotations) {
+<span class="nc" id="L115">        List&lt;Vector3f&gt; results = Lists.newArrayListWithCapacity(getVertexCount());</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        for (int i = 0; i &lt; vertexStartWeights.size(); ++i) {</span>
+<span class="nc" id="L117">            Vector3f vertexNorm = new Vector3f();</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            for (int weightIndexOffset = 0; weightIndexOffset &lt; vertexWeightCounts.get(i); ++weightIndexOffset) {</span>
+<span class="nc" id="L119">                int weightIndex = vertexStartWeights.get(i) + weightIndexOffset;</span>
+<span class="nc" id="L120">                BoneWeight weight = weights.get(weightIndex);</span>
+
+<span class="nc" id="L122">                Vector3f current = boneRotations.get(weight.getBoneIndex()).rotate(weight.getNormal(), new Vector3f());</span>
+<span class="nc" id="L123">                current.scale(weight.getBias());</span>
+<span class="nc" id="L124">                vertexNorm.add(current);</span>
+            }
+<span class="nc" id="L126">            results.add(vertexNorm);</span>
+        }
+<span class="nc" id="L128">        return results;</span>
+    }
+
+    public int getVertexCount() {
+<span class="nc" id="L132">        return vertexStartWeights.size();</span>
+    }
+
+    public Bone getBone(String name) {
+<span class="nc" id="L136">        return boneLookup.get(name);</span>
+    }
+
+    public TIntList getIndices() {
+<span class="nc" id="L140">        return indices;</span>
+    }
+
+    public List&lt;Vector2f&gt; getUVs() {
+<span class="nc" id="L144">        return uvs;</span>
+    }
+
+    public AABB getStaticAABB() {
+<span class="nc" id="L148">        return staticAABB;</span>
+    }
+
+    private void calculateNormals() {
+        // TODO: Better algorithm (take into account triangle size and angles
+<span class="nc" id="L153">        List&lt;Vector3f&gt; vertices = getBindPoseVertexPositions();</span>
+<span class="nc" id="L154">        List&lt;Vector3f&gt; normals = Lists.newArrayListWithCapacity(vertices.size());</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        for (int i = 0; i &lt; vertices.size(); ++i) {</span>
+<span class="nc" id="L156">            normals.add(new Vector3f());</span>
+        }
+<span class="nc" id="L158">        Vector3f v1 = new Vector3f();</span>
+<span class="nc" id="L159">        Vector3f v2 = new Vector3f();</span>
+<span class="nc" id="L160">        Vector3f norm = new Vector3f();</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        for (int i = 0; i &lt; indices.size() / 3; ++i) {</span>
+<span class="nc" id="L162">            Vector3f baseVert = vertices.get(indices.get(i * 3));</span>
+<span class="nc" id="L163">            v1.sub(vertices.get(indices.get(i * 3 + 1)), baseVert);</span>
+<span class="nc" id="L164">            v2.sub(vertices.get(indices.get(i * 3 + 2)), baseVert);</span>
+<span class="nc" id="L165">            v1.normalize();</span>
+<span class="nc" id="L166">            v2.normalize();</span>
+<span class="nc" id="L167">            norm.cross(v1, v2);</span>
+<span class="nc" id="L168">            normals.get(indices.get(i * 3)).add(norm);</span>
+<span class="nc" id="L169">            normals.get(indices.get(i * 3 + 1)).add(norm);</span>
+<span class="nc" id="L170">            normals.get(indices.get(i * 3 + 2)).add(norm);</span>
+        }
+
+<span class="nc" id="L173">        normals.forEach(Vector3f::normalize);</span>
+
+<span class="nc" id="L175">        Quat4f inverseRot = new Quat4f();</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        for (int vertIndex = 0; vertIndex &lt; vertices.size(); ++vertIndex) {</span>
+<span class="nc" id="L177">            Vector3f normal = normals.get(vertIndex);</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">            for (int weightIndex = 0; weightIndex &lt; vertexWeightCounts.get(vertIndex); ++weightIndex) {</span>
+<span class="nc" id="L179">                BoneWeight weight = weights.get(weightIndex + vertexStartWeights.get(vertIndex));</span>
+<span class="nc" id="L180">                inverseRot.inverse(bones.get(weight.getBoneIndex()).getObjectRotation());</span>
+<span class="nc" id="L181">                inverseRot.rotate(normal, norm);</span>
+<span class="nc" id="L182">                weight.setNormal(norm);</span>
+            }
+        }
+<span class="nc" id="L185">    }</span>
+
+    /**
+     * Outputs the skeletal mesh as md5mesh file
+     */
+    public String toMD5(String shader) {
+<span class="nc" id="L191">        StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L192">        sb.append(&quot;MD5Version 10\n&quot; +</span>
+                &quot;commandline \&quot;Exported from Terasology MD5SkeletonLoader\&quot;\n&quot; +
+                &quot;\n&quot;);
+<span class="nc" id="L195">        sb.append(&quot;numJoints &quot;).append(bones.size()).append(&quot;\n&quot;);</span>
+<span class="nc" id="L196">        sb.append(&quot;numMeshes 1\n\n&quot;);</span>
+<span class="nc" id="L197">        sb.append(&quot;joints {\n&quot;);</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        for (Bone bone : bones) {</span>
+
+<span class="nc" id="L200">            sb.append(&quot;\t\&quot;&quot;).append(bone.getName()).append(&quot;\&quot; &quot;).append(bone.getParentIndex()).append(&quot; ( &quot;);</span>
+<span class="nc" id="L201">            sb.append(bone.getObjectPosition().x).append(&quot; &quot;);</span>
+<span class="nc" id="L202">            sb.append(bone.getObjectPosition().y).append(&quot; &quot;);</span>
+<span class="nc" id="L203">            sb.append(bone.getObjectPosition().z).append(&quot; ) ( &quot;);</span>
+<span class="nc" id="L204">            Quat4f rot = new Quat4f(bone.getObjectRotation());</span>
+<span class="nc" id="L205">            rot.normalize();</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">            if (rot.w &gt; 0) {</span>
+<span class="nc" id="L207">                rot.x = -rot.x;</span>
+<span class="nc" id="L208">                rot.y = -rot.y;</span>
+<span class="nc" id="L209">                rot.z = -rot.z;</span>
+            }
+<span class="nc" id="L211">            sb.append(rot.x).append(&quot; &quot;);</span>
+<span class="nc" id="L212">            sb.append(rot.y).append(&quot; &quot;);</span>
+<span class="nc" id="L213">            sb.append(rot.z).append(&quot; )\n&quot;);</span>
+<span class="nc" id="L214">        }</span>
+<span class="nc" id="L215">        sb.append(&quot;}\n\n&quot;);</span>
+
+<span class="nc" id="L217">        sb.append(&quot;mesh {\n&quot;);</span>
+<span class="nc" id="L218">        sb.append(&quot;\tshader \&quot;&quot; + shader + &quot;\&quot;\n&quot;);</span>
+<span class="nc" id="L219">        sb.append(&quot;\tnumverts &quot;).append(uvs.size()).append(&quot;\n&quot;);</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">        for (int i = 0; i &lt; uvs.size(); i++) {</span>
+<span class="nc" id="L221">            sb.append(&quot;\tvert &quot;).append(i).append(&quot; (&quot;).append(uvs.get(i).x).append(&quot; &quot;).append(uvs.get(i).y).append(&quot;) &quot;);</span>
+<span class="nc" id="L222">            sb.append(vertexStartWeights.get(i)).append(&quot; &quot;).append(vertexWeightCounts.get(i)).append(&quot;\n&quot;);</span>
+        }
+<span class="nc" id="L224">        sb.append(&quot;\n&quot;);</span>
+<span class="nc" id="L225">        sb.append(&quot;\tnumtris &quot;).append(indices.size() / 3).append(&quot;\n&quot;);</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        for (int i = 0; i &lt; indices.size() / 3; i++) {</span>
+<span class="nc" id="L227">            int i1 = indices.get(i * 3);</span>
+<span class="nc" id="L228">            int i2 = indices.get(i * 3 + 1);</span>
+<span class="nc" id="L229">            int i3 = indices.get(i * 3 + 2);</span>
+<span class="nc" id="L230">            sb.append(&quot;\ttri &quot;).append(i).append(&quot; &quot;).append(i1).append(&quot; &quot;).append(i2).append(&quot; &quot;).append(i3).append(&quot;\n&quot;);</span>
+        }
+<span class="nc" id="L232">        sb.append(&quot;\n&quot;);</span>
+<span class="nc" id="L233">        sb.append(&quot;\tnumweights &quot;).append(weights.size()).append(&quot;\n&quot;);</span>
+<span class="nc" id="L234">        int meshId = 0;</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">        for (BoneWeight weight : weights) {</span>
+<span class="nc" id="L236">            sb.append(&quot;\tweight &quot;).append(meshId).append(&quot; &quot;).append(weight.getBoneIndex()).append(&quot; &quot;);</span>
+<span class="nc" id="L237">            sb.append(weight.getBias()).append(&quot; ( &quot;);</span>
+<span class="nc" id="L238">            sb.append(weight.getPosition().x).append(&quot; &quot;).append(weight.getPosition().y).append(&quot; &quot;).append(weight.getPosition().z).append(&quot;)\n&quot;);</span>
+<span class="nc" id="L239">            meshId++;</span>
+<span class="nc" id="L240">        }</span>
+<span class="nc" id="L241">        sb.append(&quot;}\n&quot;);</span>
+<span class="nc" id="L242">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

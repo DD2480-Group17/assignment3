@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntityMotionState.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.physics.bullet</a> &gt; <span class="el_source">EntityMotionState.java</span></div><h1>EntityMotionState.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.physics.bullet;
+
+import com.bulletphysics.linearmath.MotionState;
+import com.bulletphysics.linearmath.Transform;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.VecMath;
+
+/**
+ * This motion state is used to connect rigid body entities to their rigid body in the bullet physics engine.
+ * Bullet reads the initial state of the rigid body out of the entity, and then updates its location and rotation
+ * as it moves under physics.
+ *
+ */
+public class EntityMotionState extends MotionState {
+    private EntityRef entity;
+
+    /**
+     * Only the BulletPhysics class is expected to create instances.
+     *
+     * @param entity The entity to relate this motion state to and set the
+     *               LocationComponent of.
+     */
+<span class="nc" id="L40">    EntityMotionState(EntityRef entity) {</span>
+<span class="nc" id="L41">        this.entity = entity;</span>
+<span class="nc" id="L42">    }</span>
+
+    @Override
+    public Transform getWorldTransform(Transform transform) {
+<span class="nc" id="L46">        LocationComponent loc = entity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        if (loc != null) {</span>
+            // NOTE: JBullet ignores scale anyway
+<span class="nc" id="L49">            transform.set(new javax.vecmath.Matrix4f(VecMath.to(loc.getWorldRotation()), VecMath.to(loc.getWorldPosition()), 1));</span>
+        }
+<span class="nc" id="L51">        return transform;</span>
+    }
+
+    @Override
+    public void setWorldTransform(Transform transform) {
+<span class="nc" id="L56">        LocationComponent loc = entity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        if (loc != null) {</span>
+<span class="nc" id="L58">            loc.setWorldPosition(VecMath.from(transform.origin));</span>
+<span class="nc" id="L59">            loc.setWorldRotation(VecMath.from(transform.getRotation(new javax.vecmath.Quat4f())));</span>
+        }
+<span class="nc" id="L61">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

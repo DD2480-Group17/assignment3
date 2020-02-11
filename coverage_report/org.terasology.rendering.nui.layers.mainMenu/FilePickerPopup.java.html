@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FilePickerPopup.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">FilePickerPopup.java</span></div><h1>FilePickerPopup.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.layouts.ScrollableArea;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIList;
+import org.terasology.rendering.nui.widgets.UIText;
+
+import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+<span class="nc" id="L43">public class FilePickerPopup extends CoreScreenLayer {</span>
+
+<span class="nc" id="L45">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:filePickerPopup!instance&quot;);</span>
+    // credit: https://stackoverflow.com/a/894133
+<span class="nc" id="L47">    private static final char[] ILLEGAL_FILENAME_CHARACTERS = {'/', '\n', '\r', '\t', '\0', '\f', '`', '?', '*', '\\', '&lt;', '&gt;', '|', '\&quot;', ':'};</span>
+
+    @In
+    private TranslationSystem translationSystem;
+
+<span class="nc" id="L52">    private String fileName = &quot;&quot;;</span>
+    private Path currentPath;
+    private ScrollableArea directoryContentsScroller;
+    private UIList&lt;String&gt; directoryContentsList;
+<span class="nc" id="L56">    private Consumer&lt;Path&gt; okHandler = (path) -&gt; {</span>
+<span class="nc" id="L57">    };</span>
+
+    public void setOkHandler(Consumer&lt;Path&gt; okHandler) {
+<span class="nc" id="L60">        this.okHandler = okHandler;</span>
+<span class="nc" id="L61">    }</span>
+
+    public void setTitle(String title) {
+<span class="nc" id="L64">        find(&quot;title&quot;, UILabel.class).setText(title);</span>
+<span class="nc" id="L65">    }</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L69">        WidgetUtil.trySubscribe(this, &quot;gotoParent&quot;, button -&gt; setCurrentDirectoryParent());</span>
+<span class="nc" id="L70">        WidgetUtil.trySubscribe(this, &quot;gotoRoot&quot;, button -&gt; setCurrentDirectoryRoot());</span>
+<span class="nc" id="L71">        WidgetUtil.trySubscribe(this, &quot;gotoHome&quot;, button -&gt; setCurrentDirectoryHome());</span>
+
+<span class="nc" id="L73">        find(&quot;gotoParent&quot;, UIButton.class).bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                return currentPath != null;</span>
+            }
+        });
+<span class="nc" id="L79">        find(&quot;currentPath&quot;, UILabel.class).bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc bnc" id="L82" title="All 2 branches missed.">                return currentPath == null ? translationSystem.translate(&quot;${engine:menu#file-picker-roots-title}&quot;) : pathToString(currentPath, false);</span>
+            }
+        });
+<span class="nc" id="L85">        find(&quot;fileName&quot;, UIText.class).bindText(new Binding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc" id="L88">                return fileName;</span>
+            }
+
+            @Override
+            public void set(String value) {
+<span class="nc" id="L93">                fileName = value;</span>
+<span class="nc" id="L94">            }</span>
+        });
+<span class="nc" id="L96">        find(&quot;filePath&quot;, UILabel.class).bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc bnc" id="L99" title="All 2 branches missed.">                if (currentPath == null) {</span>
+<span class="nc" id="L100">                    return translationSystem.translate(&quot;${engine:menu#file-picker-invalid-location}&quot;);</span>
+                } else {
+<span class="nc bnc" id="L102" title="All 2 branches missed.">                    return isValidFilename(fileName)</span>
+<span class="nc" id="L103">                            ? translationSystem.translate(&quot;&quot;) + getPathToFile().toString()</span>
+<span class="nc" id="L104">                            : translationSystem.translate(&quot;${engine:menu#file-picker-invalid-file-name}&quot;);</span>
+                }
+            }
+        });
+<span class="nc" id="L108">        directoryContentsScroller = find(&quot;directoryContentsScroller&quot;, ScrollableArea.class);</span>
+<span class="nc" id="L109">        directoryContentsList = find(&quot;directoryContentsList&quot;, UIList.class);</span>
+<span class="nc" id="L110">        directoryContentsList.subscribeSelection((widget, item) -&gt; handleItemSelection(item));</span>
+<span class="nc" id="L111">        setCurrentDirectoryHome();</span>
+
+<span class="nc" id="L113">        UIButton ok = find(&quot;ok&quot;, UIButton.class);</span>
+<span class="nc" id="L114">        ok.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc" id="L117">                return isValid();</span>
+            }
+        });
+<span class="nc" id="L120">        ok.subscribe(button -&gt; {</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">            if (isValid()) {</span>
+<span class="nc" id="L122">                getManager().popScreen();</span>
+<span class="nc" id="L123">                okHandler.accept(getPathToFile());</span>
+            }
+<span class="nc" id="L125">        });</span>
+<span class="nc" id="L126">        WidgetUtil.trySubscribe(this, &quot;cancel&quot;, button -&gt; getManager().popScreen());</span>
+<span class="nc" id="L127">    }</span>
+
+    private boolean isValid() {
+<span class="nc bnc" id="L130" title="All 4 branches missed.">        return currentPath != null &amp;&amp; isValidFilename(fileName);</span>
+    }
+
+    private Path getPathToFile() {
+<span class="nc" id="L134">        return currentPath.resolve(fileName);</span>
+    }
+
+    private boolean isValidFilename(String s) {
+<span class="nc bnc" id="L138" title="All 4 branches missed.">        if (s == null || s.length() == 0) {</span>
+<span class="nc" id="L139">            return false;</span>
+        }
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        for (char c : ILLEGAL_FILENAME_CHARACTERS) {</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">            if (s.indexOf(c) != -1) {</span>
+<span class="nc" id="L143">                return false;</span>
+            }
+        }
+<span class="nc" id="L146">        return true;</span>
+    }
+
+    private String pathToString(Path value, boolean nameOnly) {
+<span class="nc bnc" id="L150" title="All 4 branches missed.">        String pathAsString = (nameOnly &amp;&amp; value.getNameCount() != 0 ? value.getFileName() : value).toString();</span>
+<span class="nc" id="L151">        String separator = value.getFileSystem().getSeparator();</span>
+<span class="nc bnc" id="L152" title="All 4 branches missed.">        return !pathAsString.endsWith(separator) &amp;&amp; Files.isDirectory(value) ? pathAsString + separator : pathAsString;</span>
+    }
+
+    private void loadDirectoryContents(Stream&lt;Path&gt; contents) {
+<span class="nc" id="L156">        directoryContentsList.setList(contents</span>
+<span class="nc" id="L157">                .map(path -&gt; pathToString(path, true))</span>
+<span class="nc" id="L158">                .sorted(Comparator.comparing(String::toLowerCase)) // sort by name (case insensitive string natural order)</span>
+<span class="nc" id="L159">                .collect(Collectors.toList()));</span>
+<span class="nc" id="L160">        directoryContentsScroller.moveToTop();</span>
+<span class="nc" id="L161">    }</span>
+
+    private void setCurrentDirectoryRoot() {
+<span class="nc" id="L164">        currentPath = null;</span>
+<span class="nc" id="L165">        loadDirectoryContents(StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), true));</span>
+<span class="nc" id="L166">    }</span>
+
+    private void setCurrentDirectoryHome() {
+<span class="nc" id="L169">        setCurrentDirectory(Paths.get(System.getProperty(&quot;user.home&quot;)));</span>
+<span class="nc" id="L170">    }</span>
+
+    private void setCurrentDirectoryParent() {
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (currentPath != null) {</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">            if (currentPath.getParent() != null) {</span>
+<span class="nc" id="L175">                setCurrentDirectory(currentPath.getParent());</span>
+            } else {
+<span class="nc" id="L177">                setCurrentDirectoryRoot();</span>
+            }
+        }
+<span class="nc" id="L180">    }</span>
+
+    private void handleItemSelection(String item) {
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        Path path = currentPath == null ? Paths.get(item) : currentPath.resolve(item);</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        if (Files.isDirectory(path)) {</span>
+<span class="nc" id="L185">            setCurrentDirectory(path);</span>
+        } else {
+<span class="nc" id="L187">            fileName = item;</span>
+        }
+<span class="nc" id="L189">    }</span>
+
+    // Set the stream path in a try with resources construct first in order to close the stream.
+    private void setCurrentDirectory(Path newPath) {
+<span class="nc" id="L193">        try (Stream&lt;Path&gt; stream = Files.list(newPath)) {</span>
+<span class="nc" id="L194">            loadDirectoryContents(stream);</span>
+<span class="nc" id="L195">            currentPath = newPath;</span>
+<span class="nc" id="L196">        } catch (AccessDeniedException ex) {</span>
+<span class="nc" id="L197">            showDirectoryAccessErrorMessage(translationSystem.translate(&quot;${engine:menu#file-picker-access-denied-to}&quot;) + newPath);</span>
+<span class="nc" id="L198">        } catch (IOException ex) {</span>
+<span class="nc" id="L199">            showDirectoryAccessErrorMessage(ex.toString());</span>
+<span class="nc" id="L200">        }</span>
+<span class="nc" id="L201">    }</span>
+
+    private void showDirectoryAccessErrorMessage(String message) {
+<span class="nc" id="L204">        getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(translationSystem.translate(&quot;${engine:menu#file-picker-cant-change-dir}&quot;), message);</span>
+<span class="nc" id="L205">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

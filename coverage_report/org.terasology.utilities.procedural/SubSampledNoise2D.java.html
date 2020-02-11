@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SubSampledNoise2D.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.procedural</a> &gt; <span class="el_source">SubSampledNoise2D.java</span></div><h1>SubSampledNoise2D.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.utilities.procedural;
+
+import com.google.common.math.IntMath;
+
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector2i;
+
+/**
+ * @deprecated Use {@link SubSampledNoise} instead
+ */
+@Deprecated
+public class SubSampledNoise2D implements Noise2D {
+
+    private Noise2D source;
+<span class="nc" id="L32">    private Vector2f zoom = new Vector2f(1, 1);</span>
+<span class="nc" id="L33">    private int sampleRate = 1;</span>
+
+<span class="nc" id="L35">    public SubSampledNoise2D(Noise2D source, Vector2f zoom, int sampleRate) {</span>
+<span class="nc" id="L36">        this.source = source;</span>
+<span class="nc" id="L37">        this.zoom.set(zoom);</span>
+<span class="nc" id="L38">        this.sampleRate = sampleRate;</span>
+<span class="nc" id="L39">    }</span>
+
+    @Override
+    public float noise(float x, float y) {
+<span class="nc" id="L43">        float xMod = TeraMath.modulus(x, sampleRate);</span>
+<span class="nc" id="L44">        float yMod = TeraMath.modulus(y, sampleRate);</span>
+
+<span class="nc" id="L46">        float x0 = x - xMod;</span>
+<span class="nc" id="L47">        float x1 = x0 + sampleRate;</span>
+<span class="nc" id="L48">        float y0 = y - yMod;</span>
+<span class="nc" id="L49">        float y1 = y0 + sampleRate;</span>
+
+<span class="nc" id="L51">        float q00 = source.noise(x0 * zoom.x, y0 * zoom.y);</span>
+<span class="nc" id="L52">        float q10 = source.noise(x1 * zoom.x, y0 * zoom.y);</span>
+<span class="nc" id="L53">        float q01 = source.noise(x0 * zoom.x, y1 * zoom.y);</span>
+<span class="nc" id="L54">        float q11 = source.noise(x1 * zoom.x, y1 * zoom.y);</span>
+
+<span class="nc" id="L56">        return TeraMath.biLerp(q00, q10, q01, q11, xMod / sampleRate, yMod / sampleRate);</span>
+    }
+
+    public float[] noise(Rect2i region) {
+<span class="nc" id="L60">        Rect2i fullRegion = determineRequiredRegion(region);</span>
+<span class="nc" id="L61">        float[] keyData = getKeyValues(fullRegion);</span>
+<span class="nc" id="L62">        float[] fullData = mapExpand(keyData, fullRegion);</span>
+<span class="nc" id="L63">        return getSubset(fullData, fullRegion, region);</span>
+    }
+
+    private float[] getSubset(float[] fullData, Rect2i fullRegion, Rect2i subRegion) {
+<span class="nc bnc" id="L67" title="All 4 branches missed.">        if (subRegion.size().x != fullRegion.size().x || subRegion.size().y != fullRegion.size().y) {</span>
+<span class="nc" id="L68">            float[] result = new float[subRegion.size().x * subRegion.size().y];</span>
+<span class="nc" id="L69">            Vector2i offset = new Vector2i(subRegion.minX() - fullRegion.minX(), subRegion.minY() - fullRegion.minY());</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            for (int y = 0; y &lt; subRegion.size().y; ++y) {</span>
+<span class="nc" id="L71">                System.arraycopy(fullData, offset.getX() + fullRegion.size().x * (y + offset.getY()), result, subRegion.size().x * y, subRegion.size().x);</span>
+            }
+<span class="nc" id="L73">            return result;</span>
+        } else {
+<span class="nc" id="L75">            return fullData;</span>
+        }
+    }
+
+    private float[] mapExpand(float[] keyData, Rect2i fullRegion) {
+<span class="nc" id="L80">        float[] fullData = new float[fullRegion.size().x * fullRegion.size().y];</span>
+<span class="nc" id="L81">        int samplesX = fullRegion.size().x / sampleRate + 1;</span>
+<span class="nc" id="L82">        int samplesY = fullRegion.size().y / sampleRate + 1;</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        for (int y = 0; y &lt; samplesY - 1; y++) {</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            for (int x = 0; x &lt; samplesX - 1; x++) {</span>
+<span class="nc" id="L85">                float q11 = keyData[x + y * samplesX];</span>
+<span class="nc" id="L86">                float q21 = keyData[x + 1 + y * samplesX];</span>
+<span class="nc" id="L87">                float q12 = keyData[x + (y + 1) * samplesX];</span>
+<span class="nc" id="L88">                float q22 = keyData[(x + 1) + (y + 1) * samplesX];</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                for (int innerY = 0; innerY &lt; sampleRate; ++innerY) {</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                    for (int innerX = 0; innerX &lt; sampleRate; ++innerX) {</span>
+<span class="nc" id="L91">                        fullData[x * sampleRate + innerX + fullRegion.size().x * (y * sampleRate + innerY)] =</span>
+<span class="nc" id="L92">                                TeraMath.biLerp(q11, q21, q12, q22, (float) innerX / sampleRate, (float) innerY / sampleRate);</span>
+                    }
+                }
+            }
+        }
+<span class="nc" id="L97">        return fullData;</span>
+    }
+
+    private float[] getKeyValues(Rect2i fullRegion) {
+<span class="nc" id="L101">        int xDim = fullRegion.size().x / sampleRate + 1;</span>
+<span class="nc" id="L102">        int yDim = fullRegion.size().y / sampleRate + 1;</span>
+<span class="nc" id="L103">        float[] fullData = new float[xDim * yDim];</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        for (int y = 0; y &lt; yDim; y++) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            for (int x = 0; x &lt; xDim; x++) {</span>
+<span class="nc" id="L106">                int actualX = x * sampleRate + fullRegion.minX();</span>
+<span class="nc" id="L107">                int actualY = y * sampleRate + fullRegion.minY();</span>
+<span class="nc" id="L108">                fullData[x + y * xDim] = source.noise(zoom.x * actualX, zoom.y * actualY);</span>
+            }
+        }
+<span class="nc" id="L111">        return fullData;</span>
+    }
+
+    private Rect2i determineRequiredRegion(Rect2i region) {
+<span class="nc" id="L115">        int newMinX = region.minX() - IntMath.mod(region.minX(), sampleRate);</span>
+<span class="nc" id="L116">        int newMinY = region.minY() - IntMath.mod(region.minY(), sampleRate);</span>
+<span class="nc" id="L117">        int newMaxX = region.maxX() + 4 - IntMath.mod(region.maxX(), sampleRate) - 1;</span>
+<span class="nc" id="L118">        int newMaxY = region.maxY() + 4 - IntMath.mod(region.maxY(), sampleRate) - 1;</span>
+<span class="nc" id="L119">        return Rect2i.createFromMinAndMax(newMinX, newMinY, newMaxX, newMaxY);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

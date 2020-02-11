@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldFacetLayer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.viewer.layers</a> &gt; <span class="el_source">FieldFacetLayer.java</span></div><h1>FieldFacetLayer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.viewer.layers;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.DataBufferInt;
+import java.math.RoundingMode;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import org.terasology.math.TeraMath;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.world.generation.Region;
+import org.terasology.world.generation.facets.base.FieldFacet2D;
+import org.terasology.world.viewer.color.ColorBlender;
+import org.terasology.world.viewer.color.ColorBlenders;
+import org.terasology.world.viewer.color.ColorModels;
+
+import com.google.common.base.Preconditions;
+import com.google.common.math.DoubleMath;
+
+/**
+ * Provides info about an {@link FieldFacet2D}.
+ */
+public abstract class FieldFacetLayer extends AbstractFacetLayer {
+
+<span class="nc" id="L44">    private static final List&lt;Color&gt; GRAYS = IntStream</span>
+<span class="nc" id="L45">            .range(0, 256)</span>
+<span class="nc" id="L46">            .mapToObj(i -&gt; new Color(i, i, i))</span>
+<span class="nc" id="L47">            .collect(Collectors.toList());</span>
+
+    private final Class&lt;? extends FieldFacet2D&gt; clazz;
+
+<span class="nc" id="L51">    private Config config = new Config();</span>
+
+    /**
+     * @param clazz the target FieldFacet2D class
+     * @param config the layer configuration info
+     */
+<span class="nc" id="L57">    public FieldFacetLayer(Class&lt;? extends FieldFacet2D&gt; clazz, Config config) {</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        Preconditions.checkArgument(clazz != null, &quot;clazz must not be null&quot;);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        Preconditions.checkArgument(config != null, &quot;config must not be null&quot;);</span>
+
+<span class="nc" id="L61">        this.clazz = clazz;</span>
+<span class="nc" id="L62">        this.config = config;</span>
+<span class="nc" id="L63">    }</span>
+
+<span class="nc" id="L65">    public FieldFacetLayer(Class&lt;? extends FieldFacet2D&gt; clazz, double offset, double scale) {</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        Preconditions.checkArgument(clazz != null, &quot;clazz must not be null&quot;);</span>
+
+<span class="nc" id="L68">        this.clazz = clazz;</span>
+<span class="nc" id="L69">        this.config.offset = offset;</span>
+<span class="nc" id="L70">        this.config.scale = scale;</span>
+<span class="nc" id="L71">    }</span>
+
+    @Override
+    public String getWorldText(Region region, int wx, int wy) {
+<span class="nc" id="L75">        FieldFacet2D facet = region.getFacet(clazz);</span>
+<span class="nc" id="L76">        double value = facet.getWorld(wx, wy);</span>
+<span class="nc" id="L77">        return String.format(&quot;%.2f&quot;, value);</span>
+    }
+
+    @Override
+    public void render(BufferedImage img, Region region) {
+<span class="nc" id="L82">        FieldFacet2D facet = region.getFacet(clazz);</span>
+
+<span class="nc" id="L84">        int width = img.getWidth();</span>
+<span class="nc" id="L85">        int height = img.getHeight();</span>
+<span class="nc" id="L86">        ColorModel colorModel = img.getColorModel();</span>
+<span class="nc" id="L87">        ColorBlender blender = ColorBlenders.forColorModel(ColorModels.RGBA, colorModel);</span>
+
+<span class="nc" id="L89">        DataBufferInt dataBuffer = (DataBufferInt) img.getRaster().getDataBuffer();</span>
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        for (int z = 0; z &lt; height; z++) {</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            for (int x = 0; x &lt; width; x++) {</span>
+<span class="nc" id="L93">                Color col = getColor(facet, x, z);</span>
+<span class="nc" id="L94">                int src = col.rgba();</span>
+<span class="nc" id="L95">                int dst = dataBuffer.getElem(z * width + x);</span>
+<span class="nc" id="L96">                int mix = blender.add(src, dst);</span>
+<span class="nc" id="L97">                dataBuffer.setElem(z * width + x, mix);</span>
+            }
+        }
+<span class="nc" id="L100">    }</span>
+
+    /**
+     * Computes the color of the facet at a given world coordinate.
+     * @param facet the underlying facet
+     * @param x the world x coordinate
+     * @param z the world z coordinate
+     * @return the color at the given world coords. Never &lt;code&gt;null&lt;/code&gt;.
+     */
+    protected Color getColor(FieldFacet2D facet, int x, int z) {
+<span class="nc" id="L110">        double value = facet.get(x, z);</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (Double.isFinite(value)) {</span>
+<span class="nc" id="L112">            int round = DoubleMath.roundToInt(config.offset + config.scale * value, RoundingMode.HALF_UP);</span>
+<span class="nc" id="L113">            int idx = TeraMath.clamp(round, 0, 255);</span>
+<span class="nc" id="L114">            return GRAYS.get(idx);</span>
+        } else {
+<span class="nc" id="L116">            return MISSING;</span>
+        }
+    }
+
+    public double getOffset() {
+<span class="nc" id="L121">        return config.offset;</span>
+    }
+
+    public double getScale() {
+<span class="nc" id="L125">        return config.scale;</span>
+    }
+
+    /**
+     * @param scale the new scale factor
+     */
+    public void setScale(double scale) {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if (scale != config.scale) {</span>
+<span class="nc" id="L133">            config.scale = scale;</span>
+<span class="nc" id="L134">            notifyObservers();</span>
+        }
+<span class="nc" id="L136">    }</span>
+
+    /**
+     * @param offset the new offset
+     */
+    public void setOffset(double offset) {
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if (offset != config.offset) {</span>
+<span class="nc" id="L143">            config.offset = offset;</span>
+<span class="nc" id="L144">            notifyObservers();</span>
+        }
+<span class="nc" id="L146">    }</span>
+
+    @Override
+    public FacetLayerConfig getConfig() {
+<span class="nc" id="L150">        return config;</span>
+    }
+
+    /**
+     * Persistent data
+     */
+<span class="nc" id="L156">    protected static class Config implements FacetLayerConfig {</span>
+
+        @Range(min = -100, max = 100, increment = 1f, precision = 1)
+        private double offset;
+
+        @Range(min = 0, max = 100, increment = 0.1f, precision = 1)
+        private double scale;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChunkViewCoreImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.internal</a> &gt; <span class="el_source">ChunkViewCoreImpl.java</span></div><h1>ChunkViewCoreImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.internal;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.math.ChunkMath;
+import org.terasology.math.Region3i;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.block.Block;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkConstants;
+
+/**
+ */
+public class ChunkViewCoreImpl implements ChunkViewCore {
+
+<span class="fc" id="L33">    private static final Logger logger = LoggerFactory.getLogger(ChunkViewCoreImpl.class);</span>
+
+    private Vector3i offset;
+    private Region3i chunkRegion;
+    private Region3i blockRegion;
+    private Chunk[] chunks;
+
+    private Vector3i chunkPower;
+    private Vector3i chunkFilterSize;
+
+    private Block defaultBlock;
+
+<span class="fc" id="L45">    public ChunkViewCoreImpl(Chunk[] chunks, Region3i chunkRegion, Vector3i offset, Block defaultBlock) {</span>
+<span class="fc" id="L46">        this.chunkRegion = chunkRegion;</span>
+<span class="fc" id="L47">        this.chunks = chunks;</span>
+<span class="fc" id="L48">        this.offset = offset;</span>
+<span class="fc" id="L49">        setChunkSize(new Vector3i(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z));</span>
+<span class="fc" id="L50">        this.defaultBlock = defaultBlock;</span>
+<span class="fc" id="L51">    }</span>
+
+    @Override
+    public Region3i getWorldRegion() {
+<span class="nc" id="L55">        return blockRegion;</span>
+    }
+
+    @Override
+    public Region3i getChunkRegion() {
+<span class="nc" id="L60">        return chunkRegion;</span>
+    }
+
+    @Override
+    public Block getBlock(float x, float y, float z) {
+<span class="nc" id="L65">        return getBlock(TeraMath.floorToInt(x + 0.5f), TeraMath.floorToInt(y + 0.5f), TeraMath.floorToInt(z + 0.5f));</span>
+    }
+
+    @Override
+    public Block getBlock(Vector3i pos) {
+<span class="nc" id="L70">        return getBlock(pos.x, pos.y, pos.z);</span>
+    }
+
+    // TODO: Review
+    @Override
+    public Block getBlock(int blockX, int blockY, int blockZ) {
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">        if (!blockRegion.encompasses(blockX, blockY, blockZ)) {</span>
+<span class="nc" id="L77">            return defaultBlock;</span>
+        }
+
+<span class="fc" id="L80">        int chunkIndex = relChunkIndex(blockX, blockY, blockZ);</span>
+<span class="fc" id="L81">        return chunks[chunkIndex].getBlock(</span>
+<span class="fc" id="L82">                ChunkMath.calcBlockPosX(blockX, chunkFilterSize.x),</span>
+<span class="fc" id="L83">                ChunkMath.calcBlockPosY(blockY, chunkFilterSize.y),</span>
+<span class="fc" id="L84">                ChunkMath.calcBlockPosZ(blockZ, chunkFilterSize.z));</span>
+    }
+
+    @Override
+    public byte getSunlight(float x, float y, float z) {
+<span class="nc" id="L89">        return getSunlight(TeraMath.floorToInt(x + 0.5f), TeraMath.floorToInt(y + 0.5f), TeraMath.floorToInt(z + 0.5f));</span>
+    }
+
+    @Override
+    public byte getSunlight(Vector3i pos) {
+<span class="nc" id="L94">        return getSunlight(pos.x, pos.y, pos.z);</span>
+    }
+
+    @Override
+    public byte getLight(float x, float y, float z) {
+<span class="nc" id="L99">        return getLight(TeraMath.floorToInt(x + 0.5f), TeraMath.floorToInt(y + 0.5f), TeraMath.floorToInt(z + 0.5f));</span>
+    }
+
+    @Override
+    public byte getLight(Vector3i pos) {
+<span class="nc" id="L104">        return getLight(pos.x, pos.y, pos.z);</span>
+    }
+
+    @Override
+    public byte getSunlight(int blockX, int blockY, int blockZ) {
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        if (!blockRegion.encompasses(blockX, blockY, blockZ)) {</span>
+<span class="nc" id="L110">            return 0;</span>
+        }
+
+<span class="nc" id="L113">        int chunkIndex = relChunkIndex(blockX, blockY, blockZ);</span>
+<span class="nc" id="L114">        return chunks[chunkIndex].getSunlight(ChunkMath.calcBlockPos(blockX, blockY, blockZ, chunkFilterSize));</span>
+    }
+
+    @Override
+    public byte getLight(int blockX, int blockY, int blockZ) {
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (!blockRegion.encompasses(blockX, blockY, blockZ)) {</span>
+<span class="nc" id="L120">            return 0;</span>
+        }
+
+<span class="nc" id="L123">        int chunkIndex = relChunkIndex(blockX, blockY, blockZ);</span>
+<span class="nc" id="L124">        return chunks[chunkIndex].getLight(ChunkMath.calcBlockPos(blockX, blockY, blockZ, chunkFilterSize));</span>
+    }
+
+    @Override
+    public void setBlock(Vector3i pos, Block type) {
+<span class="nc" id="L129">        setBlock(pos.x, pos.y, pos.z, type);</span>
+<span class="nc" id="L130">    }</span>
+
+    @Override
+    public void setBlock(int blockX, int blockY, int blockZ, Block type) {
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (blockRegion.encompasses(blockX, blockY, blockZ)) {</span>
+<span class="nc" id="L135">            int chunkIndex = relChunkIndex(blockX, blockY, blockZ);</span>
+<span class="nc" id="L136">            chunks[chunkIndex].setBlock(ChunkMath.calcBlockPos(blockX, blockY, blockZ, chunkFilterSize), type);</span>
+<span class="nc" id="L137">        } else {</span>
+<span class="nc" id="L138">            logger.warn(&quot;Attempt to modify block outside of the view&quot;);</span>
+        }
+<span class="nc" id="L140">    }</span>
+
+    @Override
+    public void setLight(Vector3i pos, byte light) {
+<span class="nc" id="L144">        setLight(pos.x, pos.y, pos.z, light);</span>
+<span class="nc" id="L145">    }</span>
+
+    @Override
+    public void setLight(int blockX, int blockY, int blockZ, byte light) {
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        if (blockRegion.encompasses(blockX, blockY, blockZ)) {</span>
+<span class="nc" id="L150">            int chunkIndex = relChunkIndex(blockX, blockY, blockZ);</span>
+<span class="nc" id="L151">            chunks[chunkIndex].setLight(ChunkMath.calcBlockPos(blockX, blockY, blockZ, chunkFilterSize), light);</span>
+<span class="nc" id="L152">        } else {</span>
+<span class="nc" id="L153">            logger.warn(&quot;Attempted to set light at a position not encompassed by the view&quot;);</span>
+        }
+<span class="nc" id="L155">    }</span>
+
+    @Override
+    public void setSunlight(Vector3i pos, byte light) {
+<span class="nc" id="L159">        setSunlight(pos.x, pos.y, pos.z, light);</span>
+<span class="nc" id="L160">    }</span>
+
+    @Override
+    public void setSunlight(int blockX, int blockY, int blockZ, byte light) {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        if (blockRegion.encompasses(blockX, blockY, blockZ)) {</span>
+<span class="nc" id="L165">            int chunkIndex = relChunkIndex(blockX, blockY, blockZ);</span>
+<span class="nc" id="L166">            chunks[chunkIndex].setSunlight(ChunkMath.calcBlockPos(blockX, blockY, blockZ, chunkFilterSize), light);</span>
+<span class="nc" id="L167">        } else {</span>
+<span class="nc" id="L168">            throw new IllegalStateException(&quot;Attempted to modify sunlight though an unlocked view&quot;);</span>
+        }
+<span class="nc" id="L170">    }</span>
+
+    @Override
+    public int getExtraData(int index, Vector3i pos) {
+<span class="nc" id="L174">        return getExtraData(index, pos.x, pos.y, pos.z);</span>
+    }
+
+    @Override
+    public int getExtraData(int index, int blockX, int blockY, int blockZ) {
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        if (!blockRegion.encompasses(blockX, blockY, blockZ)) {</span>
+<span class="nc" id="L180">            return 0;</span>
+        }
+
+<span class="nc" id="L183">        int chunkIndex = relChunkIndex(blockX, blockY, blockZ);</span>
+<span class="nc" id="L184">        return chunks[chunkIndex].getExtraData(index, ChunkMath.calcBlockPos(blockX, blockY, blockZ, chunkFilterSize));</span>
+    }
+
+    @Override
+    public void setExtraData(int index, Vector3i pos, int value) {
+<span class="nc" id="L189">        setExtraData(index, pos.x, pos.y, pos.z, value);</span>
+<span class="nc" id="L190">    }</span>
+
+    @Override
+    public void setExtraData(int index, int blockX, int blockY, int blockZ, int value) {
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        if (blockRegion.encompasses(blockX, blockY, blockZ)) {</span>
+<span class="nc" id="L195">            int chunkIndex = relChunkIndex(blockX, blockY, blockZ);</span>
+<span class="nc" id="L196">            chunks[chunkIndex].setExtraData(index, ChunkMath.calcBlockPos(blockX, blockY, blockZ, chunkFilterSize), value);</span>
+<span class="nc" id="L197">        } else {</span>
+<span class="nc" id="L198">            throw new IllegalStateException(&quot;Attempted to modify extra data though an unlocked view&quot;);</span>
+        }
+<span class="nc" id="L200">    }</span>
+
+    @Override
+    public void setDirtyAround(Vector3i blockPos) {
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        for (Vector3i pos : ChunkMath.getChunkRegionAroundWorldPos(blockPos, 1)) {</span>
+<span class="nc" id="L205">            chunks[pos.x + offset.x + chunkRegion.size().x * (pos.z + offset.z)].setDirty(true);</span>
+<span class="nc" id="L206">        }</span>
+<span class="nc" id="L207">    }</span>
+
+    @Override
+    public void setDirtyAround(Region3i region) {
+<span class="nc" id="L211">        Vector3i minPos = new Vector3i(region.min());</span>
+<span class="nc" id="L212">        minPos.sub(1, 1, 1);</span>
+<span class="nc" id="L213">        Vector3i maxPos = new Vector3i(region.max());</span>
+<span class="nc" id="L214">        maxPos.add(1, 1, 1);</span>
+
+<span class="nc" id="L216">        Vector3i minChunk = ChunkMath.calcChunkPos(minPos, chunkPower);</span>
+<span class="nc" id="L217">        Vector3i maxChunk = ChunkMath.calcChunkPos(maxPos, chunkPower);</span>
+
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        for (Vector3i pos : Region3i.createFromMinMax(minChunk, maxChunk)) {</span>
+<span class="nc" id="L220">            chunks[pos.x + offset.x + chunkRegion.size().x * (pos.z + offset.z)].setDirty(true);</span>
+<span class="nc" id="L221">        }</span>
+<span class="nc" id="L222">    }</span>
+
+    @Override
+    public boolean isValidView() {
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        for (Chunk chunk : chunks) {</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">            if (chunk.isDisposed()) {</span>
+<span class="nc" id="L228">                return false;</span>
+            }
+        }
+<span class="nc" id="L231">        return true;</span>
+    }
+
+    protected int relChunkIndex(int x, int y, int z) {
+<span class="fc" id="L235">        return TeraMath.calculate3DArrayIndex(ChunkMath.calcChunkPosX(x, chunkPower.x) + offset.x,</span>
+<span class="fc" id="L236">                ChunkMath.calcChunkPosY(y, chunkPower.y) + offset.y,</span>
+<span class="fc" id="L237">                ChunkMath.calcChunkPosZ(z, chunkPower.z) + offset.z, chunkRegion.size());</span>
+    }
+
+    public void setChunkSize(Vector3i chunkSize) {
+<span class="fc" id="L241">        this.chunkFilterSize = new Vector3i(TeraMath.ceilPowerOfTwo(chunkSize.x) - 1, TeraMath.ceilPowerOfTwo(chunkSize.y) - 1, TeraMath.ceilPowerOfTwo(chunkSize.z) - 1);</span>
+<span class="fc" id="L242">        this.chunkPower = new Vector3i(TeraMath.sizeOfPower(chunkSize.x), TeraMath.sizeOfPower(chunkSize.y), TeraMath.sizeOfPower(chunkSize.z));</span>
+
+<span class="fc" id="L244">        Vector3i blockMin = new Vector3i();</span>
+<span class="fc" id="L245">        blockMin.sub(offset);</span>
+<span class="fc" id="L246">        blockMin.mul(chunkSize.x, chunkSize.y, chunkSize.z);</span>
+<span class="fc" id="L247">        Vector3i blockSize = chunkRegion.size();</span>
+<span class="fc" id="L248">        blockSize.mul(chunkSize.x, chunkSize.y, chunkSize.z);</span>
+<span class="fc" id="L249">        this.blockRegion = Region3i.createFromMinAndSize(blockMin, blockSize);</span>
+<span class="fc" id="L250">    }</span>
+
+    @Override
+    public Vector3i toWorldPos(Vector3i localPos) {
+<span class="fc" id="L254">        return new Vector3i(localPos.x + (offset.x + chunkRegion.min().x) * ChunkConstants.SIZE_X, localPos.y + (offset.y + chunkRegion.min().y) * ChunkConstants.SIZE_Y,</span>
+<span class="fc" id="L255">                localPos.z + (offset.z + chunkRegion.min().z) * ChunkConstants.SIZE_Z);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

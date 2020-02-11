@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseObjectFacet3D.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.generation.facets.base</a> &gt; <span class="el_source">BaseObjectFacet3D.java</span></div><h1>BaseObjectFacet3D.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.generation.facets.base;
+
+import java.lang.reflect.Array;
+
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.BaseVector3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.generation.Border3D;
+
+import com.google.common.base.Preconditions;
+
+/**
+ * Base class for storing objects of the specified type in a 3D grid for a facet.
+ *
+ * @param &lt;T&gt; Type of objects stored.
+ */
+public abstract class BaseObjectFacet3D&lt;T&gt; extends BaseFacet3D implements ObjectFacet3D&lt;T&gt; {
+    private T[] data;
+
+    public BaseObjectFacet3D(Region3i targetRegion, Border3D border, Class&lt;T&gt; objectType) {
+<span class="fc" id="L36">        super(targetRegion, border);</span>
+<span class="fc" id="L37">        Vector3i size = getRelativeRegion().size();</span>
+<span class="fc" id="L38">        this.data = (T[]) Array.newInstance(objectType, size.x * size.y * size.z);</span>
+<span class="fc" id="L39">    }</span>
+
+    @Override
+    public T get(int x, int y, int z) {
+<span class="fc" id="L43">        return data[getRelativeIndex(x, y, z)];</span>
+    }
+
+    @Override
+    public T get(BaseVector3i pos) {
+<span class="nc" id="L48">        return get(pos.x(), pos.y(), pos.z());</span>
+    }
+
+    @Override
+    public T getWorld(int x, int y, int z) {
+<span class="fc" id="L53">        return data[getWorldIndex(x, y, z)];</span>
+    }
+
+    @Override
+    public T getWorld(BaseVector3i pos) {
+<span class="nc" id="L58">        return getWorld(pos.x(), pos.y(), pos.z());</span>
+    }
+
+    public T[] getInternal() {
+<span class="nc" id="L62">        return data;</span>
+    }
+
+    @Override
+    public void set(int x, int y, int z, T value) {
+<span class="fc" id="L67">        data[getRelativeIndex(x, y, z)] = value;</span>
+<span class="fc" id="L68">    }</span>
+
+    @Override
+    public void set(BaseVector3i pos, T value) {
+<span class="nc" id="L72">        set(pos.x(), pos.y(), pos.z(), value);</span>
+<span class="nc" id="L73">    }</span>
+
+    @Override
+    public void setWorld(int x, int y, int z, T value) {
+<span class="fc" id="L77">        data[getWorldIndex(x, y, z)] = value;</span>
+<span class="fc" id="L78">    }</span>
+
+    @Override
+    public void setWorld(BaseVector3i pos, T value) {
+<span class="nc" id="L82">        setWorld(pos.x(), pos.y(), pos.z(), value);</span>
+<span class="nc" id="L83">    }</span>
+
+    public void set(T[] newData) {
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        Preconditions.checkArgument(newData.length == data.length);</span>
+<span class="nc" id="L87">        System.arraycopy(newData, 0, data, 0, newData.length);</span>
+<span class="nc" id="L88">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

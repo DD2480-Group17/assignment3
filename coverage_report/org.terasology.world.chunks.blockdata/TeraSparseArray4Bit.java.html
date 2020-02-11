@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TeraSparseArray4Bit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.blockdata</a> &gt; <span class="el_source">TeraSparseArray4Bit.java</span></div><h1>TeraSparseArray4Bit.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.chunks.blockdata;
+
+import com.google.common.base.Preconditions;
+import org.terasology.world.chunks.deflate.TeraVisitingDeflator;
+
+import java.util.Arrays;
+
+
+/**
+ * TeraSparseArray4Bit implements a sparse array with elements of 4 bit size.
+ * Its elements are in the range 0 - 15 and it increases memory efficiency by storing two elements per byte.
+ * It can further reduce memory consumption through sparse memory allocation.
+ *
+ */
+public final class TeraSparseArray4Bit extends TeraSparseArrayByte {
+
+    public TeraSparseArray4Bit() {
+<span class="nc" id="L34">        super();</span>
+<span class="nc" id="L35">    }</span>
+
+    public TeraSparseArray4Bit(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L38">        super(sizeX, sizeY, sizeZ);</span>
+<span class="nc" id="L39">    }</span>
+
+    public TeraSparseArray4Bit(int sizeX, int sizeY, int sizeZ, byte[][] inflated, byte[] deflated) {
+<span class="nc" id="L42">        super(sizeX, sizeY, sizeZ, inflated, deflated);</span>
+<span class="nc" id="L43">    }</span>
+
+    public TeraSparseArray4Bit(int sizeX, int sizeY, int sizeZ, byte fill) {
+<span class="nc" id="L46">        super(sizeX, sizeY, sizeZ, fill);</span>
+<span class="nc bnc" id="L47" title="All 4 branches missed.">        Preconditions.checkArgument(fill &gt;= 0 &amp;&amp; fill &lt;= 15, &quot;Parameter 'fill' has to be in the range 0 - 15 (&quot; + fill + &quot;)&quot;);</span>
+<span class="nc" id="L48">    }</span>
+
+    @Override
+    protected TeraArray createSparse(byte defaultFill) {
+<span class="nc" id="L52">        return new TeraSparseArray4Bit(getSizeX(), getSizeY(), getSizeZ(), defaultFill);</span>
+    }
+
+    @Override
+    protected TeraArray createSparse(byte[][] inflatedData, byte[] deflatedData) {
+<span class="nc" id="L57">        return new TeraSparseArray4Bit(getSizeX(), getSizeY(), getSizeZ(), inflatedData, deflatedData);</span>
+    }
+
+    @Override
+    protected int rowSize() {
+<span class="nc" id="L62">        return getSizeXZHalf();</span>
+    }
+
+    private int rowGet(int pos, byte value) {
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        if (pos &lt; getSizeXZHalf()) {</span>
+<span class="nc" id="L67">            return TeraArrayUtils.getHi(value);</span>
+        }
+<span class="nc" id="L69">        return TeraArrayUtils.getLo(value);</span>
+    }
+
+    private int rowGet(byte[] row, int pos) {
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if (pos &lt; getSizeXZHalf()) {</span>
+<span class="nc" id="L74">            return TeraArrayUtils.getHi(row[pos]);</span>
+        }
+<span class="nc" id="L76">        return TeraArrayUtils.getLo(row[pos - getSizeXZHalf()]);</span>
+    }
+
+    private void rowSet(byte[] row, int pos, int value) {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (pos &lt; getSizeXZHalf()) {</span>
+<span class="nc" id="L81">            byte raw = row[pos];</span>
+<span class="nc" id="L82">            row[pos] = TeraArrayUtils.setHi(raw, value);</span>
+<span class="nc" id="L83">            return;</span>
+        }
+<span class="nc" id="L85">        int rowPos = pos - getSizeXZHalf();</span>
+<span class="nc" id="L86">        byte raw = row[rowPos];</span>
+<span class="nc" id="L87">        row[rowPos] = TeraArrayUtils.setLo(raw, value);</span>
+<span class="nc" id="L88">    }</span>
+
+    private int rowSetGetOld(byte[] row, int pos, int value) {
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (pos &lt; getSizeXZHalf()) {</span>
+<span class="nc" id="L92">            byte raw = row[pos];</span>
+<span class="nc" id="L93">            byte old = TeraArrayUtils.getHi(raw);</span>
+<span class="nc" id="L94">            row[pos] = TeraArrayUtils.setHi(raw, value);</span>
+<span class="nc" id="L95">            return old;</span>
+        }
+<span class="nc" id="L97">        int rowPos = pos - getSizeXZHalf();</span>
+<span class="nc" id="L98">        byte raw = row[rowPos];</span>
+<span class="nc" id="L99">        byte old = TeraArrayUtils.getLo(raw);</span>
+<span class="nc" id="L100">        row[rowPos] = TeraArrayUtils.setLo(raw, value);</span>
+<span class="nc" id="L101">        return old;</span>
+    }
+
+    @Override
+    public TeraArray deflate(TeraVisitingDeflator deflator) {
+<span class="nc" id="L106">        return Preconditions.checkNotNull(deflator).deflateSparseArray4Bit(inflated, deflated, fill, rowSize(), getSizeX(), getSizeY(), getSizeZ());</span>
+    }
+
+    @Override
+    public int getElementSizeInBits() {
+<span class="nc" id="L111">        return 4;</span>
+    }
+
+    @Override
+    public int get(int x, int y, int z) {
+<span class="nc" id="L116">        int pos = pos(x, z);</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L118">            return rowGet(pos, fill);</span>
+        }
+<span class="nc" id="L120">        byte[] row = inflated[y];</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        if (row != null) {</span>
+<span class="nc" id="L122">            return rowGet(row, pos);</span>
+        }
+<span class="nc" id="L124">        return rowGet(pos, deflated[y]);</span>
+    }
+
+    @Override
+    public int set(int x, int y, int z, int value) {
+<span class="nc" id="L129">        int pos = pos(x, z);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L131">            int old = rowGet(pos, fill);</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">            if (old == value) {</span>
+<span class="nc" id="L133">                return old;</span>
+            } else {
+<span class="nc" id="L135">                this.inflated = new byte[getSizeY()][];</span>
+<span class="nc" id="L136">                this.deflated = new byte[getSizeY()];</span>
+<span class="nc" id="L137">                Arrays.fill(deflated, fill);</span>
+            }
+        }
+<span class="nc" id="L140">        byte[] row = inflated[y];</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if (row != null) {</span>
+<span class="nc" id="L142">            return rowSetGetOld(row, pos, value);</span>
+        }
+<span class="nc" id="L144">        int old = rowGet(pos, deflated[y]);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        if (old == value) {</span>
+<span class="nc" id="L146">            return old;</span>
+        }
+<span class="nc" id="L148">        inflated[y] = new byte[rowSize()];</span>
+<span class="nc" id="L149">        Arrays.fill(inflated[y], deflated[y]);</span>
+<span class="nc" id="L150">        return rowSetGetOld(inflated[y], pos, value);</span>
+    }
+
+    @Override
+    public boolean set(int x, int y, int z, int value, int expected) {
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (value == expected) {</span>
+<span class="nc" id="L156">            return true;</span>
+        }
+<span class="nc" id="L158">        int pos = pos(x, z);</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L160">            int old = rowGet(pos, fill);</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">            if (old == value) {</span>
+<span class="nc" id="L162">                return true;</span>
+            } else {
+<span class="nc" id="L164">                this.inflated = new byte[getSizeY()][];</span>
+<span class="nc" id="L165">                this.deflated = new byte[getSizeY()];</span>
+<span class="nc" id="L166">                Arrays.fill(deflated, fill);</span>
+            }
+        }
+<span class="nc" id="L169">        byte[] row = inflated[y];</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (row != null) {</span>
+<span class="nc" id="L171">            int old = rowGet(row, pos);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">            if (old == expected) {</span>
+<span class="nc" id="L173">                rowSet(row, pos, value);</span>
+<span class="nc" id="L174">                return true;</span>
+            }
+<span class="nc" id="L176">            return false;</span>
+        }
+<span class="nc" id="L178">        int old = rowGet(pos, deflated[y]);</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        if (old == expected) {</span>
+<span class="nc" id="L180">            inflated[y] = new byte[rowSize()];</span>
+<span class="nc" id="L181">            Arrays.fill(inflated[y], deflated[y]);</span>
+<span class="nc" id="L182">            rowSet(inflated[y], pos, value);</span>
+<span class="nc" id="L183">            return true;</span>
+        }
+<span class="nc" id="L185">        return false;</span>
+    }
+
+<span class="nc" id="L188">    public static final class SerializationHandler extends TeraSparseArrayByte.SerializationHandler&lt;TeraSparseArray4Bit&gt; {</span>
+
+        @Override
+        public boolean canHandle(Class&lt;?&gt; clazz) {
+<span class="nc" id="L192">            return TeraSparseArray4Bit.class.equals(clazz);</span>
+        }
+
+        @Override
+        protected TeraSparseArray4Bit createArray(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L197">            return new TeraSparseArray4Bit(sizeX, sizeY, sizeZ);</span>
+        }
+    }
+
+<span class="fc" id="L201">    public static class Factory implements TeraArray.Factory&lt;TeraSparseArray4Bit&gt; {</span>
+
+        @Override
+        public Class&lt;TeraSparseArray4Bit&gt; getArrayClass() {
+<span class="nc" id="L205">            return TeraSparseArray4Bit.class;</span>
+        }
+
+        @Override
+        public SerializationHandler createSerializationHandler() {
+<span class="nc" id="L210">            return new SerializationHandler();</span>
+        }
+
+        @Override
+        public TeraSparseArray4Bit create() {
+<span class="nc" id="L215">            return new TeraSparseArray4Bit();</span>
+        }
+
+        @Override
+        public TeraSparseArray4Bit create(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L220">            return new TeraSparseArray4Bit(sizeX, sizeY, sizeZ);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

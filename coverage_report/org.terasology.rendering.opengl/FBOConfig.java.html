@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FBOConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.opengl</a> &gt; <span class="el_source">FBOConfig.java</span></div><h1>FBOConfig.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.opengl;
+
+import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
+import org.terasology.engine.SimpleUri;
+
+/**
+ * Builder class to simplify the syntax creating an FBO.
+ * &lt;p&gt;
+ * Once the desired characteristics of the FBO are set via the Builder's constructor and its
+ * use*Buffer() methods, the build() method can be called for the actual FBO to be generated,
+ * alongside the underlying FrameBuffer and its attachments on the GPU.
+ * &lt;p&gt;
+ * The new FBO is automatically registered with the LwjglRenderingProcess, overwriting any
+ * existing FBO with the same title.
+ */
+public class FBOConfig {
+    private SimpleUri fboName;
+    private FBO.Dimensions dimensions;
+    private FBO.Type type;
+
+
+    private boolean useDepthBuffer;
+    private boolean useNormalBuffer;
+    private boolean useLightBuffer;
+    private boolean useStencilBuffer;
+    private float scale;
+    /**
+     * Constructs an FBO builder capable of building the two most basic FBOs:
+     * an FBO with no attachments or one with a single color buffer attached to it.
+     * &lt;p&gt;
+     * To attach additional buffers, see the use*Buffer() methods.
+     * &lt;p&gt;
+     * Example: FBO basicFBO = new FBObuilder(&quot;basic&quot;, new Dimensions(1920, 1080), Type.DEFAULT).build();
+     *
+     * @param fboName      A string identifier, the title is used to later manipulate the FBO through
+     *                   methods such as LwjglRenderingProcess.getFBO(title) and LwjglRenderingProcess.bindFBO(title).
+     * @param dimensions A Dimensions object providing width and height information.
+     * @param type       Type.DEFAULT will result in a 32 bit color buffer attached to the FBO. (GL_RGBA, GL11.GL_UNSIGNED_BYTE, GL_LINEAR)
+     *                   Type.HDR will result in a 64 bit color buffer attached to the FBO. (GL_RGBA, GL_HALF_FLOAT_ARB, GL_LINEAR)
+     *                   Type.NO_COLOR will result in -no- color buffer attached to the FBO
+     *                   (WARNING: this could result in an FBO with Status.DISPOSED - see FBO.getStatus()).
+     */
+<span class="nc" id="L59">    public FBOConfig(SimpleUri fboName, FBO.Dimensions dimensions, FBO.Type type) {</span>
+<span class="nc" id="L60">        this.fboName = fboName;</span>
+<span class="nc" id="L61">        this.dimensions = dimensions;</span>
+<span class="nc" id="L62">        this.type = type;</span>
+<span class="nc" id="L63">    }</span>
+
+    /**
+     * Same as the previous FBObuilder constructor, but taking in input
+     * explicit, integer width and height instead of a Dimensions object.
+     */
+    public FBOConfig(SimpleUri fboName, int width, int height, FBO.Type type) {
+<span class="nc" id="L70">        this(fboName, new FBO.Dimensions(width, height), type);</span>
+<span class="nc" id="L71">    }</span>
+
+<span class="nc" id="L73">    public FBOConfig(SimpleUri fboName, ScalingFactors factors, FBO.Type type) {</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        Preconditions.checkArgument(factors.getScale() != 0, &quot;Scale can not be zero.&quot;);</span>
+<span class="nc" id="L75">        this.fboName = fboName;</span>
+<span class="nc" id="L76">        this.type = type;</span>
+<span class="nc" id="L77">        this.scale = factors.getScale();</span>
+<span class="nc" id="L78">    }</span>
+
+
+<span class="nc" id="L81">    public FBOConfig(SimpleUri fboName, float scale, FBO.Type type) {</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        Preconditions.checkArgument(scale != 0, &quot;Scale can not be zero.&quot;);</span>
+<span class="nc" id="L83">        this.fboName = fboName;</span>
+<span class="nc" id="L84">        this.type = type;</span>
+<span class="nc" id="L85">        this.scale = scale;</span>
+<span class="nc" id="L86">    }</span>
+
+<span class="nc" id="L88">    public FBOConfig(SimpleUri fboName, FBO.Type type) {</span>
+<span class="nc" id="L89">        this.fboName = fboName;</span>
+<span class="nc" id="L90">        this.type = type;</span>
+<span class="nc" id="L91">    }</span>
+
+    /**
+     * Sets the builder to generate, allocate and attach a 24 bit depth buffer to the FrameBuffer to be built.
+     * If useStencilBuffer() is also used, an 8 bit stencil buffer will also be associated with the depth buffer.
+     * For details on the specific characteristics of the buffers, see the FBO.create() method.
+     *
+     * @return The calling instance, to chain calls, i.e.: new FBObuilder(...).useDepthBuffer().build();
+     */
+    public FBOConfig useDepthBuffer() {
+<span class="nc" id="L101">        useDepthBuffer = true;</span>
+<span class="nc" id="L102">        return this;</span>
+    }
+
+    /**
+     * Sets the builder to generate, allocate and attach a normals buffer to the FrameBuffer to be built.
+     * For details on the specific characteristics of the buffer, see the FBO.create() method.
+     *
+     * @return The calling instance, to chain calls, i.e.: new FBObuilder(...).useNormalsBuffer().build();
+     */
+    public FBOConfig useNormalBuffer() {
+<span class="nc" id="L112">        useNormalBuffer = true;</span>
+<span class="nc" id="L113">        return this;</span>
+    }
+
+    /**
+     * Sets the builder to generate, allocate and attach a light buffer to the FrameBuffer to be built.
+     * Be aware that the number of bits per channel for this buffer changes with the set FBO.Type.
+     * For details see the FBO.create() method.
+     *
+     * @return The calling instance, to chain calls, i.e.: new FBObuilder(...).useLightBuffer().build();
+     */
+    public FBOConfig useLightBuffer() {
+<span class="nc" id="L124">        useLightBuffer = true;</span>
+<span class="nc" id="L125">        return this;</span>
+    }
+
+    /**
+     * -IF- the builder has been set to generate a depth buffer, using this method sets the builder to
+     * generate a depth buffer inclusive of stencil buffer, with the following characteristics:
+     * internal format GL_DEPTH24_STENCIL8_EXT, data type GL_UNSIGNED_INT_24_8_EXT and filtering GL_NEAREST.
+     *
+     * @return The calling instance of FBObuilder, to chain calls,
+     * i.e.: new FBObuilder(...).useDepthBuffer().useStencilBuffer().build();
+     */
+    public FBOConfig useStencilBuffer() {
+<span class="nc" id="L137">        useStencilBuffer = true;</span>
+<span class="nc" id="L138">        return this;</span>
+    }
+
+    // TODO: add javadocs
+    public boolean hasDepthBuffer() {
+<span class="nc" id="L143">        return useDepthBuffer;</span>
+    }
+
+    public boolean hasNormalBuffer() {
+<span class="nc" id="L147">        return useNormalBuffer;</span>
+    }
+
+    public boolean hasLightBuffer() {
+<span class="nc" id="L151">        return useLightBuffer;</span>
+    }
+
+    public boolean hasStencilBuffer() {
+<span class="nc" id="L155">        return useStencilBuffer;</span>
+    }
+
+    public FBO.Type getType() {
+<span class="nc" id="L159">        return type;</span>
+    }
+
+    public float getScale() {
+<span class="nc" id="L163">        return scale;</span>
+    }
+
+    public FBO.Dimensions getDimensions() {
+<span class="nc" id="L167">        return dimensions;</span>
+    }
+
+    public SimpleUri getName() {
+<span class="nc" id="L171">        return fboName;</span>
+    }
+
+    public void setDimensions(FBO.Dimensions dimensions) {
+<span class="nc" id="L175">        this.dimensions = dimensions;</span>
+<span class="nc" id="L176">    }</span>
+
+    @Override
+    public int hashCode() {
+        // TODO: add scale and dimension
+<span class="nc" id="L181">        return Objects.hashCode(fboName, type, useDepthBuffer, useNormalBuffer, useLightBuffer, useStencilBuffer);</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        if (obj == this) {</span>
+<span class="nc" id="L187">            return true;</span>
+        }
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        if (obj instanceof FBOConfig) {</span>
+            // TODO: add scale and dimension check here
+<span class="nc" id="L191">            FBOConfig config = (FBOConfig) obj;</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            return this.fboName.equals(config.getName())</span>
+<span class="nc bnc" id="L193" title="All 10 branches missed.">                    &amp;&amp; this.type == config.getType()</span>
+                    &amp;&amp; this.useDepthBuffer == config.useDepthBuffer
+                    &amp;&amp; this.useNormalBuffer == config.useNormalBuffer
+                    &amp;&amp; this.useLightBuffer == config.useLightBuffer
+                    &amp;&amp; this.useStencilBuffer == config.useStencilBuffer;
+        }
+<span class="nc" id="L199">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

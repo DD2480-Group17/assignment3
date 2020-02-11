@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PerspectiveCamera.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.cameras</a> &gt; <span class="el_source">PerspectiveCamera.java</span></div><h1>PerspectiveCamera.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.cameras;
+
+import org.lwjgl.opengl.GL11;
+import org.terasology.config.RenderingConfig;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.math.MatrixUtils;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.rendering.nui.layers.mainMenu.videoSettings.CameraSetting;
+import org.terasology.world.WorldProvider;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.util.Deque;
+import java.util.LinkedList;
+
+import static org.lwjgl.opengl.GL11.GL_PROJECTION;
+import static org.lwjgl.opengl.GL11.glMatrixMode;
+import static org.terasology.engine.subsystem.lwjgl.LwjglDisplayDevice.DISPLAY_RESOLUTION_CHANGE;
+
+/**
+ * Simple default camera.
+ */
+public class PerspectiveCamera extends SubmersibleCamera implements PropertyChangeListener {
+    // Values used for smoothing
+<span class="fc" id="L42">    private Deque&lt;Vector3f&gt; previousPositions = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L43">    private Deque&lt;Vector3f&gt; previousViewingDirections = new LinkedList&lt;&gt;();</span>
+
+<span class="fc" id="L45">    private float multiplier = 0.9f;</span>
+
+    private PerspectiveCameraSettings cameraSettings;
+
+    private float bobbingRotationOffsetFactor;
+    private float bobbingVerticalOffsetFactor;
+    private float cachedBobbingRotationOffsetFactor;
+    private float cachedBobbingVerticalOffsetFactor;
+    private DisplayDevice displayDevice;
+
+<span class="fc" id="L55">    private Vector3f tempRightVector = new Vector3f();</span>
+
+    public PerspectiveCamera(WorldProvider worldProvider, RenderingConfig renderingConfig, DisplayDevice displayDevice) {
+<span class="fc" id="L58">        super(worldProvider, renderingConfig);</span>
+<span class="fc" id="L59">        this.displayDevice = displayDevice;</span>
+<span class="fc" id="L60">        this.cameraSettings = renderingConfig.getCameraSettings();</span>
+
+<span class="fc" id="L62">        displayDevice.subscribe(DISPLAY_RESOLUTION_CHANGE, this);</span>
+<span class="fc" id="L63">    }</span>
+
+    @Override
+    public boolean isBobbingAllowed() {
+<span class="nc" id="L67">        return true;</span>
+    }
+
+    @Override
+    public void loadProjectionMatrix() {
+<span class="nc" id="L72">        glMatrixMode(GL_PROJECTION);</span>
+<span class="nc" id="L73">        GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(getProjectionMatrix()));</span>
+<span class="nc" id="L74">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L75">    }</span>
+
+    @Override
+    public void loadModelViewMatrix() {
+<span class="nc" id="L79">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L80">        GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(getViewMatrix()));</span>
+<span class="nc" id="L81">    }</span>
+
+    @Override
+    public void loadNormalizedModelViewMatrix() {
+<span class="nc" id="L85">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L86">        GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(getNormViewMatrix()));</span>
+<span class="nc" id="L87">    }</span>
+
+    @Override
+    public void update(float deltaT) {
+<span class="nc" id="L91">        applyCinematicEffect();</span>
+
+<span class="nc" id="L93">        super.update(deltaT);</span>
+<span class="nc" id="L94">        updateMatrices();</span>
+<span class="nc" id="L95">    }</span>
+
+    private void applyCinematicEffect() {
+<span class="nc" id="L98">        previousPositions.addFirst(new Vector3f(position));</span>
+<span class="nc" id="L99">        previousViewingDirections.addFirst(new Vector3f(viewingDirection));</span>
+
+<span class="nc" id="L101">        CameraSetting cameraSetting = cameraSettings.getCameraSetting();</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        while (previousPositions.size() &gt; cameraSetting.getSmoothingFrames()) {</span>
+<span class="nc" id="L103">            previousPositions.removeLast();</span>
+<span class="nc" id="L104">            previousViewingDirections.removeLast();</span>
+        }
+
+<span class="nc" id="L107">        position.set(calculateVector(previousPositions));</span>
+<span class="nc" id="L108">        viewingDirection.set(calculateVector(previousViewingDirections));</span>
+<span class="nc" id="L109">    }</span>
+
+    private Vector3f calculateVector(Deque&lt;Vector3f&gt; vectors) {
+<span class="nc" id="L112">        int i = 0;</span>
+<span class="nc" id="L113">        float x = 0;</span>
+<span class="nc" id="L114">        float y = 0;</span>
+<span class="nc" id="L115">        float z = 0;</span>
+<span class="nc" id="L116">        float factorMult = 0;</span>
+
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        for (Vector3f vector : vectors) {</span>
+<span class="nc" id="L119">            float factor = (float) Math.pow(multiplier, i);</span>
+<span class="nc" id="L120">            factorMult += factor;</span>
+<span class="nc" id="L121">            x += vector.x * factor;</span>
+<span class="nc" id="L122">            y += vector.y * factor;</span>
+<span class="nc" id="L123">            z += vector.z * factor;</span>
+<span class="nc" id="L124">            i++;</span>
+<span class="nc" id="L125">        }</span>
+
+<span class="nc" id="L127">        return new Vector3f(x / factorMult, y / factorMult, z / factorMult);</span>
+    }
+
+    @Override
+    public void updateMatrices() {
+<span class="fc" id="L132">        updateMatrices(activeFov);</span>
+<span class="fc" id="L133">    }</span>
+
+    @Override
+    public void updateMatrices(float fov) {
+        // Nothing to do...
+<span class="pc bpc" id="L138" title="8 of 10 branches missed.">        if (cachedPosition.equals(getPosition()) &amp;&amp; cachedViewigDirection.equals(getViewingDirection())</span>
+                &amp;&amp; cachedBobbingRotationOffsetFactor == bobbingRotationOffsetFactor &amp;&amp; cachedBobbingVerticalOffsetFactor == bobbingVerticalOffsetFactor
+                &amp;&amp; cachedFov == fov
+<span class="nc bnc" id="L141" title="All 4 branches missed.">                &amp;&amp; cachedZFar == getzFar() &amp;&amp; cachedZNear == getzNear()</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                &amp;&amp; cachedReflectionHeight == getReflectionHeight()) {</span>
+<span class="nc" id="L143">            return;</span>
+        }
+
+<span class="fc" id="L146">        tempRightVector.cross(viewingDirection, up);</span>
+<span class="fc" id="L147">        tempRightVector.scale(bobbingRotationOffsetFactor);</span>
+
+<span class="fc" id="L149">        projectionMatrix = createPerspectiveProjectionMatrix(fov, getzNear(), getzFar(), this.displayDevice);</span>
+
+<span class="fc" id="L151">        viewMatrix = MatrixUtils.createViewMatrix(0f, bobbingVerticalOffsetFactor * 2.0f, 0f, viewingDirection.x, viewingDirection.y + bobbingVerticalOffsetFactor * 2.0f,</span>
+                viewingDirection.z, up.x + tempRightVector.x, up.y + tempRightVector.y, up.z + tempRightVector.z);
+
+<span class="fc" id="L154">        normViewMatrix = MatrixUtils.createViewMatrix(0f, 0f, 0f, viewingDirection.x, viewingDirection.y, viewingDirection.z,</span>
+                up.x + tempRightVector.x, up.y + tempRightVector.y, up.z + tempRightVector.z);
+
+<span class="fc" id="L157">        reflectionMatrix.setRow(0, 1.0f, 0.0f, 0.0f, 0.0f);</span>
+<span class="fc" id="L158">        reflectionMatrix.setRow(1, 0.0f, -1.0f, 0.0f, 2f * (-position.y + getReflectionHeight()));</span>
+<span class="fc" id="L159">        reflectionMatrix.setRow(2, 0.0f, 0.0f, 1.0f, 0.0f);</span>
+<span class="fc" id="L160">        reflectionMatrix.setRow(3, 0.0f, 0.0f, 0.0f, 1.0f);</span>
+<span class="fc" id="L161">        viewMatrixReflected.mul(viewMatrix, reflectionMatrix);</span>
+
+<span class="fc" id="L163">        reflectionMatrix.setRow(1, 0.0f, -1.0f, 0.0f, 0.0f);</span>
+<span class="fc" id="L164">        normViewMatrixReflected.mul(normViewMatrix, reflectionMatrix);</span>
+
+<span class="fc" id="L166">        viewProjectionMatrix = MatrixUtils.calcViewProjectionMatrix(viewMatrix, projectionMatrix);</span>
+
+<span class="fc" id="L168">        inverseProjectionMatrix.invert(projectionMatrix);</span>
+<span class="fc" id="L169">        inverseViewProjectionMatrix.invert(viewProjectionMatrix);</span>
+
+        // Used for dirty checks
+<span class="fc" id="L172">        cachedPosition.set(getPosition());</span>
+<span class="fc" id="L173">        cachedViewigDirection.set(getViewingDirection());</span>
+<span class="fc" id="L174">        cachedBobbingVerticalOffsetFactor = bobbingVerticalOffsetFactor;</span>
+<span class="fc" id="L175">        cachedBobbingRotationOffsetFactor = bobbingRotationOffsetFactor;</span>
+<span class="fc" id="L176">        cachedFov = fov;</span>
+<span class="fc" id="L177">        cachedZNear = getzNear();</span>
+<span class="fc" id="L178">        cachedZFar = getzFar();</span>
+<span class="fc" id="L179">        cachedReflectionHeight = getReflectionHeight();</span>
+
+<span class="fc" id="L181">        updateFrustum();</span>
+<span class="fc" id="L182">    }</span>
+
+    public void setBobbingRotationOffsetFactor(float f) {
+<span class="nc" id="L185">        bobbingRotationOffsetFactor = f;</span>
+<span class="nc" id="L186">    }</span>
+
+    public void setBobbingVerticalOffsetFactor(float f) {
+<span class="nc" id="L189">        bobbingVerticalOffsetFactor = f;</span>
+<span class="nc" id="L190">    }</span>
+
+    // TODO: Move the dependency on LWJGL (Display) elsewhere
+    private static Matrix4f createPerspectiveProjectionMatrix(float fov, float zNear, float zFar, DisplayDevice displayDevice) {
+<span class="fc" id="L194">        float aspectRatio = (float) displayDevice.getDisplayWidth() / displayDevice.getDisplayHeight();</span>
+<span class="fc" id="L195">        float fovY = (float) (2 * Math.atan2(Math.tan(0.5 * fov * TeraMath.DEG_TO_RAD), aspectRatio));</span>
+
+<span class="fc" id="L197">        return MatrixUtils.createPerspectiveProjectionMatrix(fovY, aspectRatio, zNear, zFar);</span>
+    }
+
+    public void propertyChange(PropertyChangeEvent propertyChangeEvent) {
+<span class="nc bnc" id="L201" title="All 2 branches missed.">        if (propertyChangeEvent.getPropertyName().equals(DISPLAY_RESOLUTION_CHANGE)) {</span>
+<span class="nc" id="L202">            cachedFov = -1; // Invalidate the cache, so that matrices get regenerated.</span>
+<span class="nc" id="L203">            updateMatrices();</span>
+        }
+<span class="nc" id="L205">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BindableButtonImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.input.internal</a> &gt; <span class="el_source">BindableButtonImpl.java</span></div><h1>BindableButtonImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.input.internal;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import org.terasology.engine.SimpleUri;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.input.ActivateMode;
+import org.terasology.input.BindButtonEvent;
+import org.terasology.input.BindButtonSubscriber;
+import org.terasology.input.BindableButton;
+import org.terasology.input.ButtonState;
+import org.terasology.input.Input;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+
+import java.util.List;
+import java.util.Set;
+
+/**
+ * A BindableButton is pseudo button that is controlled by one or more actual inputs (whether keys, mouse buttons or the
+ * mouse wheel).
+ * &lt;br&gt;&lt;br&gt;
+ * When the BindableButton changes state it sends out events like an actual key or button does. It also allows direct
+ * subscription via the {@link org.terasology.input.BindButtonSubscriber} interface.
+ */
+public class BindableButtonImpl implements BindableButton {
+
+    private SimpleUri id;
+    private String displayName;
+    private BindButtonEvent buttonEvent;
+<span class="fc" id="L46">    private Set&lt;Input&gt; activeInputs = Sets.newHashSet();</span>
+
+<span class="fc" id="L48">    private List&lt;BindButtonSubscriber&gt; subscribers = Lists.newArrayList();</span>
+<span class="fc" id="L49">    private ActivateMode mode = ActivateMode.BOTH;</span>
+    private boolean repeating;
+    private int repeatTime;
+    private long lastActivateTime;
+
+    private boolean consumedActivation;
+
+    /**
+     * 
+     * @param id The id of the binding
+     * @param displayName Readable name of the binding
+     * @param event The event to send when the binding is updated
+     */
+<span class="fc" id="L62">    public BindableButtonImpl(SimpleUri id, String displayName, BindButtonEvent event) {</span>
+<span class="fc" id="L63">        this.id = id;</span>
+<span class="fc" id="L64">        this.displayName = displayName;</span>
+<span class="fc" id="L65">        this.buttonEvent = event;</span>
+<span class="fc" id="L66">    }</span>
+
+    @Override
+    public SimpleUri getId() {
+<span class="fc" id="L70">        return id;</span>
+    }
+
+    @Override
+    public String getDisplayName() {
+<span class="fc" id="L75">        return displayName;</span>
+    }
+
+    @Override
+    public void setMode(ActivateMode mode) {
+<span class="fc" id="L80">        this.mode = mode;</span>
+<span class="fc" id="L81">    }</span>
+
+    @Override
+    public ActivateMode getMode() {
+<span class="nc" id="L85">        return mode;</span>
+    }
+
+    @Override
+    public void setRepeating(boolean repeating) {
+<span class="fc" id="L90">        this.repeating = repeating;</span>
+<span class="fc" id="L91">    }</span>
+
+    @Override
+    public boolean isRepeating() {
+<span class="nc" id="L95">        return repeating;</span>
+    }
+
+    /**
+     * Sets the repeat time
+     *
+     * @param repeatTimeMs The time between repeat events, in ms
+     */
+    @Override
+    public void setRepeatTime(int repeatTimeMs) {
+<span class="nc" id="L105">        this.repeatTime = repeatTimeMs;</span>
+<span class="nc" id="L106">    }</span>
+
+    @Override
+    public int getRepeatTime() {
+<span class="nc" id="L110">        return repeatTime;</span>
+    }
+
+    @Override
+    public ButtonState getState() {
+<span class="nc bnc" id="L115" title="All 4 branches missed.">        return (activeInputs.isEmpty() || consumedActivation) ? ButtonState.UP : ButtonState.DOWN;</span>
+    }
+
+    /**
+     * Register a subscriber to this bind
+     *
+     * @param subscriber
+     */
+    @Override
+    public void subscribe(BindButtonSubscriber subscriber) {
+<span class="nc" id="L125">        subscribers.add(subscriber);</span>
+<span class="nc" id="L126">    }</span>
+
+    /**
+     * Removes a subscriber from this bind
+     *
+     * @param subscriber
+     */
+    @Override
+    public void unsubscribe(BindButtonSubscriber subscriber) {
+<span class="nc" id="L135">        subscribers.remove(subscriber);</span>
+<span class="nc" id="L136">    }</span>
+
+    @Override
+    public boolean updateBindState(Input input,
+                                   boolean pressed,
+                                   float delta,
+                                   EntityRef[] inputEntities,
+                                   EntityRef target,
+                                   Vector3i targetBlockPos,
+                                   Vector3f hitPosition,
+                                   Vector3f hitNormal,
+                                   boolean initialKeyConsumed,
+                                   long gameTimeInMs) {
+<span class="fc" id="L149">        boolean keyConsumed = initialKeyConsumed;</span>
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">        if (pressed) {</span>
+<span class="fc" id="L151">            boolean previouslyEmpty = activeInputs.isEmpty();</span>
+<span class="fc" id="L152">            activeInputs.add(input);</span>
+<span class="pc bpc" id="L153" title="2 of 4 branches missed.">            if (previouslyEmpty &amp;&amp; mode.isActivatedOnPress()) {</span>
+<span class="fc" id="L154">                lastActivateTime = gameTimeInMs;</span>
+<span class="fc" id="L155">                consumedActivation = keyConsumed;</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">                if (!keyConsumed) {</span>
+<span class="fc" id="L157">                    keyConsumed = triggerOnPress(delta, target);</span>
+                }
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">                if (!keyConsumed) {</span>
+<span class="fc" id="L160">                    buttonEvent.prepare(id, ButtonState.DOWN, delta);</span>
+<span class="fc" id="L161">                    buttonEvent.setTargetInfo(target, targetBlockPos, hitPosition, hitNormal);</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">                    for (EntityRef entity : inputEntities) {</span>
+<span class="fc" id="L163">                        entity.send(buttonEvent);</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">                        if (buttonEvent.isConsumed()) {</span>
+<span class="nc" id="L165">                            break;</span>
+                        }
+                    }
+<span class="fc" id="L168">                    keyConsumed = buttonEvent.isConsumed();</span>
+                }
+            }
+<span class="pc bnc" id="L171" title="All 2 branches missed.">        } else if (!activeInputs.isEmpty()) {</span>
+<span class="nc" id="L172">            activeInputs.remove(input);</span>
+<span class="nc bnc" id="L173" title="All 4 branches missed.">            if (activeInputs.isEmpty() &amp;&amp; mode.isActivatedOnRelease()) {</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                if (!keyConsumed) {</span>
+<span class="nc" id="L175">                    keyConsumed = triggerOnRelease(delta, target);</span>
+                }
+<span class="nc bnc" id="L177" title="All 2 branches missed.">                if (!keyConsumed) {</span>
+<span class="nc" id="L178">                    buttonEvent.prepare(id, ButtonState.UP, delta);</span>
+<span class="nc" id="L179">                    buttonEvent.setTargetInfo(target, targetBlockPos, hitPosition, hitNormal);</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                    for (EntityRef entity : inputEntities) {</span>
+<span class="nc" id="L181">                        entity.send(buttonEvent);</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">                        if (buttonEvent.isConsumed()) {</span>
+<span class="nc" id="L183">                            break;</span>
+                        }
+                    }
+<span class="nc" id="L186">                    keyConsumed = buttonEvent.isConsumed();</span>
+                }
+            }
+        }
+<span class="fc" id="L190">        return keyConsumed;</span>
+    }
+
+    @Override
+    public void update(EntityRef[] inputEntities,
+                       float delta,
+                       EntityRef target,
+                       Vector3i targetBlockPos,
+                       Vector3f hitPosition,
+                       Vector3f hitNormal,
+                       long gameTimeInMs) {
+<span class="nc" id="L201">        long activateTime = gameTimeInMs;</span>
+<span class="nc bnc" id="L202" title="All 8 branches missed.">        if (repeating &amp;&amp; getState() == ButtonState.DOWN &amp;&amp; mode.isActivatedOnPress() &amp;&amp; activateTime - lastActivateTime &gt; repeatTime) {</span>
+<span class="nc" id="L203">            lastActivateTime = activateTime;</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">            if (!consumedActivation) {</span>
+<span class="nc" id="L205">                boolean consumed = triggerOnRepeat(delta, target);</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">                if (!consumed) {</span>
+<span class="nc" id="L207">                    buttonEvent.prepare(id, ButtonState.REPEAT, delta);</span>
+<span class="nc" id="L208">                    buttonEvent.setTargetInfo(target, targetBlockPos, hitPosition, hitNormal);</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">                    for (EntityRef entity : inputEntities) {</span>
+<span class="nc" id="L210">                        entity.send(buttonEvent);</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                        if (buttonEvent.isConsumed()) {</span>
+<span class="nc" id="L212">                            break;</span>
+                        }
+                    }
+                }
+            }
+        }
+<span class="nc" id="L218">    }</span>
+
+    private boolean triggerOnPress(float delta, EntityRef target) {
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">        for (BindButtonSubscriber subscriber : subscribers) {</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">            if (subscriber.onPress(delta, target)) {</span>
+<span class="nc" id="L223">                return true;</span>
+            }
+<span class="nc" id="L225">        }</span>
+<span class="fc" id="L226">        return false;</span>
+    }
+
+    private boolean triggerOnRepeat(float delta, EntityRef target) {
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        for (BindButtonSubscriber subscriber : subscribers) {</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">            if (subscriber.onRepeat(delta, target)) {</span>
+<span class="nc" id="L232">                return true;</span>
+            }
+<span class="nc" id="L234">        }</span>
+<span class="nc" id="L235">        return false;</span>
+    }
+
+    private boolean triggerOnRelease(float delta, EntityRef target) {
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        for (BindButtonSubscriber subscriber : subscribers) {</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">            if (subscriber.onRelease(delta, target)) {</span>
+<span class="nc" id="L241">                return true;</span>
+            }
+<span class="nc" id="L243">        }</span>
+<span class="nc" id="L244">        return false;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L249">        return &quot;BindableButtonEventImpl [&quot; + id + &quot;, \&quot;&quot; + displayName + &quot;\&quot;, &quot; + buttonEvent + &quot;]&quot;;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

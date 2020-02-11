@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CompleteApiScraper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.documentation.apiScraper</a> &gt; <span class="el_source">CompleteApiScraper.java</span></div><h1>CompleteApiScraper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.documentation.apiScraper;
+
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.module.ExternalApiWhitelist;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.sandbox.API;
+import org.terasology.testUtil.ModuleManagerFactory;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.stream.Collectors;
+
+/**
+ * Enumerates all classes, interfaces and packages that are annotated with {@link API} and their public methods and
+ * constructors.
+ */
+final class CompleteApiScraper {
+
+    private static final String TERASOLOGY_API_CLASS_CATEGORY = &quot;terasology engine&quot;;
+    private static final String EXTERNAL = &quot;external&quot;;
+
+<span class="nc" id="L47">    private static final Logger logger = LoggerFactory.getLogger(CompleteApiScraper.class);</span>
+
+    private CompleteApiScraper() {
+        // Private constructor, utility class
+    }
+
+    /**
+     *
+     * @return Project's Packages, Interfaces, Classes and Methods
+     * @throws Exception if the module environment cannot be loaded
+     */
+    static StringBuffer getApi() throws Exception {
+<span class="nc" id="L59">        ModuleManager moduleManager = ModuleManagerFactory.create();</span>
+<span class="nc" id="L60">        ModuleEnvironment environment = moduleManager.getEnvironment();</span>
+<span class="nc" id="L61">        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();</span>
+
+<span class="nc" id="L63">        Multimap&lt;String, String&gt; api = Multimaps.newMultimap(new HashMap&lt;String, Collection&lt;String&gt;&gt;(), ArrayList::new);</span>
+
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        for (Class&lt;?&gt; apiClass : environment.getTypesAnnotatedWith(API.class)) {</span>
+<span class="nc" id="L66">            boolean isPackage = apiClass.isSynthetic();</span>
+            URL location;
+            String category;
+<span class="nc" id="L69">            String apiPackage = &quot;&quot;;</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            if (isPackage) {</span>
+<span class="nc" id="L71">                apiPackage = apiClass.getPackage().getName();</span>
+<span class="nc" id="L72">                location = classLoader.getResource(apiPackage.replace('.', '/'));</span>
+            } else {
+
+<span class="nc" id="L75">                location = apiClass.getResource('/' + apiClass.getName().replace('.', '/') + &quot;.class&quot;);</span>
+            }
+
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if (location == null) {</span>
+<span class="nc" id="L79">                logger.error(&quot;Failed to get a class/package location, skipping &quot; + apiClass);</span>
+<span class="nc" id="L80">                continue;</span>
+            }
+
+<span class="nc bnc" id="L83" title="All 3 branches missed.">            switch (location.getProtocol()) {</span>
+                case &quot;jar&quot; :
+
+                    // Find out what jar it came from and consider that the category
+<span class="nc" id="L87">                    String categoryFragment = location.getPath();</span>
+
+<span class="nc" id="L89">                    int bang = categoryFragment.lastIndexOf(&quot;!&quot;);</span>
+<span class="nc" id="L90">                    int hyphen = categoryFragment.lastIndexOf(&quot;-&quot;, bang);</span>
+<span class="nc" id="L91">                    int slash = categoryFragment.lastIndexOf(&quot;/&quot;, hyphen);</span>
+<span class="nc" id="L92">                    category = categoryFragment.substring(slash + 1, hyphen);</span>
+
+
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                    if (isPackage) {</span>
+<span class="nc" id="L96">                        api.put(category, apiPackage + &quot; (PACKAGE)&quot;);</span>
+                    } else {
+<span class="nc" id="L98">                        addToApi(category, apiClass, api);</span>
+                    }
+<span class="nc" id="L100">                    break;</span>
+
+                case &quot;file&quot; :
+                    // If file based we know it is local so organize it like that
+<span class="nc" id="L104">                    category = TERASOLOGY_API_CLASS_CATEGORY;</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                    if (isPackage) {</span>
+<span class="nc" id="L106">                        api.put(category, apiPackage + &quot; (PACKAGE)&quot;);</span>
+                    } else {
+<span class="nc" id="L108">                        addToApi(category, apiClass, api);</span>
+                    }
+<span class="nc" id="L110">                    break;</span>
+
+                default :
+<span class="nc" id="L113">                    logger.error(&quot;Unknown protocol for: &quot; + apiClass + &quot;, came from &quot; + location);</span>
+            }
+<span class="nc" id="L115">        }</span>
+<span class="nc" id="L116">        api.putAll(EXTERNAL, ExternalApiWhitelist.CLASSES.stream()</span>
+<span class="nc" id="L117">                .map(clazz-&gt;clazz.getName() + &quot; (CLASS)&quot;).collect(Collectors.toSet()));</span>
+<span class="nc" id="L118">        api.putAll(EXTERNAL, ExternalApiWhitelist.PACKAGES.stream()</span>
+<span class="nc" id="L119">                .map(packagee-&gt;packagee + &quot; (PACKAGE)&quot;).collect(Collectors.toSet()));</span>
+
+        //Puts the information in the StringBuffer
+<span class="nc" id="L122">        StringBuffer stringApi = new StringBuffer();</span>
+<span class="nc" id="L123">        stringApi.append(&quot;# Modding API:\n&quot;);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        for (String key : api.keySet()) {</span>
+<span class="nc" id="L125">            stringApi.append(&quot;## &quot;);</span>
+<span class="nc" id="L126">            stringApi.append(key);</span>
+<span class="nc" id="L127">            stringApi.append(&quot;\n&quot;);</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">            for (String value : api.get(key)) {</span>
+<span class="nc" id="L129">                stringApi.append(&quot;* &quot;);</span>
+<span class="nc" id="L130">                stringApi.append(value);</span>
+<span class="nc" id="L131">                stringApi.append(&quot;\n&quot;);</span>
+<span class="nc" id="L132">            }</span>
+<span class="nc" id="L133">            stringApi.append(&quot;\n&quot;);</span>
+<span class="nc" id="L134">        }</span>
+<span class="nc" id="L135">        return stringApi;</span>
+    }
+
+    /**
+     * Adds interface or class and their methods and constructors to api
+     * are also added.
+     * @param category where the apiClass belongs
+     * @param apiClass the class or interface to be added
+     * @param api that maps category to classes/interface/methods
+     */
+    private static void addToApi(String category, Class&lt;?&gt; apiClass, Multimap&lt;String, String&gt; api) {
+
+<span class="nc" id="L147">        String className = apiClass.getName();</span>
+        String type;
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        if (apiClass.isInterface()) {</span>
+<span class="nc" id="L150">            type = &quot; (INTERFACE)&quot;;</span>
+        } else {
+<span class="nc" id="L152">            int modifier = apiClass.getModifiers();</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            if (Modifier.isAbstract(modifier)) {</span>
+<span class="nc" id="L154">                type = &quot; (ABSTRACT CLASS)&quot;;</span>
+            } else {
+<span class="nc" id="L156">                type = &quot; (CLASS)&quot;;</span>
+            }
+        }
+<span class="nc" id="L159">        api.put(category, className + type);</span>
+
+        //Add current apiClass's constructors
+<span class="nc" id="L162">        Constructor[] constructors = apiClass.getDeclaredConstructors();</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        for (Constructor constructor : constructors) {</span>
+<span class="nc" id="L164">            api.put(category, &quot; - &quot; + constructor.getName() +  &quot; (CONSTRUCTOR)&quot;);</span>
+<span class="nc" id="L165">            api.put(category, &quot; -- &quot; + Arrays.toString(constructor.getParameterTypes()) +  &quot; (PARAMETERS)&quot;);</span>
+        }
+
+        //Add current apiClass's methods
+<span class="nc" id="L169">        Method[] methods = apiClass.getDeclaredMethods();</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        for (Method method: methods) {</span>
+<span class="nc bnc" id="L171" title="All 6 branches missed.">            if (!method.isDefault() &amp;&amp; !method.isBridge() &amp;&amp; !method.isSynthetic()) {</span>
+
+                //Check if it's an abstract method
+<span class="nc" id="L174">                int modifier = method.getModifiers();</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">                if (Modifier.isAbstract(modifier)) {</span>
+<span class="nc" id="L176">                    type = &quot; (ABSTRACT METHOD)&quot;;</span>
+                } else {
+<span class="nc" id="L178">                    type = &quot; (METHOD)&quot;;</span>
+                }
+
+                //Adds method's information
+<span class="nc" id="L182">                api.put(category, &quot; - &quot; + method.getName() +  type);</span>
+<span class="nc" id="L183">                api.put(category, &quot; -- &quot; + method.getReturnType() +  &quot; (RETURN)&quot;);</span>
+<span class="nc" id="L184">                api.put(category, &quot; -- &quot; + Arrays.toString(method.getParameterTypes()) +  &quot; (PARAMETERS)&quot;);</span>
+<span class="nc" id="L185">                api.put(category, &quot; -- &quot; + Arrays.toString(method.getExceptionTypes()) +  &quot; (EXCEPTIONS)&quot;);</span>
+<span class="nc bnc" id="L186" title="All 4 branches missed.">            } else if (method.isDefault() &amp;&amp; apiClass.isInterface()) {</span>
+<span class="nc" id="L187">                api.put(category, &quot; - &quot; + method.getName() +  &quot; (DEFAULT METHOD)&quot;);</span>
+<span class="nc" id="L188">                api.put(category, &quot; -- &quot; + method.getReturnType() +  &quot; (RETURN)&quot;);</span>
+<span class="nc" id="L189">                api.put(category, &quot; -- &quot; + Arrays.toString(method.getParameterTypes()) +  &quot; (PARAMETERS)&quot;);</span>
+<span class="nc" id="L190">                api.put(category, &quot; -- &quot; + Arrays.toString(method.getExceptionTypes()) +  &quot; (EXCEPTIONS)&quot;);</span>
+            }
+
+        }
+<span class="nc" id="L194">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

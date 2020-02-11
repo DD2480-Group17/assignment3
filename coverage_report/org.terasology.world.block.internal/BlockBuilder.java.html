@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.internal</a> &gt; <span class="el_source">BlockBuilder.java</span></div><h1>BlockBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.internal;
+
+import com.google.common.base.Strings;
+import com.google.common.collect.Maps;
+import org.terasology.utilities.Assets;
+import org.terasology.math.Rotation;
+import org.terasology.math.Side;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockAppearance;
+import org.terasology.world.block.BlockBuilderHelper;
+import org.terasology.world.block.BlockPart;
+import org.terasology.world.block.BlockUri;
+import org.terasology.world.block.family.BlockFamily;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.loader.SectionDefinitionData;
+import org.terasology.world.block.shapes.BlockMeshPart;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.tiles.BlockTile;
+import org.terasology.world.block.tiles.WorldAtlas;
+
+import java.util.Map;
+
+public class BlockBuilder implements BlockBuilderHelper {
+
+    private WorldAtlas worldAtlas;
+
+    private BlockShape cubeShape;
+    private BlockShape lowShape;
+    private BlockShape topShape;
+
+<span class="fc" id="L47">    public BlockBuilder(WorldAtlas worldAtlas) {</span>
+<span class="fc" id="L48">        this.worldAtlas = worldAtlas;</span>
+
+<span class="fc" id="L50">        cubeShape = Assets.get(&quot;engine:cube&quot;, BlockShape.class).get();</span>
+<span class="fc" id="L51">        lowShape = Assets.get(&quot;engine:trimmedLoweredCube&quot;, BlockShape.class).get();</span>
+<span class="fc" id="L52">        topShape = Assets.get(&quot;engine:trimmedRaisedCube&quot;,  BlockShape.class).get();</span>
+<span class="fc" id="L53">    }</span>
+
+    @Override
+    public Block constructSimpleBlock(BlockFamilyDefinition definition, BlockUri uri, BlockFamily blockFamily) {
+<span class="fc" id="L57">        BlockShape shape = definition.getData().getBaseSection().getShape();</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        if (shape == null) {</span>
+<span class="fc" id="L59">            shape = cubeShape;</span>
+        }
+
+<span class="fc" id="L62">        return constructCustomBlock(definition.getUrn().getResourceName().toString(), shape, Rotation.none(), definition.getData().getBaseSection(), uri, blockFamily);</span>
+    }
+
+    @Override
+    public Block constructSimpleBlock(BlockFamilyDefinition definition, BlockShape shape, BlockUri uri, BlockFamily blockFamily) {
+<span class="nc" id="L67">        return constructCustomBlock(definition.getUrn().getResourceName().toString(), shape, Rotation.none(), definition.getData().getBaseSection(), uri, blockFamily);</span>
+    }
+
+    @Override
+    public Block constructSimpleBlock(BlockFamilyDefinition definition, String section, BlockUri uri, BlockFamily blockFamily) {
+<span class="nc" id="L72">        BlockShape shape = definition.getData().getSection(section).getShape();</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if (shape == null) {</span>
+<span class="nc" id="L74">            shape = cubeShape;</span>
+        }
+
+<span class="nc" id="L77">        return constructCustomBlock(definition.getUrn().getResourceName().toString(), shape, Rotation.none(), definition.getData().getSection(section), uri, blockFamily);</span>
+    }
+
+    @Override
+    public Block constructSimpleBlock(BlockFamilyDefinition definition, BlockShape shape, String section, BlockUri uri, BlockFamily blockFamily) {
+<span class="nc" id="L82">        return constructCustomBlock(definition.getUrn().getResourceName().toString(), shape, Rotation.none(), definition.getData().getSection(section), uri, blockFamily);</span>
+    }
+
+    @Override
+    public Block constructTransformedBlock(BlockFamilyDefinition definition, Rotation rotation, BlockUri uri, BlockFamily blockFamily) {
+<span class="nc" id="L87">        BlockShape shape = definition.getData().getBaseSection().getShape();</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (shape == null) {</span>
+<span class="nc" id="L89">            shape = cubeShape;</span>
+        }
+
+<span class="nc" id="L92">        return constructCustomBlock(definition.getUrn().getResourceName().toString(), shape, rotation, definition.getData().getBaseSection(), uri, blockFamily);</span>
+    }
+
+    @Override
+    public Block constructTransformedBlock(BlockFamilyDefinition definition, String section, Rotation rotation, BlockUri uri, BlockFamily blockFamily) {
+<span class="fc" id="L97">        BlockShape shape = definition.getData().getSection(section).getShape();</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        if (shape == null) {</span>
+<span class="fc" id="L99">            shape = cubeShape;</span>
+        }
+
+<span class="fc" id="L102">        return constructCustomBlock(definition.getUrn().getResourceName().toString(), shape, rotation, definition.getData().getSection(section), uri, blockFamily);</span>
+    }
+
+    @Override
+    public Block constructTransformedBlock(BlockFamilyDefinition definition, BlockShape shape, Rotation rotation, BlockUri uri, BlockFamily blockFamily) {
+<span class="nc" id="L107">        return constructCustomBlock(definition.getUrn().getResourceName().toString(), shape, rotation, definition.getData().getBaseSection(), uri, blockFamily);</span>
+    }
+
+    @Override
+    public Block constructTransformedBlock(BlockFamilyDefinition definition, BlockShape shape, String section, Rotation rotation, BlockUri uri, BlockFamily blockFamily) {
+<span class="nc" id="L112">        return constructCustomBlock(definition.getUrn().getResourceName().toString(), shape, rotation, definition.getData().getSection(section), uri, blockFamily);</span>
+    }
+
+    @Override
+    public Block constructCustomBlock(String defaultName, BlockShape shape, Rotation rotation, SectionDefinitionData section, BlockUri uri, BlockFamily blockFamily) {
+<span class="fc" id="L117">        Block block = createRawBlock(defaultName, section);</span>
+<span class="fc" id="L118">        block.setRotation(rotation);</span>
+<span class="fc" id="L119">        block.setPrimaryAppearance(createAppearance(shape, section.getBlockTiles(), rotation));</span>
+<span class="fc" id="L120">        setBlockFullSides(block, shape, rotation);</span>
+<span class="fc" id="L121">        block.setCollision(shape.getCollisionOffset(rotation), shape.getCollisionShape(rotation));</span>
+
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        for (BlockPart part : BlockPart.values()) {</span>
+<span class="fc" id="L124">            block.setColorSource(part, section.getColorSources().get(part));</span>
+<span class="fc" id="L125">            block.setColorOffset(part, section.getColorOffsets().get(part));</span>
+        }
+
+<span class="fc" id="L128">        block.setUri(uri);</span>
+<span class="fc" id="L129">        block.setBlockFamily(blockFamily);</span>
+
+        // Lowered mesh for liquids
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">        if (block.isLiquid()) {</span>
+<span class="nc" id="L133">            applyLiquidShapes(block, section.getBlockTiles());</span>
+        }
+
+<span class="fc" id="L136">        return block;</span>
+    }
+
+    private Block createRawBlock(String defaultName, SectionDefinitionData def) {
+<span class="fc" id="L140">        Block block = new Block();</span>
+<span class="fc" id="L141">        block.setLiquid(def.isLiquid());</span>
+<span class="fc" id="L142">        block.setWater(def.isWater());</span>
+<span class="fc" id="L143">        block.setGrass(def.isGrass());</span>
+<span class="fc" id="L144">        block.setIce(def.isIce());</span>
+<span class="fc" id="L145">        block.setHardness(def.getHardness());</span>
+<span class="fc" id="L146">        block.setAttachmentAllowed(def.isAttachmentAllowed());</span>
+<span class="fc" id="L147">        block.setReplacementAllowed(def.isReplacementAllowed());</span>
+<span class="fc" id="L148">        block.setSupportRequired(def.isSupportRequired());</span>
+<span class="fc" id="L149">        block.setPenetrable(def.isPenetrable());</span>
+<span class="fc" id="L150">        block.setTargetable(def.isTargetable());</span>
+<span class="fc" id="L151">        block.setClimbable(def.isClimbable());</span>
+<span class="fc" id="L152">        block.setTranslucent(def.isTranslucent());</span>
+<span class="fc" id="L153">        block.setDoubleSided(def.isDoubleSided());</span>
+<span class="fc" id="L154">        block.setShadowCasting(def.isShadowCasting());</span>
+<span class="fc" id="L155">        block.setWaving(def.isWaving());</span>
+<span class="fc" id="L156">        block.setLuminance(def.getLuminance());</span>
+<span class="fc" id="L157">        block.setTint(def.getTint());</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        if (Strings.isNullOrEmpty(def.getDisplayName())) {</span>
+<span class="fc" id="L159">            block.setDisplayName(properCase(defaultName));</span>
+        } else {
+<span class="fc" id="L161">            block.setDisplayName(def.getDisplayName());</span>
+        }
+<span class="fc" id="L163">        block.setSounds(def.getSounds());</span>
+
+<span class="fc" id="L165">        block.setMass(def.getMass());</span>
+<span class="fc" id="L166">        block.setDebrisOnDestroy(def.isDebrisOnDestroy());</span>
+<span class="fc" id="L167">        block.setFriction(def.getFriction());</span>
+<span class="fc" id="L168">        block.setRestitution(def.getRestitution());</span>
+
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">        if (def.getEntity() != null) {</span>
+<span class="fc" id="L171">            block.setPrefab(def.getEntity().getPrefab());</span>
+<span class="fc" id="L172">            block.setKeepActive(def.getEntity().isKeepActive());</span>
+        }
+
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        if (def.getInventory() != null) {</span>
+<span class="fc" id="L176">            block.setStackable(def.getInventory().isStackable());</span>
+<span class="fc" id="L177">            block.setDirectPickup(def.getInventory().isDirectPickup());</span>
+        }
+
+<span class="fc" id="L180">        return block;</span>
+    }
+
+    private BlockAppearance createAppearance(BlockShape shape, Map&lt;BlockPart, BlockTile&gt; tiles, Rotation rot) {
+<span class="fc" id="L184">        Map&lt;BlockPart, BlockMeshPart&gt; meshParts = Maps.newEnumMap(BlockPart.class);</span>
+<span class="fc" id="L185">        Map&lt;BlockPart, Vector2f&gt; textureAtlasPositions = Maps.newEnumMap(BlockPart.class);</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">        for (BlockPart part : BlockPart.values()) {</span>
+            // TODO: Need to be more sensible with the texture atlas. Because things like block particles read from a part that may not exist, we're being fairly lenient
+            Vector2f atlasPos;
+            int frameCount;
+<span class="fc" id="L190">            BlockTile tile = tiles.get(part);</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">            if (tile == null) {</span>
+<span class="fc" id="L192">                atlasPos = new Vector2f();</span>
+<span class="fc" id="L193">                frameCount = 1;</span>
+            } else {
+<span class="nc bnc" id="L195" title="All 2 branches missed.">                atlasPos = worldAtlas.getTexCoords(tile, shape.getMeshPart(part) != null);</span>
+<span class="nc" id="L196">                frameCount = tile.getLength();</span>
+            }
+<span class="fc" id="L198">            BlockPart targetPart = part.rotate(rot);</span>
+<span class="fc" id="L199">            textureAtlasPositions.put(targetPart, atlasPos);</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">            if (shape.getMeshPart(part) != null) {</span>
+<span class="fc" id="L201">                meshParts.put(targetPart, shape.getMeshPart(part).rotate(rot.getQuat4f()).mapTexCoords(atlasPos, worldAtlas.getRelativeTileSize(), frameCount));</span>
+            }
+        }
+<span class="fc" id="L204">        return new BlockAppearance(meshParts, textureAtlasPositions);</span>
+    }
+
+    private void setBlockFullSides(Block block, BlockShape shape, Rotation rot) {
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        for (Side side : Side.getAllSides()) {</span>
+<span class="fc" id="L209">            BlockPart targetPart = BlockPart.fromSide(rot.rotate(side));</span>
+<span class="fc" id="L210">            block.setFullSide(targetPart.getSide(), shape.isBlockingSide(side));</span>
+<span class="fc" id="L211">        }</span>
+<span class="fc" id="L212">    }</span>
+
+    private void applyLiquidShapes(Block block, Map&lt;BlockPart, BlockTile&gt; tiles) {
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        for (Side side : Side.getAllSides()) {</span>
+<span class="nc" id="L216">            BlockPart part = BlockPart.fromSide(side);</span>
+<span class="nc" id="L217">            BlockTile blockTile = tiles.get(part);</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">            if (blockTile != null) {</span>
+<span class="nc" id="L219">                BlockMeshPart lowMeshPart = lowShape</span>
+<span class="nc" id="L220">                        .getMeshPart(part)</span>
+<span class="nc" id="L221">                        .mapTexCoords(worldAtlas.getTexCoords(blockTile, true), worldAtlas.getRelativeTileSize(), blockTile.getLength());</span>
+<span class="nc" id="L222">                block.setLowLiquidMesh(part.getSide(), lowMeshPart);</span>
+<span class="nc" id="L223">                BlockMeshPart topMeshPart = topShape</span>
+<span class="nc" id="L224">                        .getMeshPart(part)</span>
+<span class="nc" id="L225">                        .mapTexCoords(worldAtlas.getTexCoords(blockTile, true), worldAtlas.getRelativeTileSize(), blockTile.getLength());</span>
+<span class="nc" id="L226">                block.setTopLiquidMesh(part.getSide(), topMeshPart);</span>
+            }
+<span class="nc" id="L228">        }</span>
+<span class="nc" id="L229">    }</span>
+
+    private String properCase(String s) {
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">        if (s.length() &gt; 1) {</span>
+<span class="fc" id="L233">            return s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase();</span>
+        } else {
+<span class="nc" id="L235">            return s.toUpperCase();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

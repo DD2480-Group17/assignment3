@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JsonBlockShapeLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.shapes</a> &gt; <span class="el_source">JsonBlockShapeLoader.java</span></div><h1>JsonBlockShapeLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.block.shapes;
+
+import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import gnu.trove.list.TIntList;
+import gnu.trove.list.array.TIntArrayList;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.math.Rotation;
+import org.terasology.math.Transform;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.physics.shapes.CollisionShape;
+import org.terasology.physics.shapes.CompoundShape;
+import org.terasology.physics.shapes.ConvexHullShape;
+import org.terasology.utilities.gson.Vector2fTypeAdapter;
+import org.terasology.utilities.gson.Vector3fTypeAdapter;
+import org.terasology.world.block.BlockPart;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+import static org.terasology.physics.engine.PhysicsEngineManager.COLLISION_SHAPE_FACTORY;
+
+/**
+ */
+@RegisterAssetFileFormat
+public class JsonBlockShapeLoader extends AbstractAssetFileFormat&lt;BlockShapeData&gt; {
+    private Gson gson;
+
+    public JsonBlockShapeLoader() {
+<span class="fc" id="L62">        super(&quot;shape&quot;);</span>
+<span class="fc" id="L63">        gson = new GsonBuilder()</span>
+<span class="fc" id="L64">                .setPrettyPrinting()</span>
+<span class="fc" id="L65">                .registerTypeAdapter(BlockShapeData.class, new BlockShapeHandler())</span>
+<span class="fc" id="L66">                .registerTypeAdapter(BlockMeshPart.class, new BlockMeshPartHandler())</span>
+<span class="fc" id="L67">                .registerTypeAdapter(Vector3f.class, new Vector3fTypeAdapter())</span>
+<span class="fc" id="L68">                .registerTypeAdapter(Vector2f.class, new Vector2fTypeAdapter())</span>
+<span class="fc" id="L69">                .create();</span>
+<span class="fc" id="L70">    }</span>
+
+    @Override
+    public BlockShapeData load(ResourceUrn resourceUrn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="fc" id="L74">        try (InputStreamReader reader = new InputStreamReader(inputs.get(0).openStream(), Charsets.UTF_8)) {</span>
+<span class="fc" id="L75">            return gson.fromJson(reader, BlockShapeData.class);</span>
+        }
+    }
+
+
+    private static class BlockShapeHandler implements JsonDeserializer&lt;BlockShapeData&gt; {
+
+        public static final String DISPLAY_NAME = &quot;displayName&quot;;
+        public static final String PITCH_SYMMETRIC = &quot;pitchSymmetric&quot;;
+        public static final String YAW_SYMMETRIC = &quot;yawSymmetric&quot;;
+        public static final String ROLL_SYMMETRIC = &quot;rollSymmetric&quot;;
+        public static final String SYMMETRIC = &quot;symmetric&quot;;
+        public static final String CONVEX_HULL = &quot;convexHull&quot;;
+        public static final String COLLIDERS = &quot;colliders&quot;;
+        public static final String COLLISION = &quot;collision&quot;;
+        public static final String FULL_SIDE = &quot;fullSide&quot;;
+        public static final String TYPE = &quot;type&quot;;
+        public static final String AABB = &quot;AABB&quot;;
+        public static final String SPHERE = &quot;Sphere&quot;;
+        public static final String POSITION = &quot;position&quot;;
+        public static final String EXTENTS = &quot;extents&quot;;
+        public static final String RADIUS = &quot;radius&quot;;
+
+        @Override
+        public BlockShapeData deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L100">            BlockShapeData shape = new BlockShapeData();</span>
+<span class="fc" id="L101">            JsonObject shapeObj = json.getAsJsonObject();</span>
+
+<span class="fc bfc" id="L103" title="All 2 branches covered.">            if (shapeObj.has(DISPLAY_NAME)) {</span>
+<span class="fc" id="L104">                shape.setDisplayName(shapeObj.getAsJsonPrimitive(DISPLAY_NAME).getAsString());</span>
+            }
+
+<span class="fc bfc" id="L107" title="All 2 branches covered.">            for (BlockPart part : BlockPart.values()) {</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">                if (shapeObj.has(part.toString().toLowerCase(Locale.ENGLISH))) {</span>
+<span class="fc" id="L109">                    JsonObject meshObj = shapeObj.getAsJsonObject(part.toString().toLowerCase(Locale.ENGLISH));</span>
+<span class="fc" id="L110">                    shape.setMeshPart(part, (BlockMeshPart) context.deserialize(meshObj, BlockMeshPart.class));</span>
+<span class="pc bpc" id="L111" title="1 of 4 branches missed.">                    if (part.isSide() &amp;&amp; meshObj.has(FULL_SIDE)) {</span>
+<span class="fc" id="L112">                        shape.setBlockingSide(part.getSide(), meshObj.get(FULL_SIDE).getAsBoolean());</span>
+                    }
+                }
+            }
+
+<span class="pc bpc" id="L117" title="1 of 4 branches missed.">            if (shapeObj.has(COLLISION) &amp;&amp; shapeObj.get(COLLISION).isJsonObject()) {</span>
+<span class="fc" id="L118">                JsonObject collisionInfo = shapeObj.get(COLLISION).getAsJsonObject();</span>
+<span class="fc" id="L119">                processCollision(context, shape, collisionInfo);</span>
+<span class="fc" id="L120">            } else {</span>
+<span class="fc" id="L121">                shape.setCollisionShape(COLLISION_SHAPE_FACTORY.getNewUnitCube());</span>
+<span class="fc" id="L122">                shape.setCollisionSymmetric(true);</span>
+            }
+<span class="fc" id="L124">            return shape;</span>
+        }
+
+        private void processCollision(JsonDeserializationContext context, BlockShapeData shape, JsonObject collisionInfo) {
+<span class="pc bpc" id="L128" title="3 of 4 branches missed.">            if (collisionInfo.has(PITCH_SYMMETRIC) &amp;&amp; collisionInfo.get(PITCH_SYMMETRIC).isJsonPrimitive()</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">                    &amp;&amp; collisionInfo.get(PITCH_SYMMETRIC).getAsJsonPrimitive().isBoolean()) {</span>
+<span class="nc" id="L130">                shape.setPitchSymmetric(collisionInfo.get(PITCH_SYMMETRIC).getAsBoolean());</span>
+            }
+<span class="pc bpc" id="L132" title="3 of 4 branches missed.">            if (collisionInfo.has(YAW_SYMMETRIC) &amp;&amp; collisionInfo.get(YAW_SYMMETRIC).isJsonPrimitive()</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                    &amp;&amp; collisionInfo.get(YAW_SYMMETRIC).getAsJsonPrimitive().isBoolean()) {</span>
+<span class="nc" id="L134">                shape.setYawSymmetric(collisionInfo.get(YAW_SYMMETRIC).getAsBoolean());</span>
+            }
+<span class="pc bpc" id="L136" title="3 of 4 branches missed.">            if (collisionInfo.has(ROLL_SYMMETRIC) &amp;&amp; collisionInfo.get(ROLL_SYMMETRIC).isJsonPrimitive()</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                    &amp;&amp; collisionInfo.get(ROLL_SYMMETRIC).getAsJsonPrimitive().isBoolean()) {</span>
+<span class="nc" id="L138">                shape.setRollSymmetric(collisionInfo.get(ROLL_SYMMETRIC).getAsBoolean());</span>
+            }
+
+<span class="pc bpc" id="L141" title="3 of 4 branches missed.">            if (collisionInfo.has(SYMMETRIC) &amp;&amp; collisionInfo.get(SYMMETRIC).isJsonPrimitive()</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                    &amp;&amp; collisionInfo.get(SYMMETRIC).getAsJsonPrimitive().isBoolean()) {</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">                if (collisionInfo.get(SYMMETRIC).getAsBoolean()) {</span>
+<span class="nc" id="L144">                    shape.setCollisionSymmetric(true);</span>
+                }
+            }
+
+<span class="pc bpc" id="L148" title="2 of 4 branches missed.">            if (collisionInfo.has(CONVEX_HULL) &amp;&amp; collisionInfo.get(CONVEX_HULL).isJsonPrimitive()</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">                    &amp;&amp; collisionInfo.get(CONVEX_HULL).getAsJsonPrimitive().isBoolean()) {</span>
+<span class="fc" id="L150">                List&lt;Vector3f&gt; verts = buildVertList(shape);</span>
+<span class="fc" id="L151">                ConvexHullShape convexHull = COLLISION_SHAPE_FACTORY.getNewConvexHull(verts);</span>
+<span class="fc" id="L152">                shape.setCollisionShape(convexHull);</span>
+<span class="pc bnc" id="L153" title="All 4 branches missed.">            } else if (collisionInfo.has(COLLIDERS) &amp;&amp; collisionInfo.get(COLLIDERS).isJsonArray()</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                    &amp;&amp; collisionInfo.get(COLLIDERS).getAsJsonArray().size() &gt; 0) {</span>
+<span class="nc" id="L155">                JsonArray colliderArray = collisionInfo.get(COLLIDERS).getAsJsonArray();</span>
+<span class="nc" id="L156">                processColliders(context, colliderArray, shape);</span>
+<span class="nc" id="L157">            } else {</span>
+<span class="nc" id="L158">                shape.setCollisionShape(COLLISION_SHAPE_FACTORY.getNewUnitCube());</span>
+<span class="nc" id="L159">                shape.setCollisionSymmetric(true);</span>
+            }
+<span class="fc" id="L161">        }</span>
+
+        private List&lt;Vector3f&gt; buildVertList(BlockShapeData shape) {
+<span class="fc" id="L164">            List&lt;Vector3f&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">            for (BlockPart part : BlockPart.values()) {</span>
+<span class="fc" id="L166">                BlockMeshPart meshPart = shape.getMeshPart(part);</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">                if (meshPart != null) {</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">                    for (int i = 0; i &lt; meshPart.size(); ++i) {</span>
+<span class="fc" id="L169">                        result.add(meshPart.getVertex(i));</span>
+                    }
+                }
+            }
+<span class="fc" id="L173">            return result;</span>
+        }
+
+        private void processColliders(JsonDeserializationContext context, JsonArray colliderArray, BlockShapeData shape) {
+
+<span class="nc" id="L178">            List&lt;ColliderInfo&gt; colliders = Lists.newArrayList();</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">            for (JsonElement elem : colliderArray) {</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                if (elem.isJsonObject()) {</span>
+<span class="nc" id="L181">                    JsonObject colliderObj = elem.getAsJsonObject();</span>
+<span class="nc bnc" id="L182" title="All 6 branches missed.">                    if (colliderObj.has(TYPE) &amp;&amp; colliderObj.get(TYPE).isJsonPrimitive() &amp;&amp; colliderObj.getAsJsonPrimitive(TYPE).isString()) {</span>
+<span class="nc" id="L183">                        String type = colliderObj.get(TYPE).getAsString();</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                        if (AABB.equals(type)) {</span>
+<span class="nc" id="L185">                            colliders.add(processAABBShape(context, colliderObj));</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                        } else if (SPHERE.equals(type)) {</span>
+<span class="nc" id="L187">                            colliders.add(processSphereShape(context, colliderObj));</span>
+                        }
+                    }
+                }
+<span class="nc" id="L191">            }</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            if (colliders.size() &gt; 1) {</span>
+<span class="nc" id="L193">                ColliderInfo info = processCompoundShape(colliders);</span>
+<span class="nc" id="L194">                shape.setCollisionShape(info.collisionShape);</span>
+<span class="nc" id="L195">                shape.setCollisionOffset(info.offset);</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">            } else if (colliders.size() == 1) {</span>
+<span class="nc" id="L197">                shape.setCollisionShape(colliders.get(0).collisionShape);</span>
+<span class="nc" id="L198">                shape.setCollisionOffset(colliders.get(0).offset);</span>
+            } else {
+<span class="nc" id="L200">                shape.setCollisionShape(COLLISION_SHAPE_FACTORY.getNewUnitCube());</span>
+<span class="nc" id="L201">                shape.setCollisionOffset(new Vector3f(0, 0, 0));</span>
+<span class="nc" id="L202">                shape.setCollisionSymmetric(true);</span>
+            }
+<span class="nc" id="L204">        }</span>
+
+        private ColliderInfo processCompoundShape(List&lt;ColliderInfo&gt; colliders) {
+<span class="nc" id="L207">            CompoundShape collisionShape = COLLISION_SHAPE_FACTORY.getNewCompoundShape();</span>
+
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            for (ColliderInfo collider : colliders) {</span>
+<span class="nc" id="L210">                Transform transform = new Transform(collider.offset, Rotation.none().getQuat4f(), 1.0f);</span>
+<span class="nc" id="L211">                collisionShape.addChildShape(transform, collider.collisionShape);</span>
+<span class="nc" id="L212">            }</span>
+<span class="nc" id="L213">            return new ColliderInfo(new Vector3f(), collisionShape);</span>
+        }
+
+        private ColliderInfo processAABBShape(JsonDeserializationContext context, JsonObject colliderDef) {
+<span class="nc" id="L217">            Vector3f offset = context.deserialize(colliderDef.get(POSITION), Vector3f.class);</span>
+<span class="nc" id="L218">            Vector3f extent = context.deserialize(colliderDef.get(EXTENTS), Vector3f.class);</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">            if (offset == null) {</span>
+<span class="nc" id="L220">                throw new JsonParseException(&quot;AABB Collider missing position&quot;);</span>
+            }
+<span class="nc bnc" id="L222" title="All 2 branches missed.">            if (extent == null) {</span>
+<span class="nc" id="L223">                throw new JsonParseException(&quot;AABB Collider missing extents&quot;);</span>
+            }
+<span class="nc" id="L225">            extent.absolute();</span>
+
+<span class="nc" id="L227">            return new ColliderInfo(offset, COLLISION_SHAPE_FACTORY.getNewBox(extent));</span>
+        }
+
+        private ColliderInfo processSphereShape(JsonDeserializationContext context, JsonObject colliderDef) {
+<span class="nc" id="L231">            Vector3f offset = context.deserialize(colliderDef.get(POSITION), Vector3f.class);</span>
+<span class="nc" id="L232">            float radius = colliderDef.get(RADIUS).getAsFloat();</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">            if (offset == null) {</span>
+<span class="nc" id="L234">                throw new JsonParseException(&quot;Sphere Collider missing position&quot;);</span>
+            }
+
+<span class="nc" id="L237">            return new ColliderInfo(offset, COLLISION_SHAPE_FACTORY.getNewSphere(radius));</span>
+        }
+
+        private static class ColliderInfo {
+            public Vector3f offset;
+            public CollisionShape collisionShape;
+
+<span class="nc" id="L244">            ColliderInfo(Vector3f offset, CollisionShape shape) {</span>
+<span class="nc" id="L245">                this.offset = offset;</span>
+<span class="nc" id="L246">                this.collisionShape = shape;</span>
+<span class="nc" id="L247">            }</span>
+        }
+    }
+
+    private static class BlockMeshPartHandler implements JsonDeserializer&lt;BlockMeshPart&gt; {
+
+        @Override
+        public BlockMeshPart deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L255">            final JsonObject meshObj = json.getAsJsonObject();</span>
+<span class="fc" id="L256">            final Vector3f[] vertices = context.deserialize(meshObj.get(&quot;vertices&quot;), Vector3f[].class);</span>
+<span class="fc" id="L257">            final Vector3f[] normals = context.deserialize(meshObj.get(&quot;normals&quot;), Vector3f[].class);</span>
+<span class="fc" id="L258">            final Vector2f[] texCoords = context.deserialize(meshObj.get(&quot;texcoords&quot;), Vector2f[].class);</span>
+
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">            if (vertices == null) {</span>
+<span class="nc" id="L261">                throw new JsonParseException(&quot;Vertices missing&quot;);</span>
+            }
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">            if (normals == null) {</span>
+<span class="nc" id="L264">                throw new JsonParseException(&quot;Normals missing&quot;);</span>
+            }
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">            if (texCoords == null) {</span>
+<span class="nc" id="L267">                throw new JsonParseException(&quot;Texcoords missing&quot;);</span>
+            }
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">            if (!meshObj.has(&quot;faces&quot;)) {</span>
+<span class="nc" id="L270">                throw new JsonParseException(&quot;Faces missing&quot;);</span>
+            }
+
+<span class="pc bpc" id="L273" title="2 of 4 branches missed.">            if (vertices.length != normals.length || vertices.length != texCoords.length) {</span>
+<span class="nc" id="L274">                throw new JsonParseException(&quot;vertices, normals and texcoords must have the same length&quot;);</span>
+            }
+
+            // Normalise the normals for safety
+<span class="fc bfc" id="L278" title="All 2 branches covered.">            for (Vector3f norm : normals) {</span>
+<span class="fc" id="L279">                norm.normalize();</span>
+            }
+
+<span class="fc" id="L282">            int[][] faces = context.deserialize(meshObj.get(&quot;faces&quot;), int[][].class);</span>
+
+            // Convert faces to indices via triangle fan
+<span class="fc" id="L285">            TIntList indices = new TIntArrayList();</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">            for (int[] face : faces) {</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">                for (int tri = 0; tri &lt; face.length - 2; tri++) {</span>
+<span class="fc" id="L288">                    indices.add(face[0]);</span>
+<span class="fc" id="L289">                    indices.add(face[tri + 1]);</span>
+<span class="fc" id="L290">                    indices.add(face[tri + 2]);</span>
+                }
+            }
+
+            // Check indices in bounds
+<span class="fc" id="L295">            indices.forEach(value -&gt; {</span>
+<span class="pc bpc" id="L296" title="2 of 4 branches missed.">                if (value &lt; 0 || value &gt;= vertices.length) {</span>
+<span class="nc" id="L297">                    throw new JsonParseException(&quot;Face value out of range: &quot; + value + &quot;, max vertex is &quot; + (vertices.length - 1));</span>
+                }
+<span class="fc" id="L299">                return true;</span>
+            });
+
+<span class="fc" id="L302">            return new BlockMeshPart(vertices, normals, texCoords, indices.toArray());</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

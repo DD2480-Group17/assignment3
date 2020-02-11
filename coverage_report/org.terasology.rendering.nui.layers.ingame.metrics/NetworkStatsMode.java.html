@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetworkStatsMode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.ingame.metrics</a> &gt; <span class="el_source">NetworkStatsMode.java</span></div><h1>NetworkStatsMode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.nui.layers.ingame.metrics;
+
+import org.terasology.engine.Time;
+import org.terasology.network.NetworkMode;
+import org.terasology.network.NetworkSystem;
+import org.terasology.registry.CoreRegistry;
+
+/**
+ */
+final class NetworkStatsMode extends MetricsMode {
+    private long lastTime;
+    private Time time;
+    private NetworkSystem networkSystem;
+    private String lastMetric;
+
+
+    NetworkStatsMode() {
+<span class="nc" id="L34">        super(&quot;\n- Network -&quot;);</span>
+<span class="nc" id="L35">        lastMetric = getName();</span>
+<span class="nc" id="L36">        time = CoreRegistry.get(Time.class);</span>
+<span class="nc" id="L37">        networkSystem = CoreRegistry.get(NetworkSystem.class);</span>
+<span class="nc" id="L38">    }</span>
+
+    @Override
+    public String getMetrics() {
+        // only update the metric a minimum once a second, cache the result
+<span class="nc" id="L43">        long currentTime = time.getGameTimeInMs();</span>
+<span class="nc" id="L44">        long timeDifference = currentTime - lastTime;</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        if (timeDifference &gt;= 1000) {</span>
+<span class="nc" id="L46">            StringBuilder builder = new StringBuilder();</span>
+<span class="nc" id="L47">            builder.append(getName());</span>
+<span class="nc" id="L48">            builder.append(&quot;\n&quot;);</span>
+<span class="nc" id="L49">            builder.append(String.format(&quot;Elapsed: %dms%n&quot;, timeDifference));</span>
+<span class="nc" id="L50">            builder.append(String.format(&quot;In Msg: %d%n&quot;, networkSystem.getIncomingMessagesDelta()));</span>
+<span class="nc" id="L51">            builder.append(String.format(&quot;In Bytes: %d%n&quot;, networkSystem.getIncomingBytesDelta()));</span>
+<span class="nc" id="L52">            builder.append(String.format(&quot;Out Msg: %d%n&quot;, networkSystem.getOutgoingMessagesDelta()));</span>
+<span class="nc" id="L53">            builder.append(String.format(&quot;Out Bytes: %d%n&quot;, networkSystem.getOutgoingBytesDelta()));</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            if (lastTime != 0) {</span>
+                // ignore the first update as it will not have useful data
+<span class="nc" id="L56">                lastMetric = builder.toString();</span>
+            }
+<span class="nc" id="L58">            lastTime = currentTime;</span>
+
+        }
+<span class="nc" id="L61">        return lastMetric;</span>
+    }
+
+    @Override
+    public boolean isAvailable() {
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        return networkSystem.getMode() != NetworkMode.NONE;</span>
+    }
+
+    @Override
+    public boolean isPerformanceManagerMode() {
+<span class="nc" id="L71">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

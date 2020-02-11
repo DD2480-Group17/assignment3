@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldSerializerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">WorldSerializerImpl.java</span></div><h1>WorldSerializerImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.serializers;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.utilities.Assets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.prefab.PrefabData;
+import org.terasology.entitySystem.prefab.PrefabManager;
+import org.terasology.persistence.ModuleContext;
+import org.terasology.protobuf.EntityData;
+import org.terasology.registry.CoreRegistry;
+
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Implementation of WorldSerializer for EngineEntityManager.
+ *
+ */
+public class WorldSerializerImpl implements WorldSerializer {
+
+<span class="fc" id="L50">    private static final Logger logger = LoggerFactory.getLogger(WorldSerializerImpl.class);</span>
+
+<span class="fc" id="L52">    private ModuleManager moduleManager = CoreRegistry.get(ModuleManager.class);</span>
+    private ComponentLibrary componentLibrary;
+    private PrefabManager prefabManager;
+    private EngineEntityManager entityManager;
+    private EntitySerializer entitySerializer;
+    private PrefabSerializer prefabSerializer;
+
+<span class="fc" id="L59">    public WorldSerializerImpl(EngineEntityManager entityManager, PrefabSerializer prefabSerializer) {</span>
+<span class="fc" id="L60">        this.entityManager = entityManager;</span>
+<span class="fc" id="L61">        this.prefabManager = entityManager.getPrefabManager();</span>
+<span class="fc" id="L62">        this.componentLibrary = entityManager.getComponentLibrary();</span>
+<span class="fc" id="L63">        this.entitySerializer = new EntitySerializer(entityManager);</span>
+<span class="fc" id="L64">        this.prefabSerializer = prefabSerializer;</span>
+<span class="fc" id="L65">    }</span>
+
+    @Override
+    public EntityData.GlobalStore serializeWorld(boolean verbose) {
+<span class="fc" id="L69">        final EntityData.GlobalStore.Builder world = EntityData.GlobalStore.newBuilder();</span>
+
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (!verbose) {</span>
+<span class="fc" id="L72">            writeComponentTypeTable(world);</span>
+        }
+
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        for (Prefab prefab : prefabManager.listPrefabs()) {</span>
+<span class="nc" id="L76">            world.addPrefab(prefabSerializer.serialize(prefab));</span>
+<span class="nc" id="L77">        }</span>
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        for (EntityRef entity : entityManager.getAllEntities()) {</span>
+<span class="pc bpc" id="L80" title="2 of 4 branches missed.">            if (verbose || entity.isPersistent()) {</span>
+<span class="nc" id="L81">                world.addEntity(entitySerializer.serialize(entity));</span>
+            }
+<span class="fc" id="L83">        }</span>
+
+<span class="fc" id="L85">        writeIdInfo(world);</span>
+
+<span class="fc" id="L87">        entitySerializer.removeComponentIdMapping();</span>
+<span class="fc" id="L88">        prefabSerializer.removeComponentIdMapping();</span>
+<span class="fc" id="L89">        return world.build();</span>
+    }
+
+    @Override
+    public EntityData.GlobalStore serializeWorld(boolean verbose, List&lt;Class&lt;? extends Component&gt;&gt; filterComponents) {
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (filterComponents == null) {</span>
+<span class="nc" id="L95">            return serializeWorld(true);</span>
+        }
+<span class="nc" id="L97">        final EntityData.GlobalStore.Builder world = EntityData.GlobalStore.newBuilder();</span>
+
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        if (!verbose) {</span>
+<span class="nc" id="L100">            writeComponentTypeTable(world);</span>
+        }
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        for (Prefab prefab : prefabManager.listPrefabs()) {</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">            if (prefab.hasAnyComponents(filterComponents)) {</span>
+<span class="nc" id="L105">                world.addPrefab(prefabSerializer.serialize(prefab));</span>
+            }
+<span class="nc" id="L107">        }</span>
+
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        for (EntityRef entity : entityManager.getAllEntities()) {</span>
+<span class="nc bnc" id="L110" title="All 6 branches missed.">            if ((verbose || entity.isPersistent()) &amp;&amp; entity.hasAnyComponents(filterComponents)) {</span>
+<span class="nc" id="L111">                world.addEntity(entitySerializer.serialize(entity));</span>
+            }
+<span class="nc" id="L113">        }</span>
+
+<span class="nc" id="L115">        writeIdInfo(world);</span>
+
+<span class="nc" id="L117">        entitySerializer.removeComponentIdMapping();</span>
+<span class="nc" id="L118">        prefabSerializer.removeComponentIdMapping();</span>
+<span class="nc" id="L119">        return world.build();</span>
+    }
+
+    @Override
+    public void deserializeWorld(EntityData.GlobalStore world) {
+<span class="nc" id="L124">        entityManager.setNextId(world.getNextEntityId());</span>
+
+<span class="nc" id="L126">        Map&lt;Class&lt;? extends Component&gt;, Integer&gt; componentIdTable = Maps.newHashMap();</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        for (int index = 0; index &lt; world.getComponentClassCount(); ++index) {</span>
+<span class="nc" id="L128">            ComponentMetadata&lt;?&gt; componentMetadata = componentLibrary.resolve(world.getComponentClass(index));</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">            if (componentMetadata != null) {</span>
+<span class="nc" id="L130">                componentIdTable.put(componentMetadata.getType(), index);</span>
+            }
+        }
+<span class="nc" id="L133">        entitySerializer.setComponentIdMapping(componentIdTable);</span>
+<span class="nc" id="L134">        prefabSerializer.setComponentIdMapping(componentIdTable);</span>
+
+        // Prefabs that still need to be created, by their required parent
+<span class="nc" id="L137">        ListMultimap&lt;String, EntityData.Prefab&gt; pendingPrefabs = ArrayListMultimap.create();</span>
+
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        world.getPrefabList().stream().filter(prefabData -&gt; !prefabManager.exists(prefabData.getName())).forEach(prefabData -&gt; {</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            if (!prefabData.hasParentName()) {</span>
+<span class="nc" id="L141">                createPrefab(prefabData);</span>
+            } else {
+<span class="nc" id="L143">                pendingPrefabs.put(prefabData.getParentName(), prefabData);</span>
+            }
+<span class="nc" id="L145">        });</span>
+
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        while (!pendingPrefabs.isEmpty()) {</span>
+<span class="nc" id="L148">            Iterator&lt;Map.Entry&lt;String, Collection&lt;EntityData.Prefab&gt;&gt;&gt; i = pendingPrefabs.asMap().entrySet().iterator();</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            while (i.hasNext()) {</span>
+<span class="nc" id="L150">                Map.Entry&lt;String, Collection&lt;EntityData.Prefab&gt;&gt; entry = i.next();</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                if (prefabManager.exists(entry.getKey())) {</span>
+<span class="nc" id="L152">                    entry.getValue().forEach(this::createPrefab);</span>
+<span class="nc" id="L153">                    i.remove();</span>
+                }
+<span class="nc" id="L155">            }</span>
+<span class="nc" id="L156">        }</span>
+
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        for (EntityData.Entity entityData : world.getEntityList()) {</span>
+<span class="nc" id="L159">            entitySerializer.deserialize(entityData);</span>
+<span class="nc" id="L160">        }</span>
+
+<span class="nc" id="L162">        entitySerializer.removeComponentIdMapping();</span>
+<span class="nc" id="L163">        prefabSerializer.removeComponentIdMapping();</span>
+<span class="nc" id="L164">    }</span>
+
+
+    private void createPrefab(EntityData.Prefab prefabData) {
+<span class="nc" id="L168">        SimpleUri uri = new SimpleUri(prefabData.getName());</span>
+<span class="nc" id="L169">        try (ModuleContext.ContextSpan ignored = ModuleContext.setContext(moduleManager.getEnvironment().get(uri.getModuleName()))) {</span>
+<span class="nc" id="L170">            PrefabData protoPrefab = prefabSerializer.deserialize(prefabData);</span>
+<span class="nc" id="L171">            Assets.generateAsset(new ResourceUrn(prefabData.getName()), protoPrefab, Prefab.class);</span>
+<span class="nc" id="L172">        } catch (Exception e) {</span>
+<span class="nc" id="L173">            logger.error(&quot;Failed to create prefab {}&quot;, prefabData.getName());</span>
+<span class="nc" id="L174">        }</span>
+
+<span class="nc" id="L176">    }</span>
+
+    private void writeComponentTypeTable(EntityData.GlobalStore.Builder world) {
+<span class="fc" id="L179">        Map&lt;Class&lt;? extends Component&gt;, Integer&gt; componentIdTable = Maps.newHashMap();</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        for (ComponentMetadata&lt;?&gt; componentMetadata : componentLibrary.iterateComponentMetadata()) {</span>
+<span class="fc" id="L181">            int index = componentIdTable.size();</span>
+<span class="fc" id="L182">            componentIdTable.put(componentMetadata.getType(), index);</span>
+<span class="fc" id="L183">            world.addComponentClass(componentMetadata.getUri().toString());</span>
+<span class="fc" id="L184">        }</span>
+<span class="fc" id="L185">        entitySerializer.setComponentIdMapping(componentIdTable);</span>
+<span class="fc" id="L186">        prefabSerializer.setComponentIdMapping(componentIdTable);</span>
+<span class="fc" id="L187">    }</span>
+
+    private void writeIdInfo(final EntityData.GlobalStore.Builder world) {
+<span class="fc" id="L190">        world.setNextEntityId(entityManager.getNextId());</span>
+<span class="fc" id="L191">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

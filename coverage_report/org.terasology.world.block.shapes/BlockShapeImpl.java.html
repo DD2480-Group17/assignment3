@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockShapeImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.shapes</a> &gt; <span class="el_source">BlockShapeImpl.java</span></div><h1>BlockShapeImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.shapes;
+
+import org.terasology.physics.shapes.CollisionShape;
+import com.google.common.collect.Maps;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.Pitch;
+import org.terasology.math.Roll;
+import org.terasology.math.Rotation;
+import org.terasology.math.Side;
+import org.terasology.math.Yaw;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.utilities.collection.EnumBooleanMap;
+import org.terasology.world.block.BlockPart;
+
+import java.util.EnumMap;
+import java.util.Map;
+
+/**
+ */
+public class BlockShapeImpl extends BlockShape {
+
+    private String displayName;
+<span class="fc" id="L39">    private EnumMap&lt;BlockPart, BlockMeshPart&gt; meshParts = Maps.newEnumMap(BlockPart.class);</span>
+<span class="fc" id="L40">    private EnumBooleanMap&lt;Side&gt; fullSide = new EnumBooleanMap&lt;&gt;(Side.class);</span>
+    private CollisionShape baseCollisionShape;
+<span class="fc" id="L42">    private Vector3f baseCollisionOffset = new Vector3f();</span>
+    private boolean yawSymmetric;
+    private boolean pitchSymmetric;
+    private boolean rollSymmetric;
+
+<span class="fc" id="L47">    private Map&lt;Rotation, CollisionShape&gt; collisionShape = Maps.newHashMap();</span>
+
+    public BlockShapeImpl(ResourceUrn urn, AssetType&lt;?, BlockShapeData&gt; assetType, BlockShapeData data) {
+<span class="fc" id="L50">        super(urn, assetType);</span>
+<span class="fc" id="L51">        reload(data);</span>
+<span class="fc" id="L52">    }</span>
+
+    @Override
+    public String getDisplayName() {
+<span class="nc" id="L56">        return displayName;</span>
+    }
+
+    @Override
+    public BlockMeshPart getMeshPart(BlockPart part) {
+<span class="fc" id="L61">        return meshParts.get(part);</span>
+    }
+
+    @Override
+    public boolean isBlockingSide(Side side) {
+<span class="fc" id="L66">        return fullSide.get(side);</span>
+    }
+
+    @Override
+    protected void doReload(BlockShapeData data) {
+<span class="fc" id="L71">        collisionShape.clear();</span>
+<span class="fc" id="L72">        displayName = data.getDisplayName();</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        for (BlockPart part : BlockPart.values()) {</span>
+<span class="fc" id="L74">            this.meshParts.put(part, data.getMeshPart(part));</span>
+        }
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        for (Side side : Side.getAllSides()) {</span>
+<span class="fc" id="L77">            this.fullSide.put(side, data.isBlockingSide(side));</span>
+<span class="fc" id="L78">        }</span>
+<span class="fc" id="L79">        this.baseCollisionShape = data.getCollisionShape();</span>
+<span class="fc" id="L80">        this.baseCollisionOffset.set(data.getCollisionOffset());</span>
+<span class="fc" id="L81">        collisionShape.put(Rotation.none(), baseCollisionShape);</span>
+
+<span class="fc" id="L83">        yawSymmetric = data.isYawSymmetric();</span>
+<span class="fc" id="L84">        pitchSymmetric = data.isPitchSymmetric();</span>
+<span class="fc" id="L85">        rollSymmetric = data.isRollSymmetric();</span>
+<span class="fc" id="L86">    }</span>
+
+    @Override
+    public CollisionShape getCollisionShape(Rotation rot) {
+<span class="fc" id="L90">        Rotation simplifiedRot = applySymmetry(rot);</span>
+<span class="fc" id="L91">        CollisionShape result = collisionShape.get(simplifiedRot);</span>
+<span class="pc bpc" id="L92" title="1 of 4 branches missed.">        if (result == null &amp;&amp; baseCollisionShape != null) {</span>
+<span class="fc" id="L93">            result = baseCollisionShape.rotate(simplifiedRot.getQuat4f());</span>
+<span class="fc" id="L94">            collisionShape.put(simplifiedRot, result);</span>
+        }
+<span class="fc" id="L96">        return result;</span>
+    }
+
+    @Override
+    public Vector3f getCollisionOffset(Rotation rot) {
+<span class="fc" id="L101">        Rotation simplifiedRot = applySymmetry(rot);</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        if (simplifiedRot.equals(Rotation.none())) {</span>
+<span class="fc" id="L103">            return new Vector3f(baseCollisionOffset);</span>
+        }
+<span class="nc" id="L105">        return simplifiedRot.getQuat4f().rotate(baseCollisionOffset, new Vector3f());</span>
+    }
+
+    @Override
+    public boolean isCollisionYawSymmetric() {
+<span class="nc" id="L110">        return yawSymmetric;</span>
+    }
+
+    private Rotation applySymmetry(Rotation rot) {
+<span class="fc bfc" id="L114" title="All 6 branches covered.">        return Rotation.rotate(yawSymmetric ? Yaw.NONE : rot.getYaw(), pitchSymmetric ? Pitch.NONE : rot.getPitch(), rollSymmetric ? Roll.NONE : rot.getRoll());</span>
+    }
+
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

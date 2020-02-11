@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Border3D.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.generation</a> &gt; <span class="el_source">Border3D.java</span></div><h1>Border3D.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.generation;
+
+import com.google.common.base.Preconditions;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
+
+import java.util.Objects;
+
+/**
+ * Borders extend the facet's data range. This is necessary for most Facets which may cross Chunk borders.
+ */
+public class Border3D {
+    private final int top;
+    private final int bottom;
+    private final int sides;
+
+    /**
+     * Constructor defining the sizes of the border.
+     * @param top The extra space at the top of chunk.
+     * @param bottom The extra space at the bottom of chunk.
+     * @param sides The extra space at the 4 sides of the chunk. These sides are North, East, South, West.
+     */
+<span class="fc" id="L39">    public Border3D(int top, int bottom, int sides) {</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        Preconditions.checkArgument(top &gt;= 0);</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">        Preconditions.checkArgument(bottom &gt;= 0);</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        Preconditions.checkArgument(sides &gt;= 0);</span>
+<span class="fc" id="L43">        this.top = top;</span>
+<span class="fc" id="L44">        this.bottom = bottom;</span>
+<span class="fc" id="L45">        this.sides = sides;</span>
+<span class="fc" id="L46">    }</span>
+
+    /**@return Returns the extra space at the top.    */
+    public int getTop() {
+<span class="fc" id="L50">        return top;</span>
+    }
+
+    /**@return Returns the extra space at the bottom.    */
+    public int getBottom() {
+<span class="fc" id="L55">        return bottom;</span>
+    }
+
+    /**@return Returns the extra space at the 4 sides.    */
+    public int getSides() {
+<span class="fc" id="L60">        return sides;</span>
+    }
+
+    /**
+     * Returns a 2D representation of the world (top view) with the given borders added to the size of the original region.
+     * @param region The original region to be used.
+     * @return The 2D representation with the additional space added to it.
+     */
+    public Rect2i expandTo2D(Region3i region) {
+<span class="fc" id="L69">        return Rect2i.createFromMinAndMax(region.minX() - getSides(), region.minZ() - getSides(),</span>
+<span class="fc" id="L70">                region.maxX() + getSides(), region.maxZ() + getSides());</span>
+    }
+
+    /**
+     * Same as {@code {@link #expandTo2D(Region3i)}} but with a Vector3i instead of a Region3i.
+     * @param size The size used.
+     * @return The 2D representation with the additional space added to it with the additional space added to it in the 3 dimensions.
+     */
+    public Rect2i expandTo2D(Vector3i size) {
+<span class="fc" id="L79">        return Rect2i.createFromMinAndMax(-getSides(), -getSides(), size.x + getSides() - 1, size.z + getSides() - 1);</span>
+    }
+
+    /**
+     * Returns a 3D representation of the workd, a region in this case. With the borders added to it.
+     * @param region The region to be expanded with the borders.
+     * @return The 3D world representation with the additional space added to it in the 3 dimensions.
+     */
+    public Region3i expandTo3D(Region3i region) {
+<span class="fc" id="L88">        return Region3i.createFromMinMax(new Vector3i(region.minX() - sides, region.minY() - bottom, region.minZ() - sides),</span>
+<span class="fc" id="L89">                new Vector3i(region.maxX() + sides, region.maxY() + top, region.maxZ() + sides));</span>
+    }
+
+    /**
+     * Same as {@code {@link #expandTo3D(Region3i)}}} but with a Vector3i instead of a Region3i.
+     * @param size The size to be used.
+     * @return The 3D world representation with the additional space added to it in the 3 dimensions.
+     */
+    public Region3i expandTo3D(Vector3i size) {
+<span class="fc" id="L98">        return Region3i.createFromMinMax(new Vector3i(-sides, -bottom, -sides),</span>
+                new Vector3i(size.x + sides - 1, size.y + top - 1, size.z + sides - 1));
+    }
+
+    /**
+     * Extends the border by using the sizes of another border.
+     * @param topExtension The top extension to be added.
+     * @param bottomExtension The bottom extension to be added.
+     * @param sidesExtension The side extensions to be added.
+     * @return The border with the extra extensions.
+     */
+    public Border3D extendBy(int topExtension, int bottomExtension, int sidesExtension) {
+<span class="fc" id="L110">        return new Border3D(top + topExtension, bottom + bottomExtension, sides + sidesExtension);</span>
+    }
+
+    /**
+     * Returns a new border, using the largest value of each extension for both borders. Border A(Sides=5,Bottom=4,Top=3) maxed with border B (Sides=3,Bottom=4,Top=5)
+     * would make a border C with boundries: (5,4,5).
+     * @param topValue The top value to compare with the instance's top value.
+     * @param bottomValue The bottom value to compare with the instance's bottom value.
+     * @param sidesValue The sides value to compare with the instance's sides value.
+     * @return The resulting Border3D.
+     */
+    public Border3D maxWith(int topValue, int bottomValue, int sidesValue) {
+<span class="fc" id="L122">        return new Border3D(</span>
+<span class="fc" id="L123">                Math.max(top, topValue),</span>
+<span class="fc" id="L124">                Math.max(bottom, bottomValue),</span>
+<span class="fc" id="L125">                Math.max(sides, sidesValue));</span>
+    }
+
+    /**
+     * Checks if the fields of the instance are the same as the object passed in the parameters. It compares the size of the Border3D and returns true of all sizes are the
+     * same.
+     */
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (this == obj) {</span>
+<span class="nc" id="L135">            return true;</span>
+        }
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        if (obj instanceof Border3D) {</span>
+<span class="nc" id="L138">            Border3D other = (Border3D) obj;</span>
+<span class="nc bnc" id="L139" title="All 6 branches missed.">            return other.top == top &amp;&amp; other.bottom == bottom &amp;&amp; other.sides == sides;</span>
+        }
+<span class="nc" id="L141">        return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L146">        return Objects.hash(top, bottom, sides);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

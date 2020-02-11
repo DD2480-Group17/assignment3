@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldPreGenerationScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">WorldPreGenerationScreen.java</span></div><h1>WorldPreGenerationScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.math.TeraMath;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.naming.Name;
+import org.terasology.registry.In;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureData;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.layers.mainMenu.preview.FacetLayerPreview;
+import org.terasology.rendering.nui.layers.mainMenu.preview.PreviewGenerator;
+import org.terasology.rendering.nui.widgets.UIDropdownScrollable;
+import org.terasology.rendering.nui.widgets.UIImage;
+import org.terasology.rendering.nui.widgets.UISlider;
+import org.terasology.rendering.nui.widgets.UISliderOnChangeTriggeredListener;
+import org.terasology.rendering.world.WorldSetupWrapper;
+import org.terasology.utilities.Assets;
+import org.terasology.world.generator.UnresolvedWorldGeneratorException;
+import org.terasology.world.generator.WorldGenerator;
+import org.terasology.world.generator.internal.WorldGeneratorManager;
+import org.terasology.world.generator.plugin.TempWorldGeneratorPluginLibrary;
+import org.terasology.world.generator.plugin.WorldGeneratorPluginLibrary;
+import org.terasology.world.zones.Zone;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
+
+/**
+ * This class lets the user preview different worlds added in the
+ * {@link UniverseSetupScreen}. Each world is still configurable and its seed
+ * can be changed by the re-roll button. Note that each world has a unique seed.
+ */
+<span class="nc" id="L61">public class WorldPreGenerationScreen extends CoreScreenLayer implements UISliderOnChangeTriggeredListener {</span>
+
+<span class="nc" id="L63">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:worldPreGenerationScreen&quot;);</span>
+
+<span class="nc" id="L65">    private static final Logger logger = LoggerFactory.getLogger(WorldPreGenerationScreen.class);</span>
+
+    @In
+    private ModuleManager moduleManager;
+
+    @In
+    private Config config;
+
+    private ModuleEnvironment environment;
+    private WorldGenerator worldGenerator;
+    private Texture texture;
+    private UIImage previewImage;
+    private Context context;
+    private PreviewGenerator previewGen;
+    private List&lt;WorldSetupWrapper&gt; worldList;
+    private String selectedWorld;
+    private List&lt;String&gt; worldNames;
+    private int seedNumber;
+    private UISlider zoomSlider;
+
+    /**
+     * A function called before the screen comes to the forefront to setup the environment
+     * and extract necessary objects from the new Context.
+     *
+     * @param subContext The new environment created in {@link UniverseSetupScreen}
+     * @throws UnresolvedWorldGeneratorException The creation of a world generator can throw this Exception
+     */
+    public void setEnvironment(Context subContext) throws UnresolvedWorldGeneratorException {
+
+<span class="nc" id="L94">        context = subContext;</span>
+<span class="nc" id="L95">        environment = context.get(ModuleEnvironment.class);</span>
+<span class="nc" id="L96">        context.put(WorldGeneratorPluginLibrary.class, new TempWorldGeneratorPluginLibrary(environment, context));</span>
+<span class="nc" id="L97">        worldList = context.get(UniverseSetupScreen.class).getWorldsList();</span>
+<span class="nc" id="L98">        selectedWorld = context.get(UniverseSetupScreen.class).getSelectedWorld();</span>
+<span class="nc" id="L99">        worldNames = context.get(UniverseSetupScreen.class).worldNames();</span>
+
+<span class="nc" id="L101">        setWorldGenerators();</span>
+
+<span class="nc" id="L103">        worldGenerator = findWorldByName(selectedWorld).getWorldGenerator();</span>
+<span class="nc" id="L104">        final UIDropdownScrollable worldsDropdown = find(&quot;worlds&quot;, UIDropdownScrollable.class);</span>
+<span class="nc" id="L105">        worldsDropdown.setOptions(worldNames);</span>
+<span class="nc" id="L106">        genTexture();</span>
+
+<span class="nc" id="L108">        List&lt;Zone&gt; previewZones = Lists.newArrayList(worldGenerator.getZones())</span>
+<span class="nc" id="L109">                .stream()</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                .filter(z -&gt; !z.getPreviewLayers().isEmpty())</span>
+<span class="nc" id="L111">                .collect(Collectors.toList());</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        if (previewZones.isEmpty()) {</span>
+<span class="nc" id="L113">            previewGen = new FacetLayerPreview(environment, worldGenerator);</span>
+        }
+<span class="nc" id="L115">    }</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L119">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L121">        zoomSlider = find(&quot;zoomSlider&quot;, UISlider.class);</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        if (zoomSlider != null) {</span>
+<span class="nc" id="L123">            zoomSlider.setValue(2f);</span>
+<span class="nc" id="L124">            zoomSlider.setUiSliderOnChangeTriggeredListener(this);</span>
+        }
+
+
+<span class="nc" id="L128">        final UIDropdownScrollable worldsDropdown = find(&quot;worlds&quot;, UIDropdownScrollable.class);</span>
+<span class="nc" id="L129">        worldsDropdown.bindSelection(new Binding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc" id="L132">                return selectedWorld;</span>
+            }
+
+            @Override
+            public void set(String value) {
+<span class="nc" id="L137">                selectedWorld = value;</span>
+                try {
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                    if (findWorldByName(selectedWorld).getWorldGenerator() == null) {</span>
+<span class="nc" id="L140">                        worldGenerator = WorldGeneratorManager.createWorldGenerator(findWorldByName(selectedWorld).getWorldGeneratorInfo().getUri(), context, environment);</span>
+<span class="nc" id="L141">                        findWorldByName(selectedWorld).setWorldGenerator(worldGenerator);</span>
+                    } else {
+<span class="nc" id="L143">                        worldGenerator = findWorldByName(selectedWorld).getWorldGenerator();</span>
+                    }
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                    if (worldGenerator.getWorldSeed() == null) {</span>
+<span class="nc" id="L146">                        worldGenerator.setWorldSeed(createSeed(selectedWorld));</span>
+                    }
+<span class="nc" id="L148">                    previewGen = new FacetLayerPreview(environment, worldGenerator);</span>
+<span class="nc" id="L149">                    updatePreview();</span>
+<span class="nc" id="L150">                } catch (UnresolvedWorldGeneratorException e) {</span>
+<span class="nc" id="L151">                    e.printStackTrace();</span>
+<span class="nc" id="L152">                }</span>
+<span class="nc" id="L153">            }</span>
+        });
+
+<span class="nc" id="L156">        WidgetUtil.trySubscribe(this, &quot;reRoll&quot;, button -&gt; {</span>
+<span class="nc" id="L157">            worldGenerator.setWorldSeed(createSeed(selectedWorld));</span>
+<span class="nc" id="L158">            updatePreview();</span>
+<span class="nc" id="L159">        });</span>
+
+<span class="nc" id="L161">        StartPlayingScreen startPlayingScreen = getManager().createScreen(StartPlayingScreen.ASSET_URI, StartPlayingScreen.class);</span>
+<span class="nc" id="L162">        WidgetUtil.trySubscribe(this, &quot;continue&quot;, button -&gt; {</span>
+<span class="nc" id="L163">            startPlayingScreen.setTargetWorld(worldList, findWorldByName(selectedWorld), texture, context);</span>
+<span class="nc" id="L164">            triggerForwardAnimation(startPlayingScreen);</span>
+<span class="nc" id="L165">        });</span>
+
+<span class="nc" id="L167">        WorldSetupScreen worldSetupScreen = getManager().createScreen(WorldSetupScreen.ASSET_URI, WorldSetupScreen.class);</span>
+<span class="nc" id="L168">        WidgetUtil.trySubscribe(this, &quot;config&quot;, button -&gt; {</span>
+            try {
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                if (!selectedWorld.isEmpty()) {</span>
+<span class="nc" id="L171">                    worldSetupScreen.setWorld(context, findWorldByName(selectedWorld), worldsDropdown);</span>
+<span class="nc" id="L172">                    triggerForwardAnimation(worldSetupScreen);</span>
+                } else {
+<span class="nc" id="L174">                    getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Worlds List Empty!&quot;, &quot;No world found to configure.&quot;);</span>
+                }
+<span class="nc" id="L176">            } catch (UnresolvedWorldGeneratorException e) {</span>
+<span class="nc" id="L177">                e.printStackTrace();</span>
+<span class="nc" id="L178">            }</span>
+<span class="nc" id="L179">        });</span>
+
+<span class="nc" id="L181">        WidgetUtil.trySubscribe(this, &quot;close&quot;, button -&gt; {</span>
+<span class="nc" id="L182">            final UniverseSetupScreen universeSetupScreen = getManager().createScreen(UniverseSetupScreen.ASSET_URI, UniverseSetupScreen.class);</span>
+<span class="nc" id="L183">            UIDropdownScrollable worldsDropdownOfUniverse = universeSetupScreen.find(&quot;worlds&quot;, UIDropdownScrollable.class);</span>
+<span class="nc" id="L184">            universeSetupScreen.refreshWorldDropdown(worldsDropdownOfUniverse);</span>
+<span class="nc" id="L185">            triggerBackAnimation();</span>
+<span class="nc" id="L186">        });</span>
+
+<span class="nc" id="L188">        WidgetUtil.trySubscribe(this, &quot;mainMenu&quot;, button -&gt; {</span>
+<span class="nc" id="L189">            getManager().pushScreen(&quot;engine:mainMenuScreen&quot;);</span>
+<span class="nc" id="L190">        });</span>
+<span class="nc" id="L191">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L195">        super.onOpened();</span>
+
+        try {
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            if (findWorldByName(selectedWorld).getWorldGenerator() == null) {</span>
+<span class="nc" id="L199">                worldGenerator = WorldGeneratorManager.createWorldGenerator(findWorldByName(selectedWorld).getWorldGeneratorInfo().getUri(), context, environment);</span>
+<span class="nc" id="L200">                findWorldByName(selectedWorld).setWorldGenerator(worldGenerator);</span>
+            } else {
+<span class="nc" id="L202">                worldGenerator = findWorldByName(selectedWorld).getWorldGenerator();</span>
+            }
+<span class="nc bnc" id="L204" title="All 2 branches missed.">            if (worldGenerator.getWorldSeed().isEmpty()) {</span>
+<span class="nc" id="L205">                worldGenerator.setWorldSeed(createSeed(selectedWorld));</span>
+            }
+<span class="nc" id="L207">            previewGen = new FacetLayerPreview(environment, worldGenerator);</span>
+<span class="nc" id="L208">            updatePreview();</span>
+<span class="nc" id="L209">        } catch (UnresolvedWorldGeneratorException e) {</span>
+<span class="nc" id="L210">            e.printStackTrace();</span>
+<span class="nc" id="L211">        }</span>
+<span class="nc" id="L212">    }</span>
+    
+    /**
+     * Set seletedWorld when configure from WorldPreGenerationScreen
+     * @param newNameToSet
+     */
+    public void setName(Name newNameToSet) {
+<span class="nc" id="L219">        selectedWorld = newNameToSet.toString();</span>
+<span class="nc" id="L220">    }</span>
+
+    /**
+     * Generates a texture and sets it to the image view, thus previewing the world.
+     */
+    private void genTexture() {
+<span class="nc" id="L226">        int imgWidth = 384;</span>
+<span class="nc" id="L227">        int imgHeight = 384;</span>
+<span class="nc" id="L228">        ByteBuffer buffer = ByteBuffer.allocateDirect(imgWidth * imgHeight * Integer.BYTES);</span>
+<span class="nc" id="L229">        ByteBuffer[] data = new ByteBuffer[]{buffer};</span>
+<span class="nc" id="L230">        ResourceUrn uri = new ResourceUrn(&quot;engine:terrainPreview&quot;);</span>
+<span class="nc" id="L231">        TextureData texData = new TextureData(imgWidth, imgHeight, data, Texture.WrapMode.CLAMP, Texture.FilterMode.LINEAR);</span>
+<span class="nc" id="L232">        texture = Assets.generateAsset(uri, texData, Texture.class);</span>
+
+<span class="nc" id="L234">        previewImage = find(&quot;preview&quot;, UIImage.class);</span>
+<span class="nc" id="L235">        previewImage.setImage(texture);</span>
+<span class="nc" id="L236">    }</span>
+
+    /**
+     * Updates the preview according to any changes made to the configurator.
+     * Also pops up a message and keeps track of percentage world preview prepared.
+     */
+    private void updatePreview() {
+
+<span class="nc" id="L244">        final NUIManager manager = context.get(NUIManager.class);</span>
+<span class="nc" id="L245">        final WaitPopup&lt;TextureData&gt; popup = manager.pushScreen(WaitPopup.ASSET_URI, WaitPopup.class);</span>
+<span class="nc" id="L246">        popup.setMessage(&quot;Updating Preview&quot;, &quot;Please wait ...&quot;);</span>
+
+<span class="nc" id="L248">        ProgressListener progressListener = progress -&gt;</span>
+<span class="nc" id="L249">                popup.setMessage(&quot;Updating Preview&quot;, String.format(&quot;Please wait ... %d%%&quot;, (int) (progress * 100f)));</span>
+
+<span class="nc" id="L251">        Callable&lt;TextureData&gt; operation = () -&gt; {</span>
+<span class="nc" id="L252">            int zoom = TeraMath.floorToInt(zoomSlider.getValue());</span>
+<span class="nc" id="L253">            TextureData data = texture.getData();</span>
+
+<span class="nc" id="L255">            previewGen.render(data, zoom, progressListener);</span>
+
+<span class="nc" id="L257">            return data;</span>
+        };
+
+<span class="nc" id="L260">        popup.onSuccess(texture::reload);</span>
+<span class="nc" id="L261">        popup.startOperation(operation, true);</span>
+<span class="nc" id="L262">    }</span>
+
+    /**
+     * This method takes the name of the world selected in the worldsDropdown
+     * as String and return the corresponding WorldSetupWrapper object.
+     *
+     * @return {@link WorldSetupWrapper} object of the selected world.
+     */
+    private WorldSetupWrapper findWorldByName(String searchWorld) {
+<span class="nc bnc" id="L271" title="All 2 branches missed.">        for (WorldSetupWrapper world : worldList) {</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">            if (world.getWorldName().toString().equals(searchWorld)) {</span>
+<span class="nc" id="L273">                return world;</span>
+            }
+<span class="nc" id="L275">        }</span>
+<span class="nc" id="L276">        return null;</span>
+    }
+
+    /**
+     * Creates a unique world seed by appending the world name with an incrementing number, on top of the universe seed.
+     *
+     * @param world {@link WorldSetupWrapper} object whose seed is to be set.
+     * @return The seed as a string.
+     */
+    private String createSeed(String world) {
+<span class="nc" id="L286">        String seed = context.get(UniverseWrapper.class).getSeed();</span>
+<span class="nc" id="L287">        return seed + world + seedNumber++;</span>
+    }
+
+    private void setWorldGenerators() {
+<span class="nc bnc" id="L291" title="All 2 branches missed.">        for (WorldSetupWrapper worldSetupWrapper : worldList) {</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">            if (worldSetupWrapper.getWorldGenerator() == null) {</span>
+                try {
+<span class="nc" id="L294">                    worldSetupWrapper.setWorldGenerator(WorldGeneratorManager.createWorldGenerator(findWorldByName(</span>
+<span class="nc" id="L295">                            worldSetupWrapper.getWorldName().toString()).getWorldGeneratorInfo().getUri(), context, environment));</span>
+<span class="nc" id="L296">                } catch (UnresolvedWorldGeneratorException e) {</span>
+<span class="nc" id="L297">                    e.printStackTrace();</span>
+<span class="nc" id="L298">                }</span>
+            }
+<span class="nc" id="L300">            worldSetupWrapper.getWorldGenerator().setWorldSeed(createSeed(worldSetupWrapper.getWorldName().toString()));</span>
+<span class="nc" id="L301">        }</span>
+<span class="nc" id="L302">    }</span>
+
+    @Override
+    public void onSliderValueChanged(float val) {
+<span class="nc" id="L306">        updatePreview();</span>
+<span class="nc" id="L307">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L311">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

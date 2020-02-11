@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag</a> &gt; <span class="el_source">AbstractNode.java</span></div><h1>AbstractNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag;
+
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.naming.Name;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.opengl.BaseFBOsManager;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.utilities.Assets;
+
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * This class implements a number of default methods for the convenience of classes
+ * wishing to implement the Node interface.
+ *
+ * It provides the default functionality to identify a node, handle its status (enabled/disabled),
+ * deal with StateChange objects and Frame Buffer objects.
+ */
+public abstract class AbstractNode implements Node {
+<span class="nc" id="L44">    protected static final Logger logger = LoggerFactory.getLogger(AbstractNode.class);</span>
+
+<span class="nc" id="L46">    protected boolean enabled = true;</span>
+<span class="nc" id="L47">    private Set&lt;StateChange&gt; desiredStateChanges = Sets.newLinkedHashSet();</span>
+<span class="nc" id="L48">    private Map&lt;SimpleUri, BaseFBOsManager&gt; fboUsages = Maps.newHashMap();</span>
+    private final SimpleUri nodeUri;
+
+    /**
+     * Constructor to be used by inheriting classes.
+     *
+     * The nodeId provided in input will become part of the nodeUri uniquely identifying the node in the RenderGraph,
+     * i.e. &quot;engine:hazeNode&quot;.
+     *
+     * @param nodeId a String representing the id of the node, namespace -excluded-: that's added automatically.
+     * @param context a Context object.
+     */
+<span class="nc" id="L60">    protected AbstractNode(String nodeId, Context context) {</span>
+<span class="nc" id="L61">        ModuleManager moduleManager = context.get(ModuleManager.class);</span>
+<span class="nc" id="L62">        Name providingModule = moduleManager.getEnvironment().getModuleProviding(this.getClass());</span>
+
+<span class="nc" id="L64">        this.nodeUri = new SimpleUri(providingModule.toString() + &quot;:&quot; + nodeId);</span>
+<span class="nc" id="L65">    }</span>
+
+    /**
+     * Used by inheriting classes to declare the need for a specific Frame Buffer Object and obtain it.
+     *
+     * The characteristics of the required FBO are described in the fboConfig provided in input.
+     * Within the context of the given fboManager an fboConfig uniquely identifies the FBO:
+     * if the FBO exists already it is returned, if it doesn't, the FBO is first created and then returned.
+     *
+     * If the fboManager already contains an FBO with the same fboUri but different characteristics from
+     * those described in the fboConfig object, an IllegalArgumentException is thrown.
+     *
+     * @param fboConfig an FBOConfig object describing the required FBO.
+     * @param fboManager a BaseFBOsManager object from which to obtain the FBO.
+     * @return the requested FBO object, either newly created or a pre-existing one.
+     * @throws IllegalArgumentException if the fboUri in fboConfig already in use by FBO with different characteristics.
+     */
+    protected FBO requiresFBO(FBOConfig fboConfig, BaseFBOsManager fboManager) {
+<span class="nc" id="L83">        SimpleUri fboName = fboConfig.getName();</span>
+
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (!fboUsages.containsKey(fboName)) {</span>
+<span class="nc" id="L86">            fboUsages.put(fboName, fboManager);</span>
+        } else {
+<span class="nc" id="L88">            logger.warn(&quot;FBO &quot; + fboName + &quot; is already requested.&quot;);</span>
+<span class="nc" id="L89">            return fboManager.get(fboName);</span>
+        }
+
+<span class="nc" id="L92">        return fboManager.request(fboConfig);</span>
+    }
+
+    /**
+     * Inheriting classes must call this method to ensure that any FBO requested and acquired by a node
+     * is automatically released upon the node's disposal. This way FBOs that aren't used by any node
+     * are also disposed.
+     */
+    @Override
+    public void dispose() {
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        for (Map.Entry&lt;SimpleUri, BaseFBOsManager&gt; entry : fboUsages.entrySet()) {</span>
+<span class="nc" id="L103">            SimpleUri fboName = entry.getKey();</span>
+<span class="nc" id="L104">            BaseFBOsManager baseFBOsManager = entry.getValue();</span>
+<span class="nc" id="L105">            baseFBOsManager.release(fboName);</span>
+<span class="nc" id="L106">        }</span>
+
+<span class="nc" id="L108">        fboUsages.clear();</span>
+<span class="nc" id="L109">    }</span>
+
+    /**
+     * Adds a StateChange object to the set of state changes desired by a node.
+     *
+     * This method is normally used within the constructor of a concrete node class, to set the OpenGL state
+     * a node requires. However, it can also be used when runtime conditions change, i.e. a switch from
+     * a normal rendering style to wireframe and viceversa.
+     *
+     * Only StateChange objects that are in the set and are not redundant make it into the TaskList
+     * and actually modify the OpenGL state every frame.
+     *
+     * @param stateChange a StateChange object used by the node to modify the OpenGL state in which it operates.
+     */
+    protected void addDesiredStateChange(StateChange stateChange) {
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (stateChange.isTheDefaultInstance()) {</span>
+<span class="nc" id="L125">            logger.error(&quot;Attempted to add default state change {} to the set of desired state changes. (Node: {})&quot;,</span>
+<span class="nc" id="L126">                    stateChange.getClass().getSimpleName(), this.toString());</span>
+        }
+<span class="nc" id="L128">        desiredStateChanges.add(stateChange);</span>
+<span class="nc" id="L129">    }</span>
+
+    /**
+     * Removes a StateChange object from the set of desired state changes.
+     *
+     * @param stateChange a StateChange object representing a state change no longer required by the node.
+     */
+    protected void removeDesiredStateChange(StateChange stateChange) {
+<span class="nc" id="L137">        desiredStateChanges.remove(stateChange);</span>
+<span class="nc" id="L138">    }</span>
+
+    public Set&lt;StateChange&gt; getDesiredStateChanges() {
+<span class="nc" id="L141">        return desiredStateChanges;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L146">        return String.format(&quot;%s (%s)&quot;, getUri(), this.getClass().getSimpleName());</span>
+    }
+
+    @Override
+    public boolean isEnabled() {
+<span class="nc" id="L151">        return enabled;</span>
+    }
+
+    @Override
+    public void setEnabled(boolean enabled) {
+<span class="nc" id="L156">        this.enabled = enabled;</span>
+<span class="nc" id="L157">    }</span>
+
+    @Override
+<span class="nc" id="L160">    public void handleCommand(String command, String... arguments) { }</span>
+
+    @Override
+    public SimpleUri getUri() {
+<span class="nc" id="L164">        return nodeUri;</span>
+    }
+
+    /**
+     * Utility method to conveniently retrieve materials from the Assets system,
+     * hiding the relative complexity of the exception handling.
+     *
+     * @param materialUrn a ResourceUrn instance providing the name of the material to be obtained.
+     * @return a Material instance
+     * @throws RuntimeException if the material couldn't be resolved through the asset system.
+     */
+    public static Material getMaterial(ResourceUrn materialUrn) {
+<span class="nc" id="L176">        String materialName = materialUrn.toString();</span>
+<span class="nc" id="L177">        return Assets.getMaterial(materialName).orElseThrow(() -&gt;</span>
+<span class="nc" id="L178">                new RuntimeException(&quot;Failed to resolve required asset: '&quot; + materialName + &quot;'&quot;));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

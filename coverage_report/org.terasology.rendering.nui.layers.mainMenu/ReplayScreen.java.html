@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReplayScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">ReplayScreen.java</span></div><h1>ReplayScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.modes.StateLoading;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.game.GameManifest;
+import org.terasology.network.NetworkMode;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.recording.RecordAndReplayStatus;
+import org.terasology.recording.RecordAndReplayUtils;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameInfo;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameProvider;
+import org.terasology.rendering.nui.widgets.UIButton;
+
+import java.nio.file.Path;
+import java.util.Objects;
+import java.util.stream.Stream;
+
+/**
+ * Screen for the replay menu.
+ */
+<span class="nc" id="L43">public class ReplayScreen extends SelectionScreen {</span>
+
+<span class="nc" id="L45">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:replayScreen&quot;);</span>
+    private static final String REMOVE_STRING = &quot;replay&quot;;
+<span class="nc" id="L47">    private static final Logger logger = LoggerFactory.getLogger(ReplayScreen.class);</span>
+
+    private RecordAndReplayUtils recordAndReplayUtils;
+
+    // widgets
+    private UIButton load;
+    private UIButton delete;
+    private UIButton close;
+
+    @In
+    private RecordAndReplayCurrentStatus recordAndReplayCurrentStatus;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L61">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L63">        initWidgets();</span>
+
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (isValidScreen()) {</span>
+
+<span class="nc" id="L67">            initSaveGamePathWidget(PathManager.getInstance().getRecordingsPath());</span>
+
+<span class="nc" id="L69">            getGameInfos().subscribeSelection((widget, item) -&gt; {</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">                load.setEnabled(item != null);</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">                delete.setEnabled(item != null);</span>
+<span class="nc" id="L72">                updateDescription(item);</span>
+<span class="nc" id="L73">            });</span>
+
+<span class="nc" id="L75">            getGameInfos().subscribe((widget, item) -&gt; loadGame(item));</span>
+
+<span class="nc" id="L77">            load.subscribe(e -&gt; {</span>
+<span class="nc" id="L78">                GameInfo gameInfo = getGameInfos().getSelection();</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">                if (gameInfo != null) {</span>
+<span class="nc" id="L80">                    loadGame(gameInfo);</span>
+                }
+<span class="nc" id="L82">            });</span>
+
+<span class="nc" id="L84">            delete.subscribe(button -&gt; {</span>
+<span class="nc" id="L85">                TwoButtonPopup confirmationPopup = getManager().pushScreen(TwoButtonPopup.ASSET_URI, TwoButtonPopup.class);</span>
+<span class="nc" id="L86">                confirmationPopup.setMessage(translationSystem.translate(&quot;${engine:menu#remove-confirmation-popup-title}&quot;),</span>
+<span class="nc" id="L87">                        translationSystem.translate(&quot;${engine:menu#remove-confirmation-popup-message}&quot;));</span>
+<span class="nc" id="L88">                confirmationPopup.setLeftButton(translationSystem.translate(&quot;${engine:menu#dialog-yes}&quot;), this::removeSelectedReplay);</span>
+<span class="nc" id="L89">                confirmationPopup.setRightButton(translationSystem.translate(&quot;${engine:menu#dialog-no}&quot;), () -&gt; { });</span>
+<span class="nc" id="L90">            });</span>
+
+<span class="nc" id="L92">            close.subscribe(button -&gt; {</span>
+<span class="nc" id="L93">                recordAndReplayCurrentStatus.setStatus(RecordAndReplayStatus.NOT_ACTIVATED);</span>
+<span class="nc" id="L94">                triggerBackAnimation();</span>
+<span class="nc" id="L95">            });</span>
+        }
+<span class="nc" id="L97">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L101">        super.onOpened();</span>
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        if (isValidScreen()) {</span>
+<span class="nc" id="L104">            refreshGameInfoList(GameProvider.getSavedRecordings());</span>
+        } else {
+<span class="nc" id="L106">            final MessagePopup popup = getManager().createScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L107">            popup.setMessage(translationSystem.translate(&quot;${engine:menu#game-details-errors-message-title}&quot;), translationSystem.translate(&quot;${engine:menu#game-details-errors-message-body}&quot;));</span>
+<span class="nc" id="L108">            popup.subscribeButton(e -&gt; triggerBackAnimation());</span>
+<span class="nc" id="L109">            getManager().pushScreen(popup);</span>
+            // disable child widgets
+<span class="nc" id="L111">            setEnabled(false);</span>
+        }
+<span class="nc" id="L113">    }</span>
+
+    @Override
+    protected void initWidgets() {
+<span class="nc" id="L117">        super.initWidgets();</span>
+<span class="nc" id="L118">        load = find(&quot;load&quot;, UIButton.class);</span>
+<span class="nc" id="L119">        delete = find(&quot;delete&quot;, UIButton.class);</span>
+<span class="nc" id="L120">        close = find(&quot;close&quot;, UIButton.class);</span>
+<span class="nc" id="L121">    }</span>
+
+    private void removeSelectedReplay() {
+<span class="nc" id="L124">        final Path world = PathManager.getInstance().getRecordingPath(getGameInfos().getSelection().getManifest().getTitle());</span>
+<span class="nc" id="L125">        remove(getGameInfos(), world, REMOVE_STRING);</span>
+<span class="nc" id="L126">    }</span>
+
+    private void loadGame(GameInfo item) {
+        try {
+<span class="nc" id="L130">            GameManifest manifest = item.getManifest();</span>
+<span class="nc" id="L131">            recordAndReplayUtils.setGameTitle(manifest.getTitle());</span>
+<span class="nc" id="L132">            config.getWorldGeneration().setDefaultSeed(manifest.getSeed());</span>
+<span class="nc" id="L133">            config.getWorldGeneration().setWorldTitle(manifest.getTitle());</span>
+<span class="nc" id="L134">            CoreRegistry.get(GameEngine.class).changeState(new StateLoading(manifest, NetworkMode.NONE));</span>
+<span class="nc" id="L135">        } catch (Exception e) {</span>
+<span class="nc" id="L136">            logger.error(&quot;Failed to load saved game&quot;, e);</span>
+<span class="nc" id="L137">            getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Error Loading Game&quot;, e.getMessage());</span>
+<span class="nc" id="L138">        }</span>
+<span class="nc" id="L139">    }</span>
+
+    void setRecordAndReplayUtils(RecordAndReplayUtils recordAndReplayUtils) {
+<span class="nc" id="L142">        this.recordAndReplayUtils = recordAndReplayUtils;</span>
+<span class="nc" id="L143">    }</span>
+
+    @Override
+    protected boolean isValidScreen() {
+<span class="nc" id="L147">        if (Stream.of(load, delete, close)</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                .anyMatch(Objects::isNull) ||</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">                !super.isValidScreen()) {</span>
+<span class="nc" id="L150">            logger.error(&quot;Can't initialize screen correctly. At least one widget was missed!&quot;);</span>
+<span class="nc" id="L151">            return false;</span>
+        }
+<span class="nc" id="L153">        return true;</span>
+    }
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L158">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

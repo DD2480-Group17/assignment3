@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TextFlowRenderable.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets.browser.data.basic.flow</a> &gt; <span class="el_source">TextFlowRenderable.java</span></div><h1>TextFlowRenderable.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets.browser.data.basic.flow;
+
+import org.terasology.math.geom.Rect2i;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.widgets.browser.ui.style.FallbackTextRenderStyle;
+import org.terasology.rendering.nui.widgets.browser.ui.style.TextRenderStyle;
+
+public class TextFlowRenderable implements FlowRenderable&lt;TextFlowRenderable&gt; {
+    private final String text;
+    private TextRenderStyle textRenderStyle;
+    private final String hyperlink;
+
+<span class="fc" id="L29">    public TextFlowRenderable(String text, TextRenderStyle textRenderStyle, String hyperlink) {</span>
+<span class="fc" id="L30">        this.text = text;</span>
+<span class="fc" id="L31">        this.textRenderStyle = textRenderStyle;</span>
+<span class="fc" id="L32">        this.hyperlink = hyperlink;</span>
+<span class="fc" id="L33">    }</span>
+
+    @Override
+    public void render(Canvas canvas, Rect2i bounds, TextRenderStyle defaultRenderStyle) {
+<span class="nc" id="L37">        TextRenderStyle safeRenderStyle = getTextRenderStyle(defaultRenderStyle);</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">        Font font = safeRenderStyle.getFont(hyperlink != null);</span>
+<span class="nc" id="L39">        int lineHeight = font.getLineHeight();</span>
+<span class="nc" id="L40">        Rect2i bottomBounds = Rect2i.createFromMinAndSize(bounds.minX(), bounds.maxY() - lineHeight, bounds.sizeX(), lineHeight);</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">        canvas.drawTextRaw(text, font, safeRenderStyle.getColor(hyperlink != null), bottomBounds);</span>
+<span class="nc" id="L42">    }</span>
+
+    @Override
+    public int getMinWidth(TextRenderStyle defaultRenderStyle) {
+<span class="nc bnc" id="L46" title="All 2 branches missed.">        Font font = getTextRenderStyle(defaultRenderStyle).getFont(hyperlink != null);</span>
+
+<span class="nc" id="L48">        int minWidth = 0;</span>
+<span class="nc" id="L49">        String[] words = text.split(&quot;[ \\n]&quot;);</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        for (String word : words) {</span>
+<span class="nc" id="L51">            int width = font.getWidth(word);</span>
+<span class="nc" id="L52">            minWidth = Math.max(minWidth, width);</span>
+        }
+
+<span class="nc" id="L55">        return minWidth;</span>
+    }
+
+    @Override
+    public int getWidth(TextRenderStyle defaultRenderStyle) {
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        Font font = getTextRenderStyle(defaultRenderStyle).getFont(hyperlink != null);</span>
+
+<span class="nc" id="L62">        return font.getWidth(text);</span>
+    }
+
+    @Override
+    public int getHeight(TextRenderStyle defaultRenderStyle) {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        Font font = getTextRenderStyle(defaultRenderStyle).getFont(hyperlink != null);</span>
+<span class="nc" id="L68">        return font.getLineHeight();</span>
+    }
+
+    @Override
+    public String getAction() {
+<span class="nc" id="L73">        return hyperlink;</span>
+    }
+
+    @Override
+    public FlowRenderable.SplitResult&lt;TextFlowRenderable&gt; splitAt(TextRenderStyle defaultRenderStyle, int width) {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        Font font = getTextRenderStyle(defaultRenderStyle).getFont(hyperlink != null);</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if (!text.contains(&quot;\n&quot;)) {</span>
+<span class="nc" id="L80">            int wholeTextWidth = font.getWidth(text);</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (wholeTextWidth &lt;= width) {</span>
+<span class="nc" id="L82">                return new SplitResult&lt;&gt;(this, null);</span>
+            }
+        }
+
+<span class="nc" id="L86">        int spaceWidth = font.getWidth(' ');</span>
+
+<span class="nc" id="L88">        boolean first = true;</span>
+<span class="nc" id="L89">        int usedSpace = 0;</span>
+
+<span class="nc" id="L91">        StringBuilder before = new StringBuilder();</span>
+<span class="nc" id="L92">        StringBuilder after = new StringBuilder();</span>
+
+<span class="nc" id="L94">        boolean appendingToBefore = true;</span>
+
+<span class="nc" id="L96">        String[] lines = text.split(&quot;\n&quot;);</span>
+
+<span class="nc" id="L98">        String[] words = lines[0].split(&quot; &quot;);</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        for (String word : words) {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            if (appendingToBefore) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                if (!first) {</span>
+<span class="nc" id="L102">                    usedSpace += spaceWidth;</span>
+<span class="nc" id="L103">                    before.append(&quot; &quot;);</span>
+                }
+
+<span class="nc" id="L106">                usedSpace += font.getWidth(word);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">                if (usedSpace &gt; width) {</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                    if (before.length() == 0) {</span>
+<span class="nc" id="L109">                        return new SplitResult&lt;&gt;(null, this);</span>
+                    } else {
+<span class="nc" id="L111">                        appendingToBefore = false;</span>
+<span class="nc" id="L112">                        after.append(word);</span>
+                    }
+                } else {
+<span class="nc" id="L115">                    before.append(word);</span>
+                }
+<span class="nc" id="L117">                first = false;</span>
+            } else {
+<span class="nc" id="L119">                after.append(&quot; &quot;);</span>
+<span class="nc" id="L120">                after.append(word);</span>
+            }
+        }
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (lines[0].endsWith(&quot; &quot;)) {</span>
+<span class="nc" id="L124">            after.append(&quot; &quot;);</span>
+        }
+
+<span class="nc" id="L127">        after = trimLeft(after);</span>
+
+<span class="nc" id="L129">        boolean firstLine = true;</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        for (int i = 1; i &lt; lines.length; i++) {</span>
+<span class="nc bnc" id="L131" title="All 4 branches missed.">            if (!firstLine || after.length() &gt; 0) {</span>
+<span class="nc" id="L132">                after.append(&quot;\n&quot;);</span>
+            }
+<span class="nc" id="L134">            after.append(lines[i]);</span>
+<span class="nc" id="L135">            firstLine = false;</span>
+        }
+
+<span class="nc" id="L138">        String beforeText = trimRight(before).toString();</span>
+<span class="nc" id="L139">        String afterText = after.toString();</span>
+
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if (afterText.isEmpty()) {</span>
+<span class="nc" id="L142">            return new SplitResult&lt;&gt;(</span>
+                    new TextFlowRenderable(beforeText, textRenderStyle, hyperlink), null);
+        } else {
+<span class="nc" id="L145">            return new SplitResult&lt;&gt;(</span>
+                    new TextFlowRenderable(beforeText, textRenderStyle, hyperlink),
+                    new TextFlowRenderable(afterText, textRenderStyle, hyperlink));
+        }
+    }
+
+
+    private TextRenderStyle getTextRenderStyle(TextRenderStyle defaultRenderStyle) {
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        if (textRenderStyle == null) {</span>
+<span class="nc" id="L154">            return defaultRenderStyle;</span>
+        }
+<span class="nc" id="L156">        return new FallbackTextRenderStyle(textRenderStyle, defaultRenderStyle);</span>
+    }
+
+    private StringBuilder trimRight(StringBuilder stringBuilder) {
+<span class="nc" id="L160">        int size = stringBuilder.length();</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        for (int i = size - 1; i &gt;= 0; i--) {</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            if (stringBuilder.charAt(i) != ' ') {</span>
+<span class="nc" id="L163">                stringBuilder.replace(i + 1, size, &quot;&quot;);</span>
+<span class="nc" id="L164">                break;</span>
+            }
+        }
+<span class="nc" id="L167">        return stringBuilder;</span>
+    }
+
+    private StringBuilder trimLeft(StringBuilder stringBuilder) {
+<span class="nc" id="L171">        int size = stringBuilder.length();</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            if (stringBuilder.charAt(i) != ' ') {</span>
+<span class="nc" id="L174">                stringBuilder.replace(0, i, &quot;&quot;);</span>
+<span class="nc" id="L175">                break;</span>
+            }
+        }
+<span class="nc" id="L178">        return stringBuilder;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PojoEntityPool.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem.entity.internal</a> &gt; <span class="el_source">PojoEntityPool.java</span></div><h1>PojoEntityPool.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem.entity.internal;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.MapMaker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeDeactivateComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeRemoveComponent;
+import org.terasology.entitySystem.event.internal.EventSystem;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.terasology.entitySystem.entity.internal.PojoEntityManager.NULL_ID;
+
+public class PojoEntityPool implements EngineEntityPool {
+
+    private PojoEntityManager entityManager;
+
+<span class="fc" id="L44">    private static final Logger logger = LoggerFactory.getLogger(PojoEntityPool.class);</span>
+
+<span class="fc" id="L46">    private Map&lt;Long, BaseEntityRef&gt; entityStore = new MapMaker().weakValues().concurrencyLevel(4).initialCapacity(1000).makeMap();</span>
+<span class="fc" id="L47">    private ComponentTable componentStore = new ComponentTable();</span>
+
+<span class="fc" id="L49">    public PojoEntityPool(PojoEntityManager entityManager) {</span>
+<span class="fc" id="L50">        this.entityManager = entityManager;</span>
+<span class="fc" id="L51">    }</span>
+
+    @Override
+    public void clear() {
+        //Todo: should also clear out ids from the EntityManager
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        for (EntityRef entity : entityStore.values()) {</span>
+<span class="fc" id="L57">            entity.invalidate();</span>
+<span class="fc" id="L58">        }</span>
+<span class="fc" id="L59">        componentStore.clear();</span>
+<span class="fc" id="L60">        entityStore.clear();</span>
+<span class="fc" id="L61">    }</span>
+
+
+    @Override
+    public EntityRef create() {
+<span class="fc" id="L66">        return create((Prefab) null, null, null);</span>
+    }
+
+    @Override
+    public EntityRef create(Component... components) {
+<span class="fc" id="L71">        return create(Arrays.asList(components));</span>
+    }
+
+    @Override
+    public EntityRef create(Iterable&lt;Component&gt; components) {
+<span class="fc" id="L76">        return create(components, true);</span>
+    }
+
+    @Override
+    public EntityRef create(Iterable&lt;Component&gt; components, boolean sendLifecycleEvents) {
+<span class="fc" id="L81">        EntityBuilder builder = newBuilder();</span>
+<span class="fc" id="L82">        builder.addComponents(components);</span>
+<span class="fc" id="L83">        builder.setSendLifecycleEvents(sendLifecycleEvents);</span>
+<span class="fc" id="L84">        return builder.build();</span>
+    }
+
+    @Override
+    public EntityRef create(String prefabName) {
+<span class="fc" id="L89">        return create(prefabName, null, null);</span>
+    }
+
+    @Override
+    public EntityRef create(String prefabName, Vector3f position) {
+<span class="nc" id="L94">        return create(prefabName, position, null);</span>
+    }
+
+    @Override
+    public EntityRef create(Prefab prefab, Vector3f position) {
+<span class="nc" id="L99">        return create(prefab, position, null);</span>
+    }
+
+    @Override
+    public EntityRef create(Prefab prefab) {
+<span class="fc" id="L104">        return create(prefab, null, null);</span>
+    }
+
+    @Override
+    public EntityRef create(Prefab prefab, Vector3f position, Quat4f rotation) {
+<span class="fc" id="L109">        return create(prefab, position, rotation, true);</span>
+    }
+
+    private EntityRef create(Prefab prefab, Vector3f position, Quat4f rotation, boolean sendLifecycleEvents) {
+<span class="fc" id="L113">        EntityBuilder builder = newBuilder(prefab);</span>
+<span class="fc" id="L114">        builder.setSendLifecycleEvents(sendLifecycleEvents);</span>
+
+<span class="fc" id="L116">        LocationComponent loc = builder.getComponent(LocationComponent.class);</span>
+<span class="pc bpc" id="L117" title="3 of 6 branches missed.">        if (loc == null &amp;&amp; (position != null || rotation != null)) {</span>
+<span class="nc" id="L118">            loc = new LocationComponent();</span>
+<span class="nc" id="L119">            builder.addComponent(loc);</span>
+        }
+
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if (position != null) {</span>
+<span class="nc" id="L123">            loc.setWorldPosition(position);</span>
+        }
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (rotation != null) {</span>
+<span class="nc" id="L126">            loc.setWorldRotation(rotation);</span>
+        }
+
+<span class="fc" id="L129">        return builder.build();</span>
+    }
+
+    private EntityRef create(String prefabName, Vector3f position, Quat4f rotation) {
+<span class="fc" id="L133">        return create(prefabName, position, rotation, true);</span>
+    }
+
+    private EntityRef create(String prefabName, Vector3f position, Quat4f rotation, boolean sendLifecycleEvents) {
+        Prefab prefab;
+<span class="pc bpc" id="L138" title="2 of 4 branches missed.">        if (prefabName == null || prefabName.isEmpty()) {</span>
+<span class="nc" id="L139">            prefab = null;</span>
+        } else {
+<span class="fc" id="L141">            prefab = entityManager.getPrefabManager().getPrefab(prefabName);</span>
+
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">            if (prefab == null) {</span>
+<span class="nc" id="L144">                logger.warn(&quot;Unable to instantiate unknown prefab: \&quot;{}\&quot;&quot;, prefabName);</span>
+<span class="nc" id="L145">                return EntityRef.NULL;</span>
+            }
+        }
+<span class="fc" id="L148">        return create(prefab, position, rotation, sendLifecycleEvents);</span>
+    }
+
+    /**
+     * Destroys this entity, sending event
+     *
+     * @param entityId the id of the entity to destroy
+     */
+    @Override
+    public void destroy(long entityId) {
+        // Don't allow the destruction of unloaded entities.
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">        if (!entityManager.idLoaded(entityId)) {</span>
+<span class="nc" id="L160">            return;</span>
+        }
+<span class="fc" id="L162">        EntityRef ref = getEntity(entityId);</span>
+
+<span class="fc" id="L164">        EventSystem eventSystem = entityManager.getEventSystem();</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">        if (eventSystem != null) {</span>
+<span class="fc" id="L166">            eventSystem.send(ref, BeforeDeactivateComponent.newInstance());</span>
+<span class="fc" id="L167">            eventSystem.send(ref, BeforeRemoveComponent.newInstance());</span>
+        }
+<span class="fc" id="L169">        entityManager.notifyComponentRemovalAndEntityDestruction(entityId, ref);</span>
+<span class="fc" id="L170">        destroy(ref);</span>
+<span class="fc" id="L171">    }</span>
+
+    private void destroy(EntityRef ref) {
+        // Don't allow the destruction of unloaded entities.
+<span class="fc" id="L175">        long entityId = ref.getId();</span>
+<span class="fc" id="L176">        entityStore.remove(entityId);</span>
+<span class="fc" id="L177">        entityManager.unregister(entityId);</span>
+<span class="fc" id="L178">        ref.invalidate();</span>
+<span class="fc" id="L179">        componentStore.remove(entityId);</span>
+<span class="fc" id="L180">    }</span>
+
+    /**
+     * Creates the entity without sending any events. The entity life cycle subscriber will however be informed.
+     */
+    @Override
+    public EntityRef createEntityWithoutLifecycleEvents(Iterable&lt;Component&gt; components) {
+<span class="nc" id="L187">        return create(components, false);</span>
+    }
+
+    /**
+     * Creates the entity without sending any events. The entity life cycle subscriber will however be informed.
+     */
+    @Override
+    public EntityRef createEntityWithoutLifecycleEvents(String prefabName) {
+<span class="nc" id="L195">        return create(prefabName, null, null, false);</span>
+    }
+
+    /**
+     * Creates the entity without sending any events. The entity life cycle subscriber will however be informed.
+     */
+    @Override
+    public EntityRef createEntityWithoutLifecycleEvents(Prefab prefab) {
+<span class="nc" id="L203">        return create(prefab, null, null, false);</span>
+    }
+
+    /**
+     * Destroys the entity without sending any events. The entity life cycle subscriber will however be informed.
+     */
+    @Override
+    public void destroyEntityWithoutEvents(EntityRef entity) {
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">        if (entity.isActive()) {</span>
+<span class="fc" id="L212">            entityManager.notifyComponentRemovalAndEntityDestruction(entity.getId(), entity);</span>
+<span class="fc" id="L213">            destroy(entity);</span>
+        }
+<span class="fc" id="L215">    }</span>
+
+    @Override
+    public EntityRef createEntityWithId(long id, Iterable&lt;Component&gt; components) {
+<span class="nc" id="L219">        EntityBuilder builder = newBuilder();</span>
+<span class="nc" id="L220">        builder.setId(id);</span>
+<span class="nc" id="L221">        builder.addComponents(components);</span>
+<span class="nc" id="L222">        return builder.build();</span>
+    }
+
+    @Override
+    public EntityBuilder newBuilder() {
+<span class="fc" id="L227">        return new EntityBuilder(entityManager, this);</span>
+    }
+
+    @Override
+    public EntityBuilder newBuilder(String prefabName) {
+<span class="nc" id="L232">        EntityBuilder builder = newBuilder();</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        if (!builder.addPrefab(prefabName)) {</span>
+<span class="nc" id="L234">            logger.warn(&quot;Unable to instantiate unknown prefab: \&quot;{}\&quot;&quot;, prefabName);</span>
+        }
+<span class="nc" id="L236">        return builder;</span>
+    }
+
+    @Override
+    public EntityBuilder newBuilder(Prefab prefab) {
+<span class="fc" id="L241">        EntityBuilder builder = newBuilder();</span>
+<span class="fc" id="L242">        builder.addPrefab(prefab);</span>
+<span class="fc" id="L243">        return builder;</span>
+    }
+
+    /**
+     * Gets the internal entity store.
+     * &lt;p&gt;
+     * It is returned as an unmodifiable map, so cannot be edited. Use {@link #putEntity} to modify the map.
+     *
+     * @return an unmodifiable version of the internal entity store
+     */
+    protected Map&lt;Long, BaseEntityRef&gt; getEntityStore() {
+<span class="nc" id="L254">        return Collections.unmodifiableMap(entityStore);</span>
+    }
+
+    /**
+     * Puts an entity into the internal storage.
+     * &lt;p&gt;
+     * This is intended for use by the {@link PojoEntityManager}.
+     * In most cases, it is better to use the {@link #create} or {@link #newBuilder} methods instead.
+     *
+     * @param entityId the id of the entity to add
+     * @param ref the {@link BaseEntityRef} to add
+     */
+    @Override
+    public void putEntity(long entityId, BaseEntityRef ref) {
+<span class="nc" id="L268">        entityStore.put(entityId, ref);</span>
+<span class="nc" id="L269">    }</span>
+
+    @Override
+    public ComponentTable getComponentStore() {
+<span class="fc" id="L273">        return componentStore;</span>
+    }
+
+    @Override
+    public EntityRef getEntity(long entityId) {
+<span class="pc bpc" id="L278" title="2 of 4 branches missed.">        if (entityId == NULL_ID || !entityManager.isExistingEntity(entityId)) {</span>
+            // ID is null or the entity doesn't exist
+<span class="nc" id="L280">            return EntityRef.NULL;</span>
+        }
+
+<span class="fc" id="L283">        EntityRef existing = entityStore.get(entityId);</span>
+<span class="pc bpc" id="L284" title="1 of 4 branches missed.">        if (existing != EntityRef.NULL &amp;&amp; existing != null) {</span>
+            // Entity already has a ref
+<span class="fc" id="L286">            return existing;</span>
+        }
+
+        // Create a new ref
+<span class="fc" id="L290">        BaseEntityRef entity = entityManager.getEntityRefStrategy().createRefFor(entityId, entityManager);</span>
+
+<span class="fc" id="L292">        entityStore.put(entityId, entity);</span>
+<span class="fc" id="L293">        entityManager.assignToPool(entityId, this);</span>
+<span class="fc" id="L294">        return entity;</span>
+    }
+
+    @SafeVarargs
+    @Override
+    public final Iterable&lt;EntityRef&gt; getEntitiesWith(Class&lt;? extends Component&gt;... componentClasses) {
+<span class="fc" id="L300">        return () -&gt; entityStore.keySet().stream()</span>
+                //Keep entities which have all of the required components
+<span class="fc" id="L302">                .filter(id -&gt; Arrays.stream(componentClasses)</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">                        .allMatch(component -&gt; componentStore.get(id, component) != null))</span>
+<span class="fc" id="L304">                .map(id -&gt; getEntity(id))</span>
+<span class="fc" id="L305">                .iterator();</span>
+    }
+
+    @Override
+    public int getCountOfEntitiesWith(Class&lt;? extends Component&gt;[] componentClasses) {
+<span class="pc bpc" id="L310" title="2 of 3 branches missed.">        switch (componentClasses.length) {</span>
+            case 0:
+<span class="nc" id="L312">                return componentStore.numEntities();</span>
+            case 1:
+<span class="fc" id="L314">                return componentStore.getComponentCount(componentClasses[0]);</span>
+            default:
+<span class="nc" id="L316">                return Lists.newArrayList(getEntitiesWith(componentClasses)).size();</span>
+        }
+    }
+
+    @Override
+    public int getActiveEntityCount() {
+<span class="nc" id="L322">        return entityStore.size();</span>
+    }
+
+    @Override
+    public Iterable&lt;EntityRef&gt; getAllEntities() {
+<span class="fc" id="L327">        return () -&gt; new EntityIterator(componentStore.entityIdIterator(), this);</span>
+    }
+
+    @Override
+    public boolean hasComponent(long entityId, Class&lt;? extends Component&gt; componentClass) {
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">        return componentStore.get(entityId, componentClass) != null;</span>
+    }
+
+    @Override
+    public Optional&lt;BaseEntityRef&gt; remove(long id) {
+<span class="fc" id="L337">        componentStore.remove(id);</span>
+<span class="fc" id="L338">        entityManager.unassignPool(id);</span>
+<span class="fc" id="L339">        return Optional.of(entityStore.remove(id));</span>
+    }
+
+    @Override
+    public void insertRef(BaseEntityRef ref, Iterable&lt;Component&gt; components) {
+<span class="fc" id="L344">        entityStore.put(ref.getId(), ref);</span>
+<span class="fc" id="L345">        components.forEach(comp -&gt; componentStore.put(ref.getId(), comp));</span>
+<span class="fc" id="L346">        entityManager.assignToPool(ref.getId(), this);</span>
+<span class="fc" id="L347">    }</span>
+
+    @Override
+    public boolean contains(long id) {
+<span class="fc" id="L351">        return entityStore.containsKey(id);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

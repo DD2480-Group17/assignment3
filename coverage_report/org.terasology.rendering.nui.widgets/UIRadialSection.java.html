@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIRadialSection.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIRadialSection.java</span></div><h1>UIRadialSection.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.TabbingManager;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.WidgetWithOrder;
+import org.terasology.utilities.Assets;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * One radial section of the Radial Ring
+ */
+public class UIRadialSection extends WidgetWithOrder {
+
+    private Rect2i infoRegion;
+    private Rect2i innerRegion;
+    private Rect2i sectionRegion;
+<span class="nc" id="L39">    private TextureRegion sectionTexture = Assets.getTextureRegion(&quot;engine:radialUnit&quot;).get();</span>
+<span class="nc" id="L40">    private TextureRegion selectedTexture = Assets.getTextureRegion(&quot;engine:radialUnitSelected&quot;).get();</span>
+<span class="nc" id="L41">    private Boolean isSelected = false;</span>
+    private List&lt;ActivateEventListener&gt; listeners;
+
+    //TODO: Consider bringing back binding to icon,text and widget in UIRadialSection.java
+    //TODO: Use bindings in future. Previously used bindings were throwing some exceptions not even allowing to open the screen with UIRadialRing, so this is a quick fix - conversion from binded properties to standard ones.
+    @LayoutConfig
+    private TextureRegion icon;
+    @LayoutConfig
+    private String text;
+    @LayoutConfig
+    private UIWidget widget;
+
+<span class="nc" id="L53">    public UIRadialSection() {</span>
+<span class="nc" id="L54">        setId(&quot;&quot;);</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if (TabbingManager.isInitialized()) {</span>
+<span class="nc" id="L56">            TabbingManager.addToUsedNums(this.getOrder());</span>
+<span class="nc" id="L57">            TabbingManager.addToWidgetsList(this);</span>
+<span class="nc" id="L58">            initialized = true;</span>
+        }
+<span class="nc" id="L60">    }</span>
+<span class="nc" id="L61">    public UIRadialSection(String id) {</span>
+<span class="nc" id="L62">        this.setId(id);</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        if (TabbingManager.isInitialized()) {</span>
+<span class="nc" id="L64">            TabbingManager.addToUsedNums(this.getOrder());</span>
+<span class="nc" id="L65">            TabbingManager.addToWidgetsList(this);</span>
+<span class="nc" id="L66">            initialized = true;</span>
+        }
+<span class="nc" id="L68">    }</span>
+
+    @Override
+    public String getMode() {
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        if  (isSelected) {</span>
+<span class="nc" id="L73">            return ACTIVE_MODE;</span>
+<span class="nc bnc" id="L74" title="All 4 branches missed.">        } else if (TabbingManager.focusedWidget != null &amp;&amp; TabbingManager.focusedWidget.equals(this)) {</span>
+<span class="nc" id="L75">            isSelected = true;</span>
+<span class="nc" id="L76">            return ACTIVE_MODE;</span>
+        }
+<span class="nc" id="L78">        return DEFAULT_MODE;</span>
+    }
+
+    /**
+     * Draws the widget
+     *
+     * @param canvas The canvas to draw on.
+     */
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L87">        canvas.getRegion();</span>
+<span class="nc" id="L88">        canvas.drawTexture(sectionTexture, sectionRegion);</span>
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if (icon != null) {</span>
+<span class="nc" id="L91">            canvas.drawTexture(icon, innerRegion);</span>
+        }
+
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (text != null) {</span>
+<span class="nc" id="L95">            canvas.drawText(text, innerRegion);</span>
+        }
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (isSelected) {</span>
+<span class="nc" id="L98">            canvas.drawTexture(selectedTexture, sectionRegion);</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (widget != null) {</span>
+<span class="nc" id="L100">                canvas.drawWidget(widget, infoRegion);</span>
+            }
+        }
+<span class="nc" id="L103">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        return sectionRegion == null ? Vector2i.zero() : sectionRegion.size();</span>
+    }
+
+    /**
+     * Add a listener to this section. It will be fired when the section is activated
+     *
+     * @param listener The listener to add
+     */
+    public void addListener(ActivateEventListener listener) {
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        if (listeners == null) {</span>
+<span class="nc" id="L117">            listeners = new ArrayList&lt;&gt;();</span>
+        }
+<span class="nc" id="L119">        listeners.add(listener);</span>
+<span class="nc" id="L120">    }</span>
+
+    /**
+     * Removes a listener from the section.
+     *
+     * @param listener
+     */
+    public void removeListener(ActivateEventListener listener) {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if (listeners != null) {</span>
+<span class="nc" id="L129">            listeners.remove(listener);</span>
+        }
+<span class="nc" id="L131">    }</span>
+
+    /**
+     * Activates the section, triggering all listeners.
+     */
+    public void activateSection() {
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        if (listeners != null) {</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">            for (ActivateEventListener listener : listeners) {</span>
+<span class="nc" id="L139">                listener.onActivated(this);</span>
+<span class="nc" id="L140">            }</span>
+        }
+<span class="nc" id="L142">    }</span>
+
+    /**
+     * Sets the selected state of the section
+     */
+    public void setSelected(boolean selected) {
+<span class="nc" id="L148">        isSelected = selected;</span>
+<span class="nc" id="L149">    }</span>
+
+    /**
+     * Sets info widget
+     */
+    public void setInfoWidget(UIWidget infoWidget) {
+<span class="nc" id="L155">        widget = infoWidget;</span>
+<span class="nc" id="L156">    }</span>
+
+    /**
+     * Set icon texture
+     */
+    public void setIcon(TextureRegion newIcon) {
+<span class="nc" id="L162">        icon = newIcon;</span>
+<span class="nc" id="L163">    }</span>
+
+    /**
+     * Set section text
+     */
+    public void setText(String newText) {
+<span class="nc" id="L169">        text = newText;</span>
+<span class="nc" id="L170">    }</span>
+
+    /**
+     * Sets the region in which to draw the info widget
+     */
+    public void setInfoRegion(Rect2i newRegion) {
+<span class="nc" id="L176">        infoRegion = newRegion;</span>
+<span class="nc" id="L177">    }</span>
+
+    /**
+     * Sets the draw region of the widget itself
+     */
+    public void setDrawRegion(Rect2i region) {
+<span class="nc" id="L183">        sectionRegion = region;</span>
+<span class="nc" id="L184">    }</span>
+
+    /**
+     * Sets the draw region of the items inside the widget.
+     */
+    public void setInnerRegion(Rect2i region) {
+<span class="nc" id="L190">        innerRegion = region;</span>
+<span class="nc" id="L191">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

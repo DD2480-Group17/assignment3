@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AutoConfigManagerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config.flexible</a> &gt; <span class="el_source">AutoConfigManagerTest.java</span></div><h1>AutoConfigManagerTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.config.flexible;
+
+import org.jboss.shrinkwrap.api.ShrinkWrap;
+import org.jboss.shrinkwrap.api.nio.file.ShrinkWrapFileSystems;
+import org.jboss.shrinkwrap.api.spec.JavaArchive;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.naming.Name;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+
+import java.nio.file.FileSystem;
+import java.util.Collections;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+<span class="fc" id="L42">public class AutoConfigManagerTest {</span>
+<span class="fc" id="L43">    private static final Name PROVIDING_MODULE = new Name(&quot;unittest&quot;);</span>
+
+<span class="fc" id="L45">    private final TypeHandlerLibrary typeHandlerLibrary = mock(TypeHandlerLibrary.class);</span>
+<span class="fc" id="L46">    private final AutoConfigManager autoConfigManager = new AutoConfigManager(typeHandlerLibrary);</span>
+
+<span class="fc" id="L48">    private final Context context = mock(Context.class);</span>
+<span class="fc" id="L49">    private final ModuleManager moduleManager = mock(ModuleManager.class);</span>
+<span class="fc" id="L50">    private final ModuleEnvironment environment = mock(ModuleEnvironment.class);</span>
+
+    @BeforeEach
+    public void setUp() throws Exception {
+<span class="fc" id="L54">        final JavaArchive homeArchive = ShrinkWrap.create(JavaArchive.class);</span>
+<span class="fc" id="L55">        final FileSystem vfs = ShrinkWrapFileSystems.newFileSystem(homeArchive);</span>
+<span class="fc" id="L56">        PathManager.getInstance().useOverrideHomePath(vfs.getPath(&quot;&quot;));</span>
+
+<span class="fc" id="L58">        when(environment.getModuleProviding(any())).thenReturn(PROVIDING_MODULE);</span>
+<span class="fc" id="L59">        when(environment.getSubtypesOf(eq(AutoConfig.class))).thenReturn(Collections.singleton(TestAutoConfig.class));</span>
+
+<span class="fc" id="L61">        when(moduleManager.getEnvironment()).thenReturn(environment);</span>
+
+<span class="fc" id="L63">        when(context.get(eq(ModuleManager.class))).thenReturn(moduleManager);</span>
+<span class="fc" id="L64">    }</span>
+
+    @Test
+    public void testLoad() {
+<span class="fc" id="L68">        autoConfigManager.loadConfigsIn(context);</span>
+
+<span class="fc" id="L70">        ArgumentCaptor&lt;TestAutoConfig&gt; argumentCaptor = ArgumentCaptor.forClass(TestAutoConfig.class);</span>
+<span class="fc" id="L71">        verify(context).put(eq(TestAutoConfig.class), argumentCaptor.capture());</span>
+
+<span class="fc" id="L73">        TestAutoConfig value = argumentCaptor.getValue();</span>
+<span class="fc" id="L74">        assertEquals(new SimpleUri(PROVIDING_MODULE, TestAutoConfig.class.getName()), value.getId());</span>
+<span class="fc" id="L75">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

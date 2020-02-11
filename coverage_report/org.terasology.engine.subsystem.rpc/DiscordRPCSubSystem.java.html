@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscordRPCSubSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.subsystem.rpc</a> &gt; <span class="el_source">DiscordRPCSubSystem.java</span></div><h1>DiscordRPCSubSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.subsystem.rpc;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
+import com.jagrosh.discordipc.IPCClient;
+import com.jagrosh.discordipc.IPCListener;
+import com.jagrosh.discordipc.entities.RichPresence;
+import com.jagrosh.discordipc.entities.pipe.Pipe;
+import com.jagrosh.discordipc.entities.pipe.WindowsPipe;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.subsystem.EngineSubsystem;
+
+import java.time.OffsetDateTime;
+
+/**
+ * Subsystem that manages Discord RPC in the game client, such as status or connection.
+ * This subsystem can be enhanced further to improve game presentation in rich presence.
+ *
+ * @see EngineSubsystem
+ */
+public class DiscordRPCSubSystem implements EngineSubsystem, IPCListener, Runnable {
+
+<span class="nc" id="L42">    private static final Logger logger = LoggerFactory.getLogger(DiscordRPCSubSystem.class);</span>
+    private static final long DISCORD_APP_CLIENT_ID = 515274721080639504L;
+    private static final String DISCORD_APP_LARGE_IMAGE = &quot;ss_6&quot;;
+    private static final int RECONNECT_TRIES = 5;
+    private static DiscordRPCSubSystem instance;
+
+    private IPCClient ipcClient;
+    private boolean ready;
+    private boolean autoReconnect;
+    private Thread reconnectThread;
+    private RichPresence lastRichPresence;
+    private boolean reconnecting;
+<span class="nc" id="L54">    private int reconnectTries = 1;</span>
+    private boolean connectedBefore;
+    private Config config;
+    private String lastState;
+    private boolean dontTryAgain;
+    private boolean enabled;
+
+<span class="nc" id="L61">    public DiscordRPCSubSystem() throws IllegalStateException {</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (instance != null) {</span>
+<span class="nc" id="L63">            throw new IllegalStateException(&quot;More then one instance in the DiscordRPC&quot;);</span>
+        }
+<span class="nc" id="L65">        lastRichPresence = null;</span>
+<span class="nc" id="L66">        ipcClient = new IPCClient(DISCORD_APP_CLIENT_ID);</span>
+<span class="nc" id="L67">        ipcClient.setListener(this);</span>
+<span class="nc" id="L68">        autoReconnect = true;</span>
+<span class="nc" id="L69">        reconnectThread = new Thread(this);</span>
+<span class="nc" id="L70">        reconnectThread.setName(&quot;DISCORD-RPC-RECONNECT&quot;);</span>
+<span class="nc" id="L71">        reconnectThread.start();</span>
+<span class="nc" id="L72">        instance = this;</span>
+<span class="nc" id="L73">        enabled = false;</span>
+<span class="nc" id="L74">        dontTryAgain = true;</span>
+<span class="nc" id="L75">    }</span>
+
+    public void sendRichPresence(RichPresence richPresence) {
+<span class="nc" id="L78">        this.lastRichPresence = richPresence;</span>
+<span class="nc bnc" id="L79" title="All 6 branches missed.">        if (!ready || lastRichPresence == null || !enabled) {</span>
+<span class="nc" id="L80">            return;</span>
+        }
+<span class="nc" id="L82">        ipcClient.sendRichPresence(lastRichPresence);</span>
+<span class="nc" id="L83">    }</span>
+
+    @Override
+    public void onReady(IPCClient client) {
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (reconnecting) {</span>
+<span class="nc" id="L88">            logger.info(&quot;Discord RPC &gt;&gt; Reconnected!&quot;);</span>
+<span class="nc" id="L89">            reconnectTries = 1;</span>
+        } else {
+<span class="nc" id="L91">            logger.info(&quot;Discord RPC &gt;&gt; Connected!&quot;);</span>
+<span class="nc" id="L92">            connectedBefore = true;</span>
+        }
+<span class="nc" id="L94">        this.ipcClient = client;</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (!ready) {</span>
+<span class="nc" id="L96">            ready = true;</span>
+        }
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (lastRichPresence == null) {</span>
+<span class="nc" id="L99">            RichPresence.Builder builder = new RichPresence.Builder();</span>
+<span class="nc" id="L100">            builder.setLargeImage(DISCORD_APP_LARGE_IMAGE);</span>
+<span class="nc" id="L101">            lastRichPresence = builder.build();</span>
+        }
+<span class="nc" id="L103">        client.sendRichPresence(lastRichPresence);</span>
+<span class="nc" id="L104">    }</span>
+
+    @Override
+    public void onDisconnect(IPCClient client, Throwable t) {
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (ready) {</span>
+<span class="nc" id="L109">            ready = false;</span>
+        }
+<span class="nc" id="L111">        logger.info(&quot;Discord RPC &gt;&gt; Disconnected!&quot;);</span>
+<span class="nc" id="L112">    }</span>
+
+    @Override
+    public void run() {
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        while (autoReconnect) {</span>
+            try {
+                // Ignore if the Discord RPC is not enabled
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                if (!enabled) {</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                    if (ready) {</span>
+<span class="nc" id="L121">                        getInstance().ipcClient.close();</span>
+                    }
+<span class="nc" id="L123">                    Thread.sleep(1000);</span>
+<span class="nc" id="L124">                    continue;</span>
+                }
+
+                // Don't retry to do any connect to the RPC till something happen to do it
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                if (dontTryAgain) {</span>
+<span class="nc" id="L129">                    Thread.sleep(1000);</span>
+<span class="nc" id="L130">                    continue;</span>
+                }
+
+                // Connect if the connect on init didn't connect successfully
+<span class="nc bnc" id="L134" title="All 4 branches missed.">                if (!connectedBefore &amp;&amp; !ready) {</span>
+                    try {
+<span class="nc" id="L136">                        ipcClient.connect();</span>
+<span class="nc" id="L137">                    } catch (Exception ex) {</span>
+<span class="nc" id="L138">                    } // Ignore the not able to connect to continue our process</span>
+<span class="nc" id="L139">                    Thread.sleep(15 * 1000);</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                    if (!ready) {</span>
+<span class="nc" id="L141">                        reconnectTries += 1;</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                        if (reconnectTries &gt;= RECONNECT_TRIES) {</span>
+<span class="nc" id="L143">                            dontTryAgain = true;</span>
+                        }
+                    }
+<span class="nc" id="L146">                    continue;</span>
+                }
+
+                // Ping to make sure that the RPC is alive
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                if (ready) {</span>
+<span class="nc" id="L151">                    Thread.sleep(5000);</span>
+<span class="nc" id="L152">                    ipcClient.sendRichPresence(this.lastRichPresence);</span>
+                } else {
+<span class="nc" id="L154">                    reconnecting = true;</span>
+<span class="nc" id="L155">                    int timeout = (reconnectTries * 2) * 1000;</span>
+<span class="nc" id="L156">                    logger.info(&quot;Discord RPC &gt;&gt; Reconnecting... (Timeout: &quot; + timeout + &quot;ms)&quot;);</span>
+                    try {
+<span class="nc" id="L158">                        ipcClient.connect();</span>
+<span class="nc" id="L159">                    } catch (Exception ex) {</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                        if (reconnectTries &lt;= RECONNECT_TRIES) {</span>
+<span class="nc" id="L161">                            reconnectTries += 1;</span>
+                        }
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                        if (reconnectTries &gt;= RECONNECT_TRIES) {</span>
+<span class="nc" id="L164">                            dontTryAgain = true;</span>
+                        }
+<span class="nc" id="L166">                        Thread.sleep(timeout);</span>
+<span class="nc" id="L167">                    }</span>
+                }
+<span class="nc" id="L169">            } catch (InterruptedException ex) { // Ignore the interrupted exceptions</span>
+<span class="nc" id="L170">            } catch (Exception ex) {</span>
+<span class="nc" id="L171">                logger.trace(ex.getMessage(), ex.getCause());</span>
+<span class="nc" id="L172">            }</span>
+        }
+<span class="nc" id="L174">    }</span>
+
+    @Override
+    public void initialise(GameEngine engine, Context rootContext) {
+<span class="nc" id="L178">        disableLogger(IPCClient.class);</span>
+<span class="nc" id="L179">        disableLogger(WindowsPipe.class);</span>
+<span class="nc" id="L180">        disableLogger(Pipe.class);</span>
+<span class="nc" id="L181">        Config c = rootContext.get(Config.class);</span>
+<span class="nc" id="L182">        enabled = c.getPlayer().isDiscordPresence();</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        if (!enabled) {</span>
+<span class="nc" id="L184">            return;</span>
+        }
+        try {
+<span class="nc" id="L187">            logger.info(&quot;Discord RPC &gt;&gt; Connecting...&quot;);</span>
+<span class="nc" id="L188">            ipcClient.connect();</span>
+<span class="nc" id="L189">            dontTryAgain = false;</span>
+<span class="nc" id="L190">        } catch (Exception ex) { } // Ignore due to reconnect thread</span>
+<span class="nc" id="L191">    }</span>
+
+    @Override
+    public void postInitialise(Context context) {
+<span class="nc" id="L195">        config = context.get(Config.class);</span>
+<span class="nc" id="L196">        setState(&quot;In Lobby&quot;);</span>
+<span class="nc" id="L197">    }</span>
+
+    @Override
+    public void preShutdown() {
+<span class="nc" id="L201">        autoReconnect = false;</span>
+<span class="nc" id="L202">        reconnectThread.interrupt();</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        if (ready) {</span>
+<span class="nc" id="L204">          ipcClient.close();</span>
+        }
+<span class="nc" id="L206">    }</span>
+
+    /**
+     * To disable the logger from some classes that throw errors and some other spam stuff into our console.
+     *
+     */
+    private void disableLogger(Class&lt;?&gt; clazz) {
+<span class="nc" id="L213">        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();</span>
+<span class="nc" id="L214">        Logger l = loggerContext.getLogger(clazz);</span>
+<span class="nc" id="L215">        ((ch.qos.logback.classic.Logger) l).setLevel(Level.OFF);</span>
+<span class="nc" id="L216">    }</span>
+
+    @Override
+    public String getName() {
+<span class="nc" id="L220">        return &quot;DiscordRPC&quot;;</span>
+    }
+
+    public static DiscordRPCSubSystem getInstance() {
+<span class="nc" id="L224">        return instance;</span>
+    }
+
+    public static void setState(String state) {
+<span class="nc" id="L228">        setState(state, true);</span>
+<span class="nc" id="L229">    }</span>
+
+    public static void setState(String state, boolean timestamp) {
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        if (instance == null) {</span>
+<span class="nc" id="L233">            return;</span>
+        }
+<span class="nc" id="L235">        RichPresence.Builder builder = new RichPresence.Builder();</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">        if (state != null) {</span>
+<span class="nc" id="L237">            builder.setState(state);</span>
+<span class="nc bnc" id="L238" title="All 6 branches missed.">            if (getInstance().lastState == null || (getInstance().lastState != null &amp;&amp; !getInstance().lastState.equals(state))) {</span>
+<span class="nc" id="L239">                getInstance().lastState = state;</span>
+            }
+        }
+<span class="nc bnc" id="L242" title="All 2 branches missed.">        if (getInstance().config != null) {</span>
+<span class="nc" id="L243">            String playerName = getInstance().config.getPlayer().getName();</span>
+<span class="nc" id="L244">            builder.setDetails(&quot;Name: &quot; + playerName);</span>
+        }
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        if (timestamp) {</span>
+<span class="nc" id="L247">            builder.setStartTimestamp(OffsetDateTime.now());</span>
+        }
+
+<span class="nc" id="L250">        builder.setLargeImage(DISCORD_APP_LARGE_IMAGE);</span>
+<span class="nc" id="L251">        getInstance().sendRichPresence(builder.build());</span>
+<span class="nc" id="L252">    }</span>
+
+    public static void updateState() {
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        if (getInstance() == null) {</span>
+<span class="nc" id="L256">            return;</span>
+        }
+<span class="nc" id="L258">        setState(getInstance().lastState);</span>
+<span class="nc" id="L259">    }</span>
+
+    public static void tryToDiscover() {
+<span class="nc bnc" id="L262" title="All 2 branches missed.">        if (getInstance() == null) {</span>
+<span class="nc" id="L263">            return;</span>
+        }
+<span class="nc bnc" id="L265" title="All 4 branches missed.">        if (getInstance().dontTryAgain &amp;&amp; getInstance().enabled) {</span>
+<span class="nc" id="L266">            getInstance().dontTryAgain = false;</span>
+<span class="nc" id="L267">            getInstance().reconnectTries = 0;</span>
+        }
+<span class="nc" id="L269">    }</span>
+
+    public static void enable() {
+<span class="nc" id="L272">        setEnabled(true);</span>
+<span class="nc" id="L273">    }</span>
+
+    public static void disable() {
+<span class="nc" id="L276">        setEnabled(false);</span>
+<span class="nc" id="L277">    }</span>
+
+    public static void setEnabled(boolean enable) {
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        if (getInstance() == null) {</span>
+<span class="nc" id="L281">            return;</span>
+        }
+<span class="nc" id="L283">        getInstance().enabled = enable;</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        if (!enable) {</span>
+<span class="nc" id="L285">            getInstance().reconnectTries = 0;</span>
+        } else {
+<span class="nc" id="L287">            tryToDiscover();</span>
+        }
+<span class="nc" id="L289">    }</span>
+
+    public static boolean isEnabled() {
+<span class="nc bnc" id="L292" title="All 2 branches missed.">        if (getInstance() == null) {</span>
+<span class="nc" id="L293">            return false;</span>
+        }
+<span class="nc" id="L295">        return getInstance().enabled;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

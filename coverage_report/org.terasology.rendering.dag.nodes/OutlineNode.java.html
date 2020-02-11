@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OutlineNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">OutlineNode.java</span></div><h1>OutlineNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.ConditionDependentNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.DepthStencilTexture;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+import static org.terasology.rendering.opengl.ScalingFactors.FULL_SCALE;
+
+/**
+ * This nodes (or rather the shader used by it) takes advantage of the Sobel operator [1]
+ * to trace outlines (silhouette edges) of objects at some distance from the player.
+ *
+ * The resulting outlines are stored in a separate buffer the content of which is
+ * later composed over the more complete rendering of the 3d scene.
+ *
+ * [1] https://en.wikipedia.org/wiki/Sobel_operator
+ */
+public class OutlineNode extends ConditionDependentNode {
+<span class="nc" id="L49">    public static final SimpleUri OUTLINE_FBO_URI = new SimpleUri(&quot;engine:fbo.outline&quot;);</span>
+<span class="nc" id="L50">    private static final ResourceUrn OUTLINE_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.sobel&quot;);</span>
+
+    private RenderingConfig renderingConfig;
+    private SubmersibleCamera activeCamera;
+
+    private Material outlineMaterial;
+
+    private FBO lastUpdatedGBuffer;
+
+<span class="nc" id="L59">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 16.0f)
+    private float pixelOffsetX = 1.0f;
+<span class="nc" id="L62">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 16.0f)
+    private float pixelOffsetY = 1.0f;
+
+    public OutlineNode(String nodeUri, Context context) {
+<span class="nc" id="L67">        super(nodeUri, context);</span>
+
+<span class="nc" id="L69">        activeCamera = worldRenderer.getActiveCamera();</span>
+
+<span class="nc" id="L71">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L72">        renderingConfig.subscribe(RenderingConfig.OUTLINE, this);</span>
+<span class="nc" id="L73">        requiresCondition(() -&gt; renderingConfig.isOutline());</span>
+
+<span class="nc" id="L75">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L76">        lastUpdatedGBuffer = displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo();</span>
+<span class="nc" id="L77">        FBO outlineFbo = requiresFBO(new FBOConfig(OUTLINE_FBO_URI, FULL_SCALE, FBO.Type.DEFAULT), displayResolutionDependentFBOs);</span>
+<span class="nc" id="L78">        addDesiredStateChange(new BindFbo(outlineFbo));</span>
+
+<span class="nc" id="L80">        addDesiredStateChange(new EnableMaterial(OUTLINE_MATERIAL_URN));</span>
+
+<span class="nc" id="L82">        outlineMaterial = getMaterial(OUTLINE_MATERIAL_URN);</span>
+
+<span class="nc" id="L84">        int textureSlot = 0;</span>
+<span class="nc" id="L85">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot, lastUpdatedGBuffer, DepthStencilTexture, displayResolutionDependentFBOs, OUTLINE_MATERIAL_URN, &quot;texDepth&quot;));</span>
+<span class="nc" id="L86">    }</span>
+
+    /**
+     * Enabled by the &quot;outline&quot; option in the render settings, this method generates
+     * landscape/objects outlines and stores them into a buffer in its own FBO. The
+     * stored image is eventually combined with others.
+     * &lt;p&gt;
+     * The outlines visually separate a given object (including the landscape) or parts of it
+     * from sufficiently distant objects it overlaps. It is effectively a depth-based edge
+     * detection technique and internally uses a Sobel operator.
+     * &lt;p&gt;
+     * For further information see: http://en.wikipedia.org/wiki/Sobel_operator
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L101">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+        // Shader Parameters
+
+<span class="nc" id="L105">        outlineMaterial.setFloat3(&quot;cameraParameters&quot;, activeCamera.getzNear(), activeCamera.getzFar(), 0.0f, true);</span>
+
+<span class="nc" id="L107">        outlineMaterial.setFloat(&quot;texelWidth&quot;, 1.0f / lastUpdatedGBuffer.width());</span>
+<span class="nc" id="L108">        outlineMaterial.setFloat(&quot;texelHeight&quot;, 1.0f / lastUpdatedGBuffer.height());</span>
+
+<span class="nc" id="L110">        outlineMaterial.setFloat(&quot;pixelOffsetX&quot;, pixelOffsetX);</span>
+<span class="nc" id="L111">        outlineMaterial.setFloat(&quot;pixelOffsetY&quot;, pixelOffsetY);</span>
+
+        // Actual Node Processing
+
+<span class="nc" id="L115">        renderFullscreenQuad();</span>
+
+<span class="nc" id="L117">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L118">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

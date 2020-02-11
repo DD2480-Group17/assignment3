@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractClassLibrary.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.reflection.metadata</a> &gt; <span class="el_source">AbstractClassLibrary.java</span></div><h1>AbstractClassLibrary.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.reflection.metadata;
+
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Table;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.module.Module;
+import org.terasology.naming.Name;
+import org.terasology.reflection.copy.CopyStrategyLibrary;
+import org.terasology.reflection.reflect.ReflectFactory;
+
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Abstract base implement of ClassLibrary.
+ *
+ */
+public abstract class AbstractClassLibrary&lt;T&gt; implements ClassLibrary&lt;T&gt; {
+
+<span class="fc" id="L45">    private static final Logger logger = LoggerFactory.getLogger(AbstractClassLibrary.class);</span>
+
+    protected final CopyStrategyLibrary copyStrategyLibrary;
+
+    private ModuleManager moduleManager;
+    private ReflectFactory reflectFactory;
+
+<span class="fc" id="L52">    private Map&lt;Class&lt;? extends T&gt;, ClassMetadata&lt;? extends T, ?&gt;&gt; classLookup = Maps.newHashMap();</span>
+<span class="fc" id="L53">    private Table&lt;Name, Name, ClassMetadata&lt;? extends T, ?&gt;&gt; uriLookup = HashBasedTable.create();</span>
+
+<span class="fc" id="L55">    public AbstractClassLibrary(Context context) {</span>
+<span class="fc" id="L56">        this.moduleManager = context.get(ModuleManager.class);</span>
+<span class="fc" id="L57">        this.reflectFactory = context.get(ReflectFactory.class);</span>
+<span class="fc" id="L58">        this.copyStrategyLibrary = context.get(CopyStrategyLibrary.class);</span>
+<span class="fc" id="L59">    }</span>
+
+<span class="fc" id="L61">    public AbstractClassLibrary(AbstractClassLibrary&lt;T&gt; factory, CopyStrategyLibrary copyStrategies) {</span>
+<span class="fc" id="L62">        this.reflectFactory = factory.reflectFactory;</span>
+<span class="fc" id="L63">        this.copyStrategyLibrary = copyStrategies;</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        for (Table.Cell&lt;Name, Name, ClassMetadata&lt;? extends T, ?&gt;&gt; cell: factory.uriLookup.cellSet()) {</span>
+<span class="fc" id="L65">            Name objectName = cell.getRowKey();</span>
+<span class="fc" id="L66">            Name moduleName = cell.getColumnKey();</span>
+<span class="fc" id="L67">            ClassMetadata&lt;? extends T, ?&gt; oldMetaData = cell.getValue();</span>
+<span class="fc" id="L68">            Class&lt;? extends T&gt; clazz = oldMetaData.getType();</span>
+<span class="fc" id="L69">            SimpleUri uri = oldMetaData.getUri();</span>
+<span class="fc" id="L70">            ClassMetadata&lt;? extends T, ?&gt; metadata = createMetadata(clazz, factory.reflectFactory, copyStrategies, uri);</span>
+
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">            if (metadata != null) {</span>
+<span class="fc" id="L73">                classLookup.put(clazz, metadata);</span>
+<span class="fc" id="L74">                uriLookup.put(objectName, moduleName, metadata);</span>
+            } else {
+<span class="nc" id="L76">                throw new RuntimeException(&quot;Failed to create copy of class library&quot;);</span>
+            }
+<span class="fc" id="L78">        }</span>
+<span class="fc" id="L79">    }</span>
+
+    /**
+     * @param type A type being registered into the library
+     * @param name The name for the type
+     * @param &lt;C&gt;  The class of the type
+     * @return An instance of ClassMetadata (or a subtype) providing metadata for the given type
+     */
+    protected abstract &lt;C extends T&gt; ClassMetadata&lt;C, ?&gt; createMetadata(Class&lt;C&gt; type, ReflectFactory factory, CopyStrategyLibrary copyStrategies, SimpleUri name);
+
+    @Override
+    public void register(SimpleUri uri, Class&lt;? extends T&gt; clazz) {
+<span class="fc" id="L91">        ClassMetadata&lt;? extends T, ?&gt; metadata = createMetadata(clazz, reflectFactory, copyStrategyLibrary, uri);</span>
+
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        if (metadata != null) {</span>
+<span class="fc" id="L94">            classLookup.put(clazz, metadata);</span>
+<span class="fc" id="L95">            ClassMetadata&lt;? extends T, ?&gt; prev = uriLookup.put(uri.getObjectName(), uri.getModuleName(), metadata);</span>
+<span class="pc bpc" id="L96" title="3 of 4 branches missed.">            if (prev != null &amp;&amp; !prev.equals(metadata)) {</span>
+<span class="nc" id="L97">                logger.warn(&quot;Duplicate entry for '{}': {} and {}&quot;, uri, prev.getType(), metadata.getType());</span>
+            }
+        }
+<span class="fc" id="L100">    }</span>
+
+    @Override
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;U extends T&gt; ClassMetadata&lt;U, ?&gt; getMetadata(Class&lt;U&gt; clazz) {
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        if (clazz == null) {</span>
+<span class="nc" id="L106">            return null;</span>
+        }
+<span class="fc" id="L108">        return (ClassMetadata&lt;U, ?&gt;) classLookup.get(clazz);</span>
+    }
+
+    @Override
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;U extends T&gt; ClassMetadata&lt;U, ?&gt; getMetadata(U object) {
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        if (object != null) {</span>
+<span class="fc" id="L115">            return getMetadata((Class&lt;U&gt;) (object.getClass()));</span>
+        }
+<span class="nc" id="L117">        return null;</span>
+    }
+
+    @Override
+    public &lt;TYPE extends T&gt; TYPE copy(TYPE object) {
+<span class="fc" id="L122">        ClassMetadata&lt;TYPE, ?&gt; info = getMetadata(object);</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        if (info != null) {</span>
+<span class="fc" id="L124">            return info.copy(object);</span>
+        }
+<span class="nc" id="L126">        return null;</span>
+    }
+
+    @Override
+    public ClassMetadata&lt;? extends T, ?&gt; getMetadata(SimpleUri uri) {
+<span class="fc" id="L131">        return uriLookup.get(uri.getObjectName(), uri.getModuleName());</span>
+    }
+
+    @Override
+    public Iterator&lt;ClassMetadata&lt;? extends T, ?&gt;&gt; iterator() {
+<span class="fc" id="L136">        return classLookup.values().iterator();</span>
+    }
+
+    @Override
+    public List&lt;ClassMetadata&lt;? extends T, ?&gt;&gt; getMetadata(String name) {
+<span class="fc" id="L141">        return getMetadata(new Name(name));</span>
+    }
+
+    @Override
+    public List&lt;ClassMetadata&lt;? extends T, ?&gt;&gt; getMetadata(Name name) {
+<span class="fc" id="L146">        return Lists.newArrayList(uriLookup.row(name).values());</span>
+    }
+
+    @Override
+    public ClassMetadata&lt;? extends T, ?&gt; resolve(String name, Name context) {
+<span class="nc" id="L151">        Module moduleContext = moduleManager.getEnvironment().get(context);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (moduleContext != null) {</span>
+<span class="nc" id="L153">            return resolve(name, moduleContext);</span>
+        }
+<span class="nc" id="L155">        return null;</span>
+    }
+
+    @Override
+    public ClassMetadata&lt;? extends T, ?&gt; resolve(String name) {
+<span class="fc" id="L160">        SimpleUri uri = new SimpleUri(name);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (uri.isValid()) {</span>
+<span class="fc" id="L162">            return getMetadata(uri);</span>
+        }
+<span class="fc" id="L164">        List&lt;ClassMetadata&lt;? extends T, ?&gt;&gt; possibilities = getMetadata(name);</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        if (possibilities.size() == 1) {</span>
+<span class="fc" id="L166">            return possibilities.get(0);</span>
+        }
+<span class="nc" id="L168">        return null;</span>
+    }
+
+    @Override
+    public ClassMetadata&lt;? extends T, ?&gt; resolve(String name, Module context) {
+<span class="fc" id="L173">        SimpleUri uri = new SimpleUri(name);</span>
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (uri.isValid()) {</span>
+<span class="nc" id="L175">            return getMetadata(uri);</span>
+        }
+<span class="fc" id="L177">        List&lt;ClassMetadata&lt;? extends T, ?&gt;&gt; possibilities = getMetadata(name);</span>
+<span class="pc bpc" id="L178" title="2 of 3 branches missed.">        switch (possibilities.size()) {</span>
+            case 0:
+<span class="nc" id="L180">                return null;</span>
+            case 1:
+<span class="fc" id="L182">                return possibilities.get(0);</span>
+            default:
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                if (context != null) {</span>
+<span class="nc" id="L185">                    Set&lt;Name&gt; dependencies = moduleManager.getEnvironment().getDependencyNamesOf(context.getId());</span>
+<span class="nc" id="L186">                    Iterator&lt;ClassMetadata&lt;? extends T, ?&gt;&gt; iterator = possibilities.iterator();</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                    while (iterator.hasNext()) {</span>
+<span class="nc" id="L188">                        ClassMetadata&lt;? extends T, ?&gt; metadata = iterator.next();</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">                        if (context.getId().equals(metadata.getUri().getModuleName())) {</span>
+<span class="nc" id="L190">                            return metadata;</span>
+                        }
+<span class="nc bnc" id="L192" title="All 2 branches missed.">                        if (!dependencies.contains(metadata.getUri().getModuleName())) {</span>
+<span class="nc" id="L193">                            iterator.remove();</span>
+                        }
+<span class="nc" id="L195">                    }</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                    if (possibilities.size() == 1) {</span>
+<span class="nc" id="L197">                        return possibilities.get(0);</span>
+                    }
+                }
+<span class="nc" id="L200">                return null;</span>
+        }
+    }
+
+    public Map&lt;Class&lt;? extends T&gt;, ClassMetadata&lt;? extends T, ?&gt;&gt; getClassLookup() {
+<span class="nc" id="L205">        return this.classLookup;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ToneMappingNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">ToneMappingNode.java</span></div><h1>ToneMappingNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.dag.stateChanges.SetViewportToSizeOf;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.ScreenGrabber;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+
+import static org.terasology.rendering.dag.nodes.InitialPostProcessingNode.INITIAL_POST_FBO_URI;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.ColorTexture;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+import static org.terasology.rendering.opengl.ScalingFactors.FULL_SCALE;
+
+/**
+ * The exposure calculated earlier in the rendering process is used by an instance
+ * of this node to remap the colors of the image rendered so far, brightening otherwise
+ * undetailed dark areas or dimming otherwise burnt bright areas, depending on the circumstances.
+ *
+ * For more details on the specific algorithm used see shader resource toneMapping_frag.glsl.
+ *
+ * This node stores its output in TONE_MAPPED_FBO_URI.
+ */
+public class ToneMappingNode extends AbstractNode {
+<span class="nc" id="L49">    public static final SimpleUri TONE_MAPPING_FBO_URI = new SimpleUri(&quot;engine:fbo.toneMapping&quot;);</span>
+<span class="nc" id="L50">    private static final ResourceUrn TONE_MAPPING_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.toneMapping&quot;);</span>
+
+    private ScreenGrabber screenGrabber;
+
+    private Material toneMappingMaterial;
+
+<span class="nc" id="L56">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 10.0f)
+    private float exposureBias = 1.0f;
+<span class="nc" id="L59">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 100.0f)
+    private float whitePoint = 9f;
+
+    public ToneMappingNode(String nodeUri, Context context) {
+<span class="nc" id="L64">        super(nodeUri, context);</span>
+
+<span class="nc" id="L66">        screenGrabber = context.get(ScreenGrabber.class);</span>
+
+<span class="nc" id="L68">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L69">        FBO toneMappingFbo = requiresFBO(new FBOConfig(TONE_MAPPING_FBO_URI, FULL_SCALE, FBO.Type.HDR), displayResolutionDependentFBOs);</span>
+<span class="nc" id="L70">        addDesiredStateChange(new BindFbo(toneMappingFbo));</span>
+<span class="nc" id="L71">        addDesiredStateChange(new SetViewportToSizeOf(toneMappingFbo));</span>
+
+<span class="nc" id="L73">        addDesiredStateChange(new EnableMaterial(TONE_MAPPING_MATERIAL_URN));</span>
+
+<span class="nc" id="L75">        toneMappingMaterial = getMaterial(TONE_MAPPING_MATERIAL_URN);</span>
+
+<span class="nc" id="L77">        int textureSlot = 0;</span>
+<span class="nc" id="L78">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot, INITIAL_POST_FBO_URI, ColorTexture, displayResolutionDependentFBOs, TONE_MAPPING_MATERIAL_URN, &quot;texScene&quot;));</span>
+<span class="nc" id="L79">    }</span>
+
+    /**
+     * Renders a full screen quad with the opengl state defined by the initialise() method,
+     * using the GBUFFER as input and filling the TONE_MAPPED_FBO_URI with the output of
+     * the shader operations. As such, this method performs purely 2D operations.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L88">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+        // Specific Shader Parameters
+<span class="nc" id="L91">        toneMappingMaterial.setFloat(&quot;exposure&quot;, screenGrabber.getExposure() * exposureBias, true);</span>
+<span class="nc" id="L92">        toneMappingMaterial.setFloat(&quot;whitePoint&quot;, whitePoint, true);</span>
+
+        // Actual Node Processing
+
+<span class="nc" id="L96">        renderFullscreenQuad();</span>
+
+<span class="nc" id="L98">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L99">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LayeredZoneRegionFunctionTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.Zones</a> &gt; <span class="el_source">LayeredZoneRegionFunctionTest.java</span></div><h1>LayeredZoneRegionFunctionTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.Zones;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.BaseVector2i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.generation.Border3D;
+import org.terasology.world.generation.FacetProvider;
+import org.terasology.world.generation.Region;
+import org.terasology.world.generation.RegionImpl;
+import org.terasology.world.generation.WorldFacet;
+import org.terasology.world.generation.facets.SurfaceHeightFacet;
+import org.terasology.world.zones.LayeredZoneRegionFunction;
+import org.terasology.world.zones.MinMaxLayerThickness;
+import org.terasology.world.zones.Zone;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.terasology.world.zones.LayeredZoneRegionFunction.LayeredZoneOrdering.ABOVE_GROUND;
+import static org.terasology.world.zones.LayeredZoneRegionFunction.LayeredZoneOrdering.GROUND;
+import static org.terasology.world.zones.LayeredZoneRegionFunction.LayeredZoneOrdering.LOW_SKY;
+import static org.terasology.world.zones.LayeredZoneRegionFunction.LayeredZoneOrdering.MEDIUM_SKY;
+import static org.terasology.world.zones.LayeredZoneRegionFunction.LayeredZoneOrdering.MEDIUM_UNDERGROUND;
+import static org.terasology.world.zones.LayeredZoneRegionFunction.LayeredZoneOrdering.SHALLOW_UNDERGROUND;
+
+<span class="fc" id="L48">public class LayeredZoneRegionFunctionTest {</span>
+
+<span class="pc" id="L50">    private Zone parent = new Zone(&quot;Parent&quot;, () -&gt; true);</span>
+    private Region region;
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L55">        parent.addZone(new Zone(&quot;Medium sky&quot;, new LayeredZoneRegionFunction(new MinMaxLayerThickness(100, 100), MEDIUM_SKY)))</span>
+<span class="fc" id="L56">                .addZone(new Zone(&quot;Low sky&quot;, new LayeredZoneRegionFunction(new MinMaxLayerThickness(100, 100), LOW_SKY)))</span>
+<span class="fc" id="L57">                .addZone(new Zone(&quot;Above ground&quot;, new LayeredZoneRegionFunction(new MinMaxLayerThickness(100, 100), ABOVE_GROUND)))</span>
+<span class="fc" id="L58">                .addZone(new Zone(&quot;Ground&quot;, new LayeredZoneRegionFunction(new MinMaxLayerThickness(100, 100), GROUND)))</span>
+<span class="fc" id="L59">                .addZone(new Zone(&quot;Shallow underground&quot;, new LayeredZoneRegionFunction(new MinMaxLayerThickness(100, 100), SHALLOW_UNDERGROUND)))</span>
+<span class="fc" id="L60">                .addZone(new Zone(&quot;Medium underground&quot;, new LayeredZoneRegionFunction(new MinMaxLayerThickness(100, 100), MEDIUM_UNDERGROUND)));</span>
+<span class="fc" id="L61">        parent.setSeed(12345);</span>
+<span class="fc" id="L62">        parent.initialize();</span>
+
+<span class="fc" id="L64">        ListMultimap&lt;Class&lt;? extends WorldFacet&gt;, FacetProvider&gt; facetProviderChains = ArrayListMultimap.create();</span>
+
+<span class="fc" id="L66">        facetProviderChains.put(SurfaceHeightFacet.class, (generatingRegion) -&gt; {</span>
+<span class="fc" id="L67">                    SurfaceHeightFacet facet = new SurfaceHeightFacet(generatingRegion.getRegion(),</span>
+<span class="fc" id="L68">                            generatingRegion.getBorderForFacet(SurfaceHeightFacet.class));</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">                    for (BaseVector2i pos : facet.getRelativeRegion().contents()) {</span>
+<span class="fc" id="L71">                        facet.set(pos, 100);</span>
+<span class="fc" id="L72">                    }</span>
+
+<span class="fc" id="L74">                    generatingRegion.setRegionFacet(SurfaceHeightFacet.class, facet);</span>
+<span class="fc" id="L75">                });</span>
+
+<span class="fc" id="L77">        Map&lt;Class&lt;? extends WorldFacet&gt;, Border3D&gt; borders = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L78">        borders.put(SurfaceHeightFacet.class, new Border3D(0, 0, 0));</span>
+
+<span class="fc" id="L80">        region = new RegionImpl(Region3i.createFromCenterExtents(new Vector3i(0, 0, 0), 4),</span>
+                facetProviderChains, borders);
+<span class="fc" id="L82">    }</span>
+
+    @Test
+    public void testCreation() {
+<span class="fc" id="L86">        int minWidth = 100;</span>
+<span class="fc" id="L87">        int maxWidth = 200;</span>
+<span class="fc" id="L88">        int ordering = 1000;</span>
+
+<span class="fc" id="L90">        LayeredZoneRegionFunction function = new LayeredZoneRegionFunction(new MinMaxLayerThickness(minWidth, maxWidth), ordering);</span>
+
+<span class="fc" id="L92">        assertEquals(ordering, function.getOrdering());</span>
+<span class="fc" id="L93">    }</span>
+
+    @Test
+    public void testSurface() {
+<span class="fc" id="L97">        assertTrue(parent.getChildZone(&quot;Ground&quot;).containsBlock(0, 100, 0, region));</span>
+<span class="fc" id="L98">        assertTrue(parent.getChildZone(&quot;Ground&quot;).containsBlock(0, 1, 0, region));</span>
+<span class="fc" id="L99">        assertFalse(parent.getChildZone(&quot;Ground&quot;).containsBlock(0, 101, 0, region));</span>
+<span class="fc" id="L100">        assertFalse(parent.getChildZone(&quot;Ground&quot;).containsBlock(0, 0, 0, region));</span>
+<span class="fc" id="L101">        assertTrue(parent.getChildZone(&quot;Above ground&quot;).containsBlock(0, 101, 0, region));</span>
+<span class="fc" id="L102">        assertTrue(parent.getChildZone(&quot;Above ground&quot;).containsBlock(0, 200, 0, region));</span>
+<span class="fc" id="L103">        assertFalse(parent.getChildZone(&quot;Above ground&quot;).containsBlock(0, 100, 0, region));</span>
+<span class="fc" id="L104">        assertFalse(parent.getChildZone(&quot;Above ground&quot;).containsBlock(0, 201, 0, region));</span>
+<span class="fc" id="L105">    }</span>
+
+    @Test
+    public void testUnderground() {
+<span class="fc" id="L109">        assertTrue(parent.getChildZone(&quot;Shallow underground&quot;).containsBlock(0, 0, 0, region));</span>
+<span class="fc" id="L110">        assertTrue(parent.getChildZone(&quot;Shallow underground&quot;).containsBlock(0, -99, 0, region));</span>
+<span class="fc" id="L111">        assertFalse(parent.getChildZone(&quot;Shallow underground&quot;).containsBlock(0, 1, 0, region));</span>
+<span class="fc" id="L112">        assertFalse(parent.getChildZone(&quot;Shallow underground&quot;).containsBlock(0, -100, 0, region));</span>
+<span class="fc" id="L113">    }</span>
+
+    @Test
+    public void testSky() {
+<span class="fc" id="L117">        assertTrue(parent.getChildZone(&quot;Low sky&quot;).containsBlock(0, 201, 0, region));</span>
+<span class="fc" id="L118">        assertTrue(parent.getChildZone(&quot;Low sky&quot;).containsBlock(0, 300, 0, region));</span>
+<span class="fc" id="L119">        assertFalse(parent.getChildZone(&quot;Low sky&quot;).containsBlock(0, 200, 0, region));</span>
+<span class="fc" id="L120">        assertFalse(parent.getChildZone(&quot;Low sky&quot;).containsBlock(0, 301, 0, region));</span>
+<span class="fc" id="L121">    }</span>
+
+    @Test
+    public void testExtremes() {
+        //Test values at the extremes (beyond the top and bottom of the declared layers
+        //The last layer in each direction should extend outwards
+<span class="fc" id="L127">        assertTrue(parent.getChildZone(&quot;Medium sky&quot;).containsBlock(0, 10000, 0, region));</span>
+<span class="fc" id="L128">        assertTrue(parent.getChildZone(&quot;Medium underground&quot;).containsBlock(0, -10000, 0, region));</span>
+<span class="fc" id="L129">        assertFalse(parent.getChildZone(&quot;Medium sky&quot;).containsBlock(0, -10000, 0, region));</span>
+<span class="fc" id="L130">        assertFalse(parent.getChildZone(&quot;Medium underground&quot;).containsBlock(0, 10000, 0, region));</span>
+<span class="fc" id="L131">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

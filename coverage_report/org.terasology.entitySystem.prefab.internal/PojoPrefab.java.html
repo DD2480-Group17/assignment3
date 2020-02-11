@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PojoPrefab.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem.prefab.internal</a> &gt; <span class="el_source">PojoPrefab.java</span></div><h1>PojoPrefab.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem.prefab.internal;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.prefab.PrefabData;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+/**
+ */
+public class PojoPrefab extends Prefab {
+
+    private Prefab parent;
+    private Map&lt;Class&lt;? extends Component&gt;, Component&gt; componentMap;
+<span class="fc" id="L37">    private List&lt;Prefab&gt; children = Lists.newArrayList();</span>
+    private boolean persisted;
+<span class="fc" id="L39">    private boolean alwaysRelevant = true;</span>
+
+    public PojoPrefab(ResourceUrn urn, AssetType&lt;?, PrefabData&gt; assetType, PrefabData data) {
+<span class="fc" id="L42">        super(urn, assetType);</span>
+<span class="fc" id="L43">        reload(data);</span>
+<span class="fc" id="L44">    }</span>
+
+    @Override
+    public Prefab getParent() {
+<span class="nc" id="L48">        return parent;</span>
+    }
+
+    @Override
+    public List&lt;Prefab&gt; getChildren() {
+<span class="nc" id="L53">        return ImmutableList.copyOf(children);</span>
+    }
+
+    @Override
+    public boolean isPersisted() {
+<span class="fc" id="L58">        return persisted;</span>
+    }
+
+    @Override
+    public boolean isAlwaysRelevant() {
+<span class="fc" id="L63">        return alwaysRelevant;</span>
+    }
+
+    @Override
+    public boolean exists() {
+<span class="nc" id="L68">        return true;</span>
+    }
+
+    @Override
+    public boolean hasComponent(Class&lt;? extends Component&gt; component) {
+<span class="fc" id="L73">        return componentMap.containsKey(component);</span>
+    }
+
+    @Override
+    public boolean hasAnyComponents(List&lt;Class&lt;? extends Component&gt;&gt; filterComponents) {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        return !Collections.disjoint(componentMap.keySet(), filterComponents);</span>
+    }
+
+    @Override
+    public boolean hasAllComponents(List&lt;Class&lt;? extends Component&gt;&gt; filterComponents) {
+<span class="nc" id="L83">        return componentMap.keySet().containsAll(filterComponents);</span>
+    }
+
+    @Override
+    public &lt;T extends Component&gt; T getComponent(Class&lt;T&gt; componentClass) {
+<span class="fc" id="L88">        return componentClass.cast(componentMap.get(componentClass));</span>
+    }
+
+    @Override
+    public Iterable&lt;Component&gt; iterateComponents() {
+<span class="fc" id="L93">        return ImmutableList.copyOf(componentMap.values());</span>
+    }
+
+    @Override
+    protected void doReload(PrefabData data) {
+<span class="fc" id="L98">        this.componentMap = ImmutableMap.copyOf(data.getComponents());</span>
+<span class="fc" id="L99">        this.persisted = data.isPersisted();</span>
+<span class="fc" id="L100">        this.alwaysRelevant = data.isAlwaysRelevant();</span>
+<span class="fc" id="L101">        this.parent = data.getParent();</span>
+<span class="pc bpc" id="L102" title="1 of 4 branches missed.">        if (parent != null &amp;&amp; parent instanceof PojoPrefab) {</span>
+<span class="fc" id="L103">            ((PojoPrefab) parent).children.add(this);</span>
+        }
+<span class="fc" id="L105">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

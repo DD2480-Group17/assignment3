@@ -1,0 +1,609 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EventSystemImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem.event.internal</a> &gt; <span class="el_source">EventSystemImpl.java</span></div><h1>EventSystemImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem.event.internal;
+
+import com.esotericsoftware.reflectasm.MethodAccess;
+import com.google.common.base.Objects;
+import com.google.common.base.Predicates;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Queues;
+import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
+import org.reflections.ReflectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.SimpleUri;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.AbstractConsumableEvent;
+import org.terasology.entitySystem.event.ConsumableEvent;
+import org.terasology.entitySystem.event.Event;
+import org.terasology.entitySystem.event.EventPriority;
+import org.terasology.entitySystem.event.PendingEvent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.metadata.EventLibrary;
+import org.terasology.entitySystem.metadata.EventMetadata;
+import org.terasology.entitySystem.systems.ComponentSystem;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.network.BroadcastEvent;
+import org.terasology.network.Client;
+import org.terasology.network.NetworkComponent;
+import org.terasology.network.NetworkEvent;
+import org.terasology.network.NetworkMode;
+import org.terasology.network.NetworkSystem;
+import org.terasology.network.OwnerEvent;
+import org.terasology.network.ServerEvent;
+import org.terasology.recording.EventCatcher;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.recording.RecordAndReplayStatus;
+import org.terasology.world.block.BlockComponent;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+
+/**
+ * An implementation of the EventSystem.
+ *
+ */
+public class EventSystemImpl implements EventSystem {
+
+<span class="fc" id="L76">    private static final Logger logger = LoggerFactory.getLogger(EventSystemImpl.class);</span>
+
+<span class="fc" id="L78">    private Map&lt;Class&lt;? extends Event&gt;, SetMultimap&lt;Class&lt;? extends Component&gt;, EventHandlerInfo&gt;&gt; componentSpecificHandlers = Maps.newHashMap();</span>
+<span class="fc" id="L79">    private SetMultimap&lt;Class&lt;? extends Event&gt;, EventHandlerInfo&gt; generalHandlers = HashMultimap.create();</span>
+<span class="fc" id="L80">    private Comparator&lt;EventHandlerInfo&gt; priorityComparator = new EventHandlerPriorityComparator();</span>
+
+    // Event metadata
+<span class="fc" id="L83">    private BiMap&lt;SimpleUri, Class&lt;? extends Event&gt;&gt; eventIdMap = HashBiMap.create();</span>
+<span class="fc" id="L84">    private SetMultimap&lt;Class&lt;? extends Event&gt;, Class&lt;? extends Event&gt;&gt; childEvents = HashMultimap.create();</span>
+
+    private Thread mainThread;
+<span class="fc" id="L87">    private BlockingQueue&lt;PendingEvent&gt; pendingEvents = Queues.newLinkedBlockingQueue();</span>
+
+    private EventLibrary eventLibrary;
+    private NetworkSystem networkSystem;
+    private EventCatcher eventCatcher;
+    private RecordAndReplayCurrentStatus recordAndReplayCurrentStatus;
+
+
+<span class="fc" id="L95">    public EventSystemImpl(EventLibrary eventLibrary, NetworkSystem networkSystem, EventCatcher eventCatcher, RecordAndReplayCurrentStatus recordAndReplayCurrentStatus) {</span>
+<span class="fc" id="L96">        this.mainThread = Thread.currentThread();</span>
+<span class="fc" id="L97">        this.eventLibrary = eventLibrary;</span>
+<span class="fc" id="L98">        this.networkSystem = networkSystem;</span>
+<span class="fc" id="L99">        this.eventCatcher = eventCatcher;</span>
+<span class="fc" id="L100">        this.eventCatcher.startTimer();</span>
+<span class="fc" id="L101">        this.recordAndReplayCurrentStatus = recordAndReplayCurrentStatus;</span>
+<span class="fc" id="L102">    }</span>
+
+    @Override
+    public void process() {
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        for (PendingEvent event = pendingEvents.poll(); event != null; event = pendingEvents.poll()) {</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">            if (event.getComponent() != null) {</span>
+<span class="nc" id="L108">                send(event.getEntity(), event.getEvent(), event.getComponent());</span>
+            } else {
+<span class="nc" id="L110">                send(event.getEntity(), event.getEvent());</span>
+            }
+        }
+<span class="nc" id="L113">    }</span>
+
+    @Override
+    public void registerEvent(SimpleUri uri, Class&lt;? extends Event&gt; eventType) {
+<span class="fc" id="L117">        eventIdMap.put(uri, eventType);</span>
+<span class="fc" id="L118">        logger.debug(&quot;Registering event {}&quot;, eventType.getSimpleName());</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        for (Class parent : ReflectionUtils.getAllSuperTypes(eventType, Predicates.assignableFrom(Event.class))) {</span>
+<span class="fc bfc" id="L120" title="All 4 branches covered.">            if (!AbstractConsumableEvent.class.equals(parent) &amp;&amp; !Event.class.equals(parent)) {</span>
+<span class="fc" id="L121">                childEvents.put(parent, eventType);</span>
+            }
+<span class="fc" id="L123">        }</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        if (shouldAddToLibrary(eventType)) {</span>
+<span class="fc" id="L125">            eventLibrary.register(uri, eventType);</span>
+        }
+<span class="fc" id="L127">    }</span>
+
+    /**
+     * Events are added to the event library if they have a network annotation
+     *
+     * @param eventType the type of the event to be checked
+     * @return Whether the event should be added to the event library
+     */
+    private boolean shouldAddToLibrary(Class&lt;? extends Event&gt; eventType) {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        return eventType.getAnnotation(ServerEvent.class) != null</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">                || eventType.getAnnotation(OwnerEvent.class) != null</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">                || eventType.getAnnotation(BroadcastEvent.class) != null;</span>
+    }
+
+    @Override
+    public void registerEventHandler(ComponentSystem handler) {
+<span class="fc" id="L143">        Class handlerClass = handler.getClass();</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">        if (!Modifier.isPublic(handlerClass.getModifiers())) {</span>
+<span class="nc" id="L145">            logger.error(&quot;Cannot register handler {}, must be public&quot;, handler.getClass().getName());</span>
+<span class="nc" id="L146">            return;</span>
+        }
+
+<span class="fc" id="L149">        logger.debug(&quot;Registering event handler &quot; + handlerClass.getName());</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">        for (Method method : handlerClass.getMethods()) {</span>
+<span class="fc" id="L151">            ReceiveEvent receiveEventAnnotation = method.getAnnotation(ReceiveEvent.class);</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            if (receiveEventAnnotation != null) {</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">                if (!receiveEventAnnotation.netFilter().isValidFor(networkSystem.getMode(), false)) {</span>
+<span class="nc" id="L154">                    continue;</span>
+                }
+<span class="fc" id="L156">                Set&lt;Class&lt;? extends Component&gt;&gt; requiredComponents = Sets.newLinkedHashSet();</span>
+<span class="fc" id="L157">                method.setAccessible(true);</span>
+<span class="fc" id="L158">                Class&lt;?&gt;[] types = method.getParameterTypes();</span>
+
+<span class="fc" id="L160">                logger.debug(&quot;Found method: &quot; + method.toString());</span>
+<span class="pc bpc" id="L161" title="2 of 4 branches missed.">                if (!Event.class.isAssignableFrom(types[0]) || !EntityRef.class.isAssignableFrom(types[1])) {</span>
+<span class="nc" id="L162">                    logger.error(&quot;Invalid event handler method: {}&quot;, method.getName());</span>
+<span class="nc" id="L163">                    return;</span>
+                }
+
+<span class="fc" id="L166">                requiredComponents.addAll(Arrays.asList(receiveEventAnnotation.components()));</span>
+<span class="fc" id="L167">                List&lt;Class&lt;? extends Component&gt;&gt; componentParams = Lists.newArrayList();</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">                for (int i = 2; i &lt; types.length; ++i) {</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                    if (!Component.class.isAssignableFrom(types[i])) {</span>
+<span class="nc" id="L170">                        logger.error(&quot;Invalid event handler method: {} - {} is not a component class&quot;, method.getName(), types[i]);</span>
+<span class="nc" id="L171">                        return;</span>
+                    }
+<span class="nc" id="L173">                    requiredComponents.add((Class&lt;? extends Component&gt;) types[i]);</span>
+<span class="nc" id="L174">                    componentParams.add((Class&lt;? extends Component&gt;) types[i]);</span>
+                }
+
+<span class="fc" id="L177">                ByteCodeEventHandlerInfo handlerInfo = new ByteCodeEventHandlerInfo(handler, method, receiveEventAnnotation.priority(),</span>
+<span class="fc" id="L178">                        receiveEventAnnotation.activity(), requiredComponents, componentParams);</span>
+<span class="fc" id="L179">                addEventHandler((Class&lt;? extends Event&gt;) types[0], handlerInfo, requiredComponents);</span>
+            }
+        }
+<span class="fc" id="L182">    }</span>
+
+    @Override
+    public void unregisterEventHandler(ComponentSystem handler) {
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        for (SetMultimap&lt;Class&lt;? extends Component&gt;, EventHandlerInfo&gt; eventHandlers : componentSpecificHandlers.values()) {</span>
+<span class="nc" id="L187">            Iterator&lt;EventHandlerInfo&gt; eventHandlerIterator = eventHandlers.values().iterator();</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            while (eventHandlerIterator.hasNext()) {</span>
+<span class="nc" id="L189">                EventHandlerInfo eventHandler = eventHandlerIterator.next();</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">                if (eventHandler.getHandler().equals(handler)) {</span>
+<span class="nc" id="L191">                    eventHandlerIterator.remove();</span>
+                }
+<span class="nc" id="L193">            }</span>
+<span class="nc" id="L194">        }</span>
+
+<span class="nc" id="L196">        Iterator&lt;EventHandlerInfo&gt; eventHandlerIterator = generalHandlers.values().iterator();</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        while (eventHandlerIterator.hasNext()) {</span>
+<span class="nc" id="L198">            EventHandlerInfo eventHandler = eventHandlerIterator.next();</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            if (eventHandler.getHandler().equals(handler)) {</span>
+<span class="nc" id="L200">                eventHandlerIterator.remove();</span>
+            }
+<span class="nc" id="L202">        }</span>
+<span class="nc" id="L203">    }</span>
+
+    private void addEventHandler(Class&lt;? extends Event&gt; type, EventHandlerInfo handler, Collection&lt;Class&lt;? extends Component&gt;&gt; components) {
+<span class="fc bfc" id="L206" title="All 2 branches covered.">        if (components.isEmpty()) {</span>
+<span class="fc" id="L207">            generalHandlers.put(type, handler);</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">            for (Class&lt;? extends Event&gt; childType : childEvents.get(type)) {</span>
+<span class="fc" id="L209">                generalHandlers.put(childType, handler);</span>
+<span class="fc" id="L210">            }</span>
+        } else {
+<span class="fc bfc" id="L212" title="All 2 branches covered.">            for (Class&lt;? extends Component&gt; c : components) {</span>
+<span class="fc" id="L213">                addToComponentSpecificHandlers(type, handler, c);</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">                for (Class&lt;? extends Event&gt; childType : childEvents.get(type)) {</span>
+<span class="fc" id="L215">                    addToComponentSpecificHandlers(childType, handler, c);</span>
+<span class="fc" id="L216">                }</span>
+<span class="fc" id="L217">            }</span>
+        }
+<span class="fc" id="L219">    }</span>
+
+    private void addToComponentSpecificHandlers(Class&lt;? extends Event&gt; type, EventHandlerInfo handlerInfo, Class&lt;? extends Component&gt; c) {
+<span class="fc" id="L222">        SetMultimap&lt;Class&lt;? extends Component&gt;, EventHandlerInfo&gt; componentMap = componentSpecificHandlers.get(type);</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">        if (componentMap == null) {</span>
+<span class="fc" id="L224">            componentMap = HashMultimap.create();</span>
+<span class="fc" id="L225">            componentSpecificHandlers.put(type, componentMap);</span>
+        }
+<span class="fc" id="L227">        componentMap.put(c, handlerInfo);</span>
+<span class="fc" id="L228">    }</span>
+
+    @Override
+    public &lt;T extends Event&gt; void registerEventReceiver(EventReceiver&lt;T&gt; eventReceiver, Class&lt;T&gt; eventClass, Class&lt;? extends Component&gt;... componentTypes) {
+<span class="fc" id="L232">        registerEventReceiver(eventReceiver, eventClass, EventPriority.PRIORITY_NORMAL, componentTypes);</span>
+<span class="fc" id="L233">    }</span>
+
+    @Override
+    public &lt;T extends Event&gt; void registerEventReceiver(EventReceiver&lt;T&gt; eventReceiver, Class&lt;T&gt; eventClass, int priority, Class&lt;? extends Component&gt;... componentTypes) {
+<span class="fc" id="L237">        EventHandlerInfo info = new ReceiverEventHandlerInfo&lt;&gt;(eventReceiver, priority, componentTypes);</span>
+<span class="fc" id="L238">        addEventHandler(eventClass, info, Arrays.asList(componentTypes));</span>
+<span class="fc" id="L239">    }</span>
+
+    @Override
+    public &lt;T extends Event&gt; void unregisterEventReceiver(EventReceiver&lt;T&gt; eventReceiver, Class&lt;T&gt; eventClass, Class&lt;? extends Component&gt;... componentTypes) {
+<span class="fc" id="L243">        SetMultimap&lt;Class&lt;? extends Component&gt;, EventHandlerInfo&gt; eventHandlerMap = componentSpecificHandlers.get(eventClass);</span>
+<span class="pc bpc" id="L244" title="1 of 2 branches missed.">        if (eventHandlerMap != null) {</span>
+<span class="nc" id="L245">            ReceiverEventHandlerInfo testReceiver = new ReceiverEventHandlerInfo&lt;&gt;(eventReceiver, 0, componentTypes);</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">            for (Class&lt;? extends Component&gt; c : componentTypes) {</span>
+<span class="nc" id="L247">                eventHandlerMap.remove(c, testReceiver);</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">                for (Class&lt;? extends Event&gt; childType : childEvents.get(eventClass)) {</span>
+<span class="nc" id="L249">                    eventHandlerMap.remove(childType, testReceiver);</span>
+<span class="nc" id="L250">                }</span>
+            }
+        }
+
+<span class="pc bpc" id="L254" title="1 of 2 branches missed.">        if (0 == componentTypes.length) {</span>
+<span class="fc" id="L255">            Iterator&lt;EventHandlerInfo&gt; eventHandlerIterator = generalHandlers.values().iterator();</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">            while (eventHandlerIterator.hasNext()) {</span>
+<span class="fc" id="L257">                EventHandlerInfo eventHandler = eventHandlerIterator.next();</span>
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">                if (eventHandler.getHandler().equals(eventReceiver)) {</span>
+<span class="fc" id="L259">                    eventHandlerIterator.remove();</span>
+                }
+<span class="fc" id="L261">            }</span>
+        }
+<span class="fc" id="L263">    }</span>
+
+    @Override
+    public void send(EntityRef entity, Event event) {
+<span class="pc bpc" id="L267" title="1 of 2 branches missed.">        if (Thread.currentThread() != mainThread) {</span>
+<span class="nc" id="L268">            pendingEvents.offer(new PendingEvent(entity, event));</span>
+        } else {
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">            if (recordAndReplayCurrentStatus.getStatus() == RecordAndReplayStatus.RECORDING) {</span>
+<span class="nc" id="L271">                eventCatcher.addEvent(new PendingEvent(entity, event));</span>
+            }
+<span class="fc" id="L273">            networkReplicate(entity, event);</span>
+
+<span class="fc" id="L275">            Set&lt;EventHandlerInfo&gt; selectedHandlersSet = selectEventHandlers(event.getClass(), entity);</span>
+<span class="fc" id="L276">            List&lt;EventHandlerInfo&gt; selectedHandlers = Lists.newArrayList(selectedHandlersSet);</span>
+<span class="fc" id="L277">            selectedHandlers.sort(priorityComparator);</span>
+
+<span class="fc bfc" id="L279" title="All 2 branches covered.">            if (event instanceof ConsumableEvent) {</span>
+<span class="fc" id="L280">                sendConsumableEvent(entity, event, selectedHandlers);</span>
+            } else {
+<span class="fc" id="L282">                sendStandardEvent(entity, event, selectedHandlers);</span>
+            }
+        }
+<span class="fc" id="L285">    }</span>
+
+    private void sendStandardEvent(EntityRef entity, Event event, List&lt;EventHandlerInfo&gt; selectedHandlers) {
+<span class="fc bfc" id="L288" title="All 2 branches covered.">        for (EventHandlerInfo handler : selectedHandlers) {</span>
+            // Check isValid at each stage in case components were removed.
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">            if (handler.isValidFor(entity)) {</span>
+<span class="fc" id="L291">                handler.invoke(entity, event);</span>
+            }
+<span class="fc" id="L293">        }</span>
+<span class="fc" id="L294">    }</span>
+
+    private void sendConsumableEvent(EntityRef entity, Event event, List&lt;EventHandlerInfo&gt; selectedHandlers) {
+<span class="fc" id="L297">        ConsumableEvent consumableEvent = (ConsumableEvent) event;</span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">        for (EventHandlerInfo handler : selectedHandlers) {</span>
+            // Check isValid at each stage in case components were removed.
+<span class="pc bpc" id="L300" title="1 of 2 branches missed.">            if (handler.isValidFor(entity)) {</span>
+<span class="fc" id="L301">                handler.invoke(entity, event);</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">                if (consumableEvent.isConsumed()) {</span>
+<span class="fc" id="L303">                    return;</span>
+                }
+            }
+<span class="fc" id="L306">        }</span>
+<span class="fc" id="L307">    }</span>
+
+    private void networkReplicate(EntityRef entity, Event event) {
+<span class="fc" id="L310">        EventMetadata metadata = eventLibrary.getMetadata(event);</span>
+<span class="pc bpc" id="L311" title="3 of 4 branches missed.">        if (metadata != null &amp;&amp; metadata.isNetworkEvent()) {</span>
+<span class="nc" id="L312">            logger.debug(&quot;Replicating event: {}&quot;, event);</span>
+<span class="nc bnc" id="L313" title="All 4 branches missed.">            switch (metadata.getNetworkEventType()) {</span>
+                case BROADCAST:
+<span class="nc" id="L315">                    broadcastEvent(entity, event, metadata);</span>
+<span class="nc" id="L316">                    break;</span>
+                case OWNER:
+<span class="nc" id="L318">                    sendEventToOwner(entity, event);</span>
+<span class="nc" id="L319">                    break;</span>
+                case SERVER:
+<span class="nc" id="L321">                    sendEventToServer(entity, event);</span>
+<span class="nc" id="L322">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="fc" id="L327">    }</span>
+
+    private void sendEventToServer(EntityRef entity, Event event) {
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        if (networkSystem.getMode() == NetworkMode.CLIENT) {</span>
+<span class="nc" id="L331">            NetworkComponent netComp = entity.getComponent(NetworkComponent.class);</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">            if (netComp != null) {</span>
+<span class="nc" id="L333">                networkSystem.getServer().send(event, entity);</span>
+            }
+        }
+<span class="nc" id="L336">    }</span>
+
+    private void sendEventToOwner(EntityRef entity, Event event) {
+<span class="nc bnc" id="L339" title="All 2 branches missed.">        if (networkSystem.getMode().isServer()) {</span>
+<span class="nc" id="L340">            NetworkComponent netComp = entity.getComponent(NetworkComponent.class);</span>
+<span class="nc bnc" id="L341" title="All 2 branches missed.">            if (netComp != null) {</span>
+<span class="nc" id="L342">                Client client = networkSystem.getOwner(entity);</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">                if (client != null) {</span>
+<span class="nc" id="L344">                    client.send(event, entity);</span>
+                }
+            }
+        }
+<span class="nc" id="L348">    }</span>
+
+    private void broadcastEvent(EntityRef entity, Event event, EventMetadata metadata) {
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        if (networkSystem.getMode().isServer()) {</span>
+<span class="nc" id="L352">            NetworkComponent netComp = entity.getComponent(NetworkComponent.class);</span>
+<span class="nc" id="L353">            BlockComponent blockComp = entity.getComponent(BlockComponent.class);</span>
+<span class="nc bnc" id="L354" title="All 4 branches missed.">            if (netComp != null || blockComp != null) {</span>
+<span class="nc" id="L355">                Client instigatorClient = null;</span>
+<span class="nc bnc" id="L356" title="All 4 branches missed.">                if (metadata.isSkipInstigator() &amp;&amp; event instanceof NetworkEvent) {</span>
+<span class="nc" id="L357">                    instigatorClient = networkSystem.getOwner(((NetworkEvent) event).getInstigator());</span>
+                }
+<span class="nc bnc" id="L359" title="All 2 branches missed.">                for (Client client : networkSystem.getPlayers()) {</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">                    if (!client.equals(instigatorClient)) {</span>
+<span class="nc" id="L361">                        client.send(event, entity);</span>
+                    }
+<span class="nc" id="L363">                }</span>
+            }
+        }
+<span class="nc" id="L366">    }</span>
+
+    @Override
+    public void send(EntityRef entity, Event event, Component component) {
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">        if (Thread.currentThread() != mainThread) {</span>
+<span class="nc" id="L371">            pendingEvents.offer(new PendingEvent(entity, event, component));</span>
+        } else {
+<span class="pc bpc" id="L373" title="1 of 2 branches missed.">            if (recordAndReplayCurrentStatus.getStatus() == RecordAndReplayStatus.RECORDING) {</span>
+<span class="nc" id="L374">                eventCatcher.addEvent(new PendingEvent(entity, event, component));</span>
+            }
+<span class="fc" id="L376">            SetMultimap&lt;Class&lt;? extends Component&gt;, EventHandlerInfo&gt; handlers = componentSpecificHandlers.get(event.getClass());</span>
+<span class="fc bfc" id="L377" title="All 2 branches covered.">            if (handlers != null) {</span>
+<span class="fc" id="L378">                List&lt;EventHandlerInfo&gt; eventHandlers = Lists.newArrayList(handlers.get(component.getClass()));</span>
+<span class="fc" id="L379">                eventHandlers.sort(priorityComparator);</span>
+<span class="fc bfc" id="L380" title="All 2 branches covered.">                for (EventHandlerInfo eventHandler : eventHandlers) {</span>
+<span class="pc bpc" id="L381" title="1 of 2 branches missed.">                    if (eventHandler.isValidFor(entity)) {</span>
+<span class="fc" id="L382">                        eventHandler.invoke(entity, event);</span>
+                    }
+<span class="fc" id="L384">                }</span>
+            }
+        }
+<span class="fc" id="L387">    }</span>
+
+    private Set&lt;EventHandlerInfo&gt; selectEventHandlers(Class&lt;? extends Event&gt; eventType, EntityRef entity) {
+<span class="fc" id="L390">        Set&lt;EventHandlerInfo&gt; result = Sets.newHashSet();</span>
+<span class="fc" id="L391">        result.addAll(generalHandlers.get(eventType));</span>
+<span class="fc" id="L392">        SetMultimap&lt;Class&lt;? extends Component&gt;, EventHandlerInfo&gt; handlers = componentSpecificHandlers.get(eventType);</span>
+<span class="fc bfc" id="L393" title="All 2 branches covered.">        if (handlers == null) {</span>
+<span class="fc" id="L394">            return result;</span>
+        }
+
+<span class="fc bfc" id="L397" title="All 2 branches covered.">        for (Class&lt;? extends Component&gt; compClass : handlers.keySet()) {</span>
+<span class="fc bfc" id="L398" title="All 2 branches covered.">            if (entity.hasComponent(compClass)) {</span>
+<span class="fc bfc" id="L399" title="All 2 branches covered.">                for (EventHandlerInfo eventHandler : handlers.get(compClass)) {</span>
+<span class="fc bfc" id="L400" title="All 2 branches covered.">                    if (eventHandler.isValidFor(entity)) {</span>
+<span class="fc" id="L401">                        result.add(eventHandler);</span>
+                    }
+<span class="fc" id="L403">                }</span>
+            }
+<span class="fc" id="L405">        }</span>
+<span class="fc" id="L406">        return result;</span>
+    }
+
+    private static class EventHandlerPriorityComparator implements Comparator&lt;EventHandlerInfo&gt; {
+
+        @Override
+        public int compare(EventHandlerInfo o1, EventHandlerInfo o2) {
+<span class="fc" id="L413">            return o2.getPriority() - o1.getPriority();</span>
+        }
+    }
+
+    private interface EventHandlerInfo {
+        boolean isValidFor(EntityRef entity);
+
+        void invoke(EntityRef entity, Event event);
+
+        int getPriority();
+
+        Object getHandler();
+    }
+
+    private static class ReflectedEventHandlerInfo implements EventHandlerInfo {
+        private ComponentSystem handler;
+        private Method method;
+        private ImmutableList&lt;Class&lt;? extends Component&gt;&gt; filterComponents;
+        private ImmutableList&lt;Class&lt;? extends Component&gt;&gt; componentParams;
+        private int priority;
+
+        ReflectedEventHandlerInfo(ComponentSystem handler,
+                                         Method method,
+                                         int priority,
+                                         Collection&lt;Class&lt;? extends Component&gt;&gt; filterComponents,
+<span class="nc" id="L438">                                         Collection&lt;Class&lt;? extends Component&gt;&gt; componentParams) {</span>
+<span class="nc" id="L439">            this.handler = handler;</span>
+<span class="nc" id="L440">            this.method = method;</span>
+<span class="nc" id="L441">            this.filterComponents = ImmutableList.copyOf(filterComponents);</span>
+<span class="nc" id="L442">            this.componentParams = ImmutableList.copyOf(componentParams);</span>
+<span class="nc" id="L443">            this.priority = priority;</span>
+<span class="nc" id="L444">        }</span>
+
+        @Override
+        public boolean isValidFor(EntityRef entity) {
+<span class="nc bnc" id="L448" title="All 2 branches missed.">            for (Class&lt;? extends Component&gt; component : filterComponents) {</span>
+<span class="nc bnc" id="L449" title="All 2 branches missed.">                if (!entity.hasComponent(component)) {</span>
+<span class="nc" id="L450">                    return false;</span>
+                }
+<span class="nc" id="L452">            }</span>
+<span class="nc" id="L453">            return true;</span>
+        }
+
+        @Override
+        public void invoke(EntityRef entity, Event event) {
+            try {
+<span class="nc" id="L459">                Object[] params = new Object[2 + componentParams.size()];</span>
+<span class="nc" id="L460">                params[0] = event;</span>
+<span class="nc" id="L461">                params[1] = entity;</span>
+<span class="nc bnc" id="L462" title="All 2 branches missed.">                for (int i = 0; i &lt; componentParams.size(); ++i) {</span>
+<span class="nc" id="L463">                    params[i + 2] = entity.getComponent(componentParams.get(i));</span>
+                }
+<span class="nc" id="L465">                method.invoke(handler, params);</span>
+<span class="nc" id="L466">            } catch (Exception ex) {</span>
+<span class="nc" id="L467">                logger.error(&quot;Failed to invoke event&quot;, ex);</span>
+<span class="nc" id="L468">            }</span>
+<span class="nc" id="L469">        }</span>
+
+        @Override
+        public int getPriority() {
+<span class="nc" id="L473">            return priority;</span>
+        }
+
+        @Override
+        public ComponentSystem getHandler() {
+<span class="nc" id="L478">            return handler;</span>
+        }
+    }
+
+    private static class ByteCodeEventHandlerInfo implements EventHandlerInfo {
+        private ComponentSystem handler;
+        private String activity;
+        private MethodAccess methodAccess;
+        private int methodIndex;
+        private ImmutableList&lt;Class&lt;? extends Component&gt;&gt; filterComponents;
+        private ImmutableList&lt;Class&lt;? extends Component&gt;&gt; componentParams;
+        private int priority;
+
+        ByteCodeEventHandlerInfo(ComponentSystem handler,
+                                        Method method,
+                                        int priority,
+                                        String activity,
+                                        Collection&lt;Class&lt;? extends Component&gt;&gt; filterComponents,
+<span class="fc" id="L496">                                        Collection&lt;Class&lt;? extends Component&gt;&gt; componentParams) {</span>
+
+
+<span class="fc" id="L499">            this.handler = handler;</span>
+<span class="fc" id="L500">            this.activity = activity;</span>
+<span class="fc" id="L501">            this.methodAccess = MethodAccess.get(handler.getClass());</span>
+<span class="fc" id="L502">            methodIndex = methodAccess.getIndex(method.getName(), method.getParameterTypes());</span>
+<span class="fc" id="L503">            this.filterComponents = ImmutableList.copyOf(filterComponents);</span>
+<span class="fc" id="L504">            this.componentParams = ImmutableList.copyOf(componentParams);</span>
+<span class="fc" id="L505">            this.priority = priority;</span>
+<span class="fc" id="L506">        }</span>
+
+        @Override
+        public boolean isValidFor(EntityRef entity) {
+<span class="fc bfc" id="L510" title="All 2 branches covered.">            for (Class&lt;? extends Component&gt; component : filterComponents) {</span>
+<span class="fc bfc" id="L511" title="All 2 branches covered.">                if (!entity.hasComponent(component)) {</span>
+<span class="fc" id="L512">                    return false;</span>
+                }
+<span class="fc" id="L514">            }</span>
+<span class="fc" id="L515">            return true;</span>
+        }
+
+        @Override
+        public void invoke(EntityRef entity, Event event) {
+            try {
+<span class="fc" id="L521">                Object[] params = new Object[2 + componentParams.size()];</span>
+<span class="fc" id="L522">                params[0] = event;</span>
+<span class="fc" id="L523">                params[1] = entity;</span>
+<span class="pc bpc" id="L524" title="1 of 2 branches missed.">                for (int i = 0; i &lt; componentParams.size(); ++i) {</span>
+<span class="nc" id="L525">                    params[i + 2] = entity.getComponent(componentParams.get(i));</span>
+                }
+<span class="pc bpc" id="L527" title="1 of 2 branches missed.">                if (!activity.isEmpty()) {</span>
+<span class="nc" id="L528">                    PerformanceMonitor.startActivity(activity);</span>
+                }
+                try {
+<span class="fc" id="L531">                    methodAccess.invoke(handler, methodIndex, params);</span>
+                } finally {
+<span class="pc bpc" id="L533" title="1 of 2 branches missed.">                    if (!activity.isEmpty()) {</span>
+<span class="nc" id="L534">                        PerformanceMonitor.endActivity();</span>
+                    }
+                }
+<span class="nc" id="L537">            } catch (Exception ex) {</span>
+<span class="nc" id="L538">                logger.error(&quot;Failed to invoke event&quot;, ex);</span>
+<span class="fc" id="L539">            }</span>
+<span class="fc" id="L540">        }</span>
+
+        @Override
+        public int getPriority() {
+<span class="fc" id="L544">            return priority;</span>
+        }
+
+        @Override
+        public ComponentSystem getHandler() {
+<span class="nc" id="L549">            return handler;</span>
+        }
+    }
+
+    private static class ReceiverEventHandlerInfo&lt;T extends Event&gt; implements EventHandlerInfo {
+        private EventReceiver&lt;T&gt; receiver;
+        private Class&lt;? extends Component&gt;[] components;
+        private int priority;
+
+<span class="fc" id="L558">        ReceiverEventHandlerInfo(EventReceiver&lt;T&gt; receiver, int priority, Class&lt;? extends Component&gt;... components) {</span>
+<span class="fc" id="L559">            this.receiver = receiver;</span>
+<span class="fc" id="L560">            this.priority = priority;</span>
+<span class="fc" id="L561">            this.components = Arrays.copyOf(components, components.length);</span>
+<span class="fc" id="L562">        }</span>
+
+        @Override
+        public boolean isValidFor(EntityRef entity) {
+<span class="fc bfc" id="L566" title="All 2 branches covered.">            for (Class&lt;? extends Component&gt; component : components) {</span>
+<span class="pc bpc" id="L567" title="1 of 2 branches missed.">                if (!entity.hasComponent(component)) {</span>
+<span class="nc" id="L568">                    return false;</span>
+                }
+            }
+<span class="fc" id="L571">            return true;</span>
+        }
+
+        @Override
+        public void invoke(EntityRef entity, Event event) {
+<span class="fc" id="L576">            receiver.onEvent((T) event, entity);</span>
+<span class="fc" id="L577">        }</span>
+
+        @Override
+        public int getPriority() {
+<span class="nc" id="L581">            return priority;</span>
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+<span class="nc bnc" id="L586" title="All 2 branches missed.">            if (obj == this) {</span>
+<span class="nc" id="L587">                return true;</span>
+            }
+<span class="nc bnc" id="L589" title="All 2 branches missed.">            if (obj instanceof ReceiverEventHandlerInfo) {</span>
+<span class="nc" id="L590">                ReceiverEventHandlerInfo other = (ReceiverEventHandlerInfo) obj;</span>
+<span class="nc bnc" id="L591" title="All 2 branches missed.">                if (Objects.equal(receiver, other.receiver)) {</span>
+<span class="nc" id="L592">                    return true;</span>
+                }
+            }
+<span class="nc" id="L595">            return false;</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="fc" id="L600">            return Objects.hashCode(receiver);</span>
+        }
+
+        @Override
+        public Object getHandler() {
+<span class="fc" id="L605">            return receiver;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

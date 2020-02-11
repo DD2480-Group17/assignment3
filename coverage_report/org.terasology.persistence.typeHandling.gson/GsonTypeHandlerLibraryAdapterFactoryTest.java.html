@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GsonTypeHandlerLibraryAdapterFactoryTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.gson</a> &gt; <span class="el_source">GsonTypeHandlerLibraryAdapterFactoryTest.java</span></div><h1>GsonTypeHandlerLibraryAdapterFactoryTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.gson;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.gson.Gson;
+import org.junit.jupiter.api.Test;
+import org.reflections.Reflections;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.rendering.nui.Color;
+
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+<span class="fc" id="L34">public class GsonTypeHandlerLibraryAdapterFactoryTest {</span>
+<span class="fc" id="L35">    private static final TestClass OBJECT = new TestClass(</span>
+            new Color(0xDEADBEEF),
+<span class="fc" id="L37">            ImmutableSet.of(Vector4f.zero(), Vector4f.one()),</span>
+<span class="fc" id="L38">            ImmutableMap.of(</span>
+                    &quot;someRect&quot;,
+<span class="fc" id="L40">                    Rect2i.createFromMinAndSize(-3, -3, 10, 10)</span>
+            ),
+<span class="fc" id="L42">            ImmutableMap.of(0, 1, 1, 0),</span>
+            -0xDECAF
+    );
+
+    private static final String OBJECT_JSON = &quot;{\&quot;color\&quot;:[222,173,190,239],\&quot;vector4fs\&quot;:[[0.0,0.0,0.0,0.0],&quot; +
+            &quot;[1.0,1.0,1.0,1.0]],\&quot;rect2iMap\&quot;:{\&quot;someRect\&quot;:{\&quot;min\&quot;:[-3,-3],\&quot;size\&quot;:[10,10]}},\&quot;i\&quot;:-912559}&quot;;
+
+<span class="fc" id="L49">    private final Reflections reflections = new Reflections(getClass().getClassLoader());</span>
+
+<span class="fc" id="L51">    private final TypeHandlerLibrary typeHandlerLibrary =</span>
+<span class="fc" id="L52">            TypeHandlerLibrary.withReflections(reflections);</span>
+
+<span class="fc" id="L54">    private final Gson gson =</span>
+<span class="fc" id="L55">            GsonBuilderFactory.createGsonBuilderWithTypeSerializationLibrary(typeHandlerLibrary)</span>
+<span class="fc" id="L56">            .create();</span>
+
+    @Test
+    public void testSerialize() {
+<span class="fc" id="L60">        String serializedObject = gson.toJson(OBJECT);</span>
+
+<span class="fc" id="L62">        assertEquals(OBJECT_JSON, serializedObject);</span>
+<span class="fc" id="L63">    }</span>
+
+    @Test
+    public void testDeserialize() {
+<span class="fc" id="L67">        TestClass deserializedObject = gson.fromJson(OBJECT_JSON, TestClass.class);</span>
+
+<span class="fc" id="L69">        assertEquals(OBJECT, deserializedObject);</span>
+<span class="fc" id="L70">    }</span>
+
+    private static class TestClass {
+        private final Color color;
+        private final Set&lt;Vector4f&gt; vector4fs;
+        private final Map&lt;String, Rect2i&gt; rect2iMap;
+
+        // Will not be serialized
+        private final Map&lt;Integer, Integer&gt; intMap;
+
+        private final int i;
+
+        private TestClass(Color color, Set&lt;Vector4f&gt; vector4fs, Map&lt;String, Rect2i&gt; rect2iMap,
+<span class="fc" id="L83">                          Map&lt;Integer, Integer&gt; intMap, int i) {</span>
+<span class="fc" id="L84">            this.color = color;</span>
+<span class="fc" id="L85">            this.vector4fs = vector4fs;</span>
+<span class="fc" id="L86">            this.rect2iMap = rect2iMap;</span>
+<span class="fc" id="L87">            this.intMap = intMap;</span>
+<span class="fc" id="L88">            this.i = i;</span>
+<span class="fc" id="L89">        }</span>
+
+        @Override
+        public boolean equals(Object o) {
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">            if (this == o) return true;</span>
+<span class="pc bpc" id="L94" title="2 of 4 branches missed.">            if (o == null || getClass() != o.getClass()) return false;</span>
+<span class="fc" id="L95">            TestClass testClass = (TestClass) o;</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">            return i == testClass.i &amp;&amp;</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">                    Objects.equals(color, testClass.color) &amp;&amp;</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">                    Objects.equals(vector4fs, testClass.vector4fs) &amp;&amp;</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">                    Objects.equals(rect2iMap, testClass.rect2iMap);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

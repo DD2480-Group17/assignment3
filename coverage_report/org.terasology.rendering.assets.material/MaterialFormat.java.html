@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MaterialFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.material</a> &gt; <span class="el_source">MaterialFormat.java</span></div><h1>MaterialFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.assets.material;
+
+import com.google.common.base.Charsets;
+import com.google.common.collect.Maps;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.rendering.assets.shader.Shader;
+import org.terasology.rendering.assets.texture.Texture;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ */
+@RegisterAssetFileFormat
+public class MaterialFormat extends AbstractAssetFileFormat&lt;MaterialData&gt; {
+
+    private final Gson gson;
+    private final AssetManager assetManager;
+
+    public MaterialFormat(AssetManager assetManager) {
+<span class="fc" id="L53">        super(&quot;mat&quot;);</span>
+<span class="fc" id="L54">        this.gson = new GsonBuilder().registerTypeAdapter(MaterialMetadata.class, new MaterialMetadataHandler()).create();</span>
+<span class="fc" id="L55">        this.assetManager = assetManager;</span>
+<span class="fc" id="L56">    }</span>
+
+    @Override
+    public MaterialData load(ResourceUrn urn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+        MaterialMetadata metadata;
+<span class="fc" id="L61">        try (InputStreamReader inputStreamReader = new InputStreamReader(inputs.get(0).openStream(), Charsets.UTF_8)) {</span>
+<span class="fc" id="L62">            metadata = gson.fromJson(inputStreamReader, MaterialMetadata.class);</span>
+        }
+
+<span class="fc" id="L65">        Optional&lt;? extends Shader&gt; shader = assetManager.getAsset(metadata.shader, Shader.class);</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (shader.isPresent()) {</span>
+<span class="fc" id="L67">            MaterialData data = new MaterialData(shader.get());</span>
+<span class="fc" id="L68">            data.setTextureParams(metadata.textures);</span>
+<span class="fc" id="L69">            data.setFloatParams(metadata.floatParams);</span>
+<span class="fc" id="L70">            data.setFloatArrayParams(metadata.floatArrayParams);</span>
+<span class="fc" id="L71">            data.setIntParams(metadata.intParams);</span>
+<span class="fc" id="L72">            return data;</span>
+        } else {
+<span class="nc" id="L74">            throw new IOException(&quot;Unable to resolve shader '&quot; + metadata.shader + &quot;'&quot;);</span>
+        }
+    }
+
+<span class="fc" id="L78">    private static class MaterialMetadata {</span>
+        String shader;
+<span class="fc" id="L80">        Map&lt;String, Texture&gt; textures = Maps.newHashMap();</span>
+<span class="fc" id="L81">        Map&lt;String, Float&gt; floatParams = Maps.newHashMap();</span>
+<span class="fc" id="L82">        Map&lt;String, float[]&gt; floatArrayParams = Maps.newHashMap();</span>
+<span class="fc" id="L83">        Map&lt;String, Integer&gt; intParams = Maps.newHashMap();</span>
+    }
+
+<span class="fc" id="L86">    private class MaterialMetadataHandler implements JsonDeserializer&lt;MaterialMetadata&gt; {</span>
+
+        @Override
+        public MaterialMetadata deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L90">            MaterialMetadata metadata = new MaterialMetadata();</span>
+
+<span class="fc" id="L92">            JsonObject obj = json.getAsJsonObject();</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">            if (obj.has(&quot;shader&quot;)) {</span>
+<span class="fc" id="L94">                metadata.shader = obj.getAsJsonPrimitive(&quot;shader&quot;).getAsString();</span>
+            }
+
+<span class="pc bpc" id="L97" title="2 of 4 branches missed.">            if (obj.has(&quot;params&quot;) &amp;&amp; obj.get(&quot;params&quot;).isJsonObject()) {</span>
+<span class="fc" id="L98">                JsonObject params = obj.get(&quot;params&quot;).getAsJsonObject();</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">                for (Map.Entry&lt;String, JsonElement&gt; prop : params.entrySet()) {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                    if (prop.getValue().isJsonPrimitive()) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                        if (prop.getValue().getAsJsonPrimitive().isString()) {</span>
+<span class="nc" id="L102">                            Optional&lt;? extends Texture&gt; texture = assetManager.getAsset(prop.getValue().getAsString(), Texture.class);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                            if (texture.isPresent()) {</span>
+<span class="nc" id="L104">                                metadata.textures.put(prop.getKey(), texture.get());</span>
+                            }
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                        } else if (prop.getValue().getAsJsonPrimitive().isNumber()) {</span>
+<span class="nc" id="L107">                            metadata.floatParams.put(prop.getKey(), prop.getValue().getAsFloat());</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                        } else if (prop.getValue().getAsJsonPrimitive().isBoolean()) {</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">                            metadata.intParams.put(prop.getKey(), (prop.getValue().getAsBoolean()) ? 1 : 0);</span>
+                        }
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                    } else if (prop.getValue().isJsonArray()) {</span>
+<span class="nc" id="L112">                        JsonArray array = prop.getValue().getAsJsonArray();</span>
+<span class="nc" id="L113">                        float[] result = new float[array.size()];</span>
+<span class="nc" id="L114">                        boolean valid = true;</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                        for (int i = 0; i &lt; array.size(); ++i) {</span>
+<span class="nc bnc" id="L116" title="All 4 branches missed.">                            if (!array.get(i).isJsonPrimitive() || !array.get(i).getAsJsonPrimitive().isNumber()) {</span>
+<span class="nc" id="L117">                                valid = false;</span>
+<span class="nc" id="L118">                                break;</span>
+                            }
+<span class="nc" id="L120">                            result[i] = array.get(i).getAsFloat();</span>
+                        }
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                        if (valid) {</span>
+<span class="nc" id="L123">                            metadata.floatArrayParams.put(prop.getKey(), result);</span>
+                        }
+                    }
+<span class="nc" id="L126">                }</span>
+            }
+<span class="fc" id="L128">            return metadata;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentSystemManagerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine</a> &gt; <span class="el_source">ComponentSystemManagerTest.java</span></div><h1>ComponentSystemManagerTest.java</h1><pre class="source lang-java linenums">
+package org.terasology.engine;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.LoggingEvent;
+import ch.qos.logback.core.Appender;
+import com.google.common.collect.Iterables;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.internal.EventSystem;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RenderSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.console.Console;
+import org.terasology.logic.console.commandSystem.MethodCommand;
+import org.terasology.logic.console.commandSystem.annotations.Command;
+import org.terasology.logic.console.commandSystem.annotations.CommandParam;
+import org.terasology.logic.console.commandSystem.annotations.Sender;
+
+import java.util.List;
+
+import static java.util.stream.Collectors.toList;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+<span class="fc" id="L36">public class ComponentSystemManagerTest {</span>
+
+    private ComponentSystemManager systemUnderTest;
+    private Console console;
+
+    @BeforeEach
+    public void setUp() {
+<span class="fc" id="L43">        Context context = mock(Context.class);</span>
+<span class="fc" id="L44">        EntityManager entityManager = mock(EntityManager.class);</span>
+<span class="fc" id="L45">        when(entityManager.getEventSystem()).thenReturn(mock(EventSystem.class));</span>
+<span class="fc" id="L46">        when(context.get(EntityManager.class)).thenReturn(entityManager);</span>
+<span class="fc" id="L47">        console = mock(Console.class);</span>
+<span class="fc" id="L48">        when(context.get(Console.class)).thenReturn(console);</span>
+<span class="fc" id="L49">        systemUnderTest = new ComponentSystemManager(context);</span>
+<span class="fc" id="L50">    }</span>
+
+    @Test
+    public void testRegisterUpdateSubscriberAddsSubscriber() {
+<span class="fc" id="L54">        UpdateSubscriberSystem system = mock(UpdateSubscriberSystem.class);</span>
+
+<span class="fc" id="L56">        systemUnderTest.register(system);</span>
+
+<span class="fc" id="L58">        assertEquals(Iterables.size(systemUnderTest.iterateUpdateSubscribers()), 1);</span>
+<span class="fc" id="L59">    }</span>
+
+    @Test
+    public void testShutdownRemovesUpdateSubscribers() {
+<span class="fc" id="L63">        UpdateSubscriberSystem system = mock(UpdateSubscriberSystem.class);</span>
+
+<span class="fc" id="L65">        systemUnderTest.register(system);</span>
+<span class="fc" id="L66">        systemUnderTest.shutdown();</span>
+
+<span class="fc" id="L68">        assertEquals(Iterables.size(systemUnderTest.iterateUpdateSubscribers()), 0);</span>
+<span class="fc" id="L69">    }</span>
+
+    @Test
+    public void testRegisterRenderSystemAddsRenderSubscriber() {
+<span class="fc" id="L73">        RenderSystem system = mock(RenderSystem.class);</span>
+
+<span class="fc" id="L75">        systemUnderTest.register(system);</span>
+
+<span class="fc" id="L77">        assertEquals(Iterables.size(systemUnderTest.iterateRenderSubscribers()), 1);</span>
+<span class="fc" id="L78">    }</span>
+
+    @Test
+    public void testShutdownRemovesRenderSubscribers() {
+        //see https://github.com/MovingBlocks/Terasology/issues/3087#issuecomment-326409756
+<span class="fc" id="L83">        RenderSystem system = mock(RenderSystem.class);</span>
+
+<span class="fc" id="L85">        systemUnderTest.register(system);</span>
+<span class="fc" id="L86">        systemUnderTest.shutdown();</span>
+
+<span class="fc" id="L88">        assertEquals(Iterables.size(systemUnderTest.iterateRenderSubscribers()), 0);</span>
+<span class="fc" id="L89">    }</span>
+
+    @Test
+    public void shouldRegisterCommand() {
+<span class="fc" id="L93">        systemUnderTest.register(new SystemWithValidCommand());</span>
+<span class="fc" id="L94">        systemUnderTest.initialise();</span>
+
+<span class="fc" id="L96">        ArgumentCaptor&lt;MethodCommand&gt; methodCommandArgumentCaptor = ArgumentCaptor.forClass(MethodCommand.class);</span>
+<span class="fc" id="L97">        verify(console).registerCommand(methodCommandArgumentCaptor.capture());</span>
+
+<span class="fc" id="L99">        MethodCommand command = methodCommandArgumentCaptor.getValue();</span>
+<span class="fc" id="L100">        assertEquals(command.getName().toString(), &quot;validCommandName&quot;);</span>
+<span class="fc" id="L101">    }</span>
+
+    @Test
+    public void shouldRegisterCommandWithoutSenderAnnotation() {
+        //see https://github.com/MovingBlocks/Terasology/issues/2679
+<span class="fc" id="L106">        systemUnderTest.register(new SystemWithCommandMissingSenderAnnotation());</span>
+<span class="fc" id="L107">        systemUnderTest.initialise();</span>
+
+<span class="fc" id="L109">        ArgumentCaptor&lt;MethodCommand&gt; methodCommandArgumentCaptor = ArgumentCaptor.forClass(MethodCommand.class);</span>
+<span class="fc" id="L110">        verify(console).registerCommand(methodCommandArgumentCaptor.capture());</span>
+
+<span class="fc" id="L112">        MethodCommand command = methodCommandArgumentCaptor.getValue();</span>
+<span class="fc" id="L113">        assertEquals(command.getName().toString(), &quot;commandWithoutSenderAnnotation&quot;);</span>
+<span class="fc" id="L114">    }</span>
+
+    @Test
+    public void shouldLogErrorWhenRegisterCommandWithoutSenderAnnotation() {
+        //see https://github.com/MovingBlocks/Terasology/issues/2679
+<span class="fc" id="L119">        Appender&lt;ILoggingEvent&gt; appender = mockAppender();</span>
+<span class="fc" id="L120">        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME)).addAppender(appender);</span>
+
+<span class="fc" id="L122">        systemUnderTest.register(new SystemWithCommandMissingSenderAnnotation());</span>
+<span class="fc" id="L123">        systemUnderTest.initialise();</span>
+
+<span class="fc" id="L125">        ArgumentCaptor&lt;LoggingEvent&gt; loggingEventArgumentCaptor = ArgumentCaptor.forClass(LoggingEvent.class);</span>
+<span class="fc" id="L126">        verify(appender).doAppend(loggingEventArgumentCaptor.capture());</span>
+<span class="fc" id="L127">        List&lt;String&gt; allErrorLogMessages = loggingEventArgumentCaptor.getAllValues().stream()</span>
+<span class="fc" id="L128">                .filter(e -&gt; e.getLevel().isGreaterOrEqual(Level.ERROR))</span>
+<span class="fc" id="L129">                .map(LoggingEvent::getFormattedMessage)</span>
+<span class="fc" id="L130">                .collect(toList());</span>
+<span class="fc" id="L131">        String expectedMessage = &quot;Command commandWithoutSenderAnnotation provided by &quot; +</span>
+                &quot;SystemWithCommandMissingSenderAnnotation contains a EntityRef without @Sender annotation, &quot; +
+                &quot;may cause a NullPointerException&quot;;
+<span class="fc" id="L134">        assertTrue(allErrorLogMessages.contains(expectedMessage));</span>
+<span class="fc" id="L135">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    private static Appender&lt;ILoggingEvent&gt; mockAppender() {
+<span class="fc" id="L139">        return mock(Appender.class);</span>
+    }
+
+    private static class SystemWithValidCommand extends BaseComponentSystem {
+        @Command()
+        public String validCommandName(@CommandParam(value = &quot;parameter&quot;) String value, @Sender EntityRef sender) {
+<span class="nc" id="L145">            return value;</span>
+        }
+    }
+
+    private static class SystemWithCommandMissingSenderAnnotation extends BaseComponentSystem {
+        @Command()
+        public String commandWithoutSenderAnnotation(@CommandParam(value = &quot;parameter&quot;) String value, EntityRef sender) {
+<span class="nc" id="L152">            return value;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

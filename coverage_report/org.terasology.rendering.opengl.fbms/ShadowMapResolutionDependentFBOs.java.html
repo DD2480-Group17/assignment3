@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ShadowMapResolutionDependentFBOs.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.opengl.fbms</a> &gt; <span class="el_source">ShadowMapResolutionDependentFBOs.java</span></div><h1>ShadowMapResolutionDependentFBOs.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.opengl.fbms;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.util.Map;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.engine.SimpleUri;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.opengl.AbstractFBOsManager;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+
+/**
+ * An instance of this class manages the ShadowMap FBOs, regenerating as necessary when a user changes
+ * the resolution of the shadow maps via the SHADOW_MAP_RESOLUTION setting in the RenderingConfig.
+ *
+ * Shadow Maps and FBOs are plural because the base class is capable of handling multiple shadow maps,
+ * i.e. to simulate the shadows of more than one light source, i.e. multiple suns. This doesn't imply
+ * that the rest of the engine is capable of that.
+ */
+public class ShadowMapResolutionDependentFBOs extends AbstractFBOsManager implements PropertyChangeListener {
+    // TODO: see if we can pass the Context to the constructor and initialize these variables there.
+<span class="nc" id="L39">    private Config config = CoreRegistry.get(Config.class);</span>
+<span class="nc" id="L40">    private RenderingConfig renderingConfig = config.getRendering();</span>
+    private FBO.Dimensions shadowMapResolution;
+
+    /**
+     * The constructor: creates an instance of this class and subscribes to the
+     * SHADOW_MAP_RESOLUTION setting of the Rendering Config, listening for changes.
+     */
+<span class="nc" id="L47">    public ShadowMapResolutionDependentFBOs() {</span>
+<span class="nc" id="L48">        renderingConfig.subscribe(RenderingConfig.SHADOW_MAP_RESOLUTION, this);</span>
+<span class="nc" id="L49">        int resolution = renderingConfig.getShadowMapResolution();</span>
+<span class="nc" id="L50">        shadowMapResolution = new FBO.Dimensions(resolution, resolution);</span>
+<span class="nc" id="L51">    }</span>
+
+    @Override
+    public FBO request(FBOConfig fboConfig) {
+        FBO fbo;
+<span class="nc" id="L56">        SimpleUri fboName = fboConfig.getName();</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        if (fboConfigs.containsKey(fboName)) {</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            if (!fboConfig.equals(fboConfigs.get(fboName))) {</span>
+<span class="nc" id="L59">                throw new IllegalArgumentException(&quot;Requested FBO is already available with different configuration&quot;);</span>
+            }
+<span class="nc" id="L61">            fbo = fboLookup.get(fboConfig.getName());</span>
+        } else {
+<span class="nc" id="L63">            fbo = generateWithDimensions(fboConfig, shadowMapResolution);</span>
+        }
+<span class="nc" id="L65">        retain(fboName);</span>
+<span class="nc" id="L66">        return fbo;</span>
+    }
+
+    /**
+     * Triggers the regeneration of the shadow map FBOs, if necessary.
+     *
+     * Once triggered this method checks if &quot;dynamic shadows&quot; are enabled.
+     * If dynamics shadows are enabled it obtains the new Shadow Map resolution from the event
+     * passed to the method and regenerates the shadow map FBOs.
+     *
+     * @param evt a PropertyChangeEvent, containing the shadow map resolution.
+     */
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (renderingConfig.isDynamicShadows()) {</span>
+<span class="nc" id="L81">            int shadowMapResFromSettings = (int) evt.getNewValue();</span>
+<span class="nc" id="L82">            shadowMapResolution = new FBO.Dimensions(shadowMapResFromSettings, shadowMapResFromSettings);</span>
+
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            for (Map.Entry&lt;SimpleUri, FBOConfig&gt; entry : fboConfigs.entrySet()) {</span>
+<span class="nc" id="L85">                SimpleUri fboName = entry.getKey();</span>
+<span class="nc" id="L86">                FBOConfig fboConfig = entry.getValue();</span>
+
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                if (fboLookup.containsKey(fboName)) {</span>
+<span class="nc" id="L89">                    FBO fbo = fboLookup.get(fboName);</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                    if (fbo != null) { // TODO: validate if necessary</span>
+<span class="nc" id="L91">                        fbo.dispose();</span>
+                    }
+                }
+<span class="nc" id="L94">                FBO shadowMapResDependentFBO = generateWithDimensions(fboConfig, shadowMapResolution);</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                if (shadowMapResDependentFBO.getStatus() == FBO.Status.DISPOSED) {</span>
+<span class="nc" id="L96">                    logger.warn(&quot;Failed to generate ShadowMap FBO. Turning off shadows.&quot;);</span>
+<span class="nc" id="L97">                    renderingConfig.setDynamicShadows(false);</span>
+<span class="nc" id="L98">                    break;</span>
+                }
+
+<span class="nc" id="L101">                fboLookup.put(fboName, shadowMapResDependentFBO);</span>
+<span class="nc" id="L102">            }</span>
+        }
+<span class="nc" id="L104">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

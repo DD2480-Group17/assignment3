@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntityDataJSONFormatTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence</a> &gt; <span class="el_source">EntityDataJSONFormatTest.java</span></div><h1>EntityDataJSONFormatTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence;
+
+import com.google.common.collect.Lists;
+import com.google.protobuf.ByteString;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.persistence.serializers.EntityDataJSONFormat;
+import org.terasology.protobuf.EntityData;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ */
+<span class="fc" id="L39">public class EntityDataJSONFormatTest {</span>
+
+    public static final String VALUE_NAME = &quot;Name&quot;;
+    private EntityData.GlobalStore.Builder worldBuilder;
+    private EntityData.Entity.Builder entityBuilder;
+    private EntityData.Prefab.Builder prefabBuilder;
+    private EntityData.Component.Builder componentBuilder;
+    private EntityData.NameValue.Builder nameValueBuilder;
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L50">        worldBuilder = EntityData.GlobalStore.newBuilder();</span>
+<span class="fc" id="L51">        entityBuilder = EntityData.Entity.newBuilder();</span>
+<span class="fc" id="L52">        prefabBuilder = EntityData.Prefab.newBuilder();</span>
+<span class="fc" id="L53">        componentBuilder = EntityData.Component.newBuilder();</span>
+<span class="fc" id="L54">        componentBuilder.setType(&quot;Test&quot;);</span>
+<span class="fc" id="L55">        nameValueBuilder = EntityData.NameValue.newBuilder();</span>
+<span class="fc" id="L56">    }</span>
+
+    @Test
+    public void testPersistWorldSimple() throws IOException {
+<span class="fc" id="L60">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L61">    }</span>
+
+    @Test
+    public void testPersistNextId() throws Exception {
+<span class="fc" id="L65">        worldBuilder.setNextEntityId(413);</span>
+<span class="fc" id="L66">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L67">    }</span>
+
+    @Test
+    public void testPersistEmptyEntity() throws Exception {
+<span class="fc" id="L71">        EntityData.Entity entity = entityBuilder.build();</span>
+<span class="fc" id="L72">        worldBuilder.addEntity(entity);</span>
+<span class="fc" id="L73">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L74">    }</span>
+
+    @Test
+    public void testPersistEntityParent() throws Exception {
+<span class="fc" id="L78">        entityBuilder.setParentPrefab(&quot;Test&quot;);</span>
+<span class="fc" id="L79">        EntityData.Entity entity = entityBuilder.build();</span>
+<span class="fc" id="L80">        worldBuilder.addEntity(entity);</span>
+<span class="fc" id="L81">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L82">    }</span>
+
+    @Test
+    public void testPersistEntityId() throws Exception {
+<span class="fc" id="L86">        entityBuilder.setId(413);</span>
+<span class="fc" id="L87">        EntityData.Entity entity = entityBuilder.build();</span>
+<span class="fc" id="L88">        worldBuilder.addEntity(entity);</span>
+<span class="fc" id="L89">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L90">    }</span>
+
+    @Test
+    public void testPersistEntityRemovedComponent() throws Exception {
+<span class="fc" id="L94">        entityBuilder.addRemovedComponent(&quot;String&quot;);</span>
+<span class="fc" id="L95">        EntityData.Entity entity = entityBuilder.build();</span>
+<span class="fc" id="L96">        worldBuilder.addEntity(entity);</span>
+<span class="fc" id="L97">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L98">    }</span>
+
+    @Test
+    public void testPersistEntityRemovedComponents() throws Exception {
+<span class="fc" id="L102">        entityBuilder.addRemovedComponent(&quot;String&quot;);</span>
+<span class="fc" id="L103">        entityBuilder.addRemovedComponent(&quot;Integer&quot;);</span>
+<span class="fc" id="L104">        EntityData.Entity entity = entityBuilder.build();</span>
+<span class="fc" id="L105">        worldBuilder.addEntity(entity);</span>
+<span class="fc" id="L106">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L107">    }</span>
+
+    @Test
+    public void testPersistEmptyComponent() throws Exception {
+<span class="fc" id="L111">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L112">        worldBuilder.addEntity(entityBuilder.build());</span>
+<span class="fc" id="L113">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L114">    }</span>
+
+    @Test
+    public void testPersistComponentWithDouble() throws Exception {
+<span class="fc" id="L118">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L119">        nameValueBuilder.setValue(EntityData.Value.newBuilder().addDouble(1));</span>
+<span class="fc" id="L120">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L121">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L122">        worldBuilder.addEntity(entityBuilder.build());</span>
+<span class="fc" id="L123">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L124">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L125">        assertEquals(Lists.newArrayList(1.0), actual.getEntity(0).getComponent(0).getField(0).getValue().getDoubleList());</span>
+<span class="fc" id="L126">    }</span>
+
+    @Test
+    public void testPersistComponentWithFloat() throws Exception {
+<span class="fc" id="L130">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L131">        nameValueBuilder.setValue(EntityData.Value.newBuilder().addFloat(1));</span>
+<span class="fc" id="L132">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L133">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L134">        worldBuilder.addEntity(entityBuilder.build());</span>
+
+<span class="fc" id="L136">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L137">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L138">        assertEquals(Lists.newArrayList(1f), actual.getEntity(0).getComponent(0).getField(0).getValue().getFloatList());</span>
+<span class="fc" id="L139">    }</span>
+
+    @Test
+    public void testPersistComponentWithInteger() throws Exception {
+<span class="fc" id="L143">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L144">        nameValueBuilder.setValue(EntityData.Value.newBuilder().addInteger(1));</span>
+<span class="fc" id="L145">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L146">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L147">        worldBuilder.addEntity(entityBuilder.build());</span>
+
+<span class="fc" id="L149">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L150">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L151">        assertEquals(Lists.newArrayList(1), actual.getEntity(0).getComponent(0).getField(0).getValue().getIntegerList());</span>
+<span class="fc" id="L152">    }</span>
+
+    @Test
+    public void testPersistComponentWithIntegerList() throws Exception {
+<span class="fc" id="L156">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L157">        nameValueBuilder.setValue(EntityData.Value.newBuilder().addInteger(1).addInteger(2));</span>
+<span class="fc" id="L158">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L159">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L160">        worldBuilder.addEntity(entityBuilder.build());</span>
+
+<span class="fc" id="L162">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L163">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L164">        assertEquals(Lists.newArrayList(1, 2), actual.getEntity(0).getComponent(0).getField(0).getValue().getIntegerList());</span>
+<span class="fc" id="L165">    }</span>
+
+    @Test
+    public void testPersistComponentWithLong() throws Exception {
+<span class="fc" id="L169">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L170">        nameValueBuilder.setValue(EntityData.Value.newBuilder().addLong(1));</span>
+<span class="fc" id="L171">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L172">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L173">        worldBuilder.addEntity(entityBuilder.build());</span>
+
+<span class="fc" id="L175">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L176">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L177">        assertEquals(Lists.newArrayList(1L), actual.getEntity(0).getComponent(0).getField(0).getValue().getLongList());</span>
+<span class="fc" id="L178">    }</span>
+
+    @Test
+    public void testPersistComponentWithBoolean() throws Exception {
+<span class="fc" id="L182">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L183">        nameValueBuilder.setValue(EntityData.Value.newBuilder().addBoolean(true));</span>
+<span class="fc" id="L184">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L185">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L186">        worldBuilder.addEntity(entityBuilder.build());</span>
+
+<span class="fc" id="L188">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L189">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L190">        assertEquals(Lists.newArrayList(true), actual.getEntity(0).getComponent(0).getField(0).getValue().getBooleanList());</span>
+<span class="fc" id="L191">    }</span>
+
+    @Test
+    public void testPersistComponentWithString() throws Exception {
+<span class="fc" id="L195">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L196">        nameValueBuilder.setValue(EntityData.Value.newBuilder().addString(&quot;Test&quot;));</span>
+<span class="fc" id="L197">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L198">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L199">        worldBuilder.addEntity(entityBuilder.build());</span>
+
+<span class="fc" id="L201">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L202">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L203">        assertEquals(Lists.newArrayList(&quot;Test&quot;), actual.getEntity(0).getComponent(0).getField(0).getValue().getStringList());</span>
+<span class="fc" id="L204">    }</span>
+
+    @Test
+    public void testPersistComponentWithValueInValue() throws Exception {
+<span class="fc" id="L208">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L209">        nameValueBuilder.setValue(EntityData.Value.newBuilder().addValue(EntityData.Value.newBuilder().addInteger(1).addInteger(2)));</span>
+<span class="fc" id="L210">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L211">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L212">        worldBuilder.addEntity(entityBuilder.build());</span>
+
+<span class="fc" id="L214">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L215">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L216">        assertEquals(Lists.newArrayList(1, 2), actual.getEntity(0).getComponent(0).getField(0).getValue().getValue(0).getIntegerList());</span>
+<span class="fc" id="L217">    }</span>
+
+    @Test
+    public void testPersistComponentWithValueMap() throws Exception {
+<span class="fc" id="L221">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L222">        nameValueBuilder.setValue(EntityData.Value.newBuilder()</span>
+<span class="fc" id="L223">                .addNameValue(EntityData.NameValue.newBuilder().setName(&quot;Fred&quot;).setValue(EntityData.Value.newBuilder().addInteger(1))));</span>
+<span class="fc" id="L224">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L225">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L226">        worldBuilder.addEntity(entityBuilder.build());</span>
+
+<span class="fc" id="L228">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L229">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L230">        assertEquals(&quot;Fred&quot;, actual.getEntity(0).getComponent(0).getField(0).getValue().getNameValue(0).getName());</span>
+<span class="fc" id="L231">        assertEquals(1, actual.getEntity(0).getComponent(0).getField(0).getValue().getNameValue(0).getValue().getInteger(0));</span>
+<span class="fc" id="L232">    }</span>
+
+    @Test
+    public void testPersistBytes() throws Exception {
+<span class="fc" id="L236">        ByteString bytes = ByteString.copyFrom(new byte[]{1, 2, 3, 4});</span>
+<span class="fc" id="L237">        nameValueBuilder.setName(VALUE_NAME);</span>
+<span class="fc" id="L238">        nameValueBuilder.setValue(EntityData.Value.newBuilder().setBytes(bytes));</span>
+<span class="fc" id="L239">        componentBuilder.addField(nameValueBuilder);</span>
+<span class="fc" id="L240">        entityBuilder.addComponent(componentBuilder.build());</span>
+<span class="fc" id="L241">        worldBuilder.addEntity(entityBuilder.build());</span>
+<span class="fc" id="L242">        EntityData.GlobalStore actual = persistAndRetrieve(worldBuilder.build());</span>
+<span class="fc" id="L243">        assertEquals(VALUE_NAME, actual.getEntity(0).getComponent(0).getField(0).getName());</span>
+<span class="fc" id="L244">        assertArrayEquals(bytes.toByteArray(), actual.getEntity(0).getComponent(0).getField(0).getValue().getBytes().toByteArray());</span>
+<span class="fc" id="L245">    }</span>
+
+    @Test
+    public void testPersistEmptyPrefab() throws Exception {
+<span class="fc" id="L249">        worldBuilder.addPrefab(prefabBuilder);</span>
+<span class="fc" id="L250">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L251">    }</span>
+
+    @Test
+    public void testPersistPrefabName() throws Exception {
+<span class="fc" id="L255">        prefabBuilder.setName(&quot;test:PrefabName&quot;);</span>
+<span class="fc" id="L256">        worldBuilder.addPrefab(prefabBuilder);</span>
+<span class="fc" id="L257">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L258">    }</span>
+
+    @Test
+    public void testPersistPrefabParent() throws Exception {
+<span class="fc" id="L262">        prefabBuilder.setParentName(&quot;test:PrefabName&quot;);</span>
+<span class="fc" id="L263">        worldBuilder.addPrefab(prefabBuilder);</span>
+<span class="fc" id="L264">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L265">    }</span>
+
+    @Test
+    public void testPersistPrefabComponent() throws Exception {
+<span class="fc" id="L269">        prefabBuilder.addComponent(componentBuilder);</span>
+<span class="fc" id="L270">        worldBuilder.addPrefab(prefabBuilder);</span>
+<span class="fc" id="L271">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L272">    }</span>
+
+    @Test
+    public void testPersistPersistableFlag() throws Exception {
+<span class="fc" id="L276">        prefabBuilder.setPersisted(false);</span>
+<span class="fc" id="L277">        worldBuilder.addPrefab(prefabBuilder);</span>
+<span class="fc" id="L278">        assertPersist(worldBuilder);</span>
+<span class="fc" id="L279">    }</span>
+
+    private void assertPersist(EntityData.GlobalStore.Builder builder) throws IOException {
+<span class="fc" id="L282">        EntityData.GlobalStore world = builder.build();</span>
+<span class="fc" id="L283">        EntityData.GlobalStore newWorld = persistAndRetrieve(world);</span>
+<span class="fc" id="L284">        assertEquals(world, newWorld);</span>
+<span class="fc" id="L285">    }</span>
+
+    private EntityData.GlobalStore persistAndRetrieve(EntityData.GlobalStore world) throws IOException {
+<span class="fc" id="L288">        ByteArrayOutputStream baos = new ByteArrayOutputStream();</span>
+<span class="fc" id="L289">        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(baos, TerasologyConstants.CHARSET));</span>
+<span class="fc" id="L290">        EntityDataJSONFormat.write(world, writer);</span>
+<span class="fc" id="L291">        writer.flush();</span>
+<span class="fc" id="L292">        ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());</span>
+<span class="fc" id="L293">        return EntityDataJSONFormat.readWorld(new BufferedReader(new InputStreamReader(bais, TerasologyConstants.CHARSET)));</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

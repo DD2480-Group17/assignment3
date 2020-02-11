@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpaqueObjectsNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">OpaqueObjectsNode.java</span></div><h1>OpaqueObjectsNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.config.Config;
+import org.terasology.config.RenderingDebugConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.entitySystem.systems.RenderSystem;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.WireframeCapable;
+import org.terasology.rendering.dag.WireframeTrigger;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableFaceCulling;
+import org.terasology.rendering.dag.stateChanges.LookThrough;
+import org.terasology.rendering.dag.stateChanges.SetWireframe;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.world.WorldRenderer;
+
+/**
+ * This node renders the opaque (as opposed to semi-transparent)
+ * objects present in the world. This node -does not- render the landscape.
+ *
+ * Objects to be rendered must be registered as implementing the interface RenderSystem and
+ * take advantage of the RenderSystem.renderOpaque() method, which is called in process().
+ */
+public class OpaqueObjectsNode extends AbstractNode implements WireframeCapable {
+    private ComponentSystemManager componentSystemManager;
+    private WorldRenderer worldRenderer;
+
+    private SetWireframe wireframeStateChange;
+    private EnableFaceCulling faceCullingStateChange;
+
+    public OpaqueObjectsNode(String nodeUri, Context context) {
+<span class="nc" id="L50">        super(nodeUri, context);</span>
+
+<span class="nc" id="L52">        componentSystemManager = context.get(ComponentSystemManager.class);</span>
+
+<span class="nc" id="L54">        worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L55">        Camera playerCamera = worldRenderer.getActiveCamera();</span>
+<span class="nc" id="L56">        addDesiredStateChange(new LookThrough(playerCamera));</span>
+
+        // IF wireframe is enabled the WireframeTrigger will remove the face culling state change
+        // from the set of desired state changes.
+        // The alternative would have been to check here first if wireframe mode is enabled and *if not*
+        // add the face culling state change. However, if wireframe *is* enabled, the WireframeTrigger
+        // would attempt to remove the face culling state even though it isn't there, relying on the
+        // quiet behaviour of Set.remove(nonExistentItem). We therefore favored the first solution.
+<span class="nc" id="L64">        faceCullingStateChange = new EnableFaceCulling();</span>
+<span class="nc" id="L65">        addDesiredStateChange(faceCullingStateChange);</span>
+
+<span class="nc" id="L67">        wireframeStateChange = new SetWireframe(true);</span>
+<span class="nc" id="L68">        RenderingDebugConfig renderingDebugConfig = context.get(Config.class).getRendering().getDebug();</span>
+<span class="nc" id="L69">        new WireframeTrigger(renderingDebugConfig, this);</span>
+
+<span class="nc" id="L71">        addDesiredStateChange(new BindFbo(context.get(DisplayResolutionDependentFBOs.class).getGBufferPair().getLastUpdatedFbo()));</span>
+<span class="nc" id="L72">    }</span>
+
+    public void enableWireframe() {
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (!getDesiredStateChanges().contains(wireframeStateChange)) {</span>
+<span class="nc" id="L76">            removeDesiredStateChange(faceCullingStateChange);</span>
+<span class="nc" id="L77">            addDesiredStateChange(wireframeStateChange);</span>
+<span class="nc" id="L78">            worldRenderer.requestTaskListRefresh();</span>
+        }
+<span class="nc" id="L80">    }</span>
+
+    public void disableWireframe() {
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        if (getDesiredStateChanges().contains(wireframeStateChange)) {</span>
+<span class="nc" id="L84">            addDesiredStateChange(faceCullingStateChange);</span>
+<span class="nc" id="L85">            removeDesiredStateChange(wireframeStateChange);</span>
+<span class="nc" id="L86">            worldRenderer.requestTaskListRefresh();</span>
+        }
+<span class="nc" id="L88">    }</span>
+
+    /**
+     * Iterates over any registered RenderSystem instance and calls its renderOpaque() method.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L95">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        for (RenderSystem renderer : componentSystemManager.iterateRenderSubscribers()) {</span>
+<span class="nc" id="L98">            renderer.renderOpaque();</span>
+<span class="nc" id="L99">        }</span>
+
+<span class="nc" id="L101">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L102">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

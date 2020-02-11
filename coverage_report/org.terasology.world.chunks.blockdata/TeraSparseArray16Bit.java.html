@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TeraSparseArray16Bit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.blockdata</a> &gt; <span class="el_source">TeraSparseArray16Bit.java</span></div><h1>TeraSparseArray16Bit.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.chunks.blockdata;
+
+import com.google.common.base.Preconditions;
+import org.terasology.world.chunks.deflate.TeraVisitingDeflator;
+
+import java.nio.ByteBuffer;
+import java.nio.ShortBuffer;
+import java.util.Arrays;
+
+/**
+ * TeraDenseArray16Bit implements a sparse array with elements of 16 bit size.
+ * Its elements are in the range -32'768 through +32'767 and it internally uses the short type to store its elements.
+ * It can reduce memory consumption through sparse memory allocation.
+ *
+ */
+public class TeraSparseArray16Bit extends TeraSparseArray {
+
+    protected short[][] inflated;
+    protected short[] deflated;
+    protected short fill;
+
+    public TeraSparseArray16Bit() {
+<span class="nc" id="L39">        super();</span>
+<span class="nc" id="L40">    }</span>
+
+    public TeraSparseArray16Bit(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L43">        super(sizeX, sizeY, sizeZ, false);</span>
+<span class="nc" id="L44">    }</span>
+
+    public TeraSparseArray16Bit(int sizeX, int sizeY, int sizeZ, short[][] inflated, short[] deflated) {
+<span class="nc" id="L47">        super(sizeX, sizeY, sizeZ, false);</span>
+<span class="nc" id="L48">        this.inflated = Preconditions.checkNotNull(inflated);</span>
+<span class="nc" id="L49">        this.deflated = Preconditions.checkNotNull(deflated);</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        Preconditions.checkArgument(inflated.length == sizeY, &quot;The length of parameter 'inflated' has to be &quot; + sizeY + &quot; but is &quot; + inflated.length);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        Preconditions.checkArgument(deflated.length == sizeY, &quot;The length of parameter 'deflated' has to be &quot; + sizeY + &quot; but is &quot; + deflated.length);</span>
+<span class="nc" id="L52">    }</span>
+
+    public TeraSparseArray16Bit(int sizeX, int sizeY, int sizeZ, short fill) {
+<span class="nc" id="L55">        super(sizeX, sizeY, sizeZ, false);</span>
+<span class="nc" id="L56">        this.fill = fill;</span>
+<span class="nc" id="L57">    }</span>
+
+    @Override
+    protected void initialize() {
+<span class="nc" id="L61">    }</span>
+
+    @Override
+    public TeraArray copy() {
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L66">            return new TeraSparseArray16Bit(getSizeX(), getSizeY(), getSizeZ(), fill);</span>
+        }
+<span class="nc" id="L68">        short[][] inf = new short[getSizeY()][];</span>
+<span class="nc" id="L69">        short[] def = new short[getSizeY()];</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        for (int y = 0; y &lt; getSizeY(); y++) {</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">            if (inflated[y] != null) {</span>
+<span class="nc" id="L72">                inf[y] = new short[getSizeXZ()];</span>
+<span class="nc" id="L73">                System.arraycopy(inflated[y], 0, inf[y], 0, getSizeXZ());</span>
+            }
+        }
+<span class="nc" id="L76">        System.arraycopy(deflated, 0, def, 0, getSizeY());</span>
+<span class="nc" id="L77">        return new TeraSparseArray16Bit(getSizeX(), getSizeY(), getSizeZ(), inf, def);</span>
+    }
+
+    @Override
+    public TeraArray deflate(TeraVisitingDeflator deflator) {
+<span class="nc" id="L82">        return Preconditions.checkNotNull(deflator).deflateSparseArray16Bit(inflated, deflated, fill, getSizeXZ(), getSizeX(), getSizeY(), getSizeZ());</span>
+    }
+
+    @Override
+    public int getEstimatedMemoryConsumptionInBytes() {
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L88">            return 10;</span>
+        }
+<span class="nc" id="L90">        int result = 10 + (getSizeY() * 2) + (getSizeY() * 4);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        for (int i = 0; i &lt; getSizeY(); i++) {</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            if (inflated[i] != null) {</span>
+<span class="nc" id="L93">                result += 12 + (getSizeXZ() * 2);</span>
+            }
+        }
+<span class="nc" id="L96">        return result;</span>
+    }
+
+    @Override
+    public int getElementSizeInBits() {
+<span class="nc" id="L101">        return 16;</span>
+    }
+
+    @Override
+    public int get(int x, int y, int z) {
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L107">            return fill;</span>
+        }
+<span class="nc" id="L109">        short[] row = inflated[y];</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        if (row != null) {</span>
+<span class="nc" id="L111">            return row[pos(x, z)];</span>
+        }
+<span class="nc" id="L113">        return deflated[y];</span>
+    }
+
+    @Override
+    public int set(int x, int y, int z, int value) {
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L119">            int old = fill;</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if (old == value) {</span>
+<span class="nc" id="L121">                return old;</span>
+            } else {
+<span class="nc" id="L123">                this.inflated = new short[getSizeY()][];</span>
+<span class="nc" id="L124">                this.deflated = new short[getSizeY()];</span>
+<span class="nc" id="L125">                Arrays.fill(deflated, fill);</span>
+            }
+        }
+<span class="nc" id="L128">        short[] row = inflated[y];</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        if (row != null) {</span>
+<span class="nc" id="L130">            int pos = pos(x, z);</span>
+<span class="nc" id="L131">            int old = row[pos];</span>
+<span class="nc" id="L132">            row[pos] = (short) value;</span>
+<span class="nc" id="L133">            return old;</span>
+        }
+<span class="nc" id="L135">        int old = deflated[y];</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        if (old == value) {</span>
+<span class="nc" id="L137">            return old;</span>
+        }
+<span class="nc" id="L139">        inflated[y] = new short[getSizeXZ()];</span>
+<span class="nc" id="L140">        Arrays.fill(inflated[y], deflated[y]);</span>
+<span class="nc" id="L141">        int pos = pos(x, z);</span>
+<span class="nc" id="L142">        inflated[y][pos] = (short) value;</span>
+<span class="nc" id="L143">        return deflated[y];</span>
+    }
+
+    @Override
+    public boolean set(int x, int y, int z, int value, int expected) {
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (value == expected) {</span>
+<span class="nc" id="L149">            return true;</span>
+        }
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L152">            int old = fill;</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            if (old == value) {</span>
+<span class="nc" id="L154">                return true;</span>
+            } else {
+<span class="nc" id="L156">                this.inflated = new short[getSizeY()][];</span>
+<span class="nc" id="L157">                this.deflated = new short[getSizeY()];</span>
+<span class="nc" id="L158">                Arrays.fill(deflated, fill);</span>
+            }
+        }
+<span class="nc" id="L161">        int pos = pos(x, z);</span>
+<span class="nc" id="L162">        short[] row = inflated[y];</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (row != null) {</span>
+<span class="nc" id="L164">            int old = row[pos];</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            if (old == expected) {</span>
+<span class="nc" id="L166">                row[pos] = (short) value;</span>
+<span class="nc" id="L167">                return true;</span>
+            }
+<span class="nc" id="L169">            return false;</span>
+        }
+<span class="nc" id="L171">        int old = deflated[y];</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        if (old == expected) {</span>
+<span class="nc" id="L173">            inflated[y] = new short[getSizeXZ()];</span>
+<span class="nc" id="L174">            Arrays.fill(inflated[y], deflated[y]);</span>
+<span class="nc" id="L175">            inflated[y][pos] = (short) value;</span>
+<span class="nc" id="L176">            return true;</span>
+        }
+<span class="nc" id="L178">        return false;</span>
+    }
+
+<span class="nc" id="L181">    public static class SerializationHandler extends TeraArray.BasicSerializationHandler&lt;TeraSparseArray16Bit&gt; {</span>
+
+        private void putRow(final short[] row, final int length, final ByteBuffer buffer) {
+<span class="nc" id="L184">            final ShortBuffer sbuffer = buffer.asShortBuffer();</span>
+<span class="nc" id="L185">            sbuffer.put(row, 0, length);</span>
+<span class="nc" id="L186">            buffer.position(buffer.position() + length * 2);</span>
+<span class="nc" id="L187">        }</span>
+
+        private void getRow(final short[] row, final int length, final ByteBuffer buffer) {
+<span class="nc" id="L190">            final ShortBuffer sbuffer = buffer.asShortBuffer();</span>
+<span class="nc" id="L191">            sbuffer.get(row, 0, length);</span>
+<span class="nc" id="L192">            buffer.position(buffer.position() + length * 2);</span>
+<span class="nc" id="L193">        }</span>
+
+        @Override
+        public boolean canHandle(Class&lt;?&gt; clazz) {
+<span class="nc" id="L197">            return TeraSparseArray16Bit.class.equals(clazz);</span>
+        }
+
+        @Override
+        protected int internalComputeMinimumBufferSize(TeraSparseArray16Bit array) {
+<span class="nc" id="L202">            final short[][] inf = array.inflated;</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">            if (inf == null) {</span>
+<span class="nc" id="L204">                return 3;</span>
+            } else {
+<span class="nc" id="L206">                int sizeY = array.getSizeY();</span>
+<span class="nc" id="L207">                int rowSize = array.getSizeXZ() * 2;</span>
+<span class="nc" id="L208">                int result = 1;</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">                for (int y = 0; y &lt; sizeY; y++) {</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">                    if (inf[y] == null) {</span>
+<span class="nc" id="L211">                        result += 3;</span>
+                    } else {
+<span class="nc" id="L213">                        result += 1 + rowSize;</span>
+                    }
+                }
+<span class="nc" id="L216">                return result;</span>
+            }
+        }
+
+        @Override
+        protected void internalSerialize(TeraSparseArray16Bit array, ByteBuffer buffer) {
+<span class="nc" id="L222">            final short[][] inf = array.inflated;</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">            if (inf == null) {</span>
+<span class="nc" id="L224">                buffer.put((byte) 0);</span>
+<span class="nc" id="L225">                buffer.putShort(array.fill);</span>
+            } else {
+<span class="nc" id="L227">                buffer.put((byte) 1);</span>
+<span class="nc" id="L228">                int sizeY = array.getSizeY();</span>
+<span class="nc" id="L229">                int rowSize = array.getSizeXZ();</span>
+<span class="nc" id="L230">                final short[] def = array.deflated;</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">                for (int y = 0; y &lt; sizeY; y++) {</span>
+<span class="nc" id="L232">                    final short[] row = inf[y];</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                    if (row == null) {</span>
+<span class="nc" id="L234">                        buffer.put((byte) 0);</span>
+<span class="nc" id="L235">                        buffer.putShort(def[y]);</span>
+                    } else {
+<span class="nc" id="L237">                        buffer.put((byte) 1);</span>
+<span class="nc" id="L238">                        putRow(row, rowSize, buffer);</span>
+                    }
+                }
+            }
+<span class="nc" id="L242">        }</span>
+
+        @Override
+        protected TeraSparseArray16Bit internalDeserialize(int sizeX, int sizeY, int sizeZ, ByteBuffer buffer) {
+<span class="nc" id="L246">            final byte hasData = buffer.get();</span>
+<span class="nc" id="L247">            final TeraSparseArray16Bit array = new TeraSparseArray16Bit(sizeX, sizeY, sizeZ);</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">            if (hasData == 0) {</span>
+<span class="nc" id="L249">                array.fill = buffer.getShort();</span>
+<span class="nc" id="L250">                return array;</span>
+            }
+<span class="nc" id="L252">            final int rowSize = array.getSizeXZ();</span>
+<span class="nc" id="L253">            array.inflated = new short[sizeY][];</span>
+<span class="nc" id="L254">            array.deflated = new short[sizeY];</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">            for (int y = 0; y &lt; sizeY; y++) {</span>
+<span class="nc" id="L256">                final byte hasRow = buffer.get();</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">                if (hasRow == 0) {</span>
+<span class="nc" id="L258">                    array.deflated[y] = buffer.getShort();</span>
+                } else {
+<span class="nc" id="L260">                    array.inflated[y] = new short[rowSize];</span>
+<span class="nc" id="L261">                    getRow(array.inflated[y], rowSize, buffer);</span>
+                }
+            }
+<span class="nc" id="L264">            return array;</span>
+        }
+    }
+
+<span class="fc" id="L268">    public static class Factory implements TeraArray.Factory&lt;TeraSparseArray16Bit&gt; {</span>
+
+        @Override
+        public Class&lt;TeraSparseArray16Bit&gt; getArrayClass() {
+<span class="nc" id="L272">            return TeraSparseArray16Bit.class;</span>
+        }
+
+        @Override
+        public SerializationHandler createSerializationHandler() {
+<span class="nc" id="L277">            return new SerializationHandler();</span>
+        }
+
+        @Override
+        public TeraSparseArray16Bit create() {
+<span class="nc" id="L282">            return new TeraSparseArray16Bit();</span>
+        }
+
+        @Override
+        public TeraSparseArray16Bit create(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L287">            return new TeraSparseArray16Bit(sizeX, sizeY, sizeZ);</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

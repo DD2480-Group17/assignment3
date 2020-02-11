@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GsonTypeHandlerAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.gson</a> &gt; <span class="el_source">GsonTypeHandlerAdapter.java</span></div><h1>GsonTypeHandlerAdapter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ * Copyright (C) 2011 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * GsonTypeHandlerAdapter is a less featureful clone of the package-private
+ * class TreeTypeAdapter in Gson 2.6.2.
+ */
+package org.terasology.persistence.typeHandling.gson;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import com.google.gson.TypeAdapter;
+import com.google.gson.internal.Streams;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
+import org.terasology.persistence.typeHandling.TypeHandler;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.io.IOException;
+
+/**
+ * Adapts a {@link TypeHandler} as a Gson {@link TypeAdapter}. Instances of {@link GsonTypeHandlerAdapter},
+ * when registered as type adapters in a {@link Gson} object, can be used to (de)serialize objects
+ * to JSON (via Gson) with the rules specified by the {@link GsonTypeHandlerAdapter#typeHandler}.
+ *
+ * Since instances of {@link GsonTypeHandlerAdapter} require a {@link Gson} object and a
+ * {@link TypeToken}, it is recommended to register {@link GsonTypeHandlerAdapter} type adapters as a
+ * type adapter factory via a {@link com.google.gson.TypeAdapterFactory} like
+ * {@link GsonTypeHandlerAdapterFactory}.
+ */
+public final class GsonTypeHandlerAdapter&lt;T&gt; extends TypeAdapter&lt;T&gt; {
+
+    private final TypeHandler&lt;T&gt; typeHandler;
+    private final JsonSerializer&lt;T&gt; serializer;
+    private final JsonDeserializer&lt;T&gt; deserializer;
+    private final Gson gson;
+    private final TypeToken&lt;T&gt; typeToken;
+
+    GsonTypeHandlerAdapter(TypeHandler&lt;T&gt; typeHandler,
+<span class="fc" id="L57">                           Gson gson, TypeToken&lt;T&gt; typeToken) {</span>
+<span class="fc" id="L58">        this.typeHandler = typeHandler;</span>
+
+<span class="fc" id="L60">        this.serializer = (src, typeOfSrc, context) -&gt;</span>
+<span class="fc" id="L61">                ((GsonPersistedData) typeHandler.serialize(src, new GsonPersistedDataSerializer()))</span>
+<span class="fc" id="L62">                .getElement();</span>
+
+<span class="fc" id="L64">        this.deserializer = (json, typeOfT, context) -&gt;</span>
+<span class="fc" id="L65">                typeHandler.deserializeOrNull(new GsonPersistedData(json));</span>
+
+<span class="fc" id="L67">        this.gson = gson;</span>
+<span class="fc" id="L68">        this.typeToken = typeToken;</span>
+<span class="fc" id="L69">    }</span>
+
+    @Override
+    public T read(JsonReader in) throws IOException {
+<span class="fc" id="L73">        JsonElement value = Streams.parse(in);</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (value.isJsonNull()) {</span>
+<span class="nc" id="L75">            return null;</span>
+        }
+
+<span class="fc" id="L78">        return deserializer.deserialize(value, typeToken.getType(), (JsonDeserializationContext) ReflectionUtil.readField(gson, &quot;deserializationContext&quot;));</span>
+    }
+
+    @Override
+    public void write(JsonWriter out, T value) throws IOException {
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L84">            out.nullValue();</span>
+<span class="nc" id="L85">            return;</span>
+        }
+<span class="fc" id="L87">        JsonElement tree = serializer.serialize(value, typeToken.getType(), (JsonSerializationContext) ReflectionUtil.readField(gson, &quot;serializationContext&quot;));</span>
+<span class="fc" id="L88">        Streams.write(tree, out);</span>
+<span class="fc" id="L89">    }</span>
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

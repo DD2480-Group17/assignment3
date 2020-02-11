@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockItemFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.items</a> &gt; <span class="el_source">BlockItemFactory.java</span></div><h1>BlockItemFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.items;
+
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.logic.common.DisplayNameComponent;
+import org.terasology.logic.inventory.ItemComponent;
+import org.terasology.rendering.logic.LightComponent;
+import org.terasology.world.block.family.BlockFamily;
+
+import java.util.Optional;
+
+/**
+ */
+public class BlockItemFactory {
+    private EntityManager entityManager;
+
+<span class="nc" id="L35">    public BlockItemFactory(EntityManager entityManager) {</span>
+<span class="nc" id="L36">        this.entityManager = entityManager;</span>
+<span class="nc" id="L37">    }</span>
+
+    public EntityRef newInstance(BlockFamily blockFamily) {
+<span class="nc" id="L40">        return newInstance(blockFamily, 1);</span>
+    }
+
+    /**
+     * Use this method instead of {@link #newInstance(BlockFamily)} to modify entity properties like the persistence
+     * flag before it gets created.
+     *
+     * @param blockFamily must not be null
+     */
+    public EntityBuilder newBuilder(BlockFamily blockFamily, int quantity) {
+<span class="nc" id="L50">        EntityBuilder builder = entityManager.newBuilder(&quot;engine:blockItemBase&quot;);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        if (blockFamily.getArchetypeBlock().getLuminance() &gt; 0) {</span>
+<span class="nc" id="L52">            builder.addComponent(new LightComponent());</span>
+        }
+
+        // Copy the components from block prefab into the block item
+<span class="nc" id="L56">        Optional&lt;Prefab&gt; prefab = blockFamily.getArchetypeBlock().getPrefab();</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        if (prefab.isPresent()) {</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            for (Component component : prefab.get().iterateComponents()) {</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                if (component.getClass().getAnnotation(AddToBlockBasedItem.class) != null) {</span>
+<span class="nc" id="L60">                    builder.addComponent(entityManager.getComponentLibrary().copy(component));</span>
+                }
+<span class="nc" id="L62">            }</span>
+        }
+
+<span class="nc" id="L65">        DisplayNameComponent displayNameComponent = builder.getComponent(DisplayNameComponent.class);</span>
+<span class="nc" id="L66">        displayNameComponent.name = blockFamily.getDisplayName();</span>
+
+<span class="nc" id="L68">        ItemComponent item = builder.getComponent(ItemComponent.class);</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (blockFamily.getArchetypeBlock().isStackable()) {</span>
+<span class="nc" id="L70">            item.stackId = &quot;block:&quot; + blockFamily.getURI().toString();</span>
+<span class="nc" id="L71">            item.stackCount = (byte) quantity;</span>
+        }
+
+<span class="nc" id="L74">        BlockItemComponent blockItem = builder.getComponent(BlockItemComponent.class);</span>
+<span class="nc" id="L75">        blockItem.blockFamily = blockFamily;</span>
+
+<span class="nc" id="L77">        return builder;</span>
+    }
+
+    public EntityRef newInstance(BlockFamily blockFamily, int quantity) {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (blockFamily == null) {</span>
+<span class="nc" id="L82">            return EntityRef.NULL;</span>
+        }
+<span class="nc" id="L84">        EntityBuilder builder = newBuilder(blockFamily, quantity);</span>
+<span class="nc" id="L85">        return builder.build();</span>
+    }
+
+    public EntityRef newInstance(BlockFamily blockFamily, EntityRef blockEntity) {
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        if (blockFamily == null) {</span>
+<span class="nc" id="L90">            return EntityRef.NULL;</span>
+        }
+
+<span class="nc" id="L93">        EntityBuilder builder = entityManager.newBuilder(&quot;engine:blockItemBase&quot;);</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (blockFamily.getArchetypeBlock().getLuminance() &gt; 0) {</span>
+<span class="nc" id="L95">            builder.addComponent(new LightComponent());</span>
+        }
+
+        // Copy the components from block prefab into the block item
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        for (Component component : blockEntity.iterateComponents()) {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            if (component.getClass().getAnnotation(AddToBlockBasedItem.class) != null) {</span>
+<span class="nc" id="L101">                builder.addComponent(entityManager.getComponentLibrary().copy(component));</span>
+            }
+<span class="nc" id="L103">        }</span>
+
+<span class="nc" id="L105">        DisplayNameComponent displayNameComponent = builder.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        if (displayNameComponent != null) {</span>
+<span class="nc" id="L107">            displayNameComponent.name = blockFamily.getDisplayName();</span>
+        }
+
+<span class="nc" id="L110">        ItemComponent item = builder.getComponent(ItemComponent.class);</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (blockFamily.getArchetypeBlock().isStackable()) {</span>
+<span class="nc" id="L112">            item.stackId = &quot;block:&quot; + blockFamily.getURI().toString();</span>
+<span class="nc" id="L113">            item.stackCount = (byte) 1;</span>
+        }
+
+<span class="nc" id="L116">        BlockItemComponent blockItem = builder.getComponent(BlockItemComponent.class);</span>
+<span class="nc" id="L117">        blockItem.blockFamily = blockFamily;</span>
+
+<span class="nc" id="L119">        return builder.build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

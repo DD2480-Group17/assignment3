@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TelemetryScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.telemetry</a> &gt; <span class="el_source">TelemetryScreen.java</span></div><h1>TelemetryScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.telemetry;
+
+import com.google.common.collect.Maps;
+import com.snowplowanalytics.snowplow.tracker.emitter.Emitter;
+import org.reflections.ReflectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.ServerInfo;
+import org.terasology.config.TelemetryConfig;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.ResolutionResult;
+import org.terasology.module.predicates.FromModule;
+import org.terasology.naming.Name;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.BindHelper;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.layers.mainMenu.AddServerPopup;
+import org.terasology.rendering.nui.layouts.ColumnLayout;
+import org.terasology.rendering.nui.layouts.RowLayout;
+import org.terasology.rendering.nui.layouts.ScrollableArea;
+import org.terasology.rendering.nui.widgets.UICheckbox;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UISpace;
+import org.terasology.telemetry.logstash.TelemetryLogstashAppender;
+import org.terasology.telemetry.metrics.Metric;
+
+import java.lang.reflect.Field;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * The metrics menu lists the telemetry field names and values that will be sent to the server.
+ * Users can enable or disable telemetry function in this menu.
+ */
+<span class="nc" id="L65">public class TelemetryScreen extends CoreScreenLayer {</span>
+
+<span class="nc" id="L67">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:telemetryScreen&quot;);</span>
+
+<span class="nc" id="L69">    private static final Logger logger = LoggerFactory.getLogger(TelemetryScreen.class);</span>
+
+    @In
+    private Config config;
+
+    @In
+    private ModuleManager moduleManager;
+
+    @In
+    private TranslationSystem translationSystem;
+
+    @In
+    private Metrics metrics;
+
+    @In
+    private NUIManager nuiManager;
+
+    @In
+    private Emitter emitter;
+
+<span class="nc" id="L89">    private final int horizontalSpacing = 12;</span>
+
+    private Map&lt;TelemetryCategory, Class&gt; telemetryCategories;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L95">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+<span class="nc" id="L96">        refreshContent();</span>
+
+<span class="nc" id="L98">        WidgetUtil.trySubscribe(this, &quot;back&quot;, button -&gt; triggerBackAnimation());</span>
+<span class="nc" id="L99">        WidgetUtil.tryBindCheckBoxWithListener(this, &quot;telemetryEnabled&quot;, BindHelper.bindBeanProperty(&quot;telemetryEnabled&quot;, config.getTelemetryConfig(), Boolean.TYPE), (checkbox) -&gt; {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            if (config.getTelemetryConfig().isTelemetryEnabled()) {</span>
+<span class="nc" id="L101">                pushAddServerPopupAndStartEmitter();</span>
+            }
+<span class="nc" id="L103">        });</span>
+<span class="nc" id="L104">        WidgetUtil.tryBindCheckBoxWithListener(this, &quot;errorReportingEnabled&quot;, BindHelper.bindBeanProperty(&quot;errorReportingEnabled&quot;, config.getTelemetryConfig(), Boolean.TYPE), (checkbox) -&gt; {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            if (config.getTelemetryConfig().isErrorReportingEnabled()) {</span>
+<span class="nc" id="L106">                pushAddServerPopupAndStartLogBackAppender();</span>
+            } else {
+<span class="nc" id="L108">                TelemetryLogstashAppender telemetryLogstashAppender = TelemetryUtils.fetchTelemetryLogstashAppender();</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">                if (telemetryLogstashAppender != null) {</span>
+<span class="nc" id="L110">                    telemetryLogstashAppender.stop();</span>
+                }
+            }
+<span class="nc" id="L113">        });</span>
+
+<span class="nc" id="L115">        addEnablingAllTelemetryListener();</span>
+<span class="nc" id="L116">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L120">        super.onOpened();</span>
+<span class="nc" id="L121">        refreshContent();</span>
+
+<span class="nc" id="L123">        addGroupEnablingListener();</span>
+<span class="nc" id="L124">    }</span>
+
+    /**
+     * Add a listener to the telemetryEnable checkbox. If the checkbox os enabled/disabled, it will enable/disable all the telemetry field.
+     */
+    private void addEnablingAllTelemetryListener() {
+<span class="nc" id="L130">        UICheckbox uiCheckbox = this.find(&quot;telemetryEnabled&quot;, UICheckbox.class);</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (uiCheckbox != null) {</span>
+<span class="nc" id="L132">            uiCheckbox.subscribe((checkbox) -&gt; {</span>
+<span class="nc" id="L133">                boolean telemetryEnabled = config.getTelemetryConfig().isTelemetryEnabled();</span>
+<span class="nc" id="L134">                Map&lt;String, Boolean&gt; bindingMap = config.getTelemetryConfig().getMetricsUserPermissionConfig().getBindingMap();</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                for (Map.Entry&lt;String, Boolean&gt; entry : bindingMap.entrySet()) {</span>
+<span class="nc" id="L136">                    entry.setValue(telemetryEnabled);</span>
+<span class="nc" id="L137">                }</span>
+
+<span class="nc" id="L139">                fetchTelemetryCategoriesFromEnvironment();</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                for (Map.Entry&lt;TelemetryCategory, Class&gt; telemetryCategory : telemetryCategories.entrySet()) {</span>
+<span class="nc" id="L141">                    UICheckbox categoryBox = this.find(telemetryCategory.getKey().id(), UICheckbox.class);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                    if (categoryBox != null) {</span>
+<span class="nc" id="L143">                        categoryBox.setEnabled(telemetryEnabled);</span>
+                    }
+<span class="nc" id="L145">                    Set&lt;Field&gt; fields = ReflectionUtils.getFields(telemetryCategory.getValue(), ReflectionUtils.withAnnotation(TelemetryField.class));</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                    for (Field field : fields) {</span>
+<span class="nc" id="L147">                        String fieldName = telemetryCategory.getKey().id() + &quot;:&quot; + field.getName();</span>
+<span class="nc" id="L148">                        UICheckbox fieldBox = this.find(fieldName, UICheckbox.class);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">                        if (fieldBox != null) {</span>
+<span class="nc" id="L150">                            fieldBox.setEnabled(telemetryEnabled);</span>
+                        }
+<span class="nc" id="L152">                    }</span>
+<span class="nc" id="L153">                }</span>
+<span class="nc" id="L154">            });</span>
+        }
+<span class="nc" id="L156">    }</span>
+
+    /**
+     * Add a listener to the checkbox in the telemetry category row.
+     * If this checkbox is checked, all the sub telemetry fields will be enabled/disabled.
+     */
+    private void addGroupEnablingListener() {
+<span class="nc" id="L163">        fetchTelemetryCategoriesFromEnvironment();</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        for (Map.Entry&lt;TelemetryCategory, Class&gt; telemetryCategory: telemetryCategories.entrySet()) {</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            if (!telemetryCategory.getKey().isOneMapMetric()) {</span>
+<span class="nc" id="L166">                UICheckbox uiCheckbox = this.find(telemetryCategory.getKey().id(), UICheckbox.class);</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">                if (uiCheckbox == null) {</span>
+<span class="nc" id="L168">                    continue;</span>
+                }
+<span class="nc" id="L170">                uiCheckbox.subscribe((checkbox) -&gt; {</span>
+<span class="nc" id="L171">                    Map&lt;String, Boolean&gt; bindingMap = config.getTelemetryConfig().getMetricsUserPermissionConfig().getBindingMap();</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                    if (bindingMap.containsKey(telemetryCategory.getKey().id())) {</span>
+<span class="nc" id="L173">                        boolean isGroupEnable = bindingMap.get(telemetryCategory.getKey().id());</span>
+<span class="nc" id="L174">                        Set&lt;Field&gt; fields = ReflectionUtils.getFields(telemetryCategory.getValue(), ReflectionUtils.withAnnotation(TelemetryField.class));</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">                        for (Field field : fields) {</span>
+<span class="nc" id="L176">                            String fieldName = telemetryCategory.getKey().id() + &quot;:&quot; + field.getName();</span>
+<span class="nc" id="L177">                            bindingMap.put(fieldName, isGroupEnable);</span>
+<span class="nc" id="L178">                        }</span>
+                    }
+<span class="nc" id="L180">                });</span>
+            }
+<span class="nc" id="L182">        }</span>
+<span class="nc" id="L183">    }</span>
+
+    private void refreshContent() {
+<span class="nc" id="L186">        ColumnLayout mainLayout = new ColumnLayout();</span>
+<span class="nc" id="L187">        mainLayout.setHorizontalSpacing(8);</span>
+<span class="nc" id="L188">        mainLayout.setVerticalSpacing(8);</span>
+<span class="nc" id="L189">        fetchTelemetryCategoriesFromEnvironment();</span>
+
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        for (Map.Entry&lt;TelemetryCategory, Class&gt; telemetryCategory: telemetryCategories.entrySet()) {</span>
+<span class="nc" id="L192">            Class metricClass = telemetryCategory.getValue();</span>
+<span class="nc" id="L193">            Optional&lt;Metric&gt; optional = metrics.getMetric(metricClass);</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            if (optional.isPresent()) {</span>
+<span class="nc" id="L195">                Metric metric = optional.get();</span>
+<span class="nc" id="L196">                Map&lt;String, ?&gt; map = metric.createTelemetryFieldToValue();</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                if (map != null) {</span>
+<span class="nc" id="L198">                    addTelemetrySection(telemetryCategory.getKey(), mainLayout, map);</span>
+                }
+            }
+<span class="nc" id="L201">        }</span>
+
+<span class="nc" id="L203">        ScrollableArea area = find(&quot;area&quot;, ScrollableArea.class);</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        if (area != null) {</span>
+<span class="nc" id="L205">            area.setContent(mainLayout);</span>
+        }
+<span class="nc" id="L207">    }</span>
+
+    private void pushAddServerPopupAndStartEmitter() {
+<span class="nc" id="L210">        AddServerPopup addServerPopup = nuiManager.pushScreen(AddServerPopup.ASSET_URI, AddServerPopup.class);</span>
+<span class="nc" id="L211">        addServerPopup.removeTip();</span>
+        ServerInfo serverInfo;
+<span class="nc" id="L213">        TelemetryConfig telemetryConfig = config.getTelemetryConfig();</span>
+<span class="nc" id="L214">        String telemetryDestination = telemetryConfig.getTelemetryDestination();</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        if (telemetryDestination != null) {</span>
+            try {
+<span class="nc" id="L217">                URL url = new URL(telemetryDestination);</span>
+<span class="nc" id="L218">                String address = url.getHost();</span>
+<span class="nc" id="L219">                int port = url.getPort();</span>
+<span class="nc" id="L220">                serverInfo = new ServerInfo(telemetryConfig.getTelemetryServerName(), address, port);</span>
+<span class="nc" id="L221">                serverInfo.setOwner(telemetryConfig.getTelemetryServerOwner());</span>
+<span class="nc" id="L222">            } catch (Exception e) {</span>
+<span class="nc" id="L223">                logger.error(&quot;Exception when get telemetry server information&quot;, e);</span>
+<span class="nc" id="L224">                serverInfo = new ServerInfo(TelemetryEmitter.DEFAULT_COLLECTOR_NAME, TelemetryEmitter.DEFAULT_COLLECTOR_HOST, TelemetryEmitter.DEFAULT_COLLECTOR_PORT);</span>
+<span class="nc" id="L225">                serverInfo.setOwner(TelemetryEmitter.DEFAULT_COLLECTOR_OWNER);</span>
+<span class="nc" id="L226">            }</span>
+        } else {
+<span class="nc" id="L228">            serverInfo = new ServerInfo(TelemetryEmitter.DEFAULT_COLLECTOR_NAME, TelemetryEmitter.DEFAULT_COLLECTOR_HOST, TelemetryEmitter.DEFAULT_COLLECTOR_PORT);</span>
+<span class="nc" id="L229">            serverInfo.setOwner(TelemetryEmitter.DEFAULT_COLLECTOR_OWNER);</span>
+        }
+<span class="nc" id="L231">        addServerPopup.setServerInfo(serverInfo);</span>
+<span class="nc" id="L232">        addServerPopup.onSuccess((item) -&gt; {</span>
+<span class="nc" id="L233">            TelemetryEmitter telemetryEmitter = (TelemetryEmitter) emitter;</span>
+<span class="nc" id="L234">            Optional&lt;URL&gt; optionalURL = item.getURL(&quot;http&quot;);</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            if (optionalURL.isPresent()) {</span>
+<span class="nc" id="L236">                telemetryEmitter.changeUrl(optionalURL.get());</span>
+
+                // Save the telemetry destination
+<span class="nc" id="L239">                telemetryConfig.setTelemetryDestination(optionalURL.get().toString());</span>
+<span class="nc" id="L240">                telemetryConfig.setTelemetryServerName(item.getName());</span>
+<span class="nc" id="L241">                telemetryConfig.setTelemetryServerOwner(item.getOwner());</span>
+            }
+<span class="nc" id="L243">        });</span>
+<span class="nc" id="L244">        addServerPopup.onCancel((button) -&gt; config.getTelemetryConfig().setTelemetryEnabled(false));</span>
+<span class="nc" id="L245">    }</span>
+
+    private void pushAddServerPopupAndStartLogBackAppender() {
+
+<span class="nc" id="L249">        AddServerPopup addServerPopup = nuiManager.pushScreen(AddServerPopup.ASSET_URI, AddServerPopup.class);</span>
+<span class="nc" id="L250">        addServerPopup.removeTip();</span>
+        ServerInfo serverInfo;
+<span class="nc" id="L252">        TelemetryConfig telemetryConfig = config.getTelemetryConfig();</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">        if (telemetryConfig.getErrorReportingDestination() != null) {</span>
+            try {
+<span class="nc" id="L255">                URL url = new URL(&quot;http://&quot; + telemetryConfig.getErrorReportingDestination());</span>
+<span class="nc" id="L256">                serverInfo = new ServerInfo(telemetryConfig.getErrorReportingServerName(), url.getHost(), url.getPort());</span>
+<span class="nc" id="L257">                serverInfo.setOwner(telemetryConfig.getErrorReportingServerOwner());</span>
+<span class="nc" id="L258">            } catch (Exception e) {</span>
+<span class="nc" id="L259">                logger.error(&quot;Exception when get telemetry server information&quot;, e);</span>
+<span class="nc" id="L260">                serverInfo = new ServerInfo(TelemetryLogstashAppender.DEFAULT_LOGSTASH_NAME, TelemetryLogstashAppender.DEFAULT_LOGSTASH_HOST,</span>
+                        TelemetryLogstashAppender.DEFAULT_LOGSTASH_PORT);
+<span class="nc" id="L262">                serverInfo.setOwner(TelemetryLogstashAppender.DEFAULT_LOGSTASH_OWNER);</span>
+<span class="nc" id="L263">            }</span>
+        } else {
+<span class="nc" id="L265">            serverInfo = new ServerInfo(TelemetryLogstashAppender.DEFAULT_LOGSTASH_NAME, TelemetryLogstashAppender.DEFAULT_LOGSTASH_HOST,</span>
+                    TelemetryLogstashAppender.DEFAULT_LOGSTASH_PORT);
+<span class="nc" id="L267">            serverInfo.setOwner(TelemetryLogstashAppender.DEFAULT_LOGSTASH_OWNER);</span>
+        }
+<span class="nc" id="L269">        addServerPopup.setServerInfo(serverInfo);</span>
+<span class="nc" id="L270">        addServerPopup.onSuccess((item) -&gt; {</span>
+<span class="nc" id="L271">            String destinationLogstash = item.getAddress() + &quot;:&quot; + item.getPort();</span>
+<span class="nc" id="L272">            TelemetryLogstashAppender telemetryLogstashAppender = TelemetryUtils.fetchTelemetryLogstashAppender();</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">            if (telemetryLogstashAppender != null) {</span>
+<span class="nc" id="L274">                telemetryLogstashAppender.addDestination(destinationLogstash);</span>
+<span class="nc" id="L275">                telemetryLogstashAppender.start();</span>
+            }
+
+            // Save the destination
+<span class="nc" id="L279">            telemetryConfig.setErrorReportingDestination(destinationLogstash);</span>
+<span class="nc" id="L280">            telemetryConfig.setErrorReportingServerName(item.getName());</span>
+<span class="nc" id="L281">            telemetryConfig.setErrorReportingServerOwner(item.getOwner());</span>
+<span class="nc" id="L282">        });</span>
+<span class="nc" id="L283">        addServerPopup.onCancel((button) -&gt; telemetryConfig.setErrorReportingEnabled(false));</span>
+<span class="nc" id="L284">    }</span>
+
+    /**
+     * refresh the telemetryCategories map.
+     */
+    private void fetchTelemetryCategoriesFromEnvironment() {
+<span class="nc" id="L290">        telemetryCategories = Maps.newHashMap();</span>
+
+<span class="nc" id="L292">        DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        for (Name moduleId : moduleManager.getRegistry().getModuleIds()) {</span>
+<span class="nc" id="L294">            Module module = moduleManager.getRegistry().getLatestModuleVersion(moduleId);</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            if (module.isCodeModule()) {</span>
+<span class="nc" id="L296">                ResolutionResult result = resolver.resolve(moduleId);</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">                if (result.isSuccess()) {</span>
+<span class="nc" id="L298">                    try (ModuleEnvironment environment = moduleManager.loadEnvironment(result.getModules(), false)) {</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">                        for (Class&lt;?&gt; holdingType : environment.getTypesAnnotatedWith(TelemetryCategory.class, new FromModule(environment, moduleId))) {</span>
+<span class="nc" id="L300">                            TelemetryCategory telemetryCategory = holdingType.getAnnotation(TelemetryCategory.class);</span>
+<span class="nc" id="L301">                            telemetryCategories.put(telemetryCategory, holdingType);</span>
+<span class="nc" id="L302">                        }</span>
+                    }
+                }
+            }
+<span class="nc" id="L306">        }</span>
+<span class="nc" id="L307">    }</span>
+
+    /**
+     * Add a new section with represents a new metrics type.
+     * @param telemetryCategory the annotation of the new metric
+     * @param layout the layout where the new section will be added
+     * @param map the map which includes the telemetry field name and value
+     */
+    private void addTelemetrySection(TelemetryCategory telemetryCategory, ColumnLayout layout, Map&lt;String, ?&gt; map) {
+<span class="nc" id="L316">        UILabel categoryHeader = new UILabel(translationSystem.translate(telemetryCategory.displayName()));</span>
+<span class="nc" id="L317">        categoryHeader.setFamily(&quot;subheading&quot;);</span>
+<span class="nc" id="L318">        UICheckbox uiCheckbox = new UICheckbox(telemetryCategory.id());</span>
+<span class="nc" id="L319">        Map&lt;String, Boolean&gt; bindingMap = config.getTelemetryConfig().getMetricsUserPermissionConfig().getBindingMap();</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">        if (!bindingMap.containsKey(telemetryCategory.id())) {</span>
+<span class="nc" id="L321">            bindingMap.put(telemetryCategory.id(), config.getTelemetryConfig().isTelemetryEnabled());</span>
+        }
+<span class="nc" id="L323">        Binding&lt;Boolean&gt; binding = getBindingFromBooleanMap(bindingMap, telemetryCategory.id());</span>
+<span class="nc" id="L324">        uiCheckbox.bindChecked(binding);</span>
+<span class="nc" id="L325">        RowLayout newRow = new RowLayout(categoryHeader, new UISpace(), uiCheckbox)</span>
+<span class="nc" id="L326">                .setColumnRatios(0.4f, 0.5f, 0.1f)</span>
+<span class="nc" id="L327">                .setHorizontalSpacing(horizontalSpacing);</span>
+<span class="nc" id="L328">        layout.addWidget(newRow);</span>
+
+<span class="nc" id="L330">        List&lt;Map.Entry&lt;String, ?&gt;&gt; telemetryFields = sortFields(map);</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">        for (Map.Entry entry : telemetryFields) {</span>
+<span class="nc" id="L332">            Object value = entry.getValue();</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            if (value == null) {</span>
+<span class="nc" id="L334">                value = &quot;Value unknown yet&quot;;</span>
+            }
+<span class="nc bnc" id="L336" title="All 2 branches missed.">            boolean isWithCheckbox = !telemetryCategory.isOneMapMetric();</span>
+<span class="nc bnc" id="L337" title="All 2 branches missed.">            if (value instanceof List) {</span>
+<span class="nc" id="L338">                List list = (List) value;</span>
+<span class="nc" id="L339">                addTelemetryField(entry.getKey().toString(), list, layout, isWithCheckbox, telemetryCategory);</span>
+<span class="nc" id="L340">            } else {</span>
+<span class="nc" id="L341">                addTelemetryField(entry.getKey().toString(), value, layout, isWithCheckbox, telemetryCategory);</span>
+            }
+<span class="nc" id="L343">        }</span>
+<span class="nc" id="L344">    }</span>
+
+    /**
+     * Get a binding to a map boolean value.
+     * @param bindingMap the map.
+     * @param fieldName the key associate to the binding value in the map.
+     * @return
+     */
+    private Binding&lt;Boolean&gt; getBindingFromBooleanMap(Map&lt;String, Boolean&gt; bindingMap, String fieldName) {
+<span class="nc" id="L353">        return new Binding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc" id="L356">                return bindingMap.get(fieldName);</span>
+            }
+
+            @Override
+            public void set(Boolean value) {
+<span class="nc" id="L361">                bindingMap.put(fieldName, value);</span>
+<span class="nc" id="L362">            }</span>
+        };
+    }
+
+    /**
+     * Add a new row in the menu, the new row includes the field name and value.
+     * @param type the type(name) of the this field
+     * @param value the value of this field
+     * @param layout the layout where the new line will be added
+     * @param isWithCheckbox whether add a check box in the line
+     * @param telemetryCategory the TelemetryCategory that this field belongs to
+     */
+    private void addTelemetryField(String type, Object value, ColumnLayout layout, boolean isWithCheckbox, TelemetryCategory telemetryCategory) {
+        RowLayout newRow;
+<span class="nc bnc" id="L376" title="All 2 branches missed.">        if (isWithCheckbox) {</span>
+<span class="nc" id="L377">            String fieldName = telemetryCategory.id() + &quot;:&quot; + type;</span>
+<span class="nc" id="L378">            UICheckbox uiCheckbox = new UICheckbox(fieldName);</span>
+<span class="nc" id="L379">            Map&lt;String, Boolean&gt; bindingMap = config.getTelemetryConfig().getMetricsUserPermissionConfig().getBindingMap();</span>
+<span class="nc bnc" id="L380" title="All 2 branches missed.">            if (!bindingMap.containsKey(fieldName)) {</span>
+<span class="nc" id="L381">                bindingMap.put(fieldName, config.getTelemetryConfig().isTelemetryEnabled());</span>
+            }
+<span class="nc" id="L383">            Binding&lt;Boolean&gt; binding = getBindingFromBooleanMap(bindingMap, fieldName);</span>
+<span class="nc" id="L384">            uiCheckbox.bindChecked(binding);</span>
+<span class="nc" id="L385">            uiCheckbox.subscribe((checkbox) -&gt; {</span>
+<span class="nc bnc" id="L386" title="All 2 branches missed.">                if (bindingMap.get(fieldName)) {</span>
+<span class="nc" id="L387">                    bindingMap.put(telemetryCategory.id(), true);</span>
+                } else {
+<span class="nc" id="L389">                    Set&lt;Field&gt; fields = ReflectionUtils.getFields(telemetryCategories.get(telemetryCategory), ReflectionUtils.withAnnotation(TelemetryField.class));</span>
+<span class="nc" id="L390">                    boolean isOneEnabled = false;</span>
+<span class="nc bnc" id="L391" title="All 2 branches missed.">                    for (Field field : fields) {</span>
+<span class="nc bnc" id="L392" title="All 4 branches missed.">                        isOneEnabled = isOneEnabled || bindingMap.get(telemetryCategory.id() + &quot;:&quot; + field.getName());</span>
+<span class="nc" id="L393">                    }</span>
+<span class="nc bnc" id="L394" title="All 2 branches missed.">                    if (!isOneEnabled) {</span>
+<span class="nc" id="L395">                        bindingMap.put(telemetryCategory.id(), false);</span>
+                    }
+                }
+<span class="nc" id="L398">            });</span>
+<span class="nc" id="L399">            newRow = new RowLayout(new UILabel(type), new UILabel(value.toString()), uiCheckbox)</span>
+<span class="nc" id="L400">                    .setColumnRatios(0.4f, 0.5f, 0.1f)</span>
+<span class="nc" id="L401">                    .setHorizontalSpacing(horizontalSpacing);</span>
+<span class="nc" id="L402">        } else {</span>
+<span class="nc" id="L403">            newRow = new RowLayout(new UILabel(type), new UILabel(value.toString()))</span>
+<span class="nc" id="L404">                    .setColumnRatios(0.4f, 0.5f)</span>
+<span class="nc" id="L405">                    .setHorizontalSpacing(horizontalSpacing);</span>
+        }
+
+<span class="nc" id="L408">        layout.addWidget(newRow);</span>
+<span class="nc" id="L409">    }</span>
+
+    /**
+     * If the field value is a list, then will add more than one rows.
+     * Each new line includes the field name with index and its value.
+     * @param type the type(name) of the this field
+     * @param value the value of this field (a List)
+     * @param layout the layout where the new line will be added
+     * @param isWithCheckbox whether add a check box in the line
+     */
+    private void addTelemetryField(String type, List value, ColumnLayout layout, boolean isWithCheckbox, TelemetryCategory telemetryCategory) {
+<span class="nc" id="L420">        int moduleCount = 1;</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">        for (Object o : value) {</span>
+<span class="nc" id="L422">            StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L423">            sb.append(type);</span>
+<span class="nc" id="L424">            sb.append(&quot; &quot;);</span>
+<span class="nc" id="L425">            sb.append(moduleCount);</span>
+<span class="nc" id="L426">            addTelemetryField(sb.toString(), o, layout, isWithCheckbox, telemetryCategory);</span>
+<span class="nc" id="L427">            moduleCount = moduleCount + 1;</span>
+<span class="nc" id="L428">        }</span>
+<span class="nc" id="L429">    }</span>
+
+    /**
+     * Sorts the fields by the name of each fields.
+     * @param map the map that will be sorted
+     * @return a list of map entry that is ordered by fields' names
+     */
+    private List&lt;Map.Entry&lt;String, ?&gt;&gt; sortFields(Map&lt;String, ?&gt; map) {
+<span class="nc" id="L437">        List&lt;Map.Entry&lt;String, ?&gt;&gt; list = new ArrayList&lt;&gt;(map.entrySet());</span>
+<span class="nc" id="L438">        list.sort(Comparator.comparing(Map.Entry::getKey));</span>
+<span class="nc" id="L439">        return list;</span>
+    }
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L444">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

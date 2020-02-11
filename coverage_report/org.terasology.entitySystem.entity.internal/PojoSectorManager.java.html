@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PojoSectorManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem.entity.internal</a> &gt; <span class="el_source">PojoSectorManager.java</span></div><h1>PojoSectorManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem.entity.internal;
+
+import com.google.common.collect.Iterables;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityPool;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+public class PojoSectorManager implements EngineSectorManager {
+
+    private List&lt;EngineEntityPool&gt; pools;
+
+    private PojoEntityManager entityManager;
+
+<span class="fc" id="L37">    public PojoSectorManager(PojoEntityManager entityManager) {</span>
+<span class="fc" id="L38">        this.entityManager = entityManager;</span>
+<span class="fc" id="L39">        pools = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L40">        pools.add(new PojoEntityPool(entityManager));</span>
+<span class="fc" id="L41">    }</span>
+
+    @Override
+    public void clear() {
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        for (EntityPool pool : pools) {</span>
+<span class="fc" id="L46">            pool.clear();</span>
+<span class="fc" id="L47">        }</span>
+<span class="fc" id="L48">    }</span>
+
+    @Override
+    public EntityBuilder newBuilder() {
+<span class="nc" id="L52">        return new EntityBuilder(entityManager, this);</span>
+    }
+
+    @Override
+    public EntityBuilder newBuilder(String prefabName) {
+<span class="nc" id="L57">        EntityBuilder builder = newBuilder();</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if (!builder.addPrefab(prefabName)) {</span>
+<span class="nc" id="L59">            return null;</span>
+        }
+<span class="nc" id="L61">        return builder;</span>
+    }
+
+    @Override
+    public EntityBuilder newBuilder(Prefab prefab) {
+<span class="nc" id="L66">        EntityBuilder builder = newBuilder();</span>
+<span class="nc" id="L67">        builder.addPrefab(prefab);</span>
+<span class="nc" id="L68">        return builder;</span>
+    }
+
+    @Override
+    public EntityRef create() {
+<span class="nc" id="L73">        return getPool().create();</span>
+    }
+
+    @Override
+    public EntityRef create(Component... components) {
+<span class="nc" id="L78">        return getPool().create(components);</span>
+    }
+
+    @Override
+    public EntityRef create(Iterable&lt;Component&gt; components) {
+<span class="nc" id="L83">        return getPool().create(components);</span>
+    }
+
+    @Override
+    public EntityRef create(Iterable&lt;Component&gt; components, boolean sendLifecycleEvents) {
+<span class="nc" id="L88">        return getPool().create(components, sendLifecycleEvents);</span>
+    }
+
+    @Override
+    public EntityRef create(String prefabName) {
+<span class="nc" id="L93">        return getPool().create(prefabName);</span>
+    }
+
+    @Override
+    public EntityRef create(Prefab prefab) {
+<span class="nc" id="L98">        return getPool().create(prefab);</span>
+    }
+
+    @Override
+    public EntityRef create(String prefab, Vector3f position) {
+<span class="nc" id="L103">        return getPool().create(prefab, position);</span>
+    }
+
+    @Override
+    public EntityRef create(Prefab prefab, Vector3f position) {
+<span class="nc" id="L108">        return getPool().create(prefab, position);</span>
+    }
+
+    @Override
+    public EntityRef create(Prefab prefab, Vector3f position, Quat4f rotation) {
+<span class="nc" id="L113">        return getPool().create(prefab, position, rotation);</span>
+    }
+
+    @Override
+    public EntityRef createEntityWithoutLifecycleEvents(Iterable&lt;Component&gt; components) {
+<span class="nc" id="L118">        return getPool().createEntityWithoutLifecycleEvents(components);</span>
+    }
+
+    @Override
+    public EntityRef createEntityWithoutLifecycleEvents(String prefab) {
+<span class="nc" id="L123">        return getPool().createEntityWithoutLifecycleEvents(prefab);</span>
+    }
+
+    @Override
+    public EntityRef createEntityWithoutLifecycleEvents(Prefab prefab) {
+<span class="nc" id="L128">        return getPool().createEntityWithoutLifecycleEvents(prefab);</span>
+    }
+
+    @Override
+    public void putEntity(long entityId, BaseEntityRef ref) {
+<span class="nc" id="L133">        getPool().putEntity(entityId, ref);</span>
+<span class="nc" id="L134">    }</span>
+
+    @Override
+    public ComponentTable getComponentStore() {
+<span class="fc" id="L138">        return getPool().getComponentStore();</span>
+    }
+
+    @Override
+    public EntityRef createEntityWithId(long id, Iterable&lt;Component&gt; components) {
+<span class="nc" id="L143">        return getPool().createEntityWithId(id, components);</span>
+    }
+
+    public void destroy(long entityId) {
+<span class="nc" id="L147">        getPool().destroy(entityId);</span>
+<span class="nc" id="L148">    }</span>
+
+    public void destroyEntityWithoutEvents(EntityRef entity) {
+<span class="nc" id="L151">        getPool().destroyEntityWithoutEvents(entity);</span>
+<span class="nc" id="L152">    }</span>
+
+    @Override
+    public Iterable&lt;EntityRef&gt; getAllEntities() {
+<span class="fc" id="L156">        List&lt;Iterable&lt;EntityRef&gt;&gt; entityIterables = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">        for (EntityPool pool : pools) {</span>
+<span class="fc" id="L158">            entityIterables.add(pool.getAllEntities());</span>
+<span class="fc" id="L159">        }</span>
+
+<span class="fc" id="L161">        return Iterables.concat(entityIterables);</span>
+    }
+
+    @Override
+    public Iterable&lt;EntityRef&gt; getEntitiesWith(Class&lt;? extends Component&gt;... componentClasses) {
+<span class="fc" id="L166">        List&lt;Iterable&lt;EntityRef&gt;&gt; entityIterables = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">        for (EntityPool pool : pools) {</span>
+<span class="fc" id="L168">            entityIterables.add(pool.getEntitiesWith(componentClasses));</span>
+<span class="fc" id="L169">        }</span>
+
+<span class="fc" id="L171">        return Iterables.concat(entityIterables);</span>
+    }
+
+    @Override
+    public int getCountOfEntitiesWith(Class&lt;? extends Component&gt;[] componentClasses) {
+<span class="fc" id="L176">        int i = 0;</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">        for (EngineEntityPool pool : pools) {</span>
+<span class="fc" id="L178">            i += pool.getCountOfEntitiesWith(componentClasses);</span>
+<span class="fc" id="L179">        }</span>
+<span class="fc" id="L180">        return i;</span>
+    }
+
+    @Override
+    public int getActiveEntityCount() {
+<span class="nc" id="L185">        int count = 0;</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        for (EntityPool pool : pools) {</span>
+<span class="nc" id="L187">            count += pool.getActiveEntityCount();</span>
+<span class="nc" id="L188">        }</span>
+<span class="nc" id="L189">        return count;</span>
+    }
+
+    @Override
+    public EntityRef getEntity(long id) {
+<span class="nc" id="L194">        return entityManager.getEntity(id);</span>
+    }
+
+    private EngineEntityPool getPool() {
+<span class="fc" id="L198">        return pools.get(0);</span>
+    }
+
+    public boolean hasComponent(long entityId, Class&lt;? extends Component&gt; componentClass) {
+<span class="fc bfc" id="L202" title="All 2 branches covered.">        for (EngineEntityPool pool : pools) {</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">            if (pool.hasComponent(entityId, componentClass)) {</span>
+<span class="nc" id="L204">                return true;</span>
+            }
+<span class="fc" id="L206">        }</span>
+<span class="fc" id="L207">        return false;</span>
+    }
+
+    @Override
+    public Optional&lt;BaseEntityRef&gt; remove(long id) {
+<span class="nc bnc" id="L212" title="All 2 branches missed.">        if (contains(id)) {</span>
+<span class="nc" id="L213">            return entityManager.getPool(id)</span>
+<span class="nc" id="L214">                    .flatMap(pool -&gt; pool.remove(id));</span>
+        } else {
+<span class="nc" id="L216">            return Optional.empty();</span>
+        }
+    }
+
+    @Override
+    public void insertRef(BaseEntityRef ref, Iterable&lt;Component&gt; components) {
+<span class="fc" id="L222">        getPool().insertRef(ref, components);</span>
+<span class="fc" id="L223">    }</span>
+
+    @Override
+    public boolean contains(long id) {
+<span class="fc" id="L227">        return pools.stream().anyMatch(pool -&gt; pool.contains(id));</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

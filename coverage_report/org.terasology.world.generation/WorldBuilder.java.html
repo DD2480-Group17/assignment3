@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.generation</a> &gt; <span class="el_source">WorldBuilder.java</span></div><h1>WorldBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.generation;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.world.generator.plugin.WorldGeneratorPluginLibrary;
+import org.terasology.world.zones.ProviderStore;
+import org.terasology.world.zones.Zone;
+import org.terasology.world.zones.ZonePlugin;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ */
+public class WorldBuilder extends ProviderStore {
+
+<span class="fc" id="L44">    private static final Logger logger = LoggerFactory.getLogger(WorldBuilder.class);</span>
+
+<span class="fc" id="L46">    private final List&lt;FacetProvider&gt; providersList = Lists.newArrayList();</span>
+<span class="fc" id="L47">    private final Set&lt;Class&lt;? extends WorldFacet&gt;&gt; facetCalculationInProgress = Sets.newHashSet();</span>
+<span class="fc" id="L48">    private final List&lt;WorldRasterizer&gt; rasterizers = Lists.newArrayList();</span>
+<span class="fc" id="L49">    private final List&lt;EntityProvider&gt; entityProviders = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L50">    private int seaLevel = 32;</span>
+
+    private WorldGeneratorPluginLibrary pluginLibrary;
+
+<span class="fc" id="L54">    public WorldBuilder(WorldGeneratorPluginLibrary pluginLibrary) {</span>
+<span class="fc" id="L55">        this.pluginLibrary = pluginLibrary;</span>
+<span class="fc" id="L56">    }</span>
+
+    public WorldBuilder addProvider(FacetProvider provider) {
+<span class="fc" id="L59">        providersList.add(provider);</span>
+<span class="fc" id="L60">        return this;</span>
+    }
+
+    public WorldBuilder addRasterizer(WorldRasterizer rasterizer) {
+<span class="nc" id="L64">        rasterizers.add(rasterizer);</span>
+<span class="nc" id="L65">        return this;</span>
+    }
+
+    public WorldBuilder addEntities(EntityProvider entityProvider) {
+<span class="nc" id="L69">        entityProviders.add(entityProvider);</span>
+<span class="nc" id="L70">        return this;</span>
+    }
+
+    public WorldBuilder addZone(Zone zone) {
+<span class="nc" id="L74">        super.addZone(zone);</span>
+<span class="nc" id="L75">        return this;</span>
+    }
+
+    public WorldBuilder addPlugins() {
+<span class="nc" id="L79">        pluginLibrary.instantiateAllOfType(FacetProviderPlugin.class).forEach(this::addProvider);</span>
+<span class="nc" id="L80">        pluginLibrary.instantiateAllOfType(WorldRasterizerPlugin.class).forEach(this::addRasterizer);</span>
+<span class="nc" id="L81">        pluginLibrary.instantiateAllOfType(EntityProviderPlugin.class).forEach(this::addEntities);</span>
+<span class="nc" id="L82">        pluginLibrary.instantiateAllOfType(ZonePlugin.class).forEach(this::addZone);</span>
+
+<span class="nc" id="L84">        return this;</span>
+    }
+
+    /**
+     * @param level the sea level, measured in blocks
+     * @return this
+     */
+    public WorldBuilder setSeaLevel(int level) {
+<span class="nc" id="L92">        this.seaLevel = level;</span>
+<span class="nc" id="L93">        return this;</span>
+    }
+
+    public World build() {
+        // TODO: ensure the required providers are present
+
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">        if (seed == null) {</span>
+<span class="nc" id="L100">            throw new IllegalStateException(&quot;Seed has not been set&quot;);</span>
+        }
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        for (FacetProvider provider : providersList) {</span>
+<span class="fc" id="L103">            provider.setSeed(seed);</span>
+<span class="fc" id="L104">        }</span>
+<span class="fc" id="L105">        ListMultimap&lt;Class&lt;? extends WorldFacet&gt;, FacetProvider&gt; providerChains = determineProviderChains();</span>
+<span class="fc" id="L106">        List&lt;WorldRasterizer&gt; orderedRasterizers = ensureRasterizerOrdering();</span>
+<span class="fc" id="L107">        return new WorldImpl(providerChains, orderedRasterizers, entityProviders, determineBorders(providerChains), seaLevel);</span>
+    }
+
+    private Map&lt;Class&lt;? extends WorldFacet&gt;, Border3D&gt; determineBorders(ListMultimap&lt;Class&lt;? extends WorldFacet&gt;, FacetProvider&gt; providerChains) {
+<span class="fc" id="L111">        Map&lt;Class&lt;? extends WorldFacet&gt;, Border3D&gt; borders = Maps.newHashMap();</span>
+
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        for (Class&lt;? extends WorldFacet&gt; facet : providerChains.keySet()) {</span>
+<span class="fc" id="L114">            ensureBorderCalculatedForFacet(facet, providerChains, borders);</span>
+<span class="fc" id="L115">        }</span>
+
+<span class="fc" id="L117">        return borders;</span>
+    }
+
+    private void ensureBorderCalculatedForFacet(Class&lt;? extends WorldFacet&gt; facet, ListMultimap&lt;Class&lt;? extends WorldFacet&gt;, FacetProvider&gt; providerChains,
+                                                Map&lt;Class&lt;? extends WorldFacet&gt;, Border3D&gt; borders) {
+
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (!borders.containsKey(facet)) {</span>
+
+<span class="fc" id="L125">            Border3D border = new Border3D(0, 0, 0);</span>
+<span class="fc" id="L126">            int maxSide = 0;</span>
+<span class="fc" id="L127">            int maxTop = 0;</span>
+<span class="fc" id="L128">            int maxBottom = 0;</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">            for (FacetProvider facetProvider : providerChains.values()) {</span>
+                // Find all facets that require it
+<span class="fc" id="L131">                Requires requires = facetProvider.getClass().getAnnotation(Requires.class);</span>
+<span class="fc" id="L132">                Produces produces = facetProvider.getClass().getAnnotation(Produces.class);</span>
+<span class="fc" id="L133">                Updates updates = facetProvider.getClass().getAnnotation(Updates.class);</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">                if (requires != null) {</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">                    for (Facet requiredFacet : requires.value()) {</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">                        if (requiredFacet.value() == facet) {</span>
+
+
+<span class="fc" id="L139">                            FacetBorder requiredBorder = requiredFacet.border();</span>
+
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">                            if (produces != null) {</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">                                for (Class&lt;? extends WorldFacet&gt; producedFacet : produces.value()) {</span>
+<span class="fc" id="L143">                                    ensureBorderCalculatedForFacet(producedFacet, providerChains, borders);</span>
+<span class="fc" id="L144">                                    Border3D borderForProducedFacet = borders.get(producedFacet);</span>
+<span class="fc" id="L145">                                    border = border.maxWith(</span>
+<span class="fc" id="L146">                                            borderForProducedFacet.getTop() + requiredBorder.top(),</span>
+<span class="fc" id="L147">                                            borderForProducedFacet.getBottom() + requiredBorder.bottom(),</span>
+<span class="fc" id="L148">                                            borderForProducedFacet.getSides() + requiredBorder.sides());</span>
+                                }
+                            }
+<span class="fc bfc" id="L151" title="All 2 branches covered.">                            if (updates != null) {</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">                                for (Facet producedFacetAnnotation : updates.value()) {</span>
+<span class="fc" id="L153">                                    Class&lt;? extends WorldFacet&gt; producedFacet = producedFacetAnnotation.value();</span>
+<span class="fc" id="L154">                                    FacetBorder borderForFacetAnnotation = producedFacetAnnotation.border();</span>
+<span class="fc" id="L155">                                    ensureBorderCalculatedForFacet(producedFacet, providerChains, borders);</span>
+<span class="fc" id="L156">                                    Border3D borderForProducedFacet = borders.get(producedFacet);</span>
+<span class="fc" id="L157">                                    border = border.maxWith(</span>
+<span class="fc" id="L158">                                            borderForProducedFacet.getTop() + requiredBorder.top() + borderForFacetAnnotation.top(),</span>
+<span class="fc" id="L159">                                            borderForProducedFacet.getBottom() + requiredBorder.bottom() + borderForFacetAnnotation.bottom(),</span>
+<span class="fc" id="L160">                                            borderForProducedFacet.getSides() + requiredBorder.sides() + borderForFacetAnnotation.sides());</span>
+                                }
+                            }
+                        }
+                    }
+                }
+//Get biggest border for facet?! Create an array of borders and search for maximum.
+// Check if there are update annotation for facet, if there are search for biggest border requested from providers and replace value
+<span class="fc bfc" id="L168" title="All 2 branches covered.">                if (updates != null) {</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">                    for (Facet producedFacetAnnotation : updates.value()) {</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">                        if (producedFacetAnnotation.value() == facet) {</span>
+
+<span class="fc" id="L172">                            FacetBorder borderForFacetAnnotation = producedFacetAnnotation.border();</span>
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">                            if (maxSide &lt; borderForFacetAnnotation.sides()) {</span>
+<span class="nc" id="L174">                                maxSide = borderForFacetAnnotation.sides();</span>
+                            }
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">                            if (maxTop &lt; borderForFacetAnnotation.top()) {</span>
+<span class="nc" id="L177">                                maxTop = borderForFacetAnnotation.top();</span>
+                            }
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">                            if (maxBottom &lt; borderForFacetAnnotation.bottom()) {</span>
+<span class="nc" id="L180">                                maxBottom = borderForFacetAnnotation.bottom();</span>
+                            }
+
+                        }
+
+                    }
+
+<span class="fc" id="L187">                    border = border.maxWith(maxTop, maxBottom, maxSide);</span>
+                }
+<span class="fc" id="L189">            }</span>
+<span class="fc" id="L190">            borders.put(facet, border);</span>
+        }
+<span class="fc" id="L192">    }</span>
+
+
+    private ListMultimap&lt;Class&lt;? extends WorldFacet&gt;, FacetProvider&gt; determineProviderChains() {
+<span class="fc" id="L196">        ListMultimap&lt;Class&lt;? extends WorldFacet&gt;, FacetProvider&gt; result = ArrayListMultimap.create();</span>
+<span class="fc" id="L197">        Set&lt;Class&lt;? extends WorldFacet&gt;&gt; facets = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">        for (FacetProvider provider : providersList) {</span>
+<span class="fc" id="L199">            Produces produces = provider.getClass().getAnnotation(Produces.class);</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">            if (produces != null) {</span>
+<span class="fc" id="L201">                facets.addAll(Arrays.asList(produces.value()));</span>
+            }
+<span class="fc" id="L203">            Updates updates = provider.getClass().getAnnotation(Updates.class);</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">            if (updates != null) {</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">                for (Facet facet : updates.value()) {</span>
+<span class="fc" id="L206">                    facets.add(facet.value());</span>
+                }
+            }
+<span class="fc" id="L209">        }</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        for (Class&lt;? extends WorldFacet&gt; facet : facets) {</span>
+<span class="fc" id="L211">            determineProviderChainFor(facet, result);</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">            if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L213">                StringBuilder text = new StringBuilder(facet.getSimpleName());</span>
+<span class="nc" id="L214">                text.append(&quot; --&gt; &quot;);</span>
+<span class="nc" id="L215">                Iterator&lt;FacetProvider&gt; it = result.get(facet).iterator();</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">                while (it.hasNext()) {</span>
+<span class="nc" id="L217">                    text.append(it.next().getClass().getSimpleName());</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">                    if (it.hasNext()) {</span>
+<span class="nc" id="L219">                        text.append(&quot;, &quot;);</span>
+                    }
+                }
+<span class="nc" id="L222">                logger.debug(text.toString());</span>
+            }
+<span class="fc" id="L224">        }</span>
+
+<span class="fc" id="L226">        return result;</span>
+    }
+
+    private void determineProviderChainFor(Class&lt;? extends WorldFacet&gt; facet, ListMultimap&lt;Class&lt;? extends WorldFacet&gt;, FacetProvider&gt; result) {
+<span class="fc bfc" id="L230" title="All 2 branches covered.">        if (result.containsKey(facet)) {</span>
+<span class="fc" id="L231">            return;</span>
+        }
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">        if (!facetCalculationInProgress.add(facet)) {</span>
+<span class="nc" id="L234">            throw new RuntimeException(&quot;Circular dependency detected when calculating facet provider ordering for &quot; + facet);</span>
+        }
+<span class="fc" id="L236">        Set&lt;FacetProvider&gt; orderedProviders = Sets.newLinkedHashSet();</span>
+
+        // first add all @Produces facet providers
+<span class="fc" id="L239">        FacetProvider producer = null;</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">        for (FacetProvider provider : providersList) {</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">            if (producesFacet(provider, facet)) {</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">                if (producer != null) {</span>
+<span class="fc" id="L243">                    logger.warn(&quot;Facet already produced by {} and overwritten by {}&quot;, producer, provider);</span>
+                }
+                // add all required facets for producing provider
+<span class="fc bfc" id="L246" title="All 2 branches covered.">                for (Facet requirement : requiredFacets(provider)) {</span>
+<span class="fc" id="L247">                    determineProviderChainFor(requirement.value(), result);</span>
+<span class="fc" id="L248">                    orderedProviders.addAll(result.get(requirement.value()));</span>
+                }
+                // add all updated facets for producing provider
+<span class="fc bfc" id="L251" title="All 2 branches covered.">                for (Facet updated : updatedFacets(provider)) {</span>
+<span class="fc" id="L252">                    determineProviderChainFor(updated.value(), result);</span>
+<span class="fc" id="L253">                    orderedProviders.addAll(result.get(updated.value()));</span>
+                }
+<span class="fc" id="L255">                orderedProviders.add(provider);</span>
+<span class="fc" id="L256">                producer = provider;</span>
+            }
+<span class="fc" id="L258">        }</span>
+
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">        if (producer == null) {</span>
+<span class="nc" id="L261">            logger.warn(&quot;No facet provider found that produces {}&quot;, facet);</span>
+        }
+
+        // then add all @Updates facet providers
+<span class="fc" id="L265">        providersList.stream().filter(provider -&gt; updatesFacet(provider, facet)).forEach(provider -&gt; {</span>
+            // add all required facets for updating provider
+<span class="fc bfc" id="L267" title="All 2 branches covered.">            for (Facet requirement : requiredFacets(provider)) {</span>
+<span class="fc" id="L268">                determineProviderChainFor(requirement.value(), result);</span>
+<span class="fc" id="L269">                orderedProviders.addAll(result.get(requirement.value()));</span>
+            }
+            // the provider updates this and other facets
+            // just add producers for the other facets
+<span class="fc bfc" id="L273" title="All 2 branches covered.">            for (Facet updated : updatedFacets(provider)) {</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">                for (FacetProvider fp : providersList) {</span>
+                    // only add @Produces providers to avoid infinite recursion
+<span class="fc bfc" id="L276" title="All 2 branches covered.">                    if (producesFacet(fp, updated.value())) {</span>
+<span class="fc" id="L277">                        orderedProviders.add(fp);</span>
+                    }
+<span class="fc" id="L279">                }</span>
+            }
+<span class="fc" id="L281">            orderedProviders.add(provider);</span>
+<span class="fc" id="L282">        });</span>
+<span class="fc" id="L283">        result.putAll(facet, orderedProviders);</span>
+<span class="fc" id="L284">        facetCalculationInProgress.remove(facet);</span>
+<span class="fc" id="L285">    }</span>
+
+    private Facet[] requiredFacets(FacetProvider provider) {
+<span class="fc" id="L288">        Requires requirements = provider.getClass().getAnnotation(Requires.class);</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">        if (requirements != null) {</span>
+<span class="fc" id="L290">            return requirements.value();</span>
+        }
+<span class="fc" id="L292">        return new Facet[0];</span>
+    }
+
+    private Facet[] updatedFacets(FacetProvider provider) {
+<span class="fc" id="L296">        Updates updates = provider.getClass().getAnnotation(Updates.class);</span>
+<span class="fc bfc" id="L297" title="All 2 branches covered.">        if (updates != null) {</span>
+<span class="fc" id="L298">            return updates.value();</span>
+        }
+<span class="fc" id="L300">        return new Facet[0];</span>
+    }
+
+    private boolean producesFacet(FacetProvider provider, Class&lt;? extends WorldFacet&gt; facet) {
+<span class="fc" id="L304">        Produces produces = provider.getClass().getAnnotation(Produces.class);</span>
+<span class="pc bpc" id="L305" title="1 of 4 branches missed.">        if (produces != null &amp;&amp; Arrays.asList(produces.value()).contains(facet)) {</span>
+<span class="fc" id="L306">            return true;</span>
+        }
+<span class="fc" id="L308">        return false;</span>
+    }
+
+    private boolean updatesFacet(FacetProvider provider, Class&lt;? extends WorldFacet&gt; facet) {
+<span class="fc" id="L312">        Updates updates = provider.getClass().getAnnotation(Updates.class);</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">        if (updates != null) {</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">            for (Facet updatedFacet : updates.value()) {</span>
+<span class="fc bfc" id="L315" title="All 2 branches covered.">                if (updatedFacet.value() == facet) {</span>
+<span class="fc" id="L316">                    return true;</span>
+                }
+            }
+        }
+<span class="fc" id="L320">        return false;</span>
+    }
+
+    // Ensure that rasterizers that must run after others are in the correct order. This ensures that blocks from
+    // the dependent raterizer are not being overwritten by any antecedent rasterizer.
+    // TODO: This will only handle first-order dependencies and does not check for circular dependencies
+    private List&lt;WorldRasterizer&gt; ensureRasterizerOrdering() {
+<span class="fc" id="L327">        List&lt;WorldRasterizer&gt; orderedRasterizers = Lists.newArrayList();</span>
+
+<span class="fc" id="L329">        Set&lt;Class&lt;? extends WorldRasterizer&gt;&gt; addedRasterizers = new HashSet&lt;&gt;();</span>
+
+<span class="pc bpc" id="L331" title="1 of 2 branches missed.">        for (WorldRasterizer rasterizer : rasterizers) {</span>
+            // Does this have dependencies on other rasterizers
+<span class="nc" id="L333">            RequiresRasterizer requiresRasterizer = rasterizer.getClass().getAnnotation(RequiresRasterizer.class);</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">            if (requiresRasterizer != null) {</span>
+<span class="nc" id="L335">                List&lt;Class&lt;? extends WorldRasterizer&gt;&gt; antecedentClassList = Arrays.asList(requiresRasterizer.value());</span>
+<span class="nc" id="L336">                List&lt;WorldRasterizer&gt; antecedents = rasterizers.stream()</span>
+<span class="nc" id="L337">                        .filter(r -&gt; antecedentClassList.contains(r.getClass()))</span>
+<span class="nc" id="L338">                        .collect(Collectors.toList());</span>
+
+                // Add all antecedents to the list first
+<span class="nc" id="L341">                antecedents.forEach(dependency -&gt; {</span>
+<span class="nc bnc" id="L342" title="All 2 branches missed.">                    if (!addedRasterizers.contains(dependency.getClass())) {</span>
+<span class="nc" id="L343">                        orderedRasterizers.add(dependency);</span>
+<span class="nc" id="L344">                        addedRasterizers.add(dependency.getClass());</span>
+                    }
+<span class="nc" id="L346">                });</span>
+
+                // Then add this one
+<span class="nc" id="L349">                orderedRasterizers.add(rasterizer);</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">            } else if (!addedRasterizers.contains(rasterizer.getClass())) {</span>
+<span class="nc" id="L351">                orderedRasterizers.add(rasterizer);</span>
+<span class="nc" id="L352">                addedRasterizers.add(rasterizer.getClass());</span>
+            }
+<span class="nc" id="L354">        }</span>
+<span class="fc" id="L355">        return orderedRasterizers;</span>
+    }
+
+
+    public FacetedWorldConfigurator createConfigurator() {
+<span class="nc" id="L360">        List&lt;ConfigurableFacetProvider&gt; configurables = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">        for (FacetProvider facetProvider : providersList) {</span>
+<span class="nc bnc" id="L362" title="All 2 branches missed.">            if (facetProvider instanceof ConfigurableFacetProvider) {</span>
+<span class="nc" id="L363">                configurables.add((ConfigurableFacetProvider) facetProvider);</span>
+            }
+<span class="nc" id="L365">        }</span>
+<span class="nc" id="L366">        FacetedWorldConfigurator worldConfigurator = new FacetedWorldConfigurator(configurables);</span>
+<span class="nc" id="L367">        return worldConfigurator;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

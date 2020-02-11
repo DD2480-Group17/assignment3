@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIDoubleSlider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIDoubleSlider.java</span></div><h1>UIDoubleSlider.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.terasology.input.MouseInput;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.SubRegion;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
+
+/**
+ * A simple slider bar with two handles
+ */
+public class UIDoubleSlider extends CoreWidget {
+    public static final String SLIDER_PART = &quot;slider&quot;;
+    public static final String TICKER_LEFT_PART = &quot;tickerLeft&quot;;
+    public static final String TICKER_RIGHT_PART = &quot;tickerRight&quot;;
+<span class="nc" id="L41">    @LayoutConfig</span>
+<span class="nc" id="L42">    private Binding&lt;Float&gt; minimum = new DefaultBinding&lt;&gt;(0.0f);</span>
+<span class="nc" id="L43">    @LayoutConfig</span>
+<span class="nc" id="L44">    private Binding&lt;Float&gt; range = new DefaultBinding&lt;&gt;(1.0f);</span>
+<span class="nc" id="L45">    @LayoutConfig</span>
+<span class="nc" id="L46">    private Binding&lt;Float&gt; increment = new DefaultBinding&lt;&gt;(0.1f);</span>
+<span class="nc" id="L47">    @LayoutConfig</span>
+    private int precision = 1;
+<span class="nc" id="L49">    @LayoutConfig</span>
+<span class="nc" id="L50">    private Binding&lt;Float&gt; valueLeft = new DefaultBinding&lt;&gt;(0.3f);</span>
+<span class="nc" id="L51">    @LayoutConfig</span>
+<span class="nc" id="L52">    private Binding&lt;Float&gt; valueRight = new DefaultBinding&lt;&gt;(0.7f);</span>
+    private int sliderWidth;
+<span class="nc" id="L54">    private String formatString = &quot;0.0&quot;;</span>
+    private boolean active;
+<span class="nc" id="L56">    private InteractionListener tickerListenerLeft = new BaseInteractionListener() {</span>
+<span class="nc" id="L57">        private Vector2i offset = new Vector2i();</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+<span class="nc" id="L62">                active = true;</span>
+<span class="nc" id="L63">                offset.set(event.getRelativeMousePosition());</span>
+<span class="nc" id="L64">                offset.x -= pixelOffsetFor(getValueLeft(), sliderWidth);</span>
+<span class="nc" id="L65">                return true;</span>
+            }
+<span class="nc" id="L67">            return false;</span>
+        }
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc" id="L72">            active = false;</span>
+<span class="nc" id="L73">        }</span>
+
+        @Override
+        public void onMouseDrag(NUIMouseDragEvent event) {
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            if (sliderWidth &gt; 0) {</span>
+<span class="nc" id="L78">                Vector2i pos = event.getRelativeMousePosition();</span>
+<span class="nc" id="L79">                int maxSlot = TeraMath.floorToInt(getRange() / getIncrement());</span>
+<span class="nc" id="L80">                int slotWidth = sliderWidth / maxSlot;</span>
+<span class="nc" id="L81">                int nearestSlot = maxSlot * (pos.x - offset.x + slotWidth / 2) / sliderWidth;</span>
+<span class="nc" id="L82">                nearestSlot = TeraMath.clamp(nearestSlot, 0, maxSlot);</span>
+<span class="nc" id="L83">                float newValue = TeraMath.clamp(getIncrement() * nearestSlot, 0, getRange()) + getMinimum();</span>
+<span class="nc" id="L84">                setValueLeft(newValue);</span>
+            }
+<span class="nc" id="L86">        }</span>
+    };
+<span class="nc" id="L88">    private InteractionListener tickerListenerRight = new BaseInteractionListener() {</span>
+<span class="nc" id="L89">        private Vector2i offset = new Vector2i();</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+<span class="nc" id="L94">                active = true;</span>
+<span class="nc" id="L95">                offset.set(event.getRelativeMousePosition());</span>
+<span class="nc" id="L96">                offset.x -= pixelOffsetFor(getValueRight(), sliderWidth);</span>
+<span class="nc" id="L97">                return true;</span>
+            }
+<span class="nc" id="L99">            return false;</span>
+        }
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc" id="L104">            active = false;</span>
+<span class="nc" id="L105">        }</span>
+
+        @Override
+        public void onMouseDrag(NUIMouseDragEvent event) {
+<span class="nc bnc" id="L109" title="All 2 branches missed.">            if (sliderWidth &gt; 0) {</span>
+<span class="nc" id="L110">                Vector2i pos = event.getRelativeMousePosition();</span>
+<span class="nc" id="L111">                int maxSlot = TeraMath.floorToInt(getRange() / getIncrement());</span>
+<span class="nc" id="L112">                int slotWidth = sliderWidth / maxSlot;</span>
+<span class="nc" id="L113">                int nearestSlot = maxSlot * (pos.x - offset.x + slotWidth / 2) / sliderWidth;</span>
+<span class="nc" id="L114">                nearestSlot = TeraMath.clamp(nearestSlot, 0, maxSlot);</span>
+<span class="nc" id="L115">                float newValue = TeraMath.clamp(getIncrement() * nearestSlot, 0, getRange()) + getMinimum();</span>
+<span class="nc" id="L116">                setValueRight(newValue);</span>
+            }
+<span class="nc" id="L118">        }</span>
+    };
+
+<span class="nc" id="L121">    public UIDoubleSlider() {</span>
+<span class="nc" id="L122">    }</span>
+
+    public UIDoubleSlider(String id) {
+<span class="nc" id="L125">        super(id);</span>
+<span class="nc" id="L126">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L130">        canvas.setPart(SLIDER_PART);</span>
+<span class="nc" id="L131">        canvas.drawBackground();</span>
+
+<span class="nc" id="L133">        drawTicker(canvas, TICKER_LEFT_PART, valueLeft, tickerListenerLeft, false);</span>
+<span class="nc" id="L134">        drawTicker(canvas, TICKER_RIGHT_PART, valueRight, tickerListenerRight, true);</span>
+<span class="nc" id="L135">    }</span>
+
+    private void drawTicker(Canvas canvas, String part, Binding&lt;Float&gt; value, InteractionListener tickerListener, boolean rightTicker) {
+<span class="nc" id="L138">        canvas.setPart(part);</span>
+<span class="nc" id="L139">        String display = String.format(&quot;%.&quot; + precision + &quot;f&quot;, value.get());</span>
+<span class="nc" id="L140">        int tickerWidth = canvas.getCurrentStyle().getFont().getWidth(formatString);</span>
+<span class="nc" id="L141">        tickerWidth += canvas.getCurrentStyle().getMargin().getTotalWidth();</span>
+
+<span class="nc" id="L143">        sliderWidth = canvas.size().x - tickerWidth * 2;</span>
+<span class="nc" id="L144">        int drawLocation = pixelOffsetFor(value.get(), sliderWidth);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        if (rightTicker) {</span>
+<span class="nc" id="L146">            drawLocation += tickerWidth;</span>
+        }
+<span class="nc" id="L148">        Rect2i tickerRegion = Rect2i.createFromMinAndSize(drawLocation, 0, tickerWidth, canvas.size().y);</span>
+<span class="nc" id="L149">        try (SubRegion ignored = canvas.subRegion(tickerRegion, false)) {</span>
+<span class="nc" id="L150">            canvas.drawBackground();</span>
+<span class="nc" id="L151">            canvas.drawText(display);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            if (isEnabled()) {</span>
+<span class="nc" id="L153">                canvas.addInteractionRegion(tickerListener);</span>
+            }
+        }
+<span class="nc" id="L156">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i areaHint) {
+<span class="nc" id="L160">        Vector2i result = new Vector2i();</span>
+<span class="nc" id="L161">        canvas.setPart(SLIDER_PART);</span>
+<span class="nc" id="L162">        result.x = canvas.getCurrentStyle().getFixedWidth();</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (result.x == 0) {</span>
+<span class="nc" id="L164">            result.x = canvas.getCurrentStyle().getMinWidth();</span>
+        }
+<span class="nc" id="L166">        result.y = canvas.getCurrentStyle().getFixedHeight();</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        if (result.y == 0) {</span>
+<span class="nc" id="L168">            result.y = canvas.getCurrentStyle().getMinHeight();</span>
+        }
+
+<span class="nc" id="L171">        Vector2i left = getTickerPreferredContentSize(canvas, TICKER_LEFT_PART);</span>
+<span class="nc" id="L172">        Vector2i right = getTickerPreferredContentSize(canvas, TICKER_RIGHT_PART);</span>
+
+<span class="nc" id="L174">        result.y = Math.max(result.y, Math.max(left.y, right.y));</span>
+<span class="nc" id="L175">        result.x = Math.max(result.x, left.x + left.y);</span>
+<span class="nc" id="L176">        return result;</span>
+    }
+
+    private Vector2i getTickerPreferredContentSize(Canvas canvas, String part) {
+<span class="nc" id="L180">        Vector2i result = new Vector2i();</span>
+
+<span class="nc" id="L182">        canvas.setPart(part);</span>
+<span class="nc" id="L183">        int tickerWidth = canvas.getCurrentStyle().getFont().getWidth(formatString);</span>
+<span class="nc" id="L184">        tickerWidth += canvas.getCurrentStyle().getMargin().getTotalWidth();</span>
+<span class="nc" id="L185">        result.x = tickerWidth;</span>
+
+<span class="nc bnc" id="L187" title="All 2 branches missed.">        if (canvas.getCurrentStyle().getFixedWidth() != 0) {</span>
+<span class="nc" id="L188">            result.x = Math.max(result.x, canvas.getCurrentStyle().getFixedWidth());</span>
+        } else {
+<span class="nc" id="L190">            result.x = Math.max(result.x, canvas.getCurrentStyle().getMinWidth());</span>
+        }
+<span class="nc bnc" id="L192" title="All 2 branches missed.">        if (canvas.getCurrentStyle().getFixedHeight() != 0) {</span>
+<span class="nc" id="L193">            result.y = canvas.getCurrentStyle().getFixedHeight();</span>
+        } else {
+<span class="nc" id="L195">            result.y = canvas.getCurrentStyle().getMinHeight();</span>
+        }
+
+<span class="nc" id="L198">        return result;</span>
+    }
+
+    @Override
+    public String getMode() {
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        if (!isEnabled()) {</span>
+<span class="nc" id="L204">            return DISABLED_MODE;</span>
+        }
+
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (active) {</span>
+<span class="nc" id="L208">            return ACTIVE_MODE;</span>
+<span class="nc bnc" id="L209" title="All 4 branches missed.">        } else if (tickerListenerLeft.isMouseOver() || tickerListenerRight.isMouseOver()) {</span>
+<span class="nc" id="L210">            return HOVER_MODE;</span>
+        }
+<span class="nc" id="L212">        return DEFAULT_MODE;</span>
+    }
+
+    public void bindMinimum(Binding&lt;Float&gt; binding) {
+<span class="nc" id="L216">        this.minimum = binding;</span>
+<span class="nc" id="L217">    }</span>
+
+    /**
+     * @return A Float indicating the minimum value.
+     */
+    public float getMinimum() {
+<span class="nc" id="L223">        return minimum.get();</span>
+    }
+
+    /**
+     * @param min A Float indicating the minimum value settable.
+     */
+    public void setMinimum(float min) {
+<span class="nc" id="L230">        this.minimum.set(min);</span>
+<span class="nc" id="L231">        generateFormatString();</span>
+<span class="nc" id="L232">    }</span>
+
+    public void bindRange(Binding&lt;Float&gt; binding) {
+<span class="nc" id="L235">        this.range = binding;</span>
+<span class="nc" id="L236">    }</span>
+
+    /**
+     * @return A Float indicating the range of values.
+     */
+    public float getRange() {
+<span class="nc" id="L242">        return range.get();</span>
+    }
+
+    /**
+     * @param val A Float specifying the range of values.
+     */
+    public void setRange(float val) {
+<span class="nc" id="L249">        range.set(val);</span>
+<span class="nc" id="L250">        generateFormatString();</span>
+<span class="nc" id="L251">    }</span>
+
+    public void bindIncrement(Binding&lt;Float&gt; binding) {
+<span class="nc" id="L254">        increment = binding;</span>
+<span class="nc" id="L255">    }</span>
+
+    /**
+     * @return A Float indicating the smallest increment.
+     */
+    public float getIncrement() {
+<span class="nc" id="L261">        return increment.get();</span>
+    }
+
+    /**
+     * @param val A Float specifying the smallest increment.
+     */
+    public void setIncrement(float val) {
+<span class="nc" id="L268">        increment.set(val);</span>
+<span class="nc" id="L269">    }</span>
+
+    public void bindValueLeft(Binding&lt;Float&gt; binding) {
+<span class="nc" id="L272">        valueLeft = binding;</span>
+<span class="nc" id="L273">    }</span>
+
+    public void bindValueRight(Binding&lt;Float&gt; binding) {
+<span class="nc" id="L276">        valueRight = binding;</span>
+<span class="nc" id="L277">    }</span>
+
+    /**
+     * @return A Float containing the value of the left handle.
+     */
+    public float getValueLeft() {
+<span class="nc" id="L283">        return valueLeft.get();</span>
+    }
+
+    /**
+     * @param val The new value of the left handle
+     */
+    public void setValueLeft(float val) {
+<span class="nc" id="L290">        valueLeft.set(val);</span>
+
+<span class="nc bnc" id="L292" title="All 2 branches missed.">        if (val &gt; valueRight.get()) {</span>
+<span class="nc" id="L293">            valueRight.set(val);</span>
+        }
+<span class="nc" id="L295">    }</span>
+
+    /**
+     * @return A Float containing the value of the right handle.
+     */
+    public float getValueRight() {
+<span class="nc" id="L301">        return valueRight.get();</span>
+    }
+
+    /**
+     * @param val The new value of the right handle.
+     */
+    public void setValueRight(float val) {
+<span class="nc" id="L308">        valueRight.set(val);</span>
+
+<span class="nc bnc" id="L310" title="All 2 branches missed.">        if (val &lt; valueLeft.get()) {</span>
+<span class="nc" id="L311">            valueLeft.set(val);</span>
+        }
+<span class="nc" id="L313">    }</span>
+
+    /**
+     * @return The number of decimal points displayed.
+     */
+    public int getPrecision() {
+<span class="nc" id="L319">        return precision;</span>
+    }
+
+    /**
+     * @param precision The number of decimal points to display.
+     */
+    public void setPrecision(int precision) {
+<span class="nc" id="L326">        this.precision = precision;</span>
+<span class="nc" id="L327">        generateFormatString();</span>
+<span class="nc" id="L328">    }</span>
+
+    private void generateFormatString() {
+<span class="nc" id="L331">        float maxValue = getRange() + getMinimum();</span>
+<span class="nc" id="L332">        int leadingValues = String.format(&quot;%.0f&quot;, maxValue).length();</span>
+<span class="nc" id="L333">        StringBuilder newFormat = new StringBuilder();</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">        if (getMinimum() &lt; 0) {</span>
+<span class="nc" id="L335">            newFormat.append('-');</span>
+        }
+<span class="nc bnc" id="L337" title="All 2 branches missed.">        for (int i = 0; i &lt; leadingValues; ++i) {</span>
+<span class="nc" id="L338">            newFormat.append('0');</span>
+        }
+<span class="nc bnc" id="L340" title="All 2 branches missed.">        if (precision &gt; 0) {</span>
+<span class="nc" id="L341">            newFormat.append('.');</span>
+<span class="nc bnc" id="L342" title="All 2 branches missed.">            for (int i = 0; i &lt; precision; ++i) {</span>
+<span class="nc" id="L343">                newFormat.append('0');</span>
+            }
+        }
+<span class="nc" id="L346">        formatString = newFormat.toString();</span>
+<span class="nc" id="L347">    }</span>
+
+    private int pixelOffsetFor(float val, int width) {
+<span class="nc" id="L350">        return TeraMath.floorToInt(width * (val - getMinimum()) / getRange());</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

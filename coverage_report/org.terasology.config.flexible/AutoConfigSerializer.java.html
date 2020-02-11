@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AutoConfigSerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config.flexible</a> &gt; <span class="el_source">AutoConfigSerializer.java</span></div><h1>AutoConfigSerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.config.flexible;
+
+import com.google.common.collect.Maps;
+import com.google.gson.JsonElement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.PersistedDataMap;
+import org.terasology.persistence.typeHandling.PersistedDataSerializer;
+import org.terasology.persistence.typeHandling.TypeHandler;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.gson.GsonPersistedData;
+import org.terasology.persistence.typeHandling.gson.GsonPersistedDataSerializer;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Type;
+import java.util.Map;
+import java.util.Optional;
+
+public class AutoConfigSerializer&lt;C extends AutoConfig&gt; {
+<span class="fc" id="L37">    private static final Logger LOGGER = LoggerFactory.getLogger(AutoConfigSerializer.class);</span>
+
+    private final Map&lt;Field, TypeHandler&lt;?&gt;&gt; settingFieldHandlers;
+    private final Class&lt;C&gt; configType;
+
+<span class="fc" id="L42">    public AutoConfigSerializer(Class&lt;C&gt; configType, TypeHandlerLibrary typeHandlerLibrary) {</span>
+<span class="fc" id="L43">        this.settingFieldHandlers = Maps.newHashMap();</span>
+<span class="fc" id="L44">        this.configType = configType;</span>
+
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        for (Field settingField : AutoConfig.getSettingFieldsIn(configType)) {</span>
+            // Should be a field of type Setting&lt;T&gt;, settingValueType will equal T
+<span class="fc" id="L48">            Type settingValueType = ReflectionUtil.getTypeParameter(settingField.getGenericType(), 0);</span>
+<span class="fc" id="L49">            Optional&lt;TypeHandler&lt;?&gt;&gt; typeHandler = typeHandlerLibrary.getTypeHandler(settingValueType);</span>
+
+<span class="fc bfc" id="L51" title="All 2 branches covered.">            if (!typeHandler.isPresent()) {</span>
+<span class="fc" id="L52">                LOGGER.error(</span>
+                    &quot;Setting {} of type {} in config {} does not&quot; +
+                        &quot; have an appropriate TypeHandler for its values&quot;,
+<span class="fc" id="L55">                    settingField.getName(),</span>
+<span class="fc" id="L56">                    settingValueType.getTypeName(),</span>
+<span class="fc" id="L57">                    configType.getSimpleName()</span>
+                );
+<span class="fc" id="L59">                continue;</span>
+            }
+
+<span class="fc" id="L62">            settingFieldHandlers.put(settingField, typeHandler.get());</span>
+<span class="fc" id="L63">        }</span>
+<span class="fc" id="L64">    }</span>
+
+    public JsonElement serialize(C config) {
+<span class="fc" id="L67">        GsonPersistedData serialized = (GsonPersistedData) serialize(config, new GsonPersistedDataSerializer());</span>
+
+<span class="fc" id="L69">        return serialized.getElement();</span>
+    }
+
+    public PersistedData serialize(C config, PersistedDataSerializer serializer) {
+        // TODO: Serialize config name and description?
+<span class="fc" id="L74">        Map&lt;String, PersistedData&gt; persistedSettings = Maps.newLinkedHashMap();</span>
+
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        for (Map.Entry&lt;Field, TypeHandler&lt;?&gt;&gt; fieldHandlerEntry : settingFieldHandlers.entrySet()) {</span>
+<span class="fc" id="L77">            Field settingField = fieldHandlerEntry.getKey();</span>
+
+<span class="fc" id="L79">            Setting&lt;?&gt; setting = getSettingInField(config, settingField);</span>
+
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">            if (setting == null) {</span>
+<span class="nc" id="L82">                continue;</span>
+            }
+
+<span class="fc bfc" id="L85" title="All 2 branches covered.">            if (!setting.get().equals(setting.getDefaultValue())) {</span>
+<span class="fc" id="L86">                TypeHandler typeHandler = fieldHandlerEntry.getValue();</span>
+<span class="fc" id="L87">                PersistedData persistedSetting = typeHandler.serialize(setting.get(), serializer);</span>
+
+<span class="fc" id="L89">                persistedSettings.put(getSettingPropertyName(settingField, setting), persistedSetting);</span>
+            }
+<span class="fc" id="L91">        }</span>
+
+<span class="fc" id="L93">        return serializer.serialize(persistedSettings);</span>
+    }
+
+    public void deserializeOnto(C config, JsonElement data) {
+<span class="fc" id="L97">        deserializeOnto(config, new GsonPersistedData(data));</span>
+<span class="fc" id="L98">    }</span>
+
+    public void deserializeOnto(C config, PersistedData data) {
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">        if (!data.isValueMap()) {</span>
+<span class="nc" id="L102">            LOGGER.error(&quot;Config must always be specified as a value map&quot;);</span>
+        }
+
+<span class="fc" id="L105">        PersistedDataMap persistedSettings = data.getAsValueMap();</span>
+
+        // Since all settings are public final fields, they should have been initialized
+        // in the constructor  when the new config was created
+
+<span class="fc" id="L110">        Map&lt;String, Field&gt; settingFieldsByName = Maps.newHashMap();</span>
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        for (Field field : settingFieldHandlers.keySet()) {</span>
+<span class="fc" id="L113">            Setting&lt;?&gt; setting = getSettingInField(config, field);</span>
+
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">            if (setting == null) {</span>
+<span class="nc" id="L116">                continue;</span>
+            }
+
+<span class="fc" id="L119">            settingFieldsByName.put(getSettingPropertyName(field, setting), field);</span>
+<span class="fc" id="L120">        }</span>
+
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        for (Map.Entry&lt;String, PersistedData&gt; persistedSetting : persistedSettings.entrySet()) {</span>
+<span class="fc" id="L123">            Field field = settingFieldsByName.get(persistedSetting.getKey());</span>
+
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">            if (field == null) {</span>
+<span class="nc" id="L126">                LOGGER.warn(</span>
+                    &quot;Could not find setting with name {} in config {}&quot;,
+<span class="nc" id="L128">                    persistedSetting.getKey(),</span>
+<span class="nc" id="L129">                    config.getId()</span>
+                );
+<span class="nc" id="L131">                continue;</span>
+            }
+
+<span class="fc" id="L134">            TypeHandler&lt;?&gt; typeHandler = settingFieldHandlers.get(field);</span>
+<span class="fc" id="L135">            Optional&lt;?&gt; settingValue = typeHandler.deserialize(persistedSetting.getValue());</span>
+
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">            if (!settingValue.isPresent()) {</span>
+<span class="nc" id="L138">                LOGGER.error(</span>
+                    &quot;Could not deserialize value of setting {} in config {} from {}&quot;,
+<span class="nc" id="L140">                    persistedSetting.getKey(),</span>
+<span class="nc" id="L141">                    config.getId(),</span>
+<span class="nc" id="L142">                    persistedSetting.getValue()</span>
+                );
+<span class="nc" id="L144">                continue;</span>
+            }
+
+<span class="fc" id="L147">            Setting setting = getSettingInField(config, field);</span>
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">            if (!setting.set(settingValue.get())) {</span>
+<span class="nc" id="L150">                LOGGER.warn(</span>
+                    &quot;Could not store deserialized value {} in setting {} in config {}&quot;,
+<span class="nc" id="L152">                    settingValue.get(),</span>
+<span class="nc" id="L153">                    persistedSetting.getKey(),</span>
+<span class="nc" id="L154">                    config.getId()</span>
+                );
+            }
+<span class="fc" id="L157">        }</span>
+<span class="fc" id="L158">    }</span>
+
+    private String getSettingPropertyName(Field settingField, Setting&lt;?&gt; setting) {
+        // TODO: Use id?
+<span class="fc" id="L162">        String humanReadableName = setting.getHumanReadableName();</span>
+
+<span class="pc bpc" id="L164" title="1 of 4 branches missed.">        if (humanReadableName == null || humanReadableName.isEmpty()) {</span>
+<span class="fc" id="L165">            return settingField.getName();</span>
+        }
+
+<span class="fc" id="L168">        return humanReadableName;</span>
+    }
+
+    private Setting&lt;?&gt; getSettingInField(C config, Field settingField) {
+        try {
+<span class="fc" id="L173">            return (Setting&lt;?&gt;) settingField.get(config);</span>
+<span class="nc" id="L174">        } catch (IllegalAccessException | ClassCastException e) {</span>
+            // This should never happen since fields are preprocessed
+<span class="nc" id="L176">            LOGGER.error(</span>
+                &quot;Field {} in config {} is not a public field of type Setting&quot;,
+<span class="nc" id="L178">                settingField.getName(),</span>
+<span class="nc" id="L179">                settingField.getDeclaringClass().getSimpleName()</span>
+            );
+
+<span class="nc" id="L182">            return null;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

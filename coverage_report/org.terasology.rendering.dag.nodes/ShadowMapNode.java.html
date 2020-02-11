@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ShadowMapNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">ShadowMapNode.java</span></div><h1>ShadowMapNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.cameras.OrthographicCamera;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.ConditionDependentNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableFaceCulling;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetViewportToSizeOf;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.fbms.ShadowMapResolutionDependentFBOs;
+import org.terasology.rendering.primitives.ChunkMesh;
+import org.terasology.rendering.world.RenderQueuesHelper;
+import org.terasology.rendering.world.RenderableWorld;
+import org.terasology.world.chunks.RenderableChunk;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+
+import static org.terasology.rendering.primitives.ChunkMesh.RenderPhase.OPAQUE;
+
+/**
+ * This node class generates a shadow map used by the lighting step to determine what's in sight of
+ * the main light (sun, moon) and what isn't, allowing the display of shadows cast from said light.
+ * TODO: generalize to handle more than one light.
+ *
+ * Instances of this class:
+ * - are enabled and disabled depending on the shadow setting in the rendering config.
+ * - in VR mode regenerate the shadow map only once per frame rather than once per-eye.
+ *
+ * Diagram of this node can be viewed from:
+ * TODO: move diagram to the wiki when this part of the code is stable
+ * - https://docs.google.com/drawings/d/13I0GM9jDFlZv1vNrUPlQuBbaF86RPRNpVfn5q8Wj2lc/edit?usp=sharing
+ */
+public class ShadowMapNode extends ConditionDependentNode implements PropertyChangeListener {
+<span class="nc" id="L62">    public static final SimpleUri SHADOW_MAP_FBO_URI = new SimpleUri(&quot;engine:fbo.sceneShadowMap&quot;);</span>
+<span class="nc" id="L63">    private static final ResourceUrn SHADOW_MAP_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.shadowMap&quot;);</span>
+    private static final int SHADOW_FRUSTUM_BOUNDS = 500;
+    private static final float STEP_SIZE = 50f;
+
+<span class="nc" id="L67">    public Camera shadowMapCamera = new OrthographicCamera(-SHADOW_FRUSTUM_BOUNDS, SHADOW_FRUSTUM_BOUNDS, SHADOW_FRUSTUM_BOUNDS, -SHADOW_FRUSTUM_BOUNDS);</span>
+
+    private BackdropProvider backdropProvider;
+    private RenderingConfig renderingConfig;
+    private RenderQueuesHelper renderQueues;
+
+    private SubmersibleCamera activeCamera;
+    private float texelSize;
+
+    public ShadowMapNode(String nodeUri, Context context) {
+<span class="nc" id="L77">        super(nodeUri, context);</span>
+
+<span class="nc" id="L79">        renderQueues = context.get(RenderQueuesHelper.class);</span>
+<span class="nc" id="L80">        backdropProvider = context.get(BackdropProvider.class);</span>
+<span class="nc" id="L81">        renderingConfig = context.get(Config.class).getRendering();</span>
+
+<span class="nc" id="L83">        activeCamera = worldRenderer.getActiveCamera();</span>
+
+<span class="nc" id="L85">        context.get(RenderableWorld.class).setShadowMapCamera(shadowMapCamera);</span>
+
+<span class="nc" id="L87">        texelSize = 1.0f / renderingConfig.getShadowMapResolution() * 2.0f;</span>
+<span class="nc" id="L88">        renderingConfig.subscribe(RenderingConfig.SHADOW_MAP_RESOLUTION, this);</span>
+
+<span class="nc" id="L90">        requiresCondition(() -&gt; renderingConfig.isDynamicShadows());</span>
+<span class="nc" id="L91">        renderingConfig.subscribe(RenderingConfig.DYNAMIC_SHADOWS, this);</span>
+
+<span class="nc" id="L93">        ShadowMapResolutionDependentFBOs shadowMapResolutionDependentFBOs = context.get(ShadowMapResolutionDependentFBOs.class);</span>
+<span class="nc" id="L94">        FBO shadowMapFbo = requiresFBO(new FBOConfig(SHADOW_MAP_FBO_URI, FBO.Type.NO_COLOR).useDepthBuffer(), shadowMapResolutionDependentFBOs);</span>
+<span class="nc" id="L95">        addDesiredStateChange(new BindFbo(shadowMapFbo));</span>
+<span class="nc" id="L96">        addDesiredStateChange(new SetViewportToSizeOf(shadowMapFbo));</span>
+<span class="nc" id="L97">        addDesiredStateChange(new EnableMaterial(SHADOW_MAP_MATERIAL_URN));</span>
+
+<span class="nc" id="L99">        addDesiredStateChange(new EnableFaceCulling());</span>
+<span class="nc" id="L100">    }</span>
+
+    private float calculateTexelSize(int shadowMapResolution) {
+<span class="nc" id="L103">        return 1.0f / shadowMapResolution * 2.0f; // the 2.0 multiplier is currently a mystery.</span>
+    }
+
+    /**
+     * Handle changes to the following rendering config properties:
+     *
+     * - DYNAMIC_SHADOWS
+     * - SHADOW_MAP_RESOLUTION
+     *
+     * It assumes the event gets fired only if one of the property has actually changed.
+     *
+     * @param event a PropertyChangeEvent instance, carrying information regarding
+     *              what property changed, its old value and its new value.
+     */
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+<span class="nc" id="L119">        String propertyName = event.getPropertyName();</span>
+
+<span class="nc bnc" id="L121" title="All 3 branches missed.">        switch (propertyName) {</span>
+            case RenderingConfig.DYNAMIC_SHADOWS:
+<span class="nc" id="L123">                super.propertyChange(event);</span>
+<span class="nc" id="L124">                break;</span>
+
+            case RenderingConfig.SHADOW_MAP_RESOLUTION:
+<span class="nc" id="L127">                int shadowMapResolution = (int) event.getNewValue();</span>
+<span class="nc" id="L128">                texelSize = calculateTexelSize(shadowMapResolution);</span>
+                break;
+
+            // default: no other cases are possible - see subscribe operations in initialize().
+        }
+<span class="nc" id="L133">    }</span>
+
+    /**
+     * Re-positions the shadow map camera to loosely match the position of the main light (sun, moon), then
+     * writes depth information from that camera into a depth buffer, to be used later to create shadows.
+     *
+     * The loose match is to avoid flickering: the shadowmap only moves in steps while the main light actually
+     * moves continuously.
+     *
+     * This method is executed within a NodeTask in the Render Tasklist, but its calculations are executed
+     * only once per frame. I.e. in VR mode they are executed only when the left eye is processed. This is
+     * done in the assumption that we do not need to generate and use a shadow map for each eye as it wouldn't
+     * be noticeable.
+     */
+    @Override
+    public void process() {
+        // TODO: remove this IF statement when VR is handled via parallel nodes, one per eye.
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        if (worldRenderer.isFirstRenderingStageForCurrentFrame()) {</span>
+<span class="nc" id="L151">            PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+            // Actual Node Processing
+
+<span class="nc" id="L155">            positionShadowMapCamera(); // TODO: extract these calculation into a separate node.</span>
+
+<span class="nc" id="L157">            int numberOfRenderedTriangles = 0;</span>
+<span class="nc" id="L158">            int numberOfChunksThatAreNotReadyYet = 0;</span>
+
+<span class="nc" id="L160">            final Vector3f cameraPosition = shadowMapCamera.getPosition();</span>
+
+<span class="nc" id="L162">            shadowMapCamera.lookThrough();</span>
+
+            // FIXME: storing chunksOpaqueShadow or a mechanism for requesting a chunk queue for nodes which calls renderChunks method?
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            while (renderQueues.chunksOpaqueShadow.size() &gt; 0) {</span>
+<span class="nc" id="L166">                RenderableChunk chunk = renderQueues.chunksOpaqueShadow.poll();</span>
+
+<span class="nc bnc" id="L168" title="All 2 branches missed.">                if (chunk.hasMesh()) {</span>
+<span class="nc" id="L169">                    final ChunkMesh chunkMesh = chunk.getMesh();</span>
+<span class="nc" id="L170">                    final Vector3f chunkPosition = chunk.getPosition().toVector3f();</span>
+
+<span class="nc" id="L172">                    numberOfRenderedTriangles += chunkMesh.render(OPAQUE, chunkPosition, cameraPosition);</span>
+
+<span class="nc" id="L174">                } else {</span>
+<span class="nc" id="L175">                    numberOfChunksThatAreNotReadyYet++;</span>
+                }
+<span class="nc" id="L177">            }</span>
+
+<span class="nc" id="L179">            worldRenderer.increaseTrianglesCount(numberOfRenderedTriangles);</span>
+<span class="nc" id="L180">            worldRenderer.increaseNotReadyChunkCount(numberOfChunksThatAreNotReadyYet);</span>
+
+<span class="nc" id="L182">            PerformanceMonitor.endActivity();</span>
+        }
+<span class="nc" id="L184">    }</span>
+
+    private void positionShadowMapCamera() {
+        // We begin by setting our light coordinates at the player coordinates, ignoring the player's altitude
+<span class="nc" id="L188">        Vector3f mainLightPosition = new Vector3f(activeCamera.getPosition().x, 0.0f, activeCamera.getPosition().z); // world-space coordinates</span>
+
+        // The shadow projected onto the ground must move in in light-space texel-steps, to avoid causing flickering.
+        // That's why we first convert it to the previous frame's light-space coordinates and then back to world-space.
+<span class="nc" id="L192">        shadowMapCamera.getViewProjectionMatrix().transformPoint(mainLightPosition); // to light-space</span>
+<span class="nc" id="L193">        mainLightPosition.set(TeraMath.fastFloor(mainLightPosition.x / texelSize) * texelSize, 0.0f,</span>
+<span class="nc" id="L194">                              TeraMath.fastFloor(mainLightPosition.z / texelSize) * texelSize);</span>
+<span class="nc" id="L195">        shadowMapCamera.getInverseViewProjectionMatrix().transformPoint(mainLightPosition); // back to world-space</span>
+
+        // This is what causes the shadow map to change infrequently, to prevent flickering.
+        // Notice that this is different from what is done above, which is about spatial steps
+        // and is related to the player's position and texels.
+<span class="nc" id="L200">        Vector3f quantizedMainLightDirection = getQuantizedMainLightDirection(STEP_SIZE);</span>
+
+        // The shadow map camera is placed away from the player, in the direction of the main light.
+<span class="nc" id="L203">        Vector3f offsetFromPlayer = new Vector3f(quantizedMainLightDirection);</span>
+<span class="nc" id="L204">        offsetFromPlayer.scale(256.0f + 64.0f); // these hardcoded numbers are another mystery.</span>
+<span class="nc" id="L205">        mainLightPosition.add(offsetFromPlayer);</span>
+<span class="nc" id="L206">        shadowMapCamera.getPosition().set(mainLightPosition);</span>
+
+        // Finally, we adjust the shadow map camera to look toward the player
+<span class="nc" id="L209">        Vector3f fromLightToPlayerDirection = new Vector3f(quantizedMainLightDirection);</span>
+<span class="nc" id="L210">        fromLightToPlayerDirection.scale(-1.0f);</span>
+<span class="nc" id="L211">        shadowMapCamera.getViewingDirection().set(fromLightToPlayerDirection);</span>
+
+<span class="nc" id="L213">        shadowMapCamera.update(worldRenderer.getSecondsSinceLastFrame());</span>
+<span class="nc" id="L214">    }</span>
+
+    private Vector3f getQuantizedMainLightDirection(float stepSize) {
+<span class="nc" id="L217">        float mainLightAngle = (float) Math.floor((double) backdropProvider.getSunPositionAngle() * stepSize) / stepSize + 0.0001f;</span>
+<span class="nc" id="L218">        Vector3f mainLightDirection = new Vector3f(0.0f, (float) Math.cos(mainLightAngle), (float) Math.sin(mainLightAngle));</span>
+
+        // When the sun goes under the horizon we flip the vector, to provide the moon direction, and viceversa.
+<span class="nc bnc" id="L221" title="All 2 branches missed.">        if (mainLightDirection.y &lt; 0.0f) {</span>
+<span class="nc" id="L222">            mainLightDirection.scale(-1.0f);</span>
+        }
+
+<span class="nc" id="L225">        return mainLightDirection;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

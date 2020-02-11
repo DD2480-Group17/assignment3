@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractFullWorldView.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.propagation</a> &gt; <span class="el_source">AbstractFullWorldView.java</span></div><h1>AbstractFullWorldView.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.propagation;
+
+import org.terasology.math.ChunkMath;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.block.Block;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkProvider;
+import org.terasology.world.chunks.CoreChunk;
+import org.terasology.world.chunks.LitChunk;
+
+/**
+ * A base world view implementation sitting on ChunkProvider.
+ */
+public abstract class AbstractFullWorldView implements PropagatorWorldView {
+
+    private ChunkProvider chunkProvider;
+
+<span class="fc" id="L33">    public AbstractFullWorldView(ChunkProvider chunkProvider) {</span>
+<span class="fc" id="L34">        this.chunkProvider = chunkProvider;</span>
+<span class="fc" id="L35">    }</span>
+
+    /**
+     * Get's the chunk for a given position
+     *
+     * @param pos The position in the world
+     * @return The chunk for that position
+     */
+    private Chunk getChunk(Vector3i pos) {
+
+<span class="fc" id="L45">        return chunkProvider.getChunk(ChunkMath.calcChunkPos(pos));</span>
+    }
+
+    @Override
+    public byte getValueAt(Vector3i pos) {
+<span class="fc" id="L50">        LitChunk chunk = getChunk(pos);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (chunk != null) {</span>
+<span class="fc" id="L52">            return getValueAt(chunk, ChunkMath.calcBlockPos(pos.x, pos.y, pos.z));</span>
+        }
+<span class="fc" id="L54">        return UNAVAILABLE;</span>
+    }
+
+    /**
+     * Obtains the relevant value from the given chunk
+     *
+     * @param chunk The chunk containing the position
+     * @param pos   The internal position of the chunk to get the value from
+     * @return The relevant value for this view
+     */
+    protected abstract byte getValueAt(LitChunk chunk, Vector3i pos);
+
+    @Override
+    public void setValueAt(Vector3i pos, byte value) {
+<span class="fc" id="L68">        setValueAt(getChunk(pos), ChunkMath.calcBlockPos(pos.x, pos.y, pos.z), value);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        for (Vector3i affectedChunkPos : ChunkMath.getChunkRegionAroundWorldPos(pos, 1)) {</span>
+<span class="fc" id="L70">            Chunk dirtiedChunk = chunkProvider.getChunk(affectedChunkPos);</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">            if (dirtiedChunk != null) {</span>
+<span class="fc" id="L72">                dirtiedChunk.setDirty(true);</span>
+            }
+<span class="fc" id="L74">        }</span>
+<span class="fc" id="L75">    }</span>
+
+    /**
+     * Sets the relevant value for the given chunk
+     *
+     * @param chunk The chunk containing the position
+     * @param pos   The internal position of the chunk to set the value of
+     * @param value The new value
+     */
+    protected abstract void setValueAt(LitChunk chunk, Vector3i pos, byte value);
+
+    @Override
+    public Block getBlockAt(Vector3i pos) {
+<span class="fc" id="L88">        CoreChunk chunk = chunkProvider.getChunk(ChunkMath.calcChunkPos(pos));</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        if (chunk != null) {</span>
+<span class="fc" id="L90">            return chunk.getBlock(ChunkMath.calcBlockPos(pos));</span>
+        }
+<span class="nc" id="L92">        return null;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

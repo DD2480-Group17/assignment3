@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeathScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.ingame</a> &gt; <span class="el_source">DeathScreen.java</span></div><h1>DeathScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.ingame;
+
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.modes.StateMainMenu;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.logic.players.event.RespawnRequestEvent;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.widgets.UILabel;
+
+/**
+ * This screen is displayed when the player dies.
+ */
+<span class="nc" id="L30">public class DeathScreen extends CoreScreenLayer {</span>
+    private UILabel deathDetails;
+
+    @Override
+    protected boolean isEscapeToCloseAllowed() {
+<span class="nc" id="L35">        return false;</span>
+    }
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L40">        deathDetails = find(&quot;deathDetails&quot;, UILabel.class);</span>
+<span class="nc" id="L41">        WidgetUtil.trySubscribe(this, &quot;respawn&quot;, widget -&gt; {</span>
+<span class="nc" id="L42">            CoreRegistry.get(LocalPlayer.class).getClientEntity().send(new RespawnRequestEvent());</span>
+<span class="nc" id="L43">            getManager().closeScreen(DeathScreen.this);</span>
+<span class="nc" id="L44">        });</span>
+<span class="nc" id="L45">        WidgetUtil.trySubscribe(this, &quot;settings&quot;, widget -&gt; getManager().pushScreen(&quot;settingsMenuScreen&quot;));</span>
+<span class="nc" id="L46">        WidgetUtil.trySubscribe(this, &quot;mainMenu&quot;, widget -&gt; {</span>
+<span class="nc" id="L47">            CoreRegistry.get(LocalPlayer.class).getClientEntity().send(new RespawnRequestEvent());</span>
+<span class="nc" id="L48">            CoreRegistry.get(GameEngine.class).changeState(new StateMainMenu());</span>
+<span class="nc" id="L49">        });</span>
+<span class="nc" id="L50">        WidgetUtil.trySubscribe(this, &quot;exitGame&quot;, widget -&gt; CoreRegistry.get(GameEngine.class).shutdown());</span>
+<span class="nc" id="L51">    }</span>
+
+    public void setDeathDetails(String instigatorName, String damageTypeName) {
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (instigatorName != null) {</span>
+<span class="nc" id="L55">            deathDetails.setText(String.format(&quot;%s killed you with %s.&quot;, instigatorName, damageTypeName));</span>
+        } else {
+<span class="nc" id="L57">            deathDetails.setText(String.format(&quot;You died to %s.&quot;, damageTypeName));</span>
+        }
+<span class="nc" id="L59">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L63">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

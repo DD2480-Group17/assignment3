@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SelectGameScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">SelectGameScreen.java</span></div><h1>SelectGameScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.modes.StateLoading;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.game.GameManifest;
+import org.terasology.network.NetworkMode;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.layers.mainMenu.gameDetailsScreen.GameDetailsScreen;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameInfo;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameProvider;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UILabel;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
+import java.util.stream.Stream;
+
+<span class="nc" id="L41">public class SelectGameScreen extends SelectionScreen {</span>
+<span class="nc" id="L42">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:selectGameScreen&quot;);</span>
+    private static final String REMOVE_STRING = &quot;saved game&quot;;
+<span class="nc" id="L44">    private static final Logger logger = LoggerFactory.getLogger(SelectGameScreen.class);</span>
+
+    private UniverseWrapper universeWrapper;
+
+    // widgets
+    private UILabel gameTypeTitle;
+    private UIButton load;
+    private UIButton delete;
+    private UIButton details;
+    private UIButton close;
+    private UIButton create;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L58">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L60">        initWidgets();</span>
+
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (isValidScreen()) {</span>
+
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            if (gameTypeTitle != null) {</span>
+<span class="nc" id="L65">                gameTypeTitle.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                    @Override
+                    public String get() {
+<span class="nc bnc" id="L68" title="All 2 branches missed.">                        if (isLoadingAsServer()) {</span>
+<span class="nc" id="L69">                            return translationSystem.translate(&quot;${engine:menu#select-multiplayer-game-sub-title}&quot;);</span>
+                        } else {
+<span class="nc" id="L71">                            return translationSystem.translate(&quot;${engine:menu#select-singleplayer-game-sub-title}&quot;);</span>
+                        }
+                    }
+                });
+            }
+
+<span class="nc" id="L77">            initSaveGamePathWidget(PathManager.getInstance().getSavesPath());</span>
+
+<span class="nc" id="L79">            getGameInfos().subscribeSelection((widget, item) -&gt; {</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">                load.setEnabled(item != null);</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                delete.setEnabled(item != null);</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">                details.setEnabled(item != null);</span>
+<span class="nc" id="L83">                updateDescription(item);</span>
+<span class="nc" id="L84">            });</span>
+
+<span class="nc" id="L86">            getGameInfos().subscribe((widget, item) -&gt; loadGame(item));</span>
+
+<span class="nc" id="L88">            load.subscribe(e -&gt; {</span>
+<span class="nc" id="L89">                final GameInfo gameInfo = getGameInfos().getSelection();</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                if (gameInfo != null) {</span>
+<span class="nc" id="L91">                    loadGame(gameInfo);</span>
+                }
+<span class="nc" id="L93">            });</span>
+
+<span class="nc" id="L95">            delete.subscribe(e -&gt; {</span>
+<span class="nc" id="L96">                TwoButtonPopup confirmationPopup = getManager().pushScreen(TwoButtonPopup.ASSET_URI, TwoButtonPopup.class);</span>
+<span class="nc" id="L97">                confirmationPopup.setMessage(translationSystem.translate(&quot;${engine:menu#remove-confirmation-popup-title}&quot;),</span>
+<span class="nc" id="L98">                        translationSystem.translate(&quot;${engine:menu#remove-confirmation-popup-message}&quot;));</span>
+<span class="nc" id="L99">                confirmationPopup.setLeftButton(translationSystem.translate(&quot;${engine:menu#dialog-yes}&quot;), this::removeSelectedGame);</span>
+<span class="nc" id="L100">                confirmationPopup.setRightButton(translationSystem.translate(&quot;${engine:menu#dialog-no}&quot;), () -&gt; {</span>
+<span class="nc" id="L101">                });</span>
+<span class="nc" id="L102">            });</span>
+
+<span class="nc" id="L104">            final NewGameScreen newGameScreen = getManager().createScreen(NewGameScreen.ASSET_URI, NewGameScreen.class);</span>
+<span class="nc" id="L105">            create.subscribe(e -&gt; {</span>
+<span class="nc" id="L106">                newGameScreen.setUniverseWrapper(universeWrapper);</span>
+<span class="nc" id="L107">                triggerForwardAnimation(newGameScreen);</span>
+<span class="nc" id="L108">            });</span>
+
+<span class="nc" id="L110">            close.subscribe(e -&gt; triggerBackAnimation());</span>
+
+<span class="nc" id="L112">            details.subscribe(e -&gt; {</span>
+<span class="nc" id="L113">                final GameInfo gameInfo = getGameInfos().getSelection();</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">                if (gameInfo != null) {</span>
+<span class="nc" id="L115">                    final GameDetailsScreen detailsScreen = getManager().createScreen(GameDetailsScreen.ASSET_URI, GameDetailsScreen.class);</span>
+<span class="nc" id="L116">                    detailsScreen.setGameInfo(gameInfo);</span>
+<span class="nc" id="L117">                    detailsScreen.setPreviews(previewSlideshow.getImages());</span>
+<span class="nc" id="L118">                    getManager().pushScreen(detailsScreen);</span>
+                }
+<span class="nc" id="L120">            });</span>
+        }
+<span class="nc" id="L122">    }</span>
+
+    private void removeSelectedGame() {
+<span class="nc" id="L125">        final Path world = PathManager.getInstance().getSavePath(getGameInfos().getSelection().getManifest().getTitle());</span>
+<span class="nc" id="L126">        remove(getGameInfos(), world, REMOVE_STRING);</span>
+<span class="nc" id="L127">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L131">        super.onOpened();</span>
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (isValidScreen()) {</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            if (GameProvider.isSavesFolderEmpty()) {</span>
+<span class="nc" id="L135">                final NewGameScreen newGameScreen = getManager().createScreen(NewGameScreen.ASSET_URI, NewGameScreen.class);</span>
+<span class="nc" id="L136">                newGameScreen.setUniverseWrapper(universeWrapper);</span>
+<span class="nc" id="L137">                triggerForwardAnimation(newGameScreen);</span>
+            }
+
+<span class="nc bnc" id="L140" title="All 4 branches missed.">            if (isLoadingAsServer() &amp;&amp; !super.config.getPlayer().hasEnteredUsername()) {</span>
+<span class="nc" id="L141">                getManager().pushScreen(EnterUsernamePopup.ASSET_URI, EnterUsernamePopup.class);</span>
+            }
+
+<span class="nc" id="L144">            refreshGameInfoList(GameProvider.getSavedGames());</span>
+        } else {
+<span class="nc" id="L146">            final MessagePopup popup = getManager().createScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L147">            popup.setMessage(translationSystem.translate(&quot;${engine:menu#game-details-errors-message-title}&quot;), translationSystem.translate(&quot;${engine:menu#game-details-errors-message-body}&quot;));</span>
+<span class="nc" id="L148">            popup.subscribeButton(e -&gt; triggerBackAnimation());</span>
+<span class="nc" id="L149">            getManager().pushScreen(popup);</span>
+            // disable child widgets
+<span class="nc" id="L151">            setEnabled(false);</span>
+        }
+<span class="nc" id="L153">    }</span>
+
+    private void loadGame(GameInfo item) {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        if (isLoadingAsServer()) {</span>
+<span class="nc" id="L157">            Path blacklistPath = PathManager.getInstance().getHomePath().resolve(&quot;blacklist.json&quot;);</span>
+<span class="nc" id="L158">            Path whitelistPath = PathManager.getInstance().getHomePath().resolve(&quot;whitelist.json&quot;);</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">            if (!Files.exists(blacklistPath)) {</span>
+                try {
+<span class="nc" id="L161">                    Files.createFile(blacklistPath);</span>
+<span class="nc" id="L162">                } catch (IOException e) {</span>
+<span class="nc" id="L163">                    logger.error(&quot;IO Exception on blacklist generation&quot;, e);</span>
+<span class="nc" id="L164">                }</span>
+            }
+<span class="nc bnc" id="L166" title="All 2 branches missed.">            if (!Files.exists(whitelistPath)) {</span>
+                try {
+<span class="nc" id="L168">                    Files.createFile(whitelistPath);</span>
+<span class="nc" id="L169">                } catch (IOException e) {</span>
+<span class="nc" id="L170">                    logger.error(&quot;IO Exception on whitelist generation&quot;, e);</span>
+<span class="nc" id="L171">                }</span>
+            }
+        }
+        try {
+<span class="nc" id="L175">            final GameManifest manifest = item.getManifest();</span>
+<span class="nc" id="L176">            config.getWorldGeneration().setDefaultSeed(manifest.getSeed());</span>
+<span class="nc" id="L177">            config.getWorldGeneration().setWorldTitle(manifest.getTitle());</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">            CoreRegistry.get(GameEngine.class).changeState(new StateLoading(manifest, (isLoadingAsServer()) ? NetworkMode.DEDICATED_SERVER : NetworkMode.NONE));</span>
+<span class="nc" id="L179">        } catch (Exception e) {</span>
+<span class="nc" id="L180">            logger.error(&quot;Failed to load saved game&quot;, e);</span>
+<span class="nc" id="L181">            getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Error Loading Game&quot;, e.getMessage());</span>
+<span class="nc" id="L182">        }</span>
+<span class="nc" id="L183">    }</span>
+
+    @Override
+    protected void initWidgets() {
+<span class="nc" id="L187">        super.initWidgets();</span>
+<span class="nc" id="L188">        load = find(&quot;load&quot;, UIButton.class);</span>
+<span class="nc" id="L189">        delete = find(&quot;delete&quot;, UIButton.class);</span>
+<span class="nc" id="L190">        close = find(&quot;close&quot;, UIButton.class);</span>
+<span class="nc" id="L191">        details = find(&quot;details&quot;, UIButton.class);</span>
+<span class="nc" id="L192">        create = find(&quot;create&quot;, UIButton.class);</span>
+<span class="nc" id="L193">        gameTypeTitle = find(&quot;gameTypeTitle&quot;, UILabel.class);</span>
+<span class="nc" id="L194">    }</span>
+
+    public boolean isLoadingAsServer() {
+<span class="nc" id="L197">        return universeWrapper.getLoadingAsServer();</span>
+    }
+
+    public void setUniverseWrapper(UniverseWrapper wrapper) {
+<span class="nc" id="L201">        this.universeWrapper = wrapper;</span>
+<span class="nc" id="L202">    }</span>
+
+    @Override
+    protected boolean isValidScreen() {
+<span class="nc" id="L206">        if (Stream.of(load, delete, close, details, create, gameTypeTitle)</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">                .anyMatch(Objects::isNull) ||</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">                !super.isValidScreen()) {</span>
+<span class="nc" id="L209">            logger.error(&quot;Can't initialize screen correctly. At least one widget was missed!&quot;);</span>
+<span class="nc" id="L210">            return false;</span>
+        }
+<span class="nc" id="L212">        return true;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

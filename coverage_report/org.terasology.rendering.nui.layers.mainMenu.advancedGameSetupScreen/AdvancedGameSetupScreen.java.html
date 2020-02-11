@@ -1,0 +1,788 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AdvancedGameSetupScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu.advancedGameSetupScreen</a> &gt; <span class="el_source">AdvancedGameSetupScreen.java</span></div><h1>AdvancedGameSetupScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu.advancedGameSetupScreen;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.codehaus.plexus.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.ModuleConfig;
+import org.terasology.config.SelectModulesConfig;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.modes.StateLoading;
+import org.terasology.engine.module.DependencyResolutionFailedException;
+import org.terasology.engine.module.ModuleInstaller;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.module.StandardModuleExtension;
+import org.terasology.game.GameManifest;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.module.DependencyInfo;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleMetadata;
+import org.terasology.module.ResolutionResult;
+import org.terasology.naming.Name;
+import org.terasology.network.NetworkMode;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.itemRendering.AbstractItemRenderer;
+import org.terasology.rendering.nui.layers.mainMenu.ConfirmPopup;
+import org.terasology.rendering.nui.layers.mainMenu.GameManifestProvider;
+import org.terasology.rendering.nui.layers.mainMenu.MessagePopup;
+import org.terasology.rendering.nui.layers.mainMenu.UniverseSetupScreen;
+import org.terasology.rendering.nui.layers.mainMenu.UniverseWrapper;
+import org.terasology.rendering.nui.layers.mainMenu.WaitPopup;
+import org.terasology.rendering.nui.layers.mainMenu.moduleDetailsScreen.ModuleDetailsScreen;
+import org.terasology.rendering.nui.widgets.ResettableUIText;
+import org.terasology.rendering.nui.widgets.TextChangeEventListener;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UICheckbox;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIList;
+import org.terasology.rendering.nui.widgets.UIText;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.world.generator.internal.WorldGeneratorManager;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+
+/**
+ * This screen loads up all the modules, local and remote. The modules
+ * are displayed in different colours according to their state of selection.
+ * For downloading remote modules list a FutureTask is used. The modules can also be filtered and the choice
+ * of filtering is saved in the config.
+ */
+<span class="nc" id="L91">public class AdvancedGameSetupScreen extends CoreScreenLayer {</span>
+
+<span class="nc" id="L93">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:advancedGameSetupScreen&quot;);</span>
+
+<span class="nc" id="L95">    private static final Logger logger = LoggerFactory.getLogger(AdvancedGameSetupScreen.class);</span>
+<span class="nc" id="L96">    private final Comparator&lt;? super ModuleSelectionInfo&gt; moduleInfoComparator = Comparator.comparing(o -&gt; o.getMetadata()</span>
+<span class="nc" id="L97">            .getDisplayName().toString());</span>
+    @In
+    private ModuleManager moduleManager;
+    @In
+    private Config config;
+    @In
+    private WorldGeneratorManager worldGenManager;
+    @In
+    private TranslationSystem translationSystem;
+    @In
+    private GameEngine gameEngine;
+
+    private Map&lt;Name, ModuleSelectionInfo&gt; modulesLookup;
+    private List&lt;ModuleSelectionInfo&gt; sortedModules;
+    private List&lt;ModuleSelectionInfo&gt; allSortedModules;
+    private DependencyResolver dependencyResolver;
+    private Future&lt;Void&gt; remoteModuleRegistryUpdater;
+<span class="nc" id="L114">    private boolean needsUpdate = true;</span>
+    private ResettableUIText moduleSearch;
+    private SelectModulesConfig selectModulesConfig;
+    private UniverseWrapper universeWrapper;
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L121">        super.onOpened();</span>
+
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        for (ModuleSelectionInfo info : sortedModules) {</span>
+<span class="nc" id="L124">            info.setExplicitSelection(config.getDefaultModSelection().hasModule(info.getMetadata().getId()));</span>
+<span class="nc" id="L125">        }</span>
+
+<span class="nc" id="L127">        refreshSelection();</span>
+<span class="nc" id="L128">        filterModules();</span>
+<span class="nc" id="L129">    }</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L133">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+<span class="nc" id="L134">        remoteModuleRegistryUpdater = Executors.newSingleThreadExecutor()</span>
+<span class="nc" id="L135">                .submit(moduleManager.getInstallManager().updateRemoteRegistry());</span>
+
+<span class="nc" id="L137">        final UIText seed = find(&quot;seed&quot;, UIText.class);</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        if (seed != null) {</span>
+<span class="nc" id="L139">            seed.setText(new FastRandom().nextString(32));</span>
+        }
+
+        // skip loading module configs, unselect all checkboxes by default
+<span class="nc" id="L143">        selectModulesConfig = new SelectModulesConfig();</span>
+<span class="nc" id="L144">        selectModulesConfig.getSelectedStandardModuleExtensions().forEach(selectModulesConfig::unselectStandardModuleExtension);</span>
+
+<span class="nc" id="L146">        dependencyResolver = new DependencyResolver(moduleManager.getRegistry());</span>
+
+<span class="nc" id="L148">        modulesLookup = Maps.newHashMap();</span>
+<span class="nc" id="L149">        sortedModules = Lists.newArrayList();</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        for (Name moduleId : moduleManager.getRegistry().getModuleIds()) {</span>
+<span class="nc" id="L151">            Module latestVersion = moduleManager.getRegistry().getLatestModuleVersion(moduleId);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            if (!latestVersion.isOnClasspath()) {</span>
+<span class="nc" id="L153">                ModuleSelectionInfo info = ModuleSelectionInfo.local(latestVersion);</span>
+<span class="nc" id="L154">                modulesLookup.put(info.getMetadata().getId(), info);</span>
+<span class="nc" id="L155">                sortedModules.add(info);</span>
+            }
+<span class="nc" id="L157">        }</span>
+
+<span class="nc" id="L159">        sortedModules.sort(moduleInfoComparator);</span>
+<span class="nc" id="L160">        allSortedModules = new ArrayList&lt;&gt;(sortedModules);</span>
+
+<span class="nc" id="L162">        final UIList&lt;ModuleSelectionInfo&gt; moduleList = find(&quot;moduleList&quot;, UIList.class);</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (moduleList != null) {</span>
+<span class="nc" id="L164">            moduleList.setList(sortedModules);</span>
+<span class="nc" id="L165">            moduleList.setItemRenderer(new AbstractItemRenderer&lt;ModuleSelectionInfo&gt;() {</span>
+
+                String getString(ModuleSelectionInfo value) {
+<span class="nc" id="L168">                    return value.getMetadata().getDisplayName().toString();</span>
+                }
+
+                @Override
+                public void draw(ModuleSelectionInfo value, Canvas canvas) {
+<span class="nc bnc" id="L173" title="All 4 branches missed.">                    if (isSelectedGameplayModule(value) &amp;&amp; value.isValidToSelect()) {</span>
+<span class="nc" id="L174">                        canvas.setMode(&quot;gameplay&quot;);</span>
+<span class="nc bnc" id="L175" title="All 4 branches missed.">                    } else if (value.isSelected() &amp;&amp; value.isExplicitSelection()) {</span>
+<span class="nc" id="L176">                        canvas.setMode(&quot;enabled&quot;);</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">                    } else if (value.isSelected()) {</span>
+<span class="nc" id="L178">                        canvas.setMode(&quot;dependency&quot;);</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">                    } else if (!value.isPresent()) {</span>
+<span class="nc" id="L180">                        canvas.setMode(&quot;disabled&quot;);</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">                    } else if (!value.isValidToSelect()) {</span>
+<span class="nc" id="L182">                        canvas.setMode(&quot;invalid&quot;);</span>
+                    } else {
+<span class="nc" id="L184">                        canvas.setMode(&quot;available&quot;);</span>
+                    }
+<span class="nc" id="L186">                    canvas.drawText(getString(value), canvas.getRegion());</span>
+<span class="nc" id="L187">                }</span>
+
+                @Override
+                public Vector2i getPreferredSize(ModuleSelectionInfo value, Canvas canvas) {
+<span class="nc" id="L191">                    String text = getString(value);</span>
+<span class="nc" id="L192">                    return new Vector2i(canvas.getCurrentStyle().getFont().getWidth(text),</span>
+<span class="nc" id="L193">                            canvas.getCurrentStyle().getFont().getLineHeight());</span>
+                }
+            });
+
+            // ItemActivateEventListener is triggered by double clicking
+<span class="nc" id="L198">            moduleList.subscribe((widget, item) -&gt; {</span>
+<span class="nc bnc" id="L199" title="All 4 branches missed.">                if (item.isSelected() &amp;&amp; moduleList.getSelection().isExplicitSelection()) {</span>
+<span class="nc" id="L200">                    deselect(item);</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                } else if (item.isValidToSelect()) {</span>
+<span class="nc" id="L202">                    select(item);</span>
+                }
+<span class="nc" id="L204">            });</span>
+
+<span class="nc" id="L206">            moduleSearch = find(&quot;moduleSearch&quot;, ResettableUIText.class);</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">            if (moduleSearch != null) {</span>
+<span class="nc" id="L208">                moduleSearch.subscribe((TextChangeEventListener) (oldText, newText) -&gt; filterModules());</span>
+            }
+
+<span class="nc" id="L211">            final Binding&lt;ModuleMetadata&gt; moduleInfoBinding = new ReadOnlyBinding&lt;ModuleMetadata&gt;() {</span>
+                @Override
+                public ModuleMetadata get() {
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                    if (moduleList.getSelection() != null) {</span>
+<span class="nc" id="L215">                        return moduleList.getSelection().getMetadata();</span>
+                    }
+<span class="nc" id="L217">                    return null;</span>
+                }
+            };
+
+<span class="nc" id="L221">            UILabel name = find(&quot;name&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">            if (name != null) {</span>
+<span class="nc" id="L223">                name.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                    @Override
+                    public String get() {
+<span class="nc bnc" id="L226" title="All 2 branches missed.">                        if (moduleInfoBinding.get() != null) {</span>
+<span class="nc" id="L227">                            return moduleInfoBinding.get().getDisplayName().toString();</span>
+                        }
+<span class="nc" id="L229">                        return &quot;&quot;;</span>
+                    }
+                });
+            }
+
+<span class="nc" id="L234">            UILabel installedVersion = find(&quot;installedVersion&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            if (installedVersion != null) {</span>
+<span class="nc" id="L236">                installedVersion.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                    @Override
+                    public String get() {
+<span class="nc" id="L239">                        ModuleSelectionInfo sel = moduleList.getSelection();</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">                        if (sel == null) {</span>
+<span class="nc" id="L241">                            return &quot;&quot;;</span>
+                        }
+<span class="nc bnc" id="L243" title="All 2 branches missed.">                        return sel.isPresent() ? sel.getMetadata().getVersion().toString()</span>
+<span class="nc" id="L244">                                : translationSystem.translate(&quot;${engine:menu#module-version-installed-none}&quot;);</span>
+                    }
+                });
+            }
+
+<span class="nc" id="L249">            UILabel onlineVersion = find(&quot;onlineVersion&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">            if (onlineVersion != null) {</span>
+<span class="nc" id="L251">                onlineVersion.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                    @Override
+                    public String get() {
+<span class="nc" id="L254">                        ModuleSelectionInfo sel = moduleList.getSelection();</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">                        if (sel == null) {</span>
+<span class="nc" id="L256">                            return &quot;&quot;;</span>
+                        }
+<span class="nc bnc" id="L258" title="All 2 branches missed.">                        return (sel.getOnlineVersion() != null) ? sel.getOnlineVersion().getVersion().toString()</span>
+                                : &quot;none&quot;;
+                    }
+                });
+            }
+
+<span class="nc" id="L264">            UILabel description = find(&quot;description&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">            if (description != null) {</span>
+<span class="nc" id="L266">                description.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                    @Override
+                    public String get() {
+<span class="nc" id="L269">                        ModuleMetadata moduleMetadata = moduleInfoBinding.get();</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                        if (moduleMetadata != null) {</span>
+                            StringBuilder dependenciesNames;
+<span class="nc" id="L272">                            List&lt;DependencyInfo&gt; dependencies = moduleMetadata.getDependencies();</span>
+<span class="nc bnc" id="L273" title="All 4 branches missed.">                            if (dependencies != null &amp;&amp; !dependencies.isEmpty()) {</span>
+<span class="nc" id="L274">                                dependenciesNames = new StringBuilder(translationSystem</span>
+<span class="nc" id="L275">                                        .translate(&quot;${engine:menu#module-dependencies-exist}&quot;) + &quot;:&quot; + '\n');</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">                                for (DependencyInfo dependency : dependencies) {</span>
+<span class="nc" id="L277">                                    dependenciesNames.append(&quot;   &quot;).append(dependency.getId().toString()).append('\n');</span>
+<span class="nc" id="L278">                                }</span>
+                            } else {
+<span class="nc" id="L280">                                dependenciesNames = new StringBuilder(translationSystem</span>
+<span class="nc" id="L281">                                        .translate(&quot;${engine:menu#module-dependencies-empty}&quot;) + &quot;.&quot;);</span>
+                            }
+<span class="nc" id="L283">                            return moduleMetadata.getDescription().toString() + '\n' + '\n' + dependenciesNames;</span>
+                        }
+<span class="nc" id="L285">                        return &quot;&quot;;</span>
+                    }
+                });
+            }
+
+<span class="nc" id="L290">            UILabel status = find(&quot;status&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">            if (status != null) {</span>
+<span class="nc" id="L292">                status.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                    @Override
+                    public String get() {
+<span class="nc" id="L295">                        ModuleSelectionInfo info = moduleList.getSelection();</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">                        if (info != null) {</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">                            if (isSelectedGameplayModule(info)) {</span>
+<span class="nc" id="L298">                                return translationSystem.translate(&quot;${engine:menu#module-status-activegameplay}&quot;);</span>
+<span class="nc bnc" id="L299" title="All 4 branches missed.">                            } else if (info.isSelected() &amp;&amp; info.isExplicitSelection()) {</span>
+<span class="nc" id="L300">                                return translationSystem.translate(&quot;${engine:menu#module-status-activated}&quot;);</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">                            } else if (info.isSelected()) {</span>
+<span class="nc" id="L302">                                return translationSystem.translate(&quot;${engine:menu#module-status-dependency}&quot;);</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">                            } else if (!info.isPresent()) {</span>
+<span class="nc" id="L304">                                return translationSystem.translate(&quot;${engine:menu#module-status-notpresent}&quot;);</span>
+<span class="nc bnc" id="L305" title="All 2 branches missed.">                            } else if (info.isValidToSelect()) {</span>
+<span class="nc" id="L306">                                return translationSystem.translate(&quot;${engine:menu#module-status-available}&quot;);</span>
+                            } else {
+<span class="nc" id="L308">                                return translationSystem.translate(&quot;${engine:menu#module-status-error}&quot;);</span>
+                            }
+                        }
+<span class="nc" id="L311">                        return &quot;&quot;;</span>
+                    }
+                });
+            }
+
+<span class="nc" id="L316">            UIButton toggleActivate = find(&quot;toggleActivation&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L317" title="All 2 branches missed.">            if (toggleActivate != null) {</span>
+<span class="nc" id="L318">                toggleActivate.subscribe(button -&gt; {</span>
+<span class="nc" id="L319">                    ModuleSelectionInfo info = moduleList.getSelection();</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">                    if (info != null) {</span>
+                        // Toggle
+<span class="nc bnc" id="L322" title="All 4 branches missed.">                        if (info.isSelected() &amp;&amp; info.isExplicitSelection()) {</span>
+<span class="nc" id="L323">                            deselect(info);</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                        } else if (info.isValidToSelect()) {</span>
+<span class="nc" id="L325">                            select(info);</span>
+                        }
+                    }
+<span class="nc" id="L328">                });</span>
+<span class="nc" id="L329">                toggleActivate.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+                    @Override
+                    public Boolean get() {
+<span class="nc" id="L332">                        ModuleSelectionInfo info = moduleList.getSelection();</span>
+<span class="nc bnc" id="L333" title="All 6 branches missed.">                        return info != null &amp;&amp; info.isPresent() &amp;&amp; !isSelectedGameplayModule(info)</span>
+<span class="nc bnc" id="L334" title="All 4 branches missed.">                                &amp;&amp; (info.isSelected() || info.isValidToSelect());</span>
+                    }
+                });
+<span class="nc" id="L337">                toggleActivate.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                    @Override
+                    public String get() {
+<span class="nc bnc" id="L340" title="All 2 branches missed.">                        if (moduleList.getSelection() != null) {</span>
+<span class="nc bnc" id="L341" title="All 2 branches missed.">                            if (moduleList.getSelection().isExplicitSelection()) {</span>
+<span class="nc" id="L342">                                return translationSystem.translate(&quot;${engine:menu#deactivate-module}&quot;);</span>
+                            } else {
+<span class="nc" id="L344">                                return translationSystem.translate(&quot;${engine:menu#activate-module}&quot;);</span>
+                            }
+                        }
+                        // button should be disabled
+<span class="nc" id="L348">                        return translationSystem.translate(&quot;${engine:menu#activate-module}&quot;);</span>
+                    }
+                });
+            }
+
+<span class="nc" id="L353">            UIButton downloadButton = find(&quot;download&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">            if (downloadButton != null) {</span>
+<span class="nc" id="L355">                downloadButton.subscribe(button -&gt; {</span>
+<span class="nc bnc" id="L356" title="All 2 branches missed.">                    if (moduleList.getSelection() != null) {</span>
+<span class="nc" id="L357">                        ModuleSelectionInfo info = moduleList.getSelection();</span>
+<span class="nc" id="L358">                        startDownloadingNewestModulesRequiredFor(info);</span>
+                    }
+<span class="nc" id="L360">                });</span>
+<span class="nc" id="L361">                downloadButton.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+                    @Override
+                    public Boolean get() {
+<span class="nc" id="L364">                        ModuleSelectionInfo selection = moduleList.getSelection();</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">                        if (null == selection) {</span>
+<span class="nc" id="L366">                            return false;</span>
+                        }
+<span class="nc bnc" id="L368" title="All 2 branches missed.">                        return selection.getOnlineVersion() != null;</span>
+                    }
+                });
+<span class="nc" id="L371">                downloadButton.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                    @Override
+                    public String get() {
+<span class="nc" id="L374">                        ModuleSelectionInfo info = moduleList.getSelection();</span>
+<span class="nc bnc" id="L375" title="All 4 branches missed.">                        if (info != null &amp;&amp; !info.isPresent()) {</span>
+<span class="nc" id="L376">                            return translationSystem.translate(&quot;${engine:menu#download-module}&quot;);</span>
+                        } else {
+<span class="nc" id="L378">                            return translationSystem.translate(&quot;${engine:menu#update-module}&quot;);</span>
+                        }
+                    }
+                });
+            }
+
+<span class="nc" id="L384">            UIButton disableAll = find(&quot;disableAll&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L385" title="All 2 branches missed.">            if (disableAll != null) {</span>
+<span class="nc" id="L386">                disableAll.subscribe(button -&gt; sortedModules.stream()</span>
+<span class="nc bnc" id="L387" title="All 4 branches missed.">                        .filter(info -&gt; info.isSelected() &amp;&amp; info.isExplicitSelection()).forEach(this::deselect));</span>
+            }
+
+<span class="nc bnc" id="L390" title="All 2 branches missed.">            for (CheckboxAssociationEnum checkboxAssociation : CheckboxAssociationEnum.values()) {</span>
+<span class="nc" id="L391">                String checkboxName = checkboxAssociation.getCheckboxName();</span>
+<span class="nc" id="L392">                StandardModuleExtension standardModuleExtension = checkboxAssociation.getStandardModuleExtension();</span>
+
+<span class="nc" id="L394">                UICheckbox checkBox = find(checkboxName, UICheckbox.class);</span>
+<span class="nc bnc" id="L395" title="All 2 branches missed.">                if (null != checkBox) {</span>
+<span class="nc" id="L396">                    checkBox.setChecked(selectModulesConfig.isStandardModuleExtensionSelected(standardModuleExtension));</span>
+<span class="nc" id="L397">                    checkBox.subscribe(e -&gt; {</span>
+<span class="nc" id="L398">                        selectModulesConfig.toggleStandardModuleExtensionSelected(standardModuleExtension);</span>
+<span class="nc" id="L399">                        checkBox.setChecked(</span>
+<span class="nc" id="L400">                                selectModulesConfig.isStandardModuleExtensionSelected(standardModuleExtension));</span>
+<span class="nc" id="L401">                        filterModules();</span>
+<span class="nc" id="L402">                    });</span>
+                } else {
+<span class="nc" id="L404">                    logger.error(&quot;Unable to find checkbox named &quot; + checkboxName + &quot; in &quot; + ASSET_URI.toString());</span>
+<span class="nc" id="L405">                    selectModulesConfig.unselectStandardModuleExtension(standardModuleExtension);</span>
+                }
+            }
+
+<span class="nc" id="L409">            UICheckbox localOnlyCheckbox = find(&quot;localOnlyCheckbox&quot;, UICheckbox.class);</span>
+<span class="nc" id="L410">            localOnlyCheckbox.setChecked(selectModulesConfig.isLocalOnlySelected());</span>
+<span class="nc" id="L411">            localOnlyCheckbox.subscribe(e -&gt; {</span>
+<span class="nc" id="L412">                selectModulesConfig.toggleIsLocalOnlySelected();</span>
+<span class="nc" id="L413">                localOnlyCheckbox.setChecked(selectModulesConfig.isLocalOnlySelected());</span>
+<span class="nc" id="L414">                filterModules();</span>
+<span class="nc" id="L415">            });</span>
+
+<span class="nc" id="L417">            UICheckbox uncategorizedCheckbox = find(&quot;uncategorizedCheckbox&quot;, UICheckbox.class);</span>
+<span class="nc" id="L418">            uncategorizedCheckbox.setChecked(selectModulesConfig.isUncategorizedSelected());</span>
+<span class="nc" id="L419">            uncategorizedCheckbox.subscribe(e -&gt; {</span>
+<span class="nc" id="L420">                selectModulesConfig.toggleUncategorizedSelected();</span>
+<span class="nc" id="L421">                boolean isUncategorizedSelected = selectModulesConfig.isUncategorizedSelected();</span>
+<span class="nc" id="L422">                uncategorizedCheckbox.setChecked(isUncategorizedSelected);</span>
+<span class="nc bnc" id="L423" title="All 2 branches missed.">                for (CheckboxAssociationEnum checkboxAssociation : CheckboxAssociationEnum.values()) {</span>
+<span class="nc" id="L424">                   final  String checkboxName = checkboxAssociation.getCheckboxName();</span>
+<span class="nc" id="L425">                    UICheckbox checkbox = find(checkboxName, UICheckbox.class);</span>
+<span class="nc bnc" id="L426" title="All 2 branches missed.">                    if (null != checkbox) {</span>
+<span class="nc bnc" id="L427" title="All 2 branches missed.">                        checkbox.setEnabled(!isUncategorizedSelected);</span>
+                    }
+                }
+<span class="nc" id="L430">                filterModules();</span>
+<span class="nc" id="L431">            });</span>
+
+<span class="nc" id="L433">            UIButton resetAdvancedFilters = find(&quot;resetFilters&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L434" title="All 2 branches missed.">            if (resetAdvancedFilters != null) {</span>
+
+                //on clicking 'reset category filters' button, uncheck all advanced filters
+<span class="nc" id="L437">                localOnlyCheckbox.setChecked(selectModulesConfig.isLocalOnlySelected());</span>
+<span class="nc" id="L438">                uncategorizedCheckbox.setChecked(selectModulesConfig.isUncategorizedSelected());</span>
+
+<span class="nc" id="L440">                resetAdvancedFilters.subscribe(button -&gt; {</span>
+<span class="nc bnc" id="L441" title="All 2 branches missed.">                    if (selectModulesConfig.isLocalOnlySelected()) {</span>
+<span class="nc" id="L442">                        selectModulesConfig.toggleIsLocalOnlySelected();</span>
+<span class="nc" id="L443">                        localOnlyCheckbox.setChecked(selectModulesConfig.isLocalOnlySelected());</span>
+                    }
+
+<span class="nc bnc" id="L446" title="All 2 branches missed.">                    if (selectModulesConfig.isUncategorizedSelected()) {</span>
+<span class="nc" id="L447">                        selectModulesConfig.toggleUncategorizedSelected();</span>
+<span class="nc" id="L448">                        uncategorizedCheckbox.setChecked(selectModulesConfig.isUncategorizedSelected());</span>
+                    }
+
+<span class="nc" id="L451">                    filterModules();</span>
+<span class="nc" id="L452">                });</span>
+
+<span class="nc bnc" id="L454" title="All 2 branches missed.">                for (CheckboxAssociationEnum checkboxAssociation : CheckboxAssociationEnum.values()) {</span>
+<span class="nc" id="L455">                    StandardModuleExtension standardModuleExtension = checkboxAssociation.getStandardModuleExtension();</span>
+<span class="nc" id="L456">                    String checkboxName = checkboxAssociation.getCheckboxName();</span>
+<span class="nc" id="L457">                    UICheckbox checkbox = find(checkboxName, UICheckbox.class);</span>
+
+<span class="nc bnc" id="L459" title="All 2 branches missed.">                    if (null != checkbox) {</span>
+<span class="nc" id="L460">                        checkbox.setChecked(selectModulesConfig.isStandardModuleExtensionSelected(standardModuleExtension));</span>
+<span class="nc" id="L461">                        resetAdvancedFilters.subscribe(button -&gt; {</span>
+<span class="nc bnc" id="L462" title="All 2 branches missed.">                            checkbox.setEnabled(!selectModulesConfig.isUncategorizedSelected());</span>
+<span class="nc bnc" id="L463" title="All 2 branches missed.">                            if (selectModulesConfig.isStandardModuleExtensionSelected(standardModuleExtension)) {</span>
+<span class="nc" id="L464">                                selectModulesConfig.toggleStandardModuleExtensionSelected(standardModuleExtension);</span>
+<span class="nc" id="L465">                                checkbox.setChecked(</span>
+<span class="nc" id="L466">                                        selectModulesConfig.isStandardModuleExtensionSelected(standardModuleExtension));</span>
+                            }
+<span class="nc" id="L468">                            filterModules();</span>
+<span class="nc" id="L469">                        });</span>
+                    }
+                }
+
+<span class="nc" id="L473">                final UIButton moduleDetails = find(&quot;moduleDetails&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L474" title="All 2 branches missed.">                if (moduleDetails != null) {</span>
+<span class="nc" id="L475">                    moduleDetails.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+                        @Override
+                        public Boolean get() {
+<span class="nc bnc" id="L478" title="All 2 branches missed.">                            return moduleInfoBinding.get() != null;</span>
+                        }
+                    });
+<span class="nc" id="L481">                    moduleDetails.subscribe(b -&gt; {</span>
+<span class="nc" id="L482">                        final ModuleDetailsScreen moduleDetailsScreen = getManager().createScreen(ModuleDetailsScreen.ASSET_URI, ModuleDetailsScreen.class);</span>
+<span class="nc" id="L483">                        final Collection&lt;Module&gt; modules = sortedModules.stream()</span>
+<span class="nc" id="L484">                                .map(ModuleSelectionInfo::getMetadata)</span>
+<span class="nc" id="L485">                                .filter(Objects::nonNull)</span>
+<span class="nc" id="L486">                                .map(meta -&gt; moduleManager.getRegistry().getLatestModuleVersion(meta.getId()))</span>
+<span class="nc" id="L487">                                .filter(Objects::nonNull)</span>
+<span class="nc" id="L488">                                .collect(Collectors.toList());</span>
+<span class="nc" id="L489">                        moduleDetailsScreen.setModules(modules);</span>
+
+<span class="nc" id="L491">                        moduleDetailsScreen.setSelectedModule(</span>
+<span class="nc" id="L492">                                modules.stream()</span>
+<span class="nc" id="L493">                                        .filter(module -&gt; module.getId().equals(moduleInfoBinding.get().getId()))</span>
+<span class="nc" id="L494">                                        .findFirst()</span>
+<span class="nc" id="L495">                                        .orElse(null)</span>
+                        );
+
+<span class="nc" id="L498">                        getManager().pushScreen(moduleDetailsScreen);</span>
+<span class="nc" id="L499">                    });</span>
+                }
+            }
+        }
+
+<span class="nc" id="L504">        WidgetUtil.trySubscribe(this, &quot;createWorld&quot;, button -&gt; {</span>
+<span class="nc" id="L505">            final UniverseSetupScreen universeSetupScreen = getManager().createScreen(UniverseSetupScreen.ASSET_URI, UniverseSetupScreen.class);</span>
+<span class="nc" id="L506">            universeWrapper.setSeed(seed.getText());</span>
+<span class="nc" id="L507">            saveConfiguration();</span>
+<span class="nc" id="L508">            universeSetupScreen.setEnvironment(universeWrapper);</span>
+<span class="nc" id="L509">            triggerForwardAnimation(universeSetupScreen);</span>
+<span class="nc" id="L510">        });</span>
+
+<span class="nc" id="L512">        WidgetUtil.trySubscribe(this, &quot;play&quot;, button -&gt; {</span>
+<span class="nc bnc" id="L513" title="All 2 branches missed.">            if (StringUtils.isBlank(seed.getText())) {</span>
+<span class="nc" id="L514">                getManager().createScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Error&quot;, &quot;Game seed cannot be empty!&quot;);</span>
+            } else {
+<span class="nc" id="L516">                universeWrapper.setSeed(seed.getText());</span>
+<span class="nc" id="L517">                saveConfiguration();</span>
+<span class="nc" id="L518">                final GameManifest gameManifest = GameManifestProvider.createGameManifest(universeWrapper, moduleManager, config);</span>
+<span class="nc bnc" id="L519" title="All 2 branches missed.">                if (gameManifest != null) {</span>
+<span class="nc bnc" id="L520" title="All 2 branches missed.">                    gameEngine.changeState(new StateLoading(gameManifest, (universeWrapper.getLoadingAsServer()) ? NetworkMode.DEDICATED_SERVER : NetworkMode.NONE));</span>
+                } else {
+<span class="nc" id="L522">                    getManager().createScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Error&quot;, &quot;Can't create new game!&quot;);</span>
+                }
+            }
+<span class="nc" id="L525">        });</span>
+
+<span class="nc" id="L527">        WidgetUtil.trySubscribe(this, &quot;return&quot;, button -&gt; triggerBackAnimation());</span>
+
+<span class="nc" id="L529">        WidgetUtil.trySubscribe(this, &quot;mainMenu&quot;, button -&gt; {</span>
+<span class="nc" id="L530">            getManager().pushScreen(&quot;engine:mainMenuScreen&quot;);</span>
+<span class="nc" id="L531">        });</span>
+<span class="nc" id="L532">    }</span>
+
+    @Override
+    public void onClosed() {
+<span class="nc" id="L536">        super.onClosed();</span>
+<span class="nc" id="L537">        saveConfiguration();</span>
+<span class="nc" id="L538">    }</span>
+
+    private void filterModules() {
+<span class="nc" id="L541">        sortedModules.clear();</span>
+<span class="nc" id="L542">        sortedModules.addAll(allSortedModules);</span>
+
+<span class="nc bnc" id="L544" title="All 2 branches missed.">        if (selectModulesConfig.isUncategorizedSelected()) {</span>
+<span class="nc" id="L545">            uncategorizedModuleFilter();</span>
+        } else {
+<span class="nc bnc" id="L547" title="All 2 branches missed.">            if (selectModulesConfig.isAnyStandardModuleExtensionSelected()) {</span>
+<span class="nc" id="L548">                advancedModuleFilter();</span>
+            }
+        }
+
+<span class="nc bnc" id="L552" title="All 2 branches missed.">        if (selectModulesConfig.isLocalOnlySelected()) {</span>
+<span class="nc" id="L553">            localModuleFilter();</span>
+        }
+
+<span class="nc" id="L556">        filterText();</span>
+<span class="nc" id="L557">    }</span>
+
+    private void uncategorizedModuleFilter() {
+<span class="nc" id="L560">        Iterator&lt;ModuleSelectionInfo&gt; iter = sortedModules.iterator();</span>
+<span class="nc bnc" id="L561" title="All 2 branches missed.">        while (iter.hasNext()) {</span>
+<span class="nc" id="L562">            ModuleSelectionInfo m = iter.next();</span>
+            Module module;
+<span class="nc bnc" id="L564" title="All 2 branches missed.">            if (m.isPresent()) {</span>
+<span class="nc" id="L565">                module = moduleManager.getRegistry().getLatestModuleVersion(m.getMetadata().getId());</span>
+            } else {
+<span class="nc bnc" id="L567" title="All 2 branches missed.">                module = (m.getOnlineVersion() == null) ? m.getLatestVersion() : m.getOnlineVersion();</span>
+            }
+
+<span class="nc" id="L570">            boolean isUncategorized = true;</span>
+<span class="nc" id="L571">            Set&lt;StandardModuleExtension&gt; booleanStandardModuleExtensionEnumSet = StandardModuleExtension.booleanPropertySet();</span>
+<span class="nc bnc" id="L572" title="All 2 branches missed.">            for (StandardModuleExtension standardModuleExtension : booleanStandardModuleExtensionEnumSet) {</span>
+<span class="nc bnc" id="L573" title="All 2 branches missed.">                if (standardModuleExtension.isProvidedBy(module)) {</span>
+<span class="nc" id="L574">                    isUncategorized = false;</span>
+<span class="nc" id="L575">                    break;</span>
+                }
+<span class="nc" id="L577">            }</span>
+
+<span class="nc bnc" id="L579" title="All 2 branches missed.">            if (!isUncategorized) {</span>
+<span class="nc" id="L580">                iter.remove();</span>
+            }
+<span class="nc" id="L582">        }</span>
+<span class="nc" id="L583">    }</span>
+
+    private void localModuleFilter() {
+<span class="nc bnc" id="L586" title="All 2 branches missed.">        sortedModules.removeIf(moduleSelectionInfo -&gt; !moduleSelectionInfo.isPresent());</span>
+<span class="nc" id="L587">    }</span>
+
+    private void advancedModuleFilter() {
+<span class="nc" id="L590">        Iterator&lt;ModuleSelectionInfo&gt; iter = sortedModules.iterator();</span>
+<span class="nc bnc" id="L591" title="All 2 branches missed.">        while (iter.hasNext()) {</span>
+<span class="nc" id="L592">            ModuleSelectionInfo m = iter.next();</span>
+            Module module;
+<span class="nc bnc" id="L594" title="All 2 branches missed.">            if (m.isPresent()) {</span>
+<span class="nc" id="L595">                module = moduleManager.getRegistry().getLatestModuleVersion(m.getMetadata().getId());</span>
+            } else {
+<span class="nc bnc" id="L597" title="All 2 branches missed.">                module = (m.getOnlineVersion() == null) ? m.getLatestVersion() : m.getOnlineVersion();</span>
+            }
+
+<span class="nc" id="L600">            boolean matches = false;</span>
+<span class="nc" id="L601">            Collection&lt;StandardModuleExtension&gt; selectedStandardModuleExtensions = selectModulesConfig</span>
+<span class="nc" id="L602">                    .getSelectedStandardModuleExtensions();</span>
+<span class="nc bnc" id="L603" title="All 2 branches missed.">            for (StandardModuleExtension standardModuleExtension : selectedStandardModuleExtensions) {</span>
+<span class="nc bnc" id="L604" title="All 4 branches missed.">                if (standardModuleExtension != null &amp;&amp; standardModuleExtension.isProvidedBy(module)) {</span>
+<span class="nc" id="L605">                    matches = true;</span>
+<span class="nc" id="L606">                    break;</span>
+                }
+<span class="nc" id="L608">            }</span>
+
+<span class="nc bnc" id="L610" title="All 2 branches missed.">            if (!matches) {</span>
+<span class="nc" id="L611">                iter.remove();</span>
+            }
+<span class="nc" id="L613">        }</span>
+<span class="nc" id="L614">    }</span>
+
+    private void filterText() {
+<span class="nc" id="L617">        String newText = moduleSearch.getText();</span>
+<span class="nc bnc" id="L618" title="All 2 branches missed.">        sortedModules.removeIf(moduleSelectionInfo -&gt; !moduleSelectionInfo.getMetadata().getDisplayName().toString().toLowerCase().contains(newText.toLowerCase()));</span>
+<span class="nc" id="L619">    }</span>
+
+    private void startDownloadingNewestModulesRequiredFor(ModuleSelectionInfo moduleMetadata) {
+        Set&lt;Module&gt; modulesToDownload;
+        try {
+<span class="nc" id="L624">            modulesToDownload = moduleManager.getInstallManager()</span>
+<span class="nc" id="L625">                    .getAllModulesToDownloadFor(moduleMetadata.getMetadata().getId());</span>
+<span class="nc" id="L626">        } catch (DependencyResolutionFailedException ex) {</span>
+<span class="nc" id="L627">            MessagePopup messagePopup = getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L628">            messagePopup.setMessage(&quot;Error&quot;, ex.getMessage());</span>
+<span class="nc" id="L629">            return;</span>
+<span class="nc" id="L630">        }</span>
+<span class="nc" id="L631">        ConfirmPopup confirmPopup = getManager().pushScreen(ConfirmPopup.ASSET_URI, ConfirmPopup.class);</span>
+<span class="nc" id="L632">        confirmPopup.setMessage(&quot;Confirm Download&quot;, modulesToDownload.size() + &quot; modules will be downloaded&quot;);</span>
+<span class="nc" id="L633">        confirmPopup.setOkHandler(() -&gt; downloadModules(modulesToDownload));</span>
+<span class="nc" id="L634">    }</span>
+
+    private void downloadModules(Iterable&lt;Module&gt; modulesToDownload) {
+<span class="nc" id="L637">        final WaitPopup&lt;List&lt;Module&gt;&gt; popup = getManager().pushScreen(WaitPopup.ASSET_URI, WaitPopup.class);</span>
+<span class="nc" id="L638">        popup.onSuccess(newModules -&gt; {</span>
+<span class="nc bnc" id="L639" title="All 2 branches missed.">            for (Module module : newModules) {</span>
+<span class="nc" id="L640">                modulesLookup.get(module.getId()).setLocalVersion(module);</span>
+<span class="nc" id="L641">                updateValidToSelect();</span>
+<span class="nc" id="L642">            }</span>
+<span class="nc" id="L643">        });</span>
+<span class="nc" id="L644">        ModuleInstaller operation = moduleManager.getInstallManager().createInstaller(modulesToDownload,</span>
+                new DownloadPopupProgressListener(popup));
+<span class="nc" id="L646">        popup.startOperation(operation, true);</span>
+<span class="nc" id="L647">    }</span>
+
+    private void updateValidToSelect() {
+<span class="nc" id="L650">        List&lt;Name&gt; selectedModules = Lists.newArrayList();</span>
+<span class="nc" id="L651">        selectedModules.addAll(sortedModules.stream().filter(ModuleSelectionInfo::isSelected)</span>
+<span class="nc" id="L652">                .map(info -&gt; info.getMetadata().getId()).collect(Collectors.toList()));</span>
+<span class="nc" id="L653">        Name[] selectedModulesArray = selectedModules.toArray(new Name[selectedModules.size()]);</span>
+<span class="nc" id="L654">        sortedModules.stream()</span>
+<span class="nc bnc" id="L655" title="All 2 branches missed.">                .filter(info -&gt; !info.isSelected())</span>
+<span class="nc" id="L656">                .forEach(info -&gt; info.setValidToSelect(</span>
+<span class="nc" id="L657">                        dependencyResolver.resolve(info.getMetadata().getId(), selectedModulesArray)</span>
+<span class="nc" id="L658">                                .isSuccess()</span>
+                ));
+<span class="nc" id="L660">    }</span>
+
+    private void setSelectedVersions(ResolutionResult currentSelectionResults) {
+<span class="nc bnc" id="L663" title="All 2 branches missed.">        if (currentSelectionResults.isSuccess()) {</span>
+<span class="nc bnc" id="L664" title="All 2 branches missed.">            for (Module module : currentSelectionResults.getModules()) {</span>
+<span class="nc" id="L665">                ModuleSelectionInfo info = modulesLookup.get(module.getId());</span>
+
+                // the engine module is not listed
+<span class="nc bnc" id="L668" title="All 2 branches missed.">                if (info != null) {</span>
+<span class="nc" id="L669">                    info.setSelectedVersion(module);</span>
+                }
+<span class="nc" id="L671">            }</span>
+        }
+<span class="nc" id="L673">    }</span>
+
+    private void updateModuleInformation() {
+<span class="nc" id="L676">        Iterable&lt;Module&gt; remoteModuleRegistry = moduleManager.getInstallManager().getRemoteRegistry();</span>
+<span class="nc" id="L677">        Set&lt;Name&gt; filtered = ImmutableSet.of(TerasologyConstants.ENGINE_MODULE, new Name(&quot;engine-test&quot;));</span>
+<span class="nc bnc" id="L678" title="All 2 branches missed.">        for (Module remote : remoteModuleRegistry) {</span>
+<span class="nc" id="L679">            ModuleSelectionInfo info = modulesLookup.get(remote.getId());</span>
+<span class="nc bnc" id="L680" title="All 2 branches missed.">            if (!filtered.contains(remote.getId())) {</span>
+<span class="nc bnc" id="L681" title="All 2 branches missed.">                if (info == null) {</span>
+<span class="nc" id="L682">                    info = ModuleSelectionInfo.remote(remote);</span>
+<span class="nc" id="L683">                    modulesLookup.put(remote.getId(), info);</span>
+                }
+<span class="nc" id="L685">                info.setOnlineVersion(remote);</span>
+            }
+<span class="nc" id="L687">        }</span>
+<span class="nc" id="L688">        sortedModules.clear();</span>
+<span class="nc" id="L689">        allSortedModules.clear();</span>
+
+<span class="nc" id="L691">        sortedModules.addAll(modulesLookup.values());</span>
+<span class="nc" id="L692">        sortedModules.sort(moduleInfoComparator);</span>
+
+<span class="nc" id="L694">        allSortedModules.addAll(sortedModules);</span>
+
+<span class="nc" id="L696">        filterModules();</span>
+<span class="nc" id="L697">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L701">        super.update(delta);</span>
+
+<span class="nc bnc" id="L703" title="All 6 branches missed.">        if (needsUpdate &amp;&amp; remoteModuleRegistryUpdater.isDone() &amp;&amp; !selectModulesConfig.isLocalOnlySelected()) {</span>
+<span class="nc" id="L704">            needsUpdate = false;</span>
+            try {
+                // it'a a Callable&lt;Void&gt; so just a null is returned, but it's used instead of a runnable because it can throw exceptions
+<span class="nc" id="L707">                remoteModuleRegistryUpdater.get();</span>
+<span class="nc" id="L708">            } catch (CancellationException | InterruptedException | ExecutionException ex) {</span>
+<span class="nc" id="L709">                logger.warn(&quot;Failed to retrieve module list from meta server&quot;, ex);</span>
+<span class="nc" id="L710">                MessagePopup message = getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L711">                message.setMessage(&quot;Warning&quot;,</span>
+                        &quot;Failed to retrieve a module list from the master server. Only locally installed modules are available.&quot;);
+<span class="nc" id="L713">                return;</span>
+<span class="nc" id="L714">            }</span>
+<span class="nc" id="L715">            updateModuleInformation();</span>
+        }
+<span class="nc" id="L717">    }</span>
+
+    private void saveConfiguration() {
+        // moduleConfig passes the module collection to other screens
+<span class="nc" id="L721">        ModuleConfig moduleConfig = config.getDefaultModSelection();</span>
+<span class="nc" id="L722">        moduleConfig.clear();</span>
+        // Fetch all the selected/activated modules using allSortedModules
+        // instead of fetching only selected/activated modules from filtered collection
+        // of modules using sortedModules
+<span class="nc bnc" id="L726" title="All 4 branches missed.">        allSortedModules.stream().filter(info -&gt; info.isSelected() &amp;&amp; info.isExplicitSelection())</span>
+<span class="nc" id="L727">                .forEach(info -&gt; moduleConfig.addModule(info.getMetadata().getId()));</span>
+<span class="nc" id="L728">        SimpleUri defaultGenerator = config.getWorldGeneration().getDefaultGenerator();</span>
+<span class="nc" id="L729">        ModuleSelectionInfo info = modulesLookup.get(defaultGenerator.getModuleName());</span>
+<span class="nc bnc" id="L730" title="All 4 branches missed.">        if (info != null &amp;&amp; !info.isSelected()) {</span>
+<span class="nc" id="L731">            config.getWorldGeneration().setDefaultGenerator(new SimpleUri());</span>
+        }
+
+<span class="nc" id="L734">        worldGenManager.refresh();</span>
+
+<span class="nc" id="L736">        config.save();</span>
+<span class="nc" id="L737">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L741">        return false;</span>
+    }
+
+    private void select(ModuleSelectionInfo target) {
+<span class="nc bnc" id="L745" title="All 4 branches missed.">        if (target.isValidToSelect() &amp;&amp; !target.isExplicitSelection()) {</span>
+<span class="nc" id="L746">            boolean previouslySelected = target.isSelected();</span>
+<span class="nc" id="L747">            target.setExplicitSelection(true);</span>
+<span class="nc bnc" id="L748" title="All 2 branches missed.">            if (!previouslySelected) {</span>
+<span class="nc" id="L749">                refreshSelection();</span>
+            }
+        }
+<span class="nc" id="L752">    }</span>
+
+    private List&lt;Name&gt; getExplicitlySelectedModules() {
+<span class="nc" id="L755">        return allSortedModules.stream()</span>
+<span class="nc" id="L756">                .filter(ModuleSelectionInfo::isExplicitSelection)</span>
+<span class="nc" id="L757">                .map(info -&gt; info.getMetadata().getId())</span>
+<span class="nc" id="L758">                .collect(Collectors.toList());</span>
+    }
+
+    private void deselect(ModuleSelectionInfo target) {
+        // only deselect if it is already selected and if it is not the currently
+        // selected gameplay module
+<span class="nc bnc" id="L764" title="All 4 branches missed.">        if (target.isExplicitSelection() &amp;&amp; !isSelectedGameplayModule(target)) {</span>
+<span class="nc" id="L765">            target.setExplicitSelection(false);</span>
+<span class="nc" id="L766">            refreshSelection();</span>
+        }
+<span class="nc" id="L768">    }</span>
+
+    private boolean isSelectedGameplayModule(ModuleSelectionInfo target) {
+<span class="nc" id="L771">        return target.getMetadata().getId()</span>
+<span class="nc" id="L772">                .equals(new Name(config.getDefaultModSelection().getDefaultGameplayModuleName()));</span>
+    }
+
+    private void refreshSelection() {
+<span class="nc" id="L776">        List&lt;Name&gt; selectedModules = getExplicitlySelectedModules();</span>
+<span class="nc bnc" id="L777" title="All 2 branches missed.">        for (ModuleSelectionInfo info : sortedModules) {</span>
+<span class="nc" id="L778">            info.setSelectedVersion(null);</span>
+<span class="nc" id="L779">        }</span>
+<span class="nc" id="L780">        setSelectedVersions(dependencyResolver.resolve(selectedModules));</span>
+<span class="nc" id="L781">        updateValidToSelect();</span>
+<span class="nc" id="L782">    }</span>
+
+    public void setUniverseWrapper(UniverseWrapper wrapper) {
+<span class="nc" id="L785">        universeWrapper = wrapper;</span>
+<span class="nc" id="L786">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

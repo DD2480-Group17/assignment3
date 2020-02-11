@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PerlinNoise.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.procedural</a> &gt; <span class="el_source">PerlinNoise.java</span></div><h1>PerlinNoise.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.utilities.procedural;
+
+import org.terasology.math.TeraMath;
+import org.terasology.utilities.random.FastRandom;
+
+/**
+ * Improved Perlin noise based on the reference implementation by Ken Perlin.
+ * @deprecated Prefer using {@link SimplexNoise}, it is comparable to Perlin noise (fewer directional artifacts, lower computational overhead for higher dimensions).
+ *
+ */
+@Deprecated
+public class PerlinNoise extends AbstractNoise implements Noise2D, Noise3D {
+
+    private final int[] noisePermutations;
+
+    /**
+     * Init. a new generator with a given seed value.
+     *
+     * @param seed The seed value
+     */
+<span class="fc" id="L36">    public PerlinNoise(long seed) {</span>
+<span class="fc" id="L37">        FastRandom rand = new FastRandom(seed);</span>
+
+<span class="fc" id="L39">        noisePermutations = new int[512];</span>
+<span class="fc" id="L40">        int[] noiseTable = new int[256];</span>
+
+        // Init. the noise table
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        for (int i = 0; i &lt; 256; i++) {</span>
+<span class="fc" id="L44">            noiseTable[i] = i;</span>
+        }
+
+        // Shuffle the array
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        for (int i = 0; i &lt; 256; i++) {</span>
+<span class="fc" id="L49">            int j = rand.nextInt(256);</span>
+
+<span class="fc" id="L51">            int swap = noiseTable[i];</span>
+<span class="fc" id="L52">            noiseTable[i] = noiseTable[j];</span>
+<span class="fc" id="L53">            noiseTable[j] = swap;</span>
+        }
+
+        // Finally replicate the noise permutations in the remaining 256 index positions
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        for (int i = 0; i &lt; 256; i++) {</span>
+<span class="fc" id="L58">            noisePermutations[i] = noiseTable[i];</span>
+<span class="fc" id="L59">            noisePermutations[i + 256] = noiseTable[i];</span>
+        }
+
+<span class="fc" id="L62">    }</span>
+
+    /**
+     * Returns the noise value at the given position.
+     *
+     * @param posX Position on the x-axis
+     * @param posY Position on the y-axis
+     * @param posZ Position on the z-axis
+     * @return The noise value
+     */
+    @Override
+    public float noise(float posX, float posY, float posZ) {
+<span class="fc" id="L74">        int xInt = (int) TeraMath.fastFloor(posX) &amp; 255;</span>
+<span class="fc" id="L75">        int yInt = (int) TeraMath.fastFloor(posY) &amp; 255;</span>
+<span class="fc" id="L76">        int zInt = (int) TeraMath.fastFloor(posZ) &amp; 255;</span>
+
+<span class="fc" id="L78">        float x = posX - TeraMath.fastFloor(posX);</span>
+<span class="fc" id="L79">        float y = posY - TeraMath.fastFloor(posY);</span>
+<span class="fc" id="L80">        float z = posZ - TeraMath.fastFloor(posZ);</span>
+
+<span class="fc" id="L82">        float u = TeraMath.fadePerlin(x);</span>
+<span class="fc" id="L83">        float v = TeraMath.fadePerlin(y);</span>
+<span class="fc" id="L84">        float w = TeraMath.fadePerlin(z);</span>
+<span class="fc" id="L85">        int a = noisePermutations[xInt] + yInt;</span>
+<span class="fc" id="L86">        int aa = noisePermutations[a] + zInt;</span>
+<span class="fc" id="L87">        int ab = noisePermutations[(a + 1)] + zInt;</span>
+<span class="fc" id="L88">        int b = noisePermutations[(xInt + 1)] + yInt;</span>
+<span class="fc" id="L89">        int ba = noisePermutations[b] + zInt;</span>
+<span class="fc" id="L90">        int bb = noisePermutations[(b + 1)] + zInt;</span>
+
+<span class="fc" id="L92">        float gradAA = grad(noisePermutations[aa], x, y, z);</span>
+<span class="fc" id="L93">        float gradBA = grad(noisePermutations[ba], x - 1, y, z);</span>
+
+<span class="fc" id="L95">        float gradAB = grad(noisePermutations[ab], x, y - 1, z);</span>
+<span class="fc" id="L96">        float gradBB = grad(noisePermutations[bb], x - 1, y - 1, z);</span>
+
+<span class="fc" id="L98">        float val1 = TeraMath.lerp(TeraMath.lerp(gradAA, gradBA, u), TeraMath.lerp(gradAB, gradBB, u), v);</span>
+
+<span class="fc" id="L100">        float gradAA1 = grad(noisePermutations[(aa + 1)], x, y, z - 1);</span>
+<span class="fc" id="L101">        float gradBA1 = grad(noisePermutations[(ba + 1)], x - 1, y, z - 1);</span>
+
+<span class="fc" id="L103">        float gradAB1 = grad(noisePermutations[(ab + 1)], x, y - 1, z - 1);</span>
+<span class="fc" id="L104">        float gradBB1 = grad(noisePermutations[(bb + 1)], x - 1, y - 1, z - 1);</span>
+
+<span class="fc" id="L106">        float val2 = TeraMath.lerp(TeraMath.lerp(gradAA1, gradBA1, u), TeraMath.lerp(gradAB1, gradBB1, u), v);</span>
+
+<span class="fc" id="L108">        return TeraMath.lerp(val1, val2, w);</span>
+    }
+
+    private static float grad(int hash, float x, float y, float z) {
+<span class="fc" id="L112">        int h = hash &amp; 15;</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        float u = h &lt; 8 ? x : y;</span>
+<span class="fc bfc" id="L114" title="All 6 branches covered.">        float v = h &lt; 4 ? y : h == 12 || h == 14 ? x : z;</span>
+<span class="fc bfc" id="L115" title="All 4 branches covered.">        return ((h &amp; 1) == 0 ? u : -u) + ((h &amp; 2) == 0 ? v : -v);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

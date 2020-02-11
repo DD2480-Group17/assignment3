@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NUIEditorItemRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.editor.utils</a> &gt; <span class="el_source">NUIEditorItemRenderer.java</span></div><h1>NUIEditorItemRenderer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.editor.utils;
+
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.nui.itemRendering.StringTextIconRenderer;
+import org.terasology.rendering.nui.widgets.treeView.JsonTree;
+import org.terasology.rendering.nui.widgets.treeView.JsonTreeValue;
+import org.terasology.rendering.nui.widgets.treeView.Tree;
+import org.terasology.rendering.nui.widgets.treeView.TreeModel;
+import org.terasology.utilities.Assets;
+
+import java.util.Optional;
+
+/**
+ * Renders NUI editor nodes along with an icon depending on their types.
+ */
+public class NUIEditorItemRenderer extends StringTextIconRenderer&lt;JsonTreeValue&gt; {
+    private static final String ARRAY_TEXTURE_NAME = &quot;array&quot;;
+    private static final String ATTRIBUTE_TEXTURE_NAME = &quot;attribute&quot;;
+    private static final String ICON_BLANK = &quot;engine:icon_blank&quot;;
+    private static final String OBJECT_TEXTURE_NAME = &quot;object&quot;;
+
+    /**
+     * The tree model the nodes of which are to be rendered
+     * using this renderer.
+     */
+    private TreeModel&lt;JsonTreeValue&gt; editorTreeViewModel;
+
+    public NUIEditorItemRenderer(TreeModel&lt;JsonTreeValue&gt; editorTreeViewModel) {
+<span class="nc" id="L44">        super(2, 2, 5, 5);</span>
+<span class="nc" id="L45">        this.editorTreeViewModel = editorTreeViewModel;</span>
+<span class="nc" id="L46">    }</span>
+
+    @Override
+    public String getString(JsonTreeValue value) {
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        if (value.getType() == JsonTreeValue.Type.OBJECT) {</span>
+<span class="nc" id="L51">            JsonTree node = (JsonTree) editorTreeViewModel.getNodeByValue(value);</span>
+
+            // If a node has &quot;type&quot;: &quot;...&quot; and/or &quot;id&quot;: &quot;...&quot; children, use their values to build the result string.
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            if (node != null) {</span>
+<span class="nc" id="L55">                String resultString = &quot;&quot;;</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">                for (Tree&lt;JsonTreeValue&gt; child : node.getChildren()) {</span>
+<span class="nc" id="L57">                    JsonTreeValue childValue = child.getValue();</span>
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                    if (childValue.getType() == JsonTreeValue.Type.KEY_VALUE_PAIR) {</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">                        if (&quot;type&quot;.equals(childValue.getKey())) {</span>
+<span class="nc" id="L61">                            resultString += String.format(&quot;\&quot;type\&quot;: \&quot;%s\&quot;&quot;, childValue.getValue());</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">                        } else if (&quot;id&quot;.equals(childValue.getKey())) {</span>
+<span class="nc" id="L63">                            resultString += String.format(&quot;; \&quot;id\&quot;: \&quot;%s\&quot;&quot;, childValue.getValue());</span>
+                        }
+                    }
+<span class="nc" id="L66">                }</span>
+
+<span class="nc bnc" id="L68" title="All 2 branches missed.">                if (!resultString.isEmpty()) {</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">                    return String.format(&quot;%s{ %s }&quot;, value.getKey() != null ? value.getKey() + &quot; &quot; : &quot;&quot;, resultString);</span>
+                }
+            }
+        }
+
+        // Otherwise use JsonTreeValue.toString() output.
+<span class="nc" id="L75">        return value.toString();</span>
+    }
+
+    @Override
+    public Texture getTexture(JsonTreeValue value) {
+<span class="nc" id="L80">        String textureName = null;</span>
+
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        if (value.getType() == JsonTreeValue.Type.KEY_VALUE_PAIR) {</span>
+<span class="nc" id="L83">            textureName = ATTRIBUTE_TEXTURE_NAME;</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        } else if (value.getType() == JsonTreeValue.Type.OBJECT) {</span>
+<span class="nc" id="L85">            JsonTree node = (JsonTree) editorTreeViewModel.getNodeByValue(value);</span>
+
+            // If the node has a &quot;type&quot;: &quot;...&quot; child, retrieve the texture by the type name.
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if (node != null) {</span>
+                // If the node has no type and is a root node, do not draw an icon.
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                if (node.isRoot()) {</span>
+<span class="nc" id="L91">                    return null;</span>
+<span class="nc bnc" id="L92" title="All 4 branches missed.">                } else if (!node.isRoot() &amp;&amp; &quot;elements&quot;.equals(node.getParent().getValue().getKey())) {</span>
+<span class="nc" id="L93">                    textureName = node.getValue().getKey();</span>
+                } else {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                    for (Tree&lt;JsonTreeValue&gt; child : node.getChildren()) {</span>
+<span class="nc" id="L96">                        JsonTreeValue childValue = child.getValue();</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                        if (childValue.getType() == JsonTreeValue.Type.KEY_VALUE_PAIR</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                            &amp;&amp; &quot;type&quot;.equals(childValue.getKey())) {</span>
+<span class="nc" id="L99">                            textureName = (String) childValue.getValue();</span>
+                        }
+<span class="nc" id="L101">                    }</span>
+                }
+            }
+
+            // Otherwise use the default texture.
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if (textureName == null) {</span>
+<span class="nc" id="L107">                textureName = OBJECT_TEXTURE_NAME;</span>
+            }
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        } else if (value.getType() == JsonTreeValue.Type.ARRAY) {</span>
+<span class="nc" id="L110">            textureName = ARRAY_TEXTURE_NAME;</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        } else if (value.getKey() != null) {</span>
+<span class="nc" id="L112">            textureName = value.getKey();</span>
+        } else {
+<span class="nc" id="L114">            return null;</span>
+        }
+
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        Optional&lt;Texture&gt; texture = Assets.getTexture(textureName != null</span>
+<span class="nc" id="L118">            ? String.format(&quot;engine:editor_%s&quot;, textureName)</span>
+            : ICON_BLANK);
+
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        return texture.isPresent() ? texture.get() : null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

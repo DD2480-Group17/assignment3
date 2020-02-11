@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeferredPointLightsNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">DeferredPointLightsNode.java</span></div><h1>DeferredPointLightsNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.util.glu.Sphere;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.DisableDepthTest;
+import org.terasology.rendering.dag.stateChanges.EnableBlending;
+import org.terasology.rendering.dag.stateChanges.EnableFaceCulling;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.LookThrough;
+import org.terasology.rendering.dag.stateChanges.SetBlendFunction;
+import org.terasology.rendering.dag.stateChanges.SetFacesToCull;
+import org.terasology.rendering.dag.stateChanges.SetFboWriteMask;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.logic.LightComponent;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.world.WorldProvider;
+
+import static org.lwjgl.opengl.GL11.GL_FRONT;
+import static org.lwjgl.opengl.GL11.GL_ONE;
+import static org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_COLOR;
+import static org.lwjgl.opengl.GL11.glCallList;
+import static org.lwjgl.opengl.GL11.glEndList;
+import static org.lwjgl.opengl.GL11.glGenLists;
+import static org.lwjgl.opengl.GL11.glNewList;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.DepthStencilTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.NormalsTexture;
+
+/**
+ * Instances of this class are integral to the deferred rendering process.
+ * They render point lights as spheres, into the light accumulation buffer
+ * (the spheres have a radius proportional to each light's attenuation radius).
+ * Data from the light accumulation buffer is eventually combined with the
+ * content of other buffers to correctly light up the scene.
+ */
+public class DeferredPointLightsNode extends AbstractNode {
+<span class="nc" id="L69">    private static final ResourceUrn LIGHT_GEOMETRY_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.lightGeometryPass&quot;);</span>
+<span class="nc" id="L70">    private static int lightSphereDisplayList = -1;</span>
+
+    private EntityManager entityManager;
+    private RenderingConfig renderingConfig;
+    private WorldProvider worldProvider;
+
+    private Material lightGeometryMaterial;
+
+    private SubmersibleCamera activeCamera;
+    private Camera lightCamera;
+
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    private Vector3f cameraPosition;
+<span class="nc" id="L83">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    private Vector3f activeCameraToLightSpace = new Vector3f();
+
+    public DeferredPointLightsNode(String nodeUri, Context context) {
+<span class="nc" id="L87">        super(nodeUri, context);</span>
+
+<span class="nc" id="L89">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L90">        worldProvider = context.get(WorldProvider.class);</span>
+<span class="nc" id="L91">        entityManager = context.get(EntityManager.class);</span>
+<span class="nc" id="L92">        entityManager = context.get(EntityManager.class);</span>
+
+<span class="nc" id="L94">        WorldRenderer worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L95">        activeCamera = worldRenderer.getActiveCamera();</span>
+<span class="nc" id="L96">        lightCamera = worldRenderer.getLightCamera();</span>
+
+<span class="nc" id="L98">        addDesiredStateChange(new LookThrough(activeCamera));</span>
+
+<span class="nc" id="L100">        lightGeometryMaterial = getMaterial(LIGHT_GEOMETRY_MATERIAL_URN);</span>
+<span class="nc" id="L101">        addDesiredStateChange(new EnableMaterial(LIGHT_GEOMETRY_MATERIAL_URN));</span>
+
+<span class="nc" id="L103">        addDesiredStateChange(new EnableFaceCulling());</span>
+<span class="nc" id="L104">        addDesiredStateChange(new SetFacesToCull(GL_FRONT));</span>
+
+<span class="nc" id="L106">        addDesiredStateChange(new EnableBlending());</span>
+<span class="nc" id="L107">        addDesiredStateChange(new SetBlendFunction(GL_ONE, GL_ONE_MINUS_SRC_COLOR));</span>
+
+<span class="nc" id="L109">        addDesiredStateChange(new DisableDepthTest());</span>
+
+<span class="nc" id="L111">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L112">        FBO lastUpdatedGBuffer = displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo();</span>
+        // TODO: make sure to read from the lastUpdatedGBuffer and write to the staleGBuffer.
+<span class="nc" id="L114">        addDesiredStateChange(new BindFbo(lastUpdatedGBuffer));</span>
+<span class="nc" id="L115">        addDesiredStateChange(new SetFboWriteMask(lastUpdatedGBuffer, false, false, true));</span>
+
+<span class="nc" id="L117">        initLightSphereDisplayList();</span>
+
+<span class="nc" id="L119">        int textureSlot = 0;</span>
+<span class="nc" id="L120">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, DepthStencilTexture, displayResolutionDependentFBOs, LIGHT_GEOMETRY_MATERIAL_URN, &quot;texSceneOpaqueDepth&quot;));</span>
+<span class="nc" id="L121">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot, lastUpdatedGBuffer, NormalsTexture, displayResolutionDependentFBOs, LIGHT_GEOMETRY_MATERIAL_URN, &quot;texSceneOpaqueNormals&quot;));</span>
+<span class="nc" id="L122">    }</span>
+
+    private void initLightSphereDisplayList() {
+<span class="nc" id="L125">        lightSphereDisplayList = glGenLists(1);</span>
+<span class="nc" id="L126">        Sphere sphere = new Sphere();</span>
+
+<span class="nc" id="L128">        glNewList(lightSphereDisplayList, GL11.GL_COMPILE);</span>
+<span class="nc" id="L129">        sphere.draw(1, 8, 8);</span>
+<span class="nc" id="L130">        glEndList();</span>
+<span class="nc" id="L131">    }</span>
+
+    private boolean lightIsRenderable(LightComponent lightComponent, Vector3f lightPositionRelativeToCamera) {
+        // if lightRenderingDistance is 0.0, the light is always considered, no matter the distance.
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        boolean lightIsRenderable = lightComponent.lightRenderingDistance == 0.0f</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                || lightPositionRelativeToCamera.lengthSquared() &lt; (lightComponent.lightRenderingDistance * lightComponent.lightRenderingDistance);</span>
+        // above: rendering distance must be higher than distance from the camera or the light is ignored
+
+        // No matter what, we ignore lights that are not in the camera frustrum
+<span class="nc" id="L140">        lightIsRenderable &amp;= activeCamera.getViewFrustum().intersects(lightPositionRelativeToCamera, lightComponent.lightAttenuationRange);</span>
+        // TODO: (above) what about lights just off-frame? They might light up in-frame surfaces.
+
+<span class="nc" id="L143">        return lightIsRenderable;</span>
+    }
+
+    /**
+     * Iterates over all available point lights and renders them as spheres into the light accumulation buffer.
+     *
+     * Furthermore, lights that are further from the camera than their set rendering distance are ignored,
+     * while lights with a rendering distance set to 0.0 are always considered. However, only lights within
+     * the camera's field of view (frustrum) are rendered.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L155">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+<span class="nc" id="L157">        lightGeometryMaterial.activateFeature(ShaderProgramFeature.FEATURE_LIGHT_POINT);</span>
+
+        // Specific Shader Parameters
+
+<span class="nc" id="L161">        cameraPosition = activeCamera.getPosition();</span>
+
+        // TODO: This is necessary right now because activateFeature removes all material parameters.
+        // TODO: Remove this explicit binding once we get rid of activateFeature, or find a way to retain parameters through it.
+<span class="nc" id="L165">        lightGeometryMaterial.setInt(&quot;texSceneOpaqueDepth&quot;, 0, true);</span>
+<span class="nc" id="L166">        lightGeometryMaterial.setInt(&quot;texSceneOpaqueNormals&quot;, 1, true);</span>
+
+<span class="nc bnc" id="L168" title="All 2 branches missed.">        if (renderingConfig.isDynamicShadows()) {</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (renderingConfig.isCloudShadows()) {</span>
+<span class="nc" id="L170">                lightGeometryMaterial.setFloat(&quot;time&quot;, worldProvider.getTime().getDays(), true);</span>
+<span class="nc" id="L171">                lightGeometryMaterial.setFloat3(&quot;cameraPosition&quot;, cameraPosition, true);</span>
+            }
+        }
+
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        if (renderingConfig.isDynamicShadows()) {</span>
+<span class="nc" id="L176">            lightGeometryMaterial.setMatrix4(&quot;lightViewProjMatrix&quot;, lightCamera.getViewProjectionMatrix(), true);</span>
+<span class="nc" id="L177">            lightGeometryMaterial.setMatrix4(&quot;invViewProjMatrix&quot;, activeCamera.getInverseViewProjectionMatrix(), true);</span>
+
+<span class="nc" id="L179">            activeCameraToLightSpace.sub(cameraPosition, lightCamera.getPosition());</span>
+<span class="nc" id="L180">            lightGeometryMaterial.setFloat3(&quot;activeCameraToLightSpace&quot;, activeCameraToLightSpace.x, activeCameraToLightSpace.y, activeCameraToLightSpace.z, true);</span>
+        }
+
+        // Actual Node Processing
+
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        for (EntityRef entity : entityManager.getEntitiesWith(LightComponent.class, LocationComponent.class)) {</span>
+<span class="nc" id="L186">            LightComponent lightComponent = entity.getComponent(LightComponent.class);</span>
+
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            if (lightComponent.lightType == LightComponent.LightType.POINT) {</span>
+<span class="nc" id="L189">                LocationComponent locationComponent = entity.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L190">                final Vector3f lightPositionInTeraCoords = locationComponent.getWorldPosition();</span>
+
+<span class="nc" id="L192">                Vector3f lightPositionRelativeToCamera = new Vector3f();</span>
+<span class="nc" id="L193">                lightPositionRelativeToCamera.sub(lightPositionInTeraCoords, activeCamera.getPosition());</span>
+
+<span class="nc bnc" id="L195" title="All 2 branches missed.">                if (lightIsRenderable(lightComponent, lightPositionRelativeToCamera)) {</span>
+<span class="nc" id="L196">                    lightGeometryMaterial.setCamera(activeCamera);</span>
+
+                    // setting shader parameters regarding the light's properties
+<span class="nc" id="L199">                    lightGeometryMaterial.setFloat3(&quot;lightColorDiffuse&quot;, lightComponent.lightColorDiffuse.x,</span>
+                        lightComponent.lightColorDiffuse.y, lightComponent.lightColorDiffuse.z, true);
+<span class="nc" id="L201">                    lightGeometryMaterial.setFloat3(&quot;lightColorAmbient&quot;, lightComponent.lightColorAmbient.x,</span>
+                        lightComponent.lightColorAmbient.y, lightComponent.lightColorAmbient.z, true);
+<span class="nc" id="L203">                    lightGeometryMaterial.setFloat3(&quot;lightProperties&quot;, lightComponent.lightAmbientIntensity,</span>
+                        lightComponent.lightDiffuseIntensity, lightComponent.lightSpecularPower, true);
+<span class="nc" id="L205">                    lightGeometryMaterial.setFloat4(&quot;lightExtendedProperties&quot;, lightComponent.lightAttenuationRange,</span>
+                        lightComponent.lightAttenuationFalloff, 0.0f, 0.0f, true);
+
+                    // setting shader parameters for the light position in camera space
+<span class="nc" id="L209">                    Vector3f lightPositionInViewSpace = new Vector3f(lightPositionRelativeToCamera);</span>
+<span class="nc" id="L210">                    activeCamera.getViewMatrix().transformPoint(lightPositionInViewSpace);</span>
+<span class="nc" id="L211">                    lightGeometryMaterial.setFloat3(&quot;lightViewPos&quot;, lightPositionInViewSpace.x, lightPositionInViewSpace.y, lightPositionInViewSpace.z, true);</span>
+
+                    // set the size and location of the sphere to be rendered via shader parameters
+<span class="nc" id="L214">                    Matrix4f modelMatrix = new Matrix4f();</span>
+<span class="nc" id="L215">                    modelMatrix.set(lightComponent.lightAttenuationRange); // scales the modelview matrix, effectively scales the light sphere</span>
+<span class="nc" id="L216">                    modelMatrix.setTranslation(lightPositionRelativeToCamera); // effectively moves the light sphere in the right position relative to camera</span>
+<span class="nc" id="L217">                    lightGeometryMaterial.setMatrix4(&quot;modelMatrix&quot;, modelMatrix, true);</span>
+
+<span class="nc" id="L219">                    glCallList(lightSphereDisplayList); // draws the light sphere</span>
+                }
+            }
+<span class="nc" id="L222">        }</span>
+
+<span class="nc" id="L224">        lightGeometryMaterial.deactivateFeature(ShaderProgramFeature.FEATURE_LIGHT_POINT);</span>
+
+<span class="nc" id="L226">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L227">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

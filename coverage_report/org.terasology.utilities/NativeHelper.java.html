@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NativeHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities</a> &gt; <span class="el_source">NativeHelper.java</span></div><h1>NativeHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities;
+
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.lang.reflect.Field;
+import java.nio.file.Path;
+import java.util.List;
+
+/**
+ */
+public final class NativeHelper {
+
+<span class="nc" id="L32">    private static final Logger logger = LoggerFactory.getLogger(NativeHelper.class);</span>
+<span class="nc" id="L33">    private static final String OS = System.getProperty(&quot;os.name&quot;).toLowerCase();</span>
+<span class="nc" id="L34">    private static final String ARCHITECTURE = System.getProperty(&quot;os.arch&quot;);</span>
+<span class="nc" id="L35">    private static final String USER_DIRECTORY = System.getProperty(&quot;user.dir&quot;);</span>
+
+    private NativeHelper() {
+    }
+
+    public static void addLibraryPath(Path libPath) {
+        try {
+<span class="nc" id="L42">            String envPath = System.getProperty(&quot;java.library.path&quot;);</span>
+
+<span class="nc bnc" id="L44" title="All 4 branches missed.">            if (envPath == null || envPath.isEmpty()) {</span>
+<span class="nc" id="L45">                System.setProperty(&quot;java.library.path&quot;, libPath.toAbsolutePath().toString());</span>
+            } else {
+<span class="nc" id="L47">                System.setProperty(&quot;java.library.path&quot;, libPath.toAbsolutePath().toString() + File.pathSeparator + envPath);</span>
+            }
+
+<span class="nc" id="L50">            final Field usrPathsField = ClassLoader.class.getDeclaredField(&quot;usr_paths&quot;);</span>
+<span class="nc" id="L51">            usrPathsField.setAccessible(true);</span>
+
+<span class="nc" id="L53">            List&lt;String&gt; paths = Lists.newArrayList((String[]) usrPathsField.get(null));</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            if (paths.contains(libPath.toAbsolutePath().toString())) {</span>
+<span class="nc" id="L55">                return;</span>
+            }
+<span class="nc" id="L57">            paths.add(0, libPath.toAbsolutePath().toString()); // Add to beginning, to override system libraries</span>
+
+<span class="nc" id="L59">            usrPathsField.set(null, paths.toArray(new String[paths.size()]));</span>
+<span class="nc" id="L60">        } catch (Exception e) {</span>
+<span class="nc" id="L61">            logger.error(&quot;Couldn't link static libraries. &quot;, e);</span>
+<span class="nc" id="L62">            System.exit(1);</span>
+<span class="nc" id="L63">        }</span>
+<span class="nc" id="L64">    }</span>
+
+    public static boolean isWin64() {
+
+<span class="nc bnc" id="L68" title="All 4 branches missed.">        return (OS.contains(&quot;win&quot;) &amp;&amp; ARCHITECTURE.contains(&quot;64&quot;));</span>
+
+    }
+
+    public static boolean isWin32() {
+
+<span class="nc bnc" id="L74" title="All 4 branches missed.">        return (OS.contains(&quot;win&quot;) &amp;&amp; ARCHITECTURE.contains(&quot;32&quot;));</span>
+
+    }
+
+    public static boolean isWindows() {
+<span class="nc bnc" id="L79" title="All 4 branches missed.">        return isWin32() || isWin64();</span>
+    }
+
+    public static boolean isLinux64() {
+
+<span class="nc bnc" id="L84" title="All 4 branches missed.">        return (OS.contains(&quot;linux&quot;) &amp;&amp; ARCHITECTURE.contains(&quot;64&quot;));</span>
+
+    }
+
+    public static boolean isLinux32() {
+
+<span class="nc bnc" id="L90" title="All 4 branches missed.">        return (OS.contains(&quot;linux&quot;) &amp;&amp; ARCHITECTURE.contains(&quot;32&quot;));</span>
+
+    }
+
+    public static boolean isMac() {
+
+<span class="nc" id="L96">        return (OS.contains(&quot;mac&quot;));</span>
+
+    }
+
+    public static String getOsString() {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (isWin64()) {</span>
+<span class="nc" id="L102">            return &quot;win32-x86-64&quot;;</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        } else if (isWin32()) {</span>
+<span class="nc" id="L104">            return &quot;win32-x86&quot;;</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        } else if (isLinux64()) {</span>
+<span class="nc" id="L106">            return &quot;linux-x86-64&quot;;</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        } else if (isLinux32()) {</span>
+<span class="nc" id="L108">            return &quot;linux-x86&quot;;</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        } else if (isMac()) {</span>
+<span class="nc" id="L110">            return &quot;darwin&quot;;</span>
+        }
+<span class="nc" id="L112">        return &quot;unknown&quot;;</span>
+    }
+
+    public static String getOpenVRLibPath() {
+<span class="nc" id="L116">        logger.debug(&quot;OS string&quot; + OS.toString());</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (isWindows()) {</span>
+<span class="nc" id="L118">            return USER_DIRECTORY + &quot;\\openvr_natives\\&quot; + getOsString();</span>
+        }
+<span class="nc" id="L120">        return USER_DIRECTORY + &quot;/openvr_natives/&quot; + getOsString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

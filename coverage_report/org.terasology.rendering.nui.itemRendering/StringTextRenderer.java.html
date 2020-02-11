@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StringTextRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.itemRendering</a> &gt; <span class="el_source">StringTextRenderer.java</span></div><h1>StringTextRenderer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.itemRendering;
+
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.TextLineBuilder;
+
+import java.util.List;
+
+/**
+ *
+ */
+public abstract class StringTextRenderer&lt;T&gt; extends AbstractItemRenderer&lt;T&gt; {
+    private final boolean wrap;
+
+    protected StringTextRenderer() {
+<span class="nc" id="L32">        this(true);</span>
+<span class="nc" id="L33">    }</span>
+
+<span class="nc" id="L35">    protected StringTextRenderer(boolean wrap) {</span>
+<span class="nc" id="L36">        this.wrap = wrap;</span>
+<span class="nc" id="L37">    }</span>
+
+    @Override
+    public void draw(T value, Canvas canvas) {
+<span class="nc bnc" id="L41" title="All 2 branches missed.">        if (wrap) {</span>
+<span class="nc" id="L42">            canvas.drawText(getString(value));</span>
+        } else {
+<span class="nc" id="L44">            int width = canvas.size().x;</span>
+<span class="nc" id="L45">            Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L46">            String text = getString(value);</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">            if (font.getWidth(text) &lt;= width) {</span>
+<span class="nc" id="L48">                canvas.drawText(text);</span>
+            } else {
+<span class="nc" id="L50">                String shortText = &quot;...&quot;;</span>
+<span class="nc" id="L51">                StringBuilder sb = new StringBuilder(text);</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">                while (sb.length() &gt; 0) {</span>
+<span class="nc" id="L53">                    shortText = sb.toString() + &quot;...&quot;;</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                    if (font.getWidth(shortText) &lt;= width) {</span>
+<span class="nc" id="L55">                        break;</span>
+                    }
+<span class="nc" id="L57">                    sb.setLength(sb.length() - 1);</span>
+                }
+<span class="nc" id="L59">                canvas.drawText(shortText);</span>
+            }
+        }
+<span class="nc" id="L62">    }</span>
+
+    @Override
+    public Vector2i getPreferredSize(T value, Canvas canvas) {
+<span class="nc" id="L66">        Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L67">        String text = getString(value);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        if (wrap) {</span>
+<span class="nc" id="L69">            List&lt;String&gt; lines = TextLineBuilder.getLines(font, text, canvas.size().x);</span>
+<span class="nc" id="L70">            return font.getSize(lines);</span>
+        } else {
+<span class="nc" id="L72">            return new Vector2i(font.getWidth(text), font.getLineHeight());</span>
+        }
+    }
+
+    public abstract String getString(T value);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

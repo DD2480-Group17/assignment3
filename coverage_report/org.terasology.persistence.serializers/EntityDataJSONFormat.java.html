@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntityDataJSONFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">EntityDataJSONFormat.java</span></div><h1>EntityDataJSONFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.serializers;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import com.google.gson.JsonSyntaxException;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Descriptors;
+import gnu.trove.list.TByteList;
+import gnu.trove.list.array.TByteArrayList;
+import org.terasology.protobuf.EntityData;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * Converts between the EntityData types and JSON.
+ * &lt;br&gt;&lt;br&gt;
+ * This means that serialization between JSON and Entities/Prefabs is a two step process, with EntityData as an
+ * intermediate step - it was done this way because it is much simpler to write gson handlers for the small number of
+ * EntityData types than to dynamically build handlers for every component type (and have gson properly handle missing
+ * types). This can be revisited in the future.
+ *
+ */
+// TODO: More javadoc
+public final class EntityDataJSONFormat {
+
+    private EntityDataJSONFormat() {
+    }
+
+    public static void write(EntityData.GlobalStore world, BufferedWriter writer) {
+<span class="fc" id="L60">        newGson().toJson(world, writer);</span>
+<span class="fc" id="L61">    }</span>
+
+    public static void write(EntityData.Prefab prefab, BufferedWriter writer) {
+<span class="nc" id="L64">        newGson().toJson(prefab, writer);</span>
+<span class="nc" id="L65">    }</span>
+
+    public static String write(EntityData.Entity entity) {
+<span class="nc" id="L68">        return newGson().toJson(entity);</span>
+    }
+
+    public static EntityData.GlobalStore readWorld(BufferedReader reader) throws IOException {
+        try {
+<span class="fc" id="L73">            return newGson().fromJson(reader, EntityData.GlobalStore.class);</span>
+<span class="nc" id="L74">        } catch (JsonSyntaxException e) {</span>
+<span class="nc" id="L75">            throw new IOException(&quot;Failed to load world&quot;, e);</span>
+        }
+    }
+
+    public static EntityData.Prefab readPrefab(BufferedReader reader) throws IOException {
+        try {
+<span class="fc" id="L81">            return newGson().fromJson(reader, EntityData.Prefab.class);</span>
+<span class="nc" id="L82">        } catch (JsonSyntaxException e) {</span>
+<span class="nc" id="L83">            throw new IOException(&quot;Failed to load prefab&quot;, e);</span>
+        }
+    }
+
+    private static Gson newGson() {
+<span class="fc" id="L88">        return new GsonBuilder()</span>
+<span class="fc" id="L89">                .setPrettyPrinting()</span>
+<span class="fc" id="L90">                .registerTypeAdapter(EntityData.GlobalStore.class, new WorldHandler())</span>
+<span class="fc" id="L91">                .registerTypeAdapter(EntityData.Entity.class, new EntityHandler())</span>
+<span class="fc" id="L92">                .registerTypeAdapter(EntityData.Prefab.class, new PrefabHandler())</span>
+<span class="fc" id="L93">                .registerTypeAdapter(EntityData.Component.class, new ComponentHandler())</span>
+<span class="fc" id="L94">                .registerTypeAdapter(EntityData.Component.Builder.class, new ComponentBuilderHandler())</span>
+<span class="fc" id="L95">                .registerTypeAdapter(EntityData.Value.class, new ValueHandler())</span>
+<span class="fc" id="L96">                .serializeSpecialFloatingPointValues()</span>
+<span class="fc" id="L97">                .create();</span>
+    }
+
+    private static class WorldHandler implements JsonSerializer&lt;EntityData.GlobalStore&gt;, JsonDeserializer&lt;EntityData.GlobalStore&gt; {
+
+        @Override
+        public JsonElement serialize(EntityData.GlobalStore src, Type typeOfSrc, JsonSerializationContext context) {
+<span class="fc" id="L104">            JsonObject result = new JsonObject();</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            for (Map.Entry&lt;Descriptors.FieldDescriptor, Object&gt; field : src.getAllFields().entrySet()) {</span>
+<span class="fc" id="L106">                result.add(field.getKey().getName(), context.serialize(field.getValue()));</span>
+<span class="fc" id="L107">            }</span>
+<span class="fc" id="L108">            return result;</span>
+        }
+
+        @Override
+        public EntityData.GlobalStore deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L113">            EntityData.GlobalStore.Builder world = EntityData.GlobalStore.newBuilder();</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">            if (json.isJsonObject()) {</span>
+<span class="fc" id="L115">                JsonObject jsonObject = json.getAsJsonObject();</span>
+<span class="fc" id="L116">                JsonArray prefabArray = jsonObject.getAsJsonArray(&quot;prefab&quot;);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">                if (prefabArray != null) {</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">                    for (JsonElement prefabElem : prefabArray) {</span>
+<span class="fc" id="L119">                        world.addPrefab((EntityData.Prefab) context.deserialize(prefabElem, EntityData.Prefab.class));</span>
+<span class="fc" id="L120">                    }</span>
+                }
+<span class="fc" id="L122">                JsonArray entityArray = jsonObject.getAsJsonArray(&quot;entity&quot;);</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">                if (entityArray != null) {</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">                    for (JsonElement entityElem : entityArray) {</span>
+<span class="fc" id="L125">                        world.addEntity((EntityData.Entity) context.deserialize(entityElem, EntityData.Entity.class));</span>
+<span class="fc" id="L126">                    }</span>
+                }
+<span class="fc" id="L128">                JsonPrimitive nextId = jsonObject.getAsJsonPrimitive(&quot;next_entity_id&quot;);</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">                if (nextId != null) {</span>
+<span class="fc" id="L130">                    world.setNextEntityId(nextId.getAsInt());</span>
+                }
+
+            }
+<span class="fc" id="L134">            return world.build();</span>
+        }
+    }
+
+    private static class ComponentHandler implements JsonSerializer&lt;EntityData.Component&gt; {
+
+        @Override
+        public JsonElement serialize(EntityData.Component src, Type typeOfSrc, JsonSerializationContext context) {
+<span class="fc" id="L142">            JsonObject result = new JsonObject();</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            for (EntityData.NameValue field : src.getFieldList()) {</span>
+<span class="fc" id="L144">                result.add(field.getName(), context.serialize(field.getValue()));</span>
+<span class="fc" id="L145">            }</span>
+<span class="fc" id="L146">            return result;</span>
+        }
+
+    }
+
+    private static class ComponentBuilderHandler implements JsonDeserializer&lt;EntityData.Component.Builder&gt; {
+        @Override
+        public EntityData.Component.Builder deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L154">            EntityData.Component.Builder component = EntityData.Component.newBuilder();</span>
+<span class="fc" id="L155">            JsonObject jsonObject = json.getAsJsonObject();</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonElement&gt; entry : jsonObject.entrySet()) {</span>
+<span class="fc" id="L157">                EntityData.NameValue.Builder nameValue = EntityData.NameValue.newBuilder();</span>
+<span class="fc" id="L158">                nameValue.setName(entry.getKey());</span>
+<span class="fc" id="L159">                EntityData.Value value = context.deserialize(entry.getValue(), EntityData.Value.class);</span>
+<span class="fc" id="L160">                nameValue.setValue(value);</span>
+<span class="fc" id="L161">                component.addField(nameValue);</span>
+<span class="fc" id="L162">            }</span>
+<span class="fc" id="L163">            return component;</span>
+        }
+    }
+
+    private static class EntityHandler implements JsonSerializer&lt;EntityData.Entity&gt;, JsonDeserializer&lt;EntityData.Entity&gt; {
+
+        @Override
+        public JsonElement serialize(EntityData.Entity src, Type typeOfSrc, JsonSerializationContext context) {
+<span class="fc" id="L171">            JsonObject result = new JsonObject();</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">            if (src.hasId()) {</span>
+<span class="fc" id="L173">                result.addProperty(&quot;id&quot;, src.getId());</span>
+            }
+<span class="pc bpc" id="L175" title="1 of 4 branches missed.">            if (src.hasParentPrefab() &amp;&amp; !src.getParentPrefab().isEmpty()) {</span>
+<span class="fc" id="L176">                result.addProperty(&quot;parentPrefab&quot;, src.getParentPrefab());</span>
+            }
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">            if (src.hasAlwaysRelevant()) {</span>
+<span class="nc" id="L179">                result.addProperty(&quot;alwaysRelevant&quot;, src.getAlwaysRelevant());</span>
+            }
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">            if (src.hasOwner()) {</span>
+<span class="nc" id="L182">                result.addProperty(&quot;owner&quot;, src.getOwner());</span>
+            }
+<span class="fc bfc" id="L184" title="All 2 branches covered.">            for (EntityData.Component component : src.getComponentList()) {</span>
+<span class="fc" id="L185">                result.add(component.getType(), context.serialize(component));</span>
+<span class="fc" id="L186">            }</span>
+
+<span class="fc bfc" id="L188" title="All 2 branches covered.">            if (src.getRemovedComponentCount() &gt; 0) {</span>
+<span class="fc" id="L189">                JsonArray removedComponentArray = new JsonArray();</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">                for (String removedComponent : src.getRemovedComponentList()) {</span>
+<span class="fc" id="L191">                    removedComponentArray.add(new JsonPrimitive(removedComponent));</span>
+<span class="fc" id="L192">                }</span>
+<span class="fc" id="L193">                result.add(&quot;removedComponent&quot;, removedComponentArray);</span>
+            }
+<span class="fc" id="L195">            return result;</span>
+        }
+
+        @Override
+        public EntityData.Entity deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L200">            EntityData.Entity.Builder entity = EntityData.Entity.newBuilder();</span>
+<span class="fc" id="L201">            JsonObject jsonObject = json.getAsJsonObject();</span>
+
+<span class="fc bfc" id="L203" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonElement&gt; entry : jsonObject.entrySet()) {</span>
+<span class="fc" id="L204">                String name = entry.getKey().toLowerCase(Locale.ENGLISH);</span>
+<span class="pc bpc" id="L205" title="2 of 6 branches missed.">                switch (name) {</span>
+                    case &quot;parentprefab&quot;:
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">                        if (entry.getValue().isJsonPrimitive()) {</span>
+<span class="fc" id="L208">                            entity.setParentPrefab(entry.getValue().getAsString());</span>
+                        }
+                        break;
+                    case &quot;id&quot;:
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">                        if (entry.getValue().isJsonPrimitive()) {</span>
+<span class="fc" id="L213">                            entity.setId(entry.getValue().getAsInt());</span>
+                        }
+                        break;
+                    case &quot;removedcomponent&quot;:
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">                        if (entry.getValue().isJsonArray()) {</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">                            for (JsonElement element : entry.getValue().getAsJsonArray()) {</span>
+<span class="fc" id="L219">                                entity.addRemovedComponent(element.getAsString());</span>
+<span class="fc" id="L220">                            }</span>
+                        }
+                        break;
+                    case &quot;owner&quot;:
+<span class="nc bnc" id="L224" title="All 2 branches missed.">                        if (entry.getValue().isJsonPrimitive()) {</span>
+<span class="nc" id="L225">                            entity.setOwner(entry.getValue().getAsInt());</span>
+                        }
+                        break;
+                    case &quot;alwaysrelevant&quot;:
+<span class="nc" id="L229">                        entity.setAlwaysRelevant(entry.getValue().getAsBoolean());</span>
+<span class="nc" id="L230">                        break;</span>
+                    default:
+<span class="fc" id="L232">                        EntityData.Component.Builder component = context.deserialize(entry.getValue(), EntityData.Component.Builder.class);</span>
+<span class="fc" id="L233">                        component.setType(entry.getKey());</span>
+<span class="fc" id="L234">                        entity.addComponent(component);</span>
+                }
+<span class="fc" id="L236">            }</span>
+<span class="fc" id="L237">            return entity.build();</span>
+        }
+    }
+
+    private static class PrefabHandler implements JsonSerializer&lt;EntityData.Prefab&gt;, JsonDeserializer&lt;EntityData.Prefab&gt; {
+
+        @Override
+        public JsonElement serialize(EntityData.Prefab src, Type typeOfSrc, JsonSerializationContext context) {
+<span class="fc" id="L245">            JsonObject result = new JsonObject();</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">            if (src.hasName()) {</span>
+<span class="fc" id="L247">                result.addProperty(&quot;name&quot;, src.getName());</span>
+            }
+<span class="fc bfc" id="L249" title="All 2 branches covered.">            if (src.hasParentName()) {</span>
+<span class="fc" id="L250">                result.addProperty(&quot;parent&quot;, src.getParentName());</span>
+            }
+<span class="fc bfc" id="L252" title="All 2 branches covered.">            if (src.hasPersisted()) {</span>
+<span class="fc" id="L253">                result.addProperty(&quot;persisted&quot;, src.getPersisted());</span>
+            }
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">            if (src.hasAlwaysRelevant()) {</span>
+<span class="nc" id="L256">                result.addProperty(&quot;alwaysRelevant&quot;, src.getAlwaysRelevant());</span>
+            }
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">            if (src.getRemovedComponentCount() &gt; 0) {</span>
+<span class="nc" id="L259">                result.add(&quot;removedComponents&quot;, context.serialize(src.getRemovedComponentList()));</span>
+            }
+<span class="fc bfc" id="L261" title="All 2 branches covered.">            for (EntityData.Component component : src.getComponentList()) {</span>
+<span class="fc" id="L262">                result.add(component.getType(), context.serialize(component));</span>
+<span class="fc" id="L263">            }</span>
+<span class="fc" id="L264">            return result;</span>
+        }
+
+        @Override
+        public EntityData.Prefab deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L269">            EntityData.Prefab.Builder prefab = EntityData.Prefab.newBuilder();</span>
+<span class="fc" id="L270">            JsonObject jsonObject = json.getAsJsonObject();</span>
+
+<span class="fc bfc" id="L272" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonElement&gt; entry : jsonObject.entrySet()) {</span>
+<span class="fc" id="L273">                String name = entry.getKey().toLowerCase(Locale.ENGLISH);</span>
+<span class="pc bpc" id="L274" title="2 of 6 branches missed.">                switch (name) {</span>
+                    case &quot;name&quot;:
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">                        if (entry.getValue().isJsonPrimitive()) {</span>
+<span class="fc" id="L277">                            prefab.setName(entry.getValue().getAsString());</span>
+                        }
+                        break;
+                    case &quot;parent&quot;:
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">                        if (entry.getValue().isJsonPrimitive()) {</span>
+<span class="fc" id="L282">                            prefab.setParentName(entry.getValue().getAsString());</span>
+                        }
+                        break;
+                    case &quot;removedcomponents&quot;:
+<span class="nc bnc" id="L286" title="All 2 branches missed.">                        if (entry.getValue().isJsonPrimitive()) {</span>
+<span class="nc" id="L287">                            prefab.addRemovedComponent(entry.getValue().getAsString());</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">                        } else if (entry.getValue().isJsonArray()) {</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">                            for (JsonElement element : entry.getValue().getAsJsonArray()) {</span>
+<span class="nc" id="L290">                                prefab.addRemovedComponent(element.getAsString());</span>
+<span class="nc" id="L291">                            }</span>
+                        }
+                        break;
+                    case &quot;persisted&quot;:
+<span class="fc" id="L295">                        prefab.setPersisted(entry.getValue().getAsBoolean());</span>
+<span class="fc" id="L296">                        break;</span>
+                    case &quot;alwaysrelevant&quot;:
+<span class="nc" id="L298">                        prefab.setAlwaysRelevant(entry.getValue().getAsBoolean());</span>
+<span class="nc" id="L299">                        break;</span>
+                    default:
+<span class="pc bpc" id="L301" title="1 of 2 branches missed.">                        if (entry.getValue().isJsonObject()) {</span>
+<span class="fc" id="L302">                            EntityData.Component.Builder component = context.deserialize(entry.getValue(), EntityData.Component.Builder.class);</span>
+<span class="fc" id="L303">                            component.setType(entry.getKey());</span>
+<span class="fc" id="L304">                            prefab.addComponent(component);</span>
+                        }
+                }
+<span class="fc" id="L307">            }</span>
+<span class="fc" id="L308">            return prefab.build();</span>
+        }
+    }
+
+    private static class ValueHandler implements JsonSerializer&lt;EntityData.Value&gt;, JsonDeserializer&lt;EntityData.Value&gt; {
+
+        @Override
+        public JsonElement serialize(EntityData.Value src, Type typeOfSrc, JsonSerializationContext context) {
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">            if (src.getBooleanCount() &gt; 1) {</span>
+<span class="nc" id="L317">                return context.serialize(src.getBooleanList());</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">            } else if (src.getBooleanCount() == 1) {</span>
+<span class="fc" id="L319">                return context.serialize(src.getBoolean(0));</span>
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">            } else if (src.getDoubleCount() &gt; 1) {</span>
+<span class="nc" id="L321">                return context.serialize(src.getDoubleList());</span>
+<span class="fc bfc" id="L322" title="All 2 branches covered.">            } else if (src.getDoubleCount() == 1) {</span>
+<span class="fc" id="L323">                return context.serialize(src.getDouble(0));</span>
+<span class="pc bpc" id="L324" title="1 of 2 branches missed.">            } else if (src.getFloatCount() &gt; 1) {</span>
+<span class="nc" id="L325">                return context.serialize(src.getFloatList());</span>
+<span class="fc bfc" id="L326" title="All 2 branches covered.">            } else if (src.getFloatCount() == 1) {</span>
+<span class="fc" id="L327">                return context.serialize(src.getFloat(0));</span>
+<span class="fc bfc" id="L328" title="All 2 branches covered.">            } else if (src.getIntegerCount() &gt; 1) {</span>
+<span class="fc" id="L329">                return context.serialize(src.getIntegerList());</span>
+<span class="fc bfc" id="L330" title="All 2 branches covered.">            } else if (src.getIntegerCount() == 1) {</span>
+<span class="fc" id="L331">                return context.serialize(src.getInteger(0));</span>
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">            } else if (src.getLongCount() &gt; 1) {</span>
+<span class="nc" id="L333">                return context.serialize(src.getLongList());</span>
+<span class="fc bfc" id="L334" title="All 2 branches covered.">            } else if (src.getLongCount() == 1) {</span>
+<span class="fc" id="L335">                return context.serialize(src.getLong(0));</span>
+<span class="pc bpc" id="L336" title="1 of 2 branches missed.">            } else if (src.getStringCount() &gt; 1) {</span>
+<span class="nc" id="L337">                return context.serialize(src.getStringList());</span>
+<span class="fc bfc" id="L338" title="All 2 branches covered.">            } else if (src.getStringCount() == 1) {</span>
+<span class="fc" id="L339">                return context.serialize(src.getString(0));</span>
+<span class="fc bfc" id="L340" title="All 2 branches covered.">            } else if (src.getValueCount() &gt; 0) {</span>
+<span class="fc" id="L341">                return context.serialize(src.getValueList());</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">            } else if (src.hasBytes()) {</span>
+<span class="fc" id="L343">                return context.serialize(src.getBytes().toByteArray());</span>
+<span class="pc bpc" id="L344" title="1 of 2 branches missed.">            } else if (src.getNameValueCount() &gt; 0) {</span>
+<span class="fc" id="L345">                JsonObject obj = new JsonObject();</span>
+<span class="fc bfc" id="L346" title="All 2 branches covered.">                for (EntityData.NameValue nameValue : src.getNameValueList()) {</span>
+<span class="fc" id="L347">                    obj.add(nameValue.getName(), context.serialize(nameValue.getValue()));</span>
+<span class="fc" id="L348">                }</span>
+<span class="fc" id="L349">                return obj;</span>
+            }
+<span class="nc" id="L351">            return JsonNull.INSTANCE;</span>
+        }
+
+        @Override
+        public EntityData.Value deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L356">            EntityData.Value.Builder value = EntityData.Value.newBuilder();</span>
+<span class="fc bfc" id="L357" title="All 2 branches covered.">            if (json.isJsonPrimitive()) {</span>
+<span class="fc" id="L358">                extractPrimitive(value, json);</span>
+<span class="fc bfc" id="L359" title="All 2 branches covered.">            } else if (json.isJsonObject()) {</span>
+<span class="fc" id="L360">                extractMap(json, context, value);</span>
+<span class="pc bpc" id="L361" title="1 of 2 branches missed.">            } else if (json.isJsonArray()) {</span>
+<span class="fc" id="L362">                JsonArray jsonArray = json.getAsJsonArray();</span>
+<span class="fc" id="L363">                TByteList byteList = new TByteArrayList();</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">                for (JsonElement element : jsonArray) {</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">                    if (element.isJsonArray()) {</span>
+<span class="fc" id="L366">                        value.addValue((EntityData.Value) context.deserialize(element, EntityData.Value.class));</span>
+<span class="fc bfc" id="L367" title="All 2 branches covered.">                    } else if (element.isJsonObject()) {</span>
+<span class="fc" id="L368">                        value.addValue((EntityData.Value) context.deserialize(element, EntityData.Value.class));</span>
+<span class="pc bpc" id="L369" title="1 of 2 branches missed.">                    } else if (element.isJsonPrimitive()) {</span>
+<span class="fc" id="L370">                        extractPrimitive(value, element);</span>
+<span class="fc bfc" id="L371" title="All 2 branches covered.">                        if (element.getAsJsonPrimitive().isNumber()) {</span>
+                            try {
+<span class="fc" id="L373">                                byteList.add(element.getAsByte());</span>
+<span class="nc" id="L374">                            } catch (NumberFormatException nfe) {</span>
+<span class="nc" id="L375">                                byteList.add((byte) 0);</span>
+<span class="fc" id="L376">                            }</span>
+                        }
+                    }
+<span class="fc" id="L379">                }</span>
+
+<span class="fc bfc" id="L381" title="All 2 branches covered.">                if (byteList.size() &gt; 0) {</span>
+<span class="fc" id="L382">                    value.setBytes(ByteString.copyFrom(byteList.toArray()));</span>
+                }
+            }
+<span class="fc" id="L385">            return value.build();</span>
+        }
+
+        private void extractMap(JsonElement json, JsonDeserializationContext context, EntityData.Value.Builder value) {
+<span class="fc" id="L389">            JsonObject nameValueObject = json.getAsJsonObject();</span>
+<span class="fc bfc" id="L390" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonElement&gt; nameValue : nameValueObject.entrySet()) {</span>
+<span class="fc" id="L391">                EntityData.Value innerValue = context.deserialize(nameValue.getValue(), EntityData.Value.class);</span>
+<span class="fc" id="L392">                value.addNameValue(EntityData.NameValue.newBuilder().setName(nameValue.getKey()).setValue(innerValue));</span>
+<span class="fc" id="L393">            }</span>
+<span class="fc" id="L394">        }</span>
+
+        private void extractPrimitive(EntityData.Value.Builder value, JsonElement element) {
+<span class="fc" id="L397">            JsonPrimitive primitive = element.getAsJsonPrimitive();</span>
+<span class="fc bfc" id="L398" title="All 2 branches covered.">            if (primitive.isNumber()) {</span>
+<span class="fc" id="L399">                value.addDouble(primitive.getAsDouble());</span>
+<span class="fc" id="L400">                value.addFloat(primitive.getAsFloat());</span>
+                try {
+<span class="fc" id="L402">                    value.addInteger(primitive.getAsInt());</span>
+<span class="fc" id="L403">                    value.addLong(primitive.getAsLong());</span>
+<span class="nc" id="L404">                } catch (NumberFormatException e) {</span>
+<span class="nc" id="L405">                    value.addInteger(0);</span>
+<span class="nc" id="L406">                    value.addLong(0);</span>
+<span class="fc" id="L407">                }</span>
+            }
+<span class="fc bfc" id="L409" title="All 2 branches covered.">            if (primitive.isBoolean()) {</span>
+<span class="fc" id="L410">                value.addBoolean(primitive.getAsBoolean());</span>
+            }
+<span class="fc bfc" id="L412" title="All 2 branches covered.">            if (primitive.isString()) {</span>
+<span class="fc" id="L413">                value.addString(primitive.getAsString());</span>
+            }
+<span class="fc" id="L415">        }</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

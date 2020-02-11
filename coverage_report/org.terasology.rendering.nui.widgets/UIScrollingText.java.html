@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIScrollingText.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIScrollingText.java</span></div><h1>UIScrollingText.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.TextLineBuilder;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+/**
+ * A widget that scrolls through long strings of text
+ */
+public class UIScrollingText extends CoreWidget {
+    /**
+     * The text to be shown by this widget
+     */
+<span class="nc" id="L41">    @LayoutConfig</span>
+    private Binding&lt;String&gt; text = new DefaultBinding&lt;&gt;(&quot;&quot;);
+    /**
+     * Specifies the change in the Y values of the text every frame
+     */
+<span class="nc" id="L46">    @LayoutConfig</span>
+    private int step = 1;
+    /**
+     * Text offset from the top of the canvas, in pixels
+     */
+    @LayoutConfig
+    private int offsetTop;
+    /**
+     * Text offset from the bottom of the canvas, in pixels
+     */
+    @LayoutConfig
+    private int offsetBottom;
+    /**
+     * Spacing between the lines of text, in pixels
+     */
+<span class="nc" id="L61">    @LayoutConfig</span>
+    private int lineSpacing = 3;
+    
+    /**
+     * Maps text to their Y coordinates
+     */
+<span class="nc" id="L67">    private Map&lt;String, Integer&gt; textY = new HashMap&lt;String, Integer&gt;();</span>
+    /**
+     * Specifies whether scrolling will restart from the beginning when all text has been scrolled through
+     */
+    private boolean autoReset;
+<span class="nc" id="L72">    private boolean isScrolling = true;</span>
+
+    /**
+     * Creates an empty {@code UIScrollingText}.
+     */
+<span class="nc" id="L77">    public UIScrollingText() {</span>
+<span class="nc" id="L78">    }</span>
+
+    /**
+     * Creates an empty {@code UIScrollingText} with the given id.
+     *
+     * @param text The text to be shown in this {@code UIScrollingText}
+     */
+<span class="nc" id="L85">    public UIScrollingText(String text) {</span>
+<span class="nc" id="L86">        this.text.set(text);</span>
+<span class="nc" id="L87">    }</span>
+
+    /**
+     * Creates a {@code UIScrollingText} containing the text in the given {@link Binding}.
+     *
+     * @param text the {@code Binding} containing the text to be shown in this {@code UIScrollingText}
+     */
+<span class="nc" id="L94">    public UIScrollingText(Binding&lt;String&gt; text) {</span>
+<span class="nc" id="L95">        this.text = text;</span>
+<span class="nc" id="L96">    }</span>
+
+    /**
+     * Creates a {@code UIScrollingText} with the given id, containing the given text.
+     *
+     * @param id The id assigned to this {@code UIScrollingText}
+     * @param text The text to be shown in this {@code UIScrollingText}
+     */
+    public UIScrollingText(String id, String text) {
+<span class="nc" id="L105">        super(id);</span>
+<span class="nc" id="L106">        this.text.set(text);</span>
+<span class="nc" id="L107">    }</span>
+
+    /**
+     * Creates a {@code UIScrollingText} with the given id, containing the text in the given {@code Binding}.
+     *
+     * @param id The id assigned to this {@code UIScrollingText}
+     * @param text The text to be shown in this {@code UIScrollingText}
+     */
+    public UIScrollingText(String id, Binding&lt;String&gt; text) {
+<span class="nc" id="L116">        super(id);</span>
+<span class="nc" id="L117">        this.text = text;</span>
+<span class="nc" id="L118">    }</span>
+
+    /**
+     * Retrieves the text shown in this {@code UIScrollingText}.
+     * }
+     * @return The text shown in this {@code UIScrollingText}
+     */
+    public String getText() {
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (text.get() == null) {</span>
+<span class="nc" id="L127">            return &quot;&quot;;</span>
+        }
+<span class="nc" id="L129">        return text.get();</span>
+    }
+
+    /**
+     * Sets the text shown in this {@code UIScrollingText}.
+     *
+     * @param text The text to be shown in the {@code UIScrollingText}
+     */
+    public void setText(String text) {
+<span class="nc" id="L138">        this.text.set(text);</span>
+<span class="nc" id="L139">    }</span>
+
+    /**
+     * Binds the text to be shown in this {@code UIScrollingText}.
+     *
+     * @param binding The {@code Binding} containing the text to be shown in this {@code UIScrollingText}
+     */
+    public void bindText(Binding&lt;String&gt; binding) {
+<span class="nc" id="L147">        this.text = binding;</span>
+<span class="nc" id="L148">    }</span>
+
+    /**
+     * Starts the scrolling of the text shown in this {@code UIScrollingText}.
+     */
+    public void startScrolling() {
+<span class="nc" id="L154">        isScrolling = true;</span>
+<span class="nc" id="L155">    }</span>
+
+    /**
+     * Stops the scrolling of the text shown in this {@code UIScrollingText}.
+     */
+    public void stopScrolling() {
+<span class="nc" id="L161">        isScrolling = false;</span>
+<span class="nc" id="L162">    }</span>
+
+    /**
+     * Resets the {@code UIScrollingText} to the beginning of the text.
+     */
+    public void resetScrolling() {
+<span class="nc" id="L168">        textY.clear();</span>
+<span class="nc" id="L169">    }</span>
+
+    /**
+     * Sets the scrolling speed of the text shown in the {@code UIScrollingText}.
+     *
+     * @param speed The increase in the Y values of the text shown each frame, in pixels
+     */
+    public void setScrollingSpeed(int speed) {
+<span class="nc" id="L177">        this.step = speed;</span>
+<span class="nc" id="L178">    }</span>
+
+    /**
+     * Specifies whether scrolling will restart from the beginning when all text has been scrolled through.
+     *
+     * @param reset Whether the {@code UIScrollingText} will reset automatically
+     */
+    public void setAutoReset(boolean reset) {
+<span class="nc" id="L186">        this.autoReset = reset;</span>
+<span class="nc" id="L187">    }</span>
+
+    /**
+     * Handles how this {@code UIScrollingText} is drawn.
+     * This is called every frame.
+     *
+     * @param canvas The {@link Canvas} on which this {@code UIScrollingText} is drawn
+     */
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        if (isScrolling) {</span>
+<span class="nc" id="L198">            updateYValues(canvas);</span>
+        }
+
+<span class="nc" id="L201">        Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L202">        int w = canvas.size().x / 2;</span>
+<span class="nc" id="L203">        boolean finished = true;</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        for (Entry&lt;String, Integer&gt; entry : textY.entrySet()) {</span>
+<span class="nc" id="L205">            int y = entry.getValue();</span>
+            //ignores offsets
+<span class="nc bnc" id="L207" title="All 4 branches missed.">            if (y &gt;= -offsetTop &amp;&amp; y &lt;= canvas.size().y - offsetBottom + font.getHeight(entry.getKey())) {</span>
+<span class="nc" id="L208">                String line = entry.getKey();</span>
+<span class="nc" id="L209">                Rect2i coords = Rect2i.createFromMinAndSize(w - font.getWidth(line) / 2, y, font.getWidth(line), font.getHeight(line));</span>
+<span class="nc" id="L210">                canvas.drawText(entry.getKey(), coords);</span>
+            }
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            if (y &gt;= -offsetTop) {</span>
+<span class="nc" id="L213">                finished = false;</span>
+            }
+<span class="nc" id="L215">        }</span>
+<span class="nc bnc" id="L216" title="All 4 branches missed.">        if (finished &amp;&amp; autoReset) {</span>
+<span class="nc" id="L217">            resetScrolling();</span>
+        }
+<span class="nc" id="L219">    }</span>
+
+    /**
+     * Retrieves the preferred content size of this {@code UIScrollingText}.
+     * This is the minimum size this layout will take, given no space restrictions.
+     *
+     * @param canvas The {@code Canvas} on which this {@code UIScrollingText} is drawn
+     * @param areaHint A {@link Vector2i} representing the available space for this {@code UIScrollingText}
+     * @return A {@code Vector2i} representing the preferred content size of this {@code UIScrollingText}
+     */
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i areaHint) {
+<span class="nc" id="L231">        Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L232">        List&lt;String&gt; lines = TextLineBuilder.getLines(font, getText(), areaHint.x);</span>
+<span class="nc" id="L233">        return font.getSize(lines);</span>
+    }
+
+    /**
+     * Updates the Y values of the text shown in this {@code UIScrollingText} each frame
+     * or initialises them if they are empty.
+     *
+     * @param canvas The {@code Canvas} on which this {@code UIScrollingText} is drawn
+     */
+    private void updateYValues(Canvas canvas) {
+<span class="nc bnc" id="L243" title="All 2 branches missed.">        if (!textY.isEmpty()) {</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            for (Entry&lt;String, Integer&gt; entry : textY.entrySet()) {</span>
+<span class="nc" id="L245">                textY.put(entry.getKey(), entry.getValue() - step);</span>
+<span class="nc" id="L246">            }</span>
+        } else {
+<span class="nc" id="L248">            Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L249">            int y = canvas.size().y + lineSpacing;</span>
+<span class="nc" id="L250">            int maxWidth = canvas.size().x;</span>
+<span class="nc" id="L251">            List&lt;String&gt; lines = TextLineBuilder.getLines(font, getText(), maxWidth);</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">            for (String line : lines) {</span>
+<span class="nc" id="L253">                textY.put(line, y);</span>
+<span class="nc" id="L254">                y += font.getHeight(line) + lineSpacing;</span>
+<span class="nc" id="L255">            }</span>
+        }
+<span class="nc" id="L257">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

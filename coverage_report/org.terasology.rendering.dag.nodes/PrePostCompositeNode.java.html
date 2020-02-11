@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PrePostCompositeNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">PrePostCompositeNode.java</span></div><h1>PrePostCompositeNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.dag.stateChanges.SwapGBuffers;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.SwappableFBO;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.world.WorldRenderer;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+
+import static org.terasology.rendering.dag.nodes.BlurredAmbientOcclusionNode.SSAO_BLURRED_FBO_URI;
+import static org.terasology.rendering.dag.nodes.HazeNode.FINAL_HAZE_FBO_URI;
+import static org.terasology.rendering.dag.nodes.OutlineNode.OUTLINE_FBO_URI;
+import static org.terasology.rendering.dag.nodes.RefractiveReflectiveBlocksNode.REFRACTIVE_REFLECTIVE_FBO_URI;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.ColorTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.DepthStencilTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.LightAccumulationTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.NormalsTexture;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+
+/**
+ * An instance of this class takes advantage of the content of a number of previously filled buffers
+ * to add screen-space ambient occlusion (SSAO), outlines, reflections [1], atmospheric haze and volumetric fog
+ *
+ * As this node does not quite use 3D geometry and only relies on 2D sources and a 2D output buffer, it
+ * could be argued that, despite its name, it represents the first step of the PostProcessing portion
+ * of the rendering engine. This line of thinking draws a parallel from the film industry where
+ * Post-Processing (or Post-Production) is everything that happens -after- the footage for the film
+ * has been shot on stage or on location.
+ *
+ * [1] And refractions? To be verified.
+ */
+public class PrePostCompositeNode extends AbstractNode implements PropertyChangeListener {
+<span class="nc" id="L63">    private static final ResourceUrn PRE_POST_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.prePostComposite&quot;);</span>
+
+    private RenderingConfig renderingConfig;
+    private WorldRenderer worldRenderer;
+    private SubmersibleCamera activeCamera;
+
+    private Material prePostMaterial;
+
+    private boolean localReflectionsAreEnabled;
+    private boolean ssaoIsEnabled;
+    private boolean outlineIsEnabled;
+    private boolean hazeIsEnabled;
+    private boolean volumetricFogIsEnabled;
+
+    private StateChange setReflectiveRefractiveNormalsInputTexture;
+    private StateChange setSsaoInputTexture;
+    private StateChange setEdgesInputTexture;
+    private StateChange setHazeInputTexture;
+
+<span class="nc" id="L82">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.001f, max = 0.005f)
+    private float outlineDepthThreshold = 0.001f;
+<span class="nc" id="L85">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 1.0f)
+    private float outlineThickness = 0.65f;
+
+    // TODO : Consider a more descriptive name for this variable.
+<span class="nc" id="L90">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 1.0f)
+    private float hazeLength = 1.0f;
+<span class="nc" id="L93">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 1.0f)
+    private float hazeStrength = 0.25f;
+<span class="nc" id="L96">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 1.0f)
+    private float hazeThreshold = 0.8f;
+    
+<span class="nc" id="L100">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.1f)
+    private float volumetricFogGlobalDensity = 0.005f;
+<span class="nc" id="L103">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = -0.1f, max = 0.1f)
+    private float volumetricFogHeightFalloff = -0.01f;
+
+    public PrePostCompositeNode(String nodeUri, Context context) {
+<span class="nc" id="L108">        super(nodeUri, context);</span>
+
+<span class="nc" id="L110">        worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L111">        activeCamera = worldRenderer.getActiveCamera();</span>
+
+<span class="nc" id="L113">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L114">        SwappableFBO gBufferPair = displayResolutionDependentFBOs.getGBufferPair();</span>
+
+<span class="nc" id="L116">        addDesiredStateChange(new EnableMaterial(PRE_POST_MATERIAL_URN));</span>
+<span class="nc" id="L117">        addDesiredStateChange(new BindFbo(gBufferPair.getStaleFbo()));</span>
+
+<span class="nc" id="L119">        prePostMaterial = getMaterial(PRE_POST_MATERIAL_URN);</span>
+
+<span class="nc" id="L121">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L122">        localReflectionsAreEnabled = renderingConfig.isLocalReflections();</span>
+<span class="nc" id="L123">        renderingConfig.subscribe(RenderingConfig.LOCAL_REFLECTIONS, this);</span>
+<span class="nc" id="L124">        ssaoIsEnabled = renderingConfig.isSsao();</span>
+<span class="nc" id="L125">        renderingConfig.subscribe(RenderingConfig.SSAO, this);</span>
+<span class="nc" id="L126">        outlineIsEnabled = renderingConfig.isOutline();</span>
+<span class="nc" id="L127">        renderingConfig.subscribe(RenderingConfig.OUTLINE, this);</span>
+<span class="nc" id="L128">        hazeIsEnabled = renderingConfig.isInscattering();</span>
+<span class="nc" id="L129">        renderingConfig.subscribe(RenderingConfig.INSCATTERING, this);</span>
+<span class="nc" id="L130">        volumetricFogIsEnabled = renderingConfig.isVolumetricFog();</span>
+<span class="nc" id="L131">        renderingConfig.subscribe(RenderingConfig.VOLUMETRIC_FOG, this);</span>
+
+<span class="nc" id="L133">        FBO lastUpdatedGBuffer = gBufferPair.getLastUpdatedFbo();</span>
+<span class="nc" id="L134">        FBO refractiveReflectiveFbo = displayResolutionDependentFBOs.get(REFRACTIVE_REFLECTIVE_FBO_URI);</span>
+
+<span class="nc" id="L136">        int textureSlot = 0;</span>
+<span class="nc" id="L137">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, ColorTexture, displayResolutionDependentFBOs, PRE_POST_MATERIAL_URN, &quot;texSceneOpaque&quot;));</span>
+<span class="nc" id="L138">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, DepthStencilTexture, displayResolutionDependentFBOs, PRE_POST_MATERIAL_URN, &quot;texSceneOpaqueDepth&quot;));</span>
+<span class="nc" id="L139">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, NormalsTexture, displayResolutionDependentFBOs, PRE_POST_MATERIAL_URN, &quot;texSceneOpaqueNormals&quot;));</span>
+<span class="nc" id="L140">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, LightAccumulationTexture, displayResolutionDependentFBOs, PRE_POST_MATERIAL_URN, &quot;texSceneOpaqueLightBuffer&quot;));</span>
+<span class="nc" id="L141">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, refractiveReflectiveFbo, ColorTexture, displayResolutionDependentFBOs, PRE_POST_MATERIAL_URN, &quot;texSceneReflectiveRefractive&quot;));</span>
+<span class="nc" id="L142">        setReflectiveRefractiveNormalsInputTexture = new SetInputTextureFromFbo(textureSlot++, refractiveReflectiveFbo, NormalsTexture, displayResolutionDependentFBOs, PRE_POST_MATERIAL_URN, &quot;texSceneReflectiveRefractiveNormals&quot;);</span>
+<span class="nc" id="L143">        setSsaoInputTexture = new SetInputTextureFromFbo(textureSlot++, SSAO_BLURRED_FBO_URI, ColorTexture, displayResolutionDependentFBOs, PRE_POST_MATERIAL_URN, &quot;texSsao&quot;);</span>
+<span class="nc" id="L144">        setEdgesInputTexture = new SetInputTextureFromFbo(textureSlot++, OUTLINE_FBO_URI, ColorTexture, displayResolutionDependentFBOs, PRE_POST_MATERIAL_URN, &quot;texEdges&quot;);</span>
+<span class="nc" id="L145">        setHazeInputTexture = new SetInputTextureFromFbo(textureSlot, FINAL_HAZE_FBO_URI, ColorTexture, displayResolutionDependentFBOs, PRE_POST_MATERIAL_URN, &quot;texSceneSkyBand&quot;);</span>
+
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        if (localReflectionsAreEnabled) {</span>
+<span class="nc" id="L148">            addDesiredStateChange(setReflectiveRefractiveNormalsInputTexture);</span>
+        }
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        if (ssaoIsEnabled) {</span>
+<span class="nc" id="L151">            addDesiredStateChange(setSsaoInputTexture);</span>
+        }
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        if (outlineIsEnabled) {</span>
+<span class="nc" id="L154">            addDesiredStateChange(setEdgesInputTexture);</span>
+        }
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        if (hazeIsEnabled) {</span>
+<span class="nc" id="L157">            addDesiredStateChange(setHazeInputTexture);</span>
+        }
+
+<span class="nc" id="L160">        addDesiredStateChange(new SwapGBuffers(gBufferPair));</span>
+<span class="nc" id="L161">    }</span>
+
+    /**
+     * Called every frame, the shader program used by this method only composites per-pixel information from a number
+     * of buffers and renders it into a full-screen quad, which is the only piece of geometry processed.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L169">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+        // Shader Parameters
+
+<span class="nc" id="L173">        prePostMaterial.setFloat(&quot;viewingDistance&quot;, renderingConfig.getViewDistance().getChunkDistance().x * 8.0f, true);</span>
+<span class="nc" id="L174">        prePostMaterial.setFloat3(&quot;cameraParameters&quot;, activeCamera.getzNear(), activeCamera.getzFar(), 0.0f, true);</span>
+
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        if (localReflectionsAreEnabled) {</span>
+<span class="nc" id="L177">            prePostMaterial.setMatrix4(&quot;invProjMatrix&quot;, activeCamera.getInverseProjectionMatrix(), true);</span>
+<span class="nc" id="L178">            prePostMaterial.setMatrix4(&quot;projMatrix&quot;, activeCamera.getProjectionMatrix(), true);</span>
+        }
+
+<span class="nc bnc" id="L181" title="All 2 branches missed.">        if (outlineIsEnabled) {</span>
+<span class="nc" id="L182">            prePostMaterial.setFloat(&quot;outlineDepthThreshold&quot;, outlineDepthThreshold, true);</span>
+<span class="nc" id="L183">            prePostMaterial.setFloat(&quot;outlineThickness&quot;, outlineThickness, true);</span>
+        }
+
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        if (volumetricFogIsEnabled) {</span>
+<span class="nc" id="L187">            prePostMaterial.setMatrix4(&quot;invViewProjMatrix&quot;, activeCamera.getInverseViewProjectionMatrix(), true);</span>
+<span class="nc" id="L188">            prePostMaterial.setFloat3(&quot;volumetricFogSettings&quot;, 1f, volumetricFogGlobalDensity, volumetricFogHeightFalloff, true);</span>
+        }
+
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        if (hazeIsEnabled) {</span>
+<span class="nc" id="L192">            prePostMaterial.setFloat4(&quot;skyInscatteringSettingsFrag&quot;, 0, hazeStrength, hazeLength, hazeThreshold, true);</span>
+        }
+
+        // TODO: We never set the &quot;fogWorldPosition&quot; uniform in prePostComposite_frag.glsl . Either use it, or remove it.
+
+        // Actual Node Processing
+
+<span class="nc" id="L199">        renderFullscreenQuad();</span>
+
+<span class="nc" id="L201">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L202">    }</span>
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+<span class="nc" id="L206">        String propertyName = event.getPropertyName();</span>
+
+<span class="nc bnc" id="L208" title="All 6 branches missed.">        switch (propertyName) {</span>
+            case RenderingConfig.LOCAL_REFLECTIONS:
+<span class="nc" id="L210">                localReflectionsAreEnabled = renderingConfig.isLocalReflections();</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                if (localReflectionsAreEnabled) {</span>
+<span class="nc" id="L212">                    addDesiredStateChange(setReflectiveRefractiveNormalsInputTexture);</span>
+                } else {
+<span class="nc" id="L214">                    removeDesiredStateChange(setReflectiveRefractiveNormalsInputTexture);</span>
+                }
+<span class="nc" id="L216">                break;</span>
+
+            case RenderingConfig.SSAO:
+<span class="nc" id="L219">                ssaoIsEnabled = renderingConfig.isSsao();</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">                if (ssaoIsEnabled) {</span>
+<span class="nc" id="L221">                    addDesiredStateChange(setSsaoInputTexture);</span>
+                } else {
+<span class="nc" id="L223">                    removeDesiredStateChange(setSsaoInputTexture);</span>
+                }
+<span class="nc" id="L225">                break;</span>
+
+            case RenderingConfig.OUTLINE:
+<span class="nc" id="L228">                outlineIsEnabled = renderingConfig.isOutline();</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">                if (outlineIsEnabled) {</span>
+<span class="nc" id="L230">                    addDesiredStateChange(setEdgesInputTexture);</span>
+                } else {
+<span class="nc" id="L232">                    removeDesiredStateChange(setEdgesInputTexture);</span>
+                }
+<span class="nc" id="L234">                break;</span>
+
+            case RenderingConfig.INSCATTERING:
+<span class="nc" id="L237">                hazeIsEnabled = renderingConfig.isInscattering();</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">                if (hazeIsEnabled) {</span>
+<span class="nc" id="L239">                    addDesiredStateChange(setHazeInputTexture);</span>
+                } else {
+<span class="nc" id="L241">                    removeDesiredStateChange(setHazeInputTexture);</span>
+                }
+<span class="nc" id="L243">                break;</span>
+
+            case RenderingConfig.VOLUMETRIC_FOG:
+<span class="nc" id="L246">                volumetricFogIsEnabled = renderingConfig.isVolumetricFog();</span>
+                break;
+
+            // default: no other cases are possible - see subscribe operations in initialize().
+        }
+
+<span class="nc" id="L252">        worldRenderer.requestTaskListRefresh();</span>
+<span class="nc" id="L253">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

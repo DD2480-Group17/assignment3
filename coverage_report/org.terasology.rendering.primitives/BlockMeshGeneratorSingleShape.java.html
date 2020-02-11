@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockMeshGeneratorSingleShape.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.primitives</a> &gt; <span class="el_source">BlockMeshGeneratorSingleShape.java</span></div><h1>BlockMeshGeneratorSingleShape.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.primitives;
+
+import com.google.common.collect.Maps;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.game.Game;
+import org.terasology.math.Side;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.world.ChunkView;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockAppearance;
+import org.terasology.world.block.BlockPart;
+import org.terasology.world.block.shapes.BlockMeshPart;
+import org.terasology.world.chunks.ChunkProvider;
+import org.terasology.world.generation.Region;
+import org.terasology.world.generator.internal.WorldGeneratorManager;
+
+import java.util.Map;
+
+public class BlockMeshGeneratorSingleShape implements BlockMeshGenerator {
+
+    private Block block;
+    private Mesh mesh;
+
+<span class="fc" id="L44">    public BlockMeshGeneratorSingleShape(Block block) {</span>
+<span class="fc" id="L45">        this.block = block;</span>
+<span class="fc" id="L46">    }</span>
+
+    @Override
+    public void generateChunkMesh(ChunkView view, ChunkMesh chunkMesh, Region worldData, int x, int y, int z) {
+<span class="nc" id="L50">        final Block selfBlock = view.getBlock(x, y, z);</span>
+
+        // Gather adjacent blocks
+<span class="nc" id="L53">        final Map&lt;Side, Block&gt; adjacentBlocks = Maps.newEnumMap(Side.class);</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        for (Side side : Side.getAllSides()) {</span>
+<span class="nc" id="L55">            Vector3i offset = side.getVector3i();</span>
+<span class="nc" id="L56">            Block blockToCheck = view.getBlock(x + offset.x, y + offset.y, z + offset.z);</span>
+<span class="nc" id="L57">            adjacentBlocks.put(side, blockToCheck);</span>
+<span class="nc" id="L58">        }</span>
+
+<span class="nc" id="L60">        final ChunkMesh.RenderType renderType = getRenderType(selfBlock);</span>
+<span class="nc" id="L61">        final BlockAppearance blockAppearance = selfBlock.getPrimaryAppearance();</span>
+<span class="nc" id="L62">        final ChunkVertexFlag vertexFlag = getChunkVertexFlag(view, x, y, z, selfBlock);</span>
+<span class="nc" id="L63">        boolean isRendered = false;</span>
+
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        for (final Side side : Side.getAllSides()) {</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (isSideVisibleForBlockTypes(adjacentBlocks.get(side), selfBlock, side)) {</span>
+<span class="nc" id="L67">                isRendered = true;</span>
+<span class="nc" id="L68">                BlockMeshPart blockMeshPart = blockAppearance.getPart(BlockPart.fromSide(side));</span>
+
+                // If the selfBlock isn't lowered, some more faces may have to be drawn
+<span class="nc bnc" id="L71" title="All 2 branches missed.">                if (selfBlock.isLiquid()) {</span>
+<span class="nc" id="L72">                    final Block topBlock = adjacentBlocks.get(Side.TOP);</span>
+                    // Draw horizontal sides if visible from below
+<span class="nc bnc" id="L74" title="All 4 branches missed.">                    if (topBlock.isLiquid() &amp;&amp; Side.horizontalSides().contains(side)) {</span>
+<span class="nc" id="L75">                        final Vector3i offset = side.getVector3i();</span>
+<span class="nc" id="L76">                        final Block adjacentAbove = view.getBlock(x + offset.x, y + 1, z + offset.z);</span>
+<span class="nc" id="L77">                        final Block adjacent = adjacentBlocks.get(side);</span>
+
+<span class="nc bnc" id="L79" title="All 4 branches missed.">                        if (adjacent.isLiquid() &amp;&amp; !adjacentAbove.isLiquid()) {</span>
+<span class="nc" id="L80">                            blockMeshPart = selfBlock.getTopLiquidMesh(side);</span>
+                        }
+<span class="nc" id="L82">                    } else {</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                        if (blockMeshPart != null) {</span>
+<span class="nc" id="L84">                            blockMeshPart = selfBlock.getLowLiquidMesh(side);</span>
+                        }
+                    }
+                }
+
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                if (blockMeshPart != null) {</span>
+                    // TODO: Needs review since the new per-vertex flags introduce a lot of special scenarios - probably a per-side setting?
+<span class="nc" id="L91">                    ChunkVertexFlag sideVertexFlag = vertexFlag;</span>
+<span class="nc bnc" id="L92" title="All 6 branches missed.">                    if (selfBlock.isGrass() &amp;&amp; side != Side.TOP &amp;&amp; side != Side.BOTTOM) {</span>
+<span class="nc" id="L93">                        sideVertexFlag = ChunkVertexFlag.COLOR_MASK;</span>
+                    }
+<span class="nc" id="L95">                    Vector4f colorOffset = selfBlock.getColorOffset(BlockPart.fromSide(side));</span>
+<span class="nc" id="L96">                    Vector4f colorSource = selfBlock.getColorSource(BlockPart.fromSide(side)).calcColor(worldData, x, y, z);</span>
+<span class="nc" id="L97">                    Vector4f colorResult = new Vector4f(colorSource.x * colorOffset.x, colorSource.y * colorOffset.y, colorSource.z * colorOffset.z, colorSource.w * colorOffset.w);</span>
+<span class="nc" id="L98">                    blockMeshPart.appendTo(chunkMesh, x, y, z, renderType, colorResult, sideVertexFlag);</span>
+                }
+            }
+<span class="nc" id="L101">        }</span>
+
+<span class="nc bnc" id="L103" title="All 4 branches missed.">        if (isRendered &amp;&amp; blockAppearance.getPart(BlockPart.CENTER) != null) {</span>
+<span class="nc" id="L104">            Vector4f colorOffset = selfBlock.getColorOffset(BlockPart.CENTER);</span>
+<span class="nc" id="L105">            Vector4f colorSource = selfBlock.getColorSource(BlockPart.CENTER).calcColor(worldData, x, y, z);</span>
+<span class="nc" id="L106">            Vector4f colorResult = new Vector4f(colorSource.x * colorOffset.x, colorSource.y * colorOffset.y, colorSource.z * colorOffset.z, colorSource.w * colorOffset.w);</span>
+<span class="nc" id="L107">            blockAppearance.getPart(BlockPart.CENTER).appendTo(chunkMesh, x, y, z, renderType, colorResult, vertexFlag);</span>
+        }
+<span class="nc" id="L109">    }</span>
+
+    private ChunkVertexFlag getChunkVertexFlag(ChunkView view, int x, int y, int z, Block selfBlock) {
+        // TODO: Needs review - too much hardcoded special cases and corner cases resulting from this.
+<span class="nc" id="L113">        ChunkVertexFlag vertexFlag = ChunkVertexFlag.NORMAL;</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (selfBlock.isWater()) {</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            if (view.getBlock(x, y + 1, z).isWater()) {</span>
+<span class="nc" id="L116">                vertexFlag = ChunkVertexFlag.WATER;</span>
+            } else {
+<span class="nc" id="L118">                vertexFlag = ChunkVertexFlag.WATER_SURFACE;</span>
+            }
+<span class="nc bnc" id="L120" title="All 4 branches missed.">        } else if (selfBlock.isWaving() &amp;&amp; selfBlock.isDoubleSided()) {</span>
+<span class="nc" id="L121">            vertexFlag = ChunkVertexFlag.WAVING;</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        } else if (selfBlock.isWaving()) {</span>
+<span class="nc" id="L123">            vertexFlag = ChunkVertexFlag.WAVING_BLOCK;</span>
+        }
+<span class="nc" id="L125">        return vertexFlag;</span>
+    }
+
+    /**
+     * Determine the render process of the block.
+     * @return The render process for the block
+     */
+    private ChunkMesh.RenderType getRenderType(final Block selfBlock) {
+<span class="nc" id="L133">        ChunkMesh.RenderType renderType = ChunkMesh.RenderType.TRANSLUCENT;</span>
+
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        if (!selfBlock.isTranslucent()) {</span>
+<span class="nc" id="L136">            renderType = ChunkMesh.RenderType.OPAQUE;</span>
+        }
+        // TODO: Review special case, or alternatively compare uris.
+<span class="nc bnc" id="L139" title="All 4 branches missed.">        if (selfBlock.isWater() || selfBlock.isIce()) {</span>
+<span class="nc" id="L140">            renderType = ChunkMesh.RenderType.WATER_AND_ICE;</span>
+        }
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if (selfBlock.isDoubleSided()) {</span>
+<span class="nc" id="L143">            renderType = ChunkMesh.RenderType.BILLBOARD;</span>
+        }
+<span class="nc" id="L145">        return renderType;</span>
+    }
+
+
+    /**
+     * Returns true if the side should be rendered adjacent to the second side provided.
+     *
+     * @param blockToCheck The block to check
+     * @param currentBlock The current block
+     * @return True if the side is visible for the given block types
+     */
+    private boolean isSideVisibleForBlockTypes(Block blockToCheck, Block currentBlock, Side side) {
+        // Liquids can be transparent but there should be no visible adjacent faces
+<span class="nc bnc" id="L158" title="All 4 branches missed.">        if (currentBlock.isLiquid() &amp;&amp; blockToCheck.isLiquid()) {</span>
+<span class="nc" id="L159">            return false;</span>
+        }
+
+<span class="nc bnc" id="L162" title="All 4 branches missed.">        return currentBlock.isWaving() != blockToCheck.isWaving() || blockToCheck.getMeshGenerator() == null</span>
+<span class="nc bnc" id="L163" title="All 6 branches missed.">                || !blockToCheck.isFullSide(side.reverse()) || (!currentBlock.isTranslucent() &amp;&amp; blockToCheck.isTranslucent());</span>
+
+    }
+
+    @Override
+    public Mesh getStandaloneMesh() {
+<span class="nc bnc" id="L169" title="All 4 branches missed.">        if (mesh == null || mesh.isDisposed()) {</span>
+<span class="nc" id="L170">            generateMesh();</span>
+        }
+<span class="nc" id="L172">        return mesh;</span>
+    }
+
+    private void generateMesh() {
+<span class="nc" id="L176">        Tessellator tessellator = new Tessellator();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">        for (BlockPart dir : BlockPart.values()) {</span>
+<span class="nc" id="L178">            BlockMeshPart part = block.getPrimaryAppearance().getPart(dir);</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">            if (part != null) {</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                if (block.isDoubleSided()) {</span>
+<span class="nc" id="L181">                    tessellator.addMeshPartDoubleSided(part);</span>
+                } else {
+<span class="nc" id="L183">                    tessellator.addMeshPart(part);</span>
+                }
+            }
+        }
+<span class="nc" id="L187">        mesh = tessellator.generateMesh(new ResourceUrn(&quot;engine&quot;, &quot;blockmesh&quot;, block.getURI().toString()));</span>
+<span class="nc" id="L188">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

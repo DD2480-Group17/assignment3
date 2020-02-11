@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentSerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">ComponentSerializer.java</span></div><h1>ComponentSerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.persistence.serializers;
+
+import com.google.common.base.Objects;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
+import org.terasology.entitySystem.metadata.ReplicatedFieldMetadata;
+import org.terasology.module.Module;
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.Serializer;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.protobuf.ProtobufPersistedData;
+import org.terasology.persistence.typeHandling.protobuf.ProtobufPersistedDataSerializer;
+import org.terasology.protobuf.EntityData;
+import org.terasology.reflection.metadata.FieldMetadata;
+
+import java.util.Map;
+
+/**
+ * ComponentSerializer provides the ability to serialize and deserialize between Components and the protobuf
+ * EntityData.Component
+ * &lt;br&gt;&lt;br&gt;
+ * If provided with a idTable, then the components will be serialized and deserialized using those ids rather
+ * than the names of each component, saving some space.
+ * &lt;br&gt;&lt;br&gt;
+ * When serializing, a FieldSerializeCheck can be provided to determine whether each field should be serialized or not
+ *
+ */
+public class ComponentSerializer {
+
+<span class="fc" id="L53">    private static final Logger logger = LoggerFactory.getLogger(ComponentSerializer.class);</span>
+
+    private ComponentLibrary componentLibrary;
+<span class="fc" id="L56">    private BiMap&lt;Class&lt;? extends Component&gt;, Integer&gt; idTable = ImmutableBiMap.&lt;Class&lt;? extends Component&gt;, Integer&gt;builder().build();</span>
+    private boolean usingFieldIds;
+    private TypeHandlerLibrary typeHandlerLibrary;
+    private ProtobufPersistedDataSerializer serializationContext;
+
+    /**
+     * Creates the component serializer.
+     *
+     * @param componentLibrary The component library used to provide information on each component and its fields.
+     */
+<span class="fc" id="L66">    public ComponentSerializer(ComponentLibrary componentLibrary, TypeHandlerLibrary typeHandlerLibrary) {</span>
+<span class="fc" id="L67">        this.componentLibrary = componentLibrary;</span>
+<span class="fc" id="L68">        this.typeHandlerLibrary = typeHandlerLibrary;</span>
+<span class="fc" id="L69">        this.serializationContext = new ProtobufPersistedDataSerializer();</span>
+<span class="fc" id="L70">    }</span>
+
+    public void setUsingFieldIds(boolean usingFieldIds) {
+<span class="nc" id="L73">        this.usingFieldIds = usingFieldIds;</span>
+<span class="nc" id="L74">    }</span>
+
+    public boolean isUsingFieldIds() {
+<span class="nc" id="L77">        return usingFieldIds;</span>
+    }
+
+    /**
+     * Sets the mapping between component classes and the ids that are used for serialization
+     *
+     * @param table
+     */
+    public void setIdMapping(Map&lt;Class&lt;? extends Component&gt;, Integer&gt; table) {
+<span class="fc" id="L86">        idTable = ImmutableBiMap.copyOf(table);</span>
+<span class="fc" id="L87">    }</span>
+
+    /**
+     * Clears the mapping between component classes and ids. This causes components to be serialized with their component
+     * class name instead.
+     */
+    public void removeIdMapping() {
+<span class="fc" id="L94">        idTable = ImmutableBiMap.&lt;Class&lt;? extends Component&gt;, Integer&gt;builder().build();</span>
+<span class="fc" id="L95">    }</span>
+
+    /**
+     * @param componentData
+     * @return The component described by the componentData, or null if it couldn't be deserialized
+     */
+    public Component deserialize(EntityData.Component componentData) {
+<span class="fc" id="L102">        return deserialize(componentData, null);</span>
+    }
+
+    /**
+     * @param componentData
+     * @param context       The module this component belongs to, or null if it is not being loaded from a module
+     * @return The component described by the componentData, or null if it couldn't be deserialized
+     */
+    public Component deserialize(EntityData.Component componentData, Module context) {
+<span class="fc" id="L111">        ComponentMetadata&lt;? extends Component&gt; componentMetadata = getComponentMetadata(componentData, context);</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        if (componentMetadata != null) {</span>
+<span class="fc" id="L113">            Component component = componentMetadata.newInstance();</span>
+<span class="fc" id="L114">            return deserializeOnto(component, componentData, componentMetadata, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance());</span>
+        } else {
+<span class="nc" id="L116">            logger.warn(&quot;Unable to deserialize unknown component type: {}&quot;, componentData.getType());</span>
+        }
+<span class="nc" id="L118">        return null;</span>
+    }
+
+    /**
+     * Deserializes the componentData on top of the target component. Any fields that are not present in the componentData,
+     * or which cannot be deserialized, are left unaltered.
+     *
+     * @param target
+     * @param componentData
+     * @return The target component.
+     */
+    public Component deserializeOnto(Component target, EntityData.Component componentData) {
+<span class="fc" id="L130">        return deserializeOnto(target, componentData, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance(), null);</span>
+    }
+
+    /**
+     * Deserializes the componentData on top of the target component. Any fields that are not present in the componentData,
+     * or which cannot be deserialized, are left unaltered.
+     *
+     * @param target
+     * @param componentData
+     * @param context       The module that contains the component being deserialized. May be null if it is not contained in a module.
+     * @return The target component.
+     */
+    public Component deserializeOnto(Component target, EntityData.Component componentData, Module context) {
+<span class="nc" id="L143">        return deserializeOnto(target, componentData, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance(), context);</span>
+    }
+
+    /**
+     * Deserializes the componentData on top of the target component. Any fields that are not present in the componentData,
+     * or which cannot be deserialized, are left unaltered.
+     *
+     * @param target
+     * @param componentData
+     * @param fieldCheck
+     * @return The target component.
+     */
+    public Component deserializeOnto(Component target, EntityData.Component componentData, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="fc" id="L156">        return deserializeOnto(target, componentData, fieldCheck, null);</span>
+    }
+
+    /**
+     * Deserializes the componentData on top of the target component. Any fields that are not present in the componentData,
+     * or which cannot be deserialized, are left unaltered.
+     *
+     * @param target
+     * @param componentData
+     * @param fieldCheck
+     * @param context       The module this component is being deserialized from, or null if it isn't within a module
+     * @return The target component.
+     */
+    public Component deserializeOnto(Component target, EntityData.Component componentData, FieldSerializeCheck&lt;Component&gt; fieldCheck, Module context) {
+<span class="fc" id="L170">        ComponentMetadata&lt;? extends Component&gt; componentMetadata = getComponentMetadata(componentData, context);</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">        if (componentMetadata != null) {</span>
+<span class="fc" id="L172">            return deserializeOnto(target, componentData, componentMetadata, fieldCheck);</span>
+        } else {
+<span class="nc" id="L174">            logger.warn(&quot;Unable to deserialize unknown component type: {}&quot;, componentData.getType());</span>
+        }
+<span class="nc" id="L176">        return target;</span>
+    }
+
+
+    private &lt;T extends Component&gt; Component deserializeOnto(Component targetComponent, EntityData.Component componentData,
+                                                            ComponentMetadata&lt;T&gt; componentMetadata, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="fc" id="L182">        Serializer serializer = typeHandlerLibrary.getSerializerFor(componentMetadata);</span>
+<span class="fc" id="L183">        Map&lt;FieldMetadata&lt;?, ?&gt;, PersistedData&gt; dataMap = Maps.newHashMapWithExpectedSize(componentData.getFieldCount());</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">        for (EntityData.NameValue field : componentData.getFieldList()) {</span>
+<span class="fc" id="L185">            FieldMetadata&lt;?, ?&gt; fieldInfo = null;</span>
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">            if (field.hasNameIndex()) {</span>
+<span class="nc" id="L187">                fieldInfo = componentMetadata.getField(field.getNameIndex());</span>
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">            } else if (field.hasName()) {</span>
+<span class="fc" id="L189">                fieldInfo = componentMetadata.getField(field.getName());</span>
+            }
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">            if (fieldInfo != null) {</span>
+<span class="fc" id="L192">                dataMap.put(fieldInfo, new ProtobufPersistedData(field.getValue()));</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">            } else if (field.hasName()) {</span>
+<span class="nc" id="L194">                logger.warn(&quot;Cannot deserialize unknown field '{}' onto '{}'&quot;, field.getName(), componentMetadata.getUri());</span>
+            }
+<span class="fc" id="L196">        }</span>
+<span class="fc" id="L197">        serializer.deserializeOnto(targetComponent, dataMap, fieldCheck);</span>
+<span class="fc" id="L198">        return targetComponent;</span>
+    }
+
+
+    /**
+     * Serializes a component.
+     *
+     * @param component
+     * @return The serialized component, or null if it could not be serialized.
+     */
+    public EntityData.Component serialize(Component component) {
+<span class="fc" id="L209">        return serialize(component, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance());</span>
+    }
+
+    /**
+     * Serializes a component.
+     *
+     * @param component
+     * @param check     A check to use to see if each field should be serialized.
+     * @return The serialized component, or null if it could not be serialized.
+     */
+    public EntityData.Component serialize(Component component, FieldSerializeCheck&lt;Component&gt; check) {
+<span class="fc" id="L220">        ComponentMetadata&lt;?&gt; componentMetadata = componentLibrary.getMetadata(component.getClass());</span>
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">        if (componentMetadata == null) {</span>
+<span class="nc" id="L222">            logger.error(&quot;Unregistered component type: {}&quot;, component.getClass());</span>
+<span class="nc" id="L223">            return null;</span>
+        }
+<span class="fc" id="L225">        EntityData.Component.Builder componentMessage = EntityData.Component.newBuilder();</span>
+<span class="fc" id="L226">        serializeComponentType(componentMetadata, componentMessage);</span>
+
+<span class="fc" id="L228">        Serializer serializer = typeHandlerLibrary.getSerializerFor(componentMetadata);</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">        for (ReplicatedFieldMetadata&lt;?, ?&gt; field : componentMetadata.getFields()) {</span>
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">            if (check.shouldSerializeField(field, component)) {</span>
+<span class="fc" id="L231">                PersistedData result = serializer.serialize(field, component, serializationContext);</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">                if (!result.isNull()) {</span>
+<span class="fc" id="L233">                    EntityData.Value itemValue = ((ProtobufPersistedData) result).getValue();</span>
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">                    if (usingFieldIds) {</span>
+<span class="nc" id="L235">                        componentMessage.addField(EntityData.NameValue.newBuilder().setNameIndex(field.getId()).setValue(itemValue));</span>
+                    } else {
+<span class="fc" id="L237">                        componentMessage.addField(EntityData.NameValue.newBuilder().setName(field.getName()).setValue(itemValue));</span>
+                    }
+                }
+            }
+<span class="fc" id="L241">        }</span>
+
+<span class="fc" id="L243">        return componentMessage.build();</span>
+    }
+
+    private void serializeComponentType(ComponentMetadata&lt;?&gt; componentMetadata, EntityData.Component.Builder componentMessage) {
+<span class="fc" id="L247">        Integer compId = idTable.get(componentMetadata.getType());</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">        if (compId != null) {</span>
+<span class="fc" id="L249">            componentMessage.setTypeIndex(compId);</span>
+        } else {
+<span class="fc" id="L251">            componentMessage.setType(componentMetadata.getUri().toString());</span>
+        }
+<span class="fc" id="L253">    }</span>
+
+    /**
+     * Serializes the differences between two components.
+     *
+     * @param base  The base component to compare against.
+     * @param delta The component whose differences will be serialized
+     * @return The serialized component, or null if it could not be serialized
+     */
+    public EntityData.Component serialize(Component base, Component delta) {
+<span class="fc" id="L263">        return serialize(base, delta, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance());</span>
+    }
+
+    /**
+     * Serializes the differences between two components.
+     *
+     * @param base  The base component to compare against.
+     * @param delta The component whose differences will be serialized
+     * @param check A check to use to see if each field should be serialized.
+     * @return The serialized component, or null if it could not be serialized
+     */
+    public EntityData.Component serialize(Component base, Component delta, FieldSerializeCheck&lt;Component&gt; check) {
+<span class="fc" id="L275">        ComponentMetadata&lt;?&gt; componentMetadata = componentLibrary.getMetadata(base.getClass());</span>
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">        if (componentMetadata == null) {</span>
+<span class="nc" id="L277">            logger.error(&quot;Unregistered component type: {}&quot;, base.getClass());</span>
+<span class="nc" id="L278">            return null;</span>
+        }
+
+<span class="fc" id="L281">        EntityData.Component.Builder componentMessage = EntityData.Component.newBuilder();</span>
+<span class="fc" id="L282">        serializeComponentType(componentMetadata, componentMessage);</span>
+
+<span class="fc" id="L284">        Serializer serializer = typeHandlerLibrary.getSerializerFor(componentMetadata);</span>
+<span class="fc" id="L285">        boolean changed = false;</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">        for (ReplicatedFieldMetadata field : componentMetadata.getFields()) {</span>
+<span class="pc bpc" id="L287" title="2 of 4 branches missed.">            if (check.shouldSerializeField(field, delta) &amp;&amp; serializer.getHandlerFor(field) != null) {</span>
+<span class="fc" id="L288">                Object origValue = field.getValue(base);</span>
+<span class="fc" id="L289">                Object deltaValue = field.getValue(delta);</span>
+
+<span class="fc bfc" id="L291" title="All 2 branches covered.">                if (!Objects.equal(origValue, deltaValue)) {</span>
+<span class="fc" id="L292">                    PersistedData value = serializer.serializeValue(field, deltaValue, serializationContext);</span>
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">                    if (!value.isNull()) {</span>
+<span class="fc" id="L294">                        EntityData.Value dataValue = ((ProtobufPersistedData) value).getValue();</span>
+<span class="pc bpc" id="L295" title="1 of 2 branches missed.">                        if (usingFieldIds) {</span>
+<span class="nc" id="L296">                            componentMessage.addField(EntityData.NameValue.newBuilder().setNameIndex(field.getId()).setValue(dataValue).build());</span>
+                        } else {
+<span class="fc" id="L298">                            componentMessage.addField(EntityData.NameValue.newBuilder().setName(field.getName()).setValue(dataValue).build());</span>
+                        }
+<span class="fc" id="L300">                        changed = true;</span>
+                    }
+                }
+            }
+<span class="fc" id="L304">        }</span>
+
+<span class="fc bfc" id="L306" title="All 2 branches covered.">        if (changed) {</span>
+<span class="fc" id="L307">            return componentMessage.build();</span>
+        }
+
+<span class="fc" id="L310">        return null;</span>
+    }
+
+    /**
+     * Determines the component class that the serialized component is for.
+     *
+     * @param componentData
+     * @return The component class the given componentData describes, or null if it is unknown.
+     */
+    public ComponentMetadata&lt;? extends Component&gt; getComponentMetadata(EntityData.Component componentData) {
+<span class="fc" id="L320">        return getComponentMetadata(componentData, null);</span>
+    }
+
+    /**
+     * Determines the component class that the serialized component is for.
+     *
+     * @param componentData
+     * @param context       the module this component is being loaded from
+     * @return The component class the given componentData describes, or null if it is unknown.
+     */
+    public ComponentMetadata&lt;? extends Component&gt; getComponentMetadata(EntityData.Component componentData, Module context) {
+<span class="fc bfc" id="L331" title="All 2 branches covered.">        if (componentData.hasTypeIndex()) {</span>
+<span class="fc" id="L332">            ComponentMetadata&lt;? extends Component&gt; metadata = null;</span>
+<span class="pc bpc" id="L333" title="1 of 2 branches missed.">            if (!idTable.isEmpty()) {</span>
+<span class="fc" id="L334">                Class&lt;? extends Component&gt; componentClass = idTable.inverse().get(componentData.getTypeIndex());</span>
+<span class="pc bpc" id="L335" title="1 of 2 branches missed.">                if (componentClass != null) {</span>
+<span class="fc" id="L336">                    metadata = componentLibrary.getMetadata(componentClass);</span>
+                }
+            }
+<span class="pc bpc" id="L339" title="1 of 2 branches missed.">            if (metadata == null) {</span>
+<span class="nc" id="L340">                logger.warn(&quot;Unable to deserialize unknown component with id: {}&quot;, componentData.getTypeIndex());</span>
+<span class="nc" id="L341">                return null;</span>
+            }
+<span class="fc" id="L343">            return metadata;</span>
+<span class="pc bpc" id="L344" title="1 of 2 branches missed.">        } else if (componentData.hasType()) {</span>
+            ComponentMetadata&lt;? extends Component&gt; metadata;
+<span class="pc bpc" id="L346" title="1 of 2 branches missed.">            if (context != null) {</span>
+<span class="nc" id="L347">                metadata = componentLibrary.resolve(componentData.getType(), context);</span>
+            } else {
+<span class="fc" id="L349">                metadata = componentLibrary.resolve(componentData.getType());</span>
+            }
+<span class="pc bpc" id="L351" title="1 of 2 branches missed.">            if (metadata == null) {</span>
+<span class="nc" id="L352">                logger.warn(&quot;Unable to deserialize unknown component type: {}&quot;, componentData.getType());</span>
+<span class="nc" id="L353">                return null;</span>
+            }
+<span class="fc" id="L355">            return metadata;</span>
+        }
+<span class="nc" id="L357">        logger.warn(&quot;Unable to deserialize component, no type provided.&quot;);</span>
+
+<span class="nc" id="L359">        return null;</span>
+    }
+
+    /**
+     * @return An immutable copy of the id mapping
+     */
+    public Map&lt;Class&lt;? extends Component&gt;, Integer&gt; getIdMapping() {
+<span class="nc" id="L366">        return ImmutableMap.copyOf(idTable);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

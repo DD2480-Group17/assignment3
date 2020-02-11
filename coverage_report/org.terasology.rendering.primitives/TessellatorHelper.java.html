@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TessellatorHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.primitives</a> &gt; <span class="el_source">TessellatorHelper.java</span></div><h1>TessellatorHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.primitives;
+
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.module.sandbox.API;
+
+@API
+public final class TessellatorHelper {
+
+    private TessellatorHelper() {
+    }
+
+    public static void addBlockMesh(Tessellator tessellator, Vector4f color, float size, float light1, float light2, float posX, float posY, float posZ) {
+<span class="nc" id="L30">        Vector2f defaultSize = new Vector2f(1.0f, 1.0f);</span>
+<span class="nc" id="L31">        Vector2f defaultOffset = new Vector2f(0.0f, 0.0f);</span>
+<span class="nc" id="L32">        addBlockMesh(tessellator, color, defaultOffset, defaultSize, size, light1, light2, posX, posY, posZ);</span>
+<span class="nc" id="L33">    }</span>
+
+    public static void addBlockMesh(Tessellator tessellator, Vector4f color, Vector2f texOffset, Vector2f texSize,
+                                    float size, float light1, float light2, float posX, float posY, float posZ) {
+<span class="nc" id="L37">        Vector2f[] sizes = new Vector2f[6];</span>
+<span class="nc" id="L38">        Vector2f[] offsets = new Vector2f[6];</span>
+
+<span class="nc bnc" id="L40" title="All 2 branches missed.">        for (int i = 0; i &lt; 6; i++) {</span>
+<span class="nc" id="L41">            sizes[i] = texSize;</span>
+<span class="nc" id="L42">            offsets[i] = texOffset;</span>
+        }
+
+<span class="nc" id="L45">        addBlockMesh(tessellator, color, offsets, sizes, size, light1, light2, posX, posY, posZ);</span>
+<span class="nc" id="L46">    }</span>
+
+    public static void addBlockMesh(Tessellator tessellator, Vector4f color, Vector2f[] texOffsets, Vector2f[] texSizes,
+                                    float size, float light1, float light2, float posX, float posY, float posZ) {
+<span class="nc" id="L50">        final float sizeHalf = size / 2;</span>
+
+<span class="nc" id="L52">        tessellator.resetParams();</span>
+<span class="nc" id="L53">        tessellator.setColor(new Vector4f(light1 * color.x, light1 * color.y, light1 * color.z, color.w));</span>
+
+<span class="nc" id="L55">        tessellator.setNormal(new Vector3f(0, 1, 0));</span>
+<span class="nc" id="L56">        tessellator.addPoly(</span>
+                new Vector3f[]{
+                        new Vector3f(-sizeHalf + posX, sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, sizeHalf + posY, -sizeHalf + posZ),
+                        new Vector3f(-sizeHalf + posX, sizeHalf + posY, -sizeHalf + posZ)
+                },
+                new Vector2f[]{
+                        new Vector2f(texOffsets[0].x, texOffsets[0].y),
+                        new Vector2f(texOffsets[0].x + texSizes[0].x, texOffsets[0].y),
+                        new Vector2f(texOffsets[0].x + texSizes[0].x, texOffsets[0].y + texSizes[0].y),
+                        new Vector2f(texOffsets[0].x, texOffsets[0].y + texSizes[0].y)
+                });
+
+<span class="nc" id="L70">        tessellator.setNormal(new Vector3f(-1, 0, 0));</span>
+<span class="nc" id="L71">        tessellator.addPoly(</span>
+                new Vector3f[]{
+                        new Vector3f(-sizeHalf + posX, -sizeHalf + posY, -sizeHalf + posZ),
+                        new Vector3f(-sizeHalf + posX, -sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(-sizeHalf + posX, sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(-sizeHalf + posX, sizeHalf + posY, -sizeHalf + posZ)
+                },
+                new Vector2f[]{
+                        new Vector2f(texOffsets[1].x, texOffsets[1].y + texSizes[1].y),
+                        new Vector2f(texOffsets[1].x + texSizes[1].x, texOffsets[1].y + texSizes[1].y),
+                        new Vector2f(texOffsets[1].x + texSizes[1].x, texOffsets[1].y),
+                        new Vector2f(texOffsets[1].x, texOffsets[1].y)
+                });
+
+<span class="nc" id="L85">        tessellator.setNormal(new Vector3f(1, 0, 0));</span>
+<span class="nc" id="L86">        tessellator.addPoly(</span>
+                new Vector3f[]{
+                        new Vector3f(sizeHalf + posX, sizeHalf + posY, -sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, -sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, -sizeHalf + posY, -sizeHalf + posZ)
+                },
+                new Vector2f[]{
+                        new Vector2f(texOffsets[2].x, texOffsets[2].y),
+                        new Vector2f(texOffsets[2].x + texSizes[2].x, texOffsets[2].y),
+                        new Vector2f(texOffsets[2].x + texSizes[2].x, texOffsets[2].y + texSizes[2].y),
+                        new Vector2f(texOffsets[2].x, texOffsets[2].y + texSizes[2].y)
+                });
+
+
+<span class="nc" id="L101">        tessellator.setColor(new Vector4f(light2 * color.x, light2 * color.y, light2 * color.z, color.w));</span>
+
+<span class="nc" id="L103">        tessellator.setNormal(new Vector3f(0, 0, -1));</span>
+<span class="nc" id="L104">        tessellator.addPoly(</span>
+                new Vector3f[]{
+                        new Vector3f(-sizeHalf + posX, sizeHalf + posY, -sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, sizeHalf + posY, -sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, -sizeHalf + posY, -sizeHalf + posZ),
+                        new Vector3f(-sizeHalf + posX, -sizeHalf + posY, -sizeHalf + posZ)
+                },
+                new Vector2f[]{
+                        new Vector2f(texOffsets[3].x, texOffsets[3].y),
+                        new Vector2f(texOffsets[3].x + texSizes[3].x, texOffsets[3].y),
+                        new Vector2f(texOffsets[3].x + texSizes[3].x, texOffsets[3].y + texSizes[3].y),
+                        new Vector2f(texOffsets[3].x, texOffsets[3].y + texSizes[3].y)
+                });
+
+<span class="nc" id="L118">        tessellator.setNormal(new Vector3f(0, 0, 1));</span>
+<span class="nc" id="L119">        tessellator.addPoly(</span>
+                new Vector3f[]{
+                        new Vector3f(-sizeHalf + posX, -sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, -sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(-sizeHalf + posX, sizeHalf + posY, sizeHalf + posZ)
+                },
+                new Vector2f[]{
+                        new Vector2f(texOffsets[4].x, texOffsets[4].y + texSizes[4].y),
+                        new Vector2f(texOffsets[4].x + texSizes[4].x, texOffsets[4].y + texSizes[4].y),
+                        new Vector2f(texOffsets[4].x + texSizes[4].x, texOffsets[4].y),
+                        new Vector2f(texOffsets[4].x, texOffsets[4].y)
+                });
+
+<span class="nc" id="L133">        tessellator.setNormal(new Vector3f(0, -1, 0));</span>
+<span class="nc" id="L134">        tessellator.addPoly(</span>
+                new Vector3f[]{
+                        new Vector3f(-sizeHalf + posX, -sizeHalf + posY, -sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, -sizeHalf + posY, -sizeHalf + posZ),
+                        new Vector3f(sizeHalf + posX, -sizeHalf + posY, sizeHalf + posZ),
+                        new Vector3f(-sizeHalf + posX, -sizeHalf + posY, sizeHalf + posZ)
+                },
+                new Vector2f[]{
+                        new Vector2f(texOffsets[5].x, texOffsets[5].y),
+                        new Vector2f(texOffsets[5].x + texSizes[5].x, texOffsets[5].y),
+                        new Vector2f(texOffsets[5].x + texSizes[5].x, texOffsets[5].y + texSizes[5].y),
+                        new Vector2f(texOffsets[5].x, texOffsets[5].y + texSizes[5].y)
+                });
+<span class="nc" id="L147">    }</span>
+
+    public static void addGUIQuadMesh(Tessellator tessellator, Vector4f color, float sizeX, float sizeY) {
+<span class="nc" id="L150">        tessellator.resetParams();</span>
+<span class="nc" id="L151">        tessellator.setColor(new Vector4f(color.x, color.y, color.z, color.w));</span>
+<span class="nc" id="L152">        tessellator.setUseLighting(false);</span>
+<span class="nc" id="L153">        tessellator.setUseNormals(false);</span>
+
+<span class="nc" id="L155">        tessellator.addPoly(</span>
+                new Vector3f[]{
+                        new Vector3f(0, 0, 0),
+                        new Vector3f(sizeX, 0, 0),
+                        new Vector3f(sizeX, sizeY, 0),
+                        new Vector3f(0, sizeY, 0)
+                },
+                new Vector2f[]{
+                        new Vector2f(0, 0),
+                        new Vector2f(1, 0),
+                        new Vector2f(1, 1),
+                        new Vector2f(0, 1)
+                }
+        );
+<span class="nc" id="L169">        tessellator.setUseLighting(true);</span>
+<span class="nc" id="L170">        tessellator.setUseNormals(true);</span>
+<span class="nc" id="L171">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,513 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntityAwareWorldProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.internal</a> &gt; <span class="el_source">EntityAwareWorldProvider.java</span></div><h1>EntityAwareWorldProvider.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.internal;
+
+import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.engine.GameThread;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.ComponentContainer;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.entity.internal.EntityChangeSubscriber;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeDeactivateComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeEntityCreated;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnChangedComponent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.network.NetworkComponent;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.world.BlockEntityRegistry;
+import org.terasology.world.OnChangedBlock;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockComponent;
+import org.terasology.world.block.regions.BlockRegionComponent;
+
+import java.math.RoundingMode;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+public class EntityAwareWorldProvider extends AbstractWorldProviderDecorator implements BlockEntityRegistry, UpdateSubscriberSystem, EntityChangeSubscriber {
+<span class="fc" id="L66">    private static final Logger logger = LoggerFactory.getLogger(EntityAwareWorldProvider.class);</span>
+<span class="fc" id="L67">    private static final Set&lt;Class&lt;? extends Component&gt;&gt; COMMON_BLOCK_COMPONENTS =</span>
+<span class="fc" id="L68">            ImmutableSet.of(NetworkComponent.class, BlockComponent.class, LocationComponent.class);</span>
+    private static final float BLOCK_REGEN_SECONDS = 4.0f;
+
+    private EngineEntityManager entityManager;
+
+    // TODO: Perhaps a better datastructure for spatial lookups
+    // TODO: Or perhaps a build in indexing system for entities
+<span class="fc" id="L75">    private Map&lt;Vector3i, EntityRef&gt; blockEntityLookup = Maps.newHashMap();</span>
+
+<span class="fc" id="L77">    private Map&lt;Vector3i, EntityRef&gt; blockRegionLookup = Maps.newHashMap();</span>
+<span class="fc" id="L78">    private Map&lt;EntityRef, Region3i&gt; blockRegions = Maps.newHashMap();</span>
+
+<span class="fc" id="L80">    private Set&lt;EntityRef&gt; temporaryBlockEntities = Sets.newLinkedHashSet();</span>
+
+    public EntityAwareWorldProvider(WorldProviderCore base, Context context) {
+<span class="fc" id="L83">        super(base);</span>
+<span class="fc" id="L84">        entityManager = (EngineEntityManager) context.get(EntityManager.class);</span>
+<span class="fc" id="L85">        context.get(ComponentSystemManager.class).register(getTime());</span>
+<span class="fc" id="L86">    }</span>
+
+    @Override
+    public void initialise() {
+<span class="fc" id="L90">        entityManager.subscribeForChanges(this);</span>
+<span class="fc" id="L91">    }</span>
+
+    @Override
+    public void preBegin() {
+<span class="nc" id="L95">    }</span>
+
+    @Override
+    public void postBegin() {
+<span class="nc" id="L99">    }</span>
+
+    @Override
+    public void preSave() {
+<span class="nc" id="L103">    }</span>
+
+    @Override
+    public void postSave() {
+<span class="nc" id="L107">    }</span>
+
+    @Override
+    public void shutdown() {
+<span class="nc" id="L111">        entityManager.unsubscribe(this);</span>
+<span class="nc" id="L112">    }</span>
+
+    @Override
+    public Block setBlock(Vector3i pos, Block type) {
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="fc" id="L117">            EntityRef blockEntity = getBlockEntityAt(pos);</span>
+<span class="fc" id="L118">            Block oldType = super.setBlock(pos, type);</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">            if (oldType != null) {</span>
+<span class="fc" id="L120">                updateBlockEntity(blockEntity, pos, oldType, type, false, Collections.&lt;Class&lt;? extends Component&gt;&gt;emptySet());</span>
+            }
+<span class="fc" id="L122">            return oldType;</span>
+        }
+<span class="nc" id="L124">        return null;</span>
+    }
+
+    //SetBlocks, not SetBlock, is currently triggered by the engine whenever a player places a block.
+    //This allows for several useful features, such as quickly synchronizing placement across networks.
+    //However, this means that even if only one block is placed, this is the method being called.
+    //It must be overridden here to allow an OnChangedBlock event to be properly sent for placed blocks.
+    @Override
+    public Map&lt;Vector3i, Block&gt; setBlocks(Map&lt;Vector3i, Block&gt; blocks) {
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="nc" id="L134">            Map&lt;Vector3i, Block&gt; oldBlocks = super.setBlocks(blocks);</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            for (Vector3i vec : oldBlocks.keySet()) {</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                if (oldBlocks.get(vec) != null) {</span>
+<span class="nc" id="L137">                    EntityRef blockEntity = getBlockEntityAt(vec);</span>
+<span class="nc" id="L138">                    updateBlockEntity(blockEntity, vec, oldBlocks.get(vec), blocks.get(vec), false, Collections.&lt;Class&lt;? extends Component&gt;&gt;emptySet());</span>
+                }
+<span class="nc" id="L140">            }</span>
+<span class="nc" id="L141">            return oldBlocks;</span>
+        }
+<span class="nc" id="L143">        return null;</span>
+    }
+
+    @Override
+    @SafeVarargs
+    public final Block setBlockRetainComponent(Vector3i pos, Block type, Class&lt;? extends Component&gt;... components) {
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="fc" id="L150">            EntityRef blockEntity = getBlockEntityAt(pos);</span>
+<span class="fc" id="L151">            Block oldType = super.setBlock(pos, type);</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">            if (oldType != null) {</span>
+<span class="fc" id="L153">                updateBlockEntity(blockEntity, pos, oldType, type, false, Sets.newHashSet(components));</span>
+            }
+<span class="fc" id="L155">            return oldType;</span>
+        }
+<span class="nc" id="L157">        return null;</span>
+    }
+
+    private void updateBlockEntity(EntityRef blockEntity, Vector3i pos, Block oldType, Block type,
+                                   boolean forceEntityUpdate, Set&lt;Class&lt;? extends Component&gt;&gt; retainComponents) {
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        if (type.isKeepActive()) {</span>
+<span class="fc" id="L163">            temporaryBlockEntities.remove(blockEntity);</span>
+<span class="pc bpc" id="L164" title="1 of 4 branches missed.">        } else if (oldType.isKeepActive() &amp;&amp; isTemporaryBlock(blockEntity, type)) {</span>
+<span class="fc" id="L165">            temporaryBlockEntities.add(blockEntity);</span>
+        }
+<span class="pc bpc" id="L167" title="1 of 6 branches missed.">        if (forceEntityUpdate || !(Objects.equal(oldType.getBlockFamily(), type.getBlockFamily()) &amp;&amp; Objects.equal(oldType.getPrefab(), type.getPrefab()))) {</span>
+<span class="fc" id="L168">            updateBlockEntityComponents(blockEntity, oldType, type, retainComponents);</span>
+        }
+
+<span class="fc" id="L171">        OnChangedBlock changedEvent = new OnChangedBlock(pos, type, oldType);</span>
+<span class="fc" id="L172">        EntityRef regionEntity = blockRegionLookup.get(pos);</span>
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if (regionEntity != null) {</span>
+<span class="nc" id="L174">            regionEntity.send(changedEvent);</span>
+        }
+<span class="fc" id="L176">        blockEntity.send(changedEvent);</span>
+<span class="fc" id="L177">    }</span>
+
+    @Override
+    public EntityRef setPermanentBlockEntity(Vector3i blockPosition, EntityRef blockEntity) {
+<span class="nc bnc" id="L181" title="All 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="nc" id="L182">            EntityRef oldEntity = getExistingBlockEntityAt(blockPosition);</span>
+<span class="nc" id="L183">            blockEntityLookup.put(blockPosition, blockEntity);</span>
+<span class="nc" id="L184">            temporaryBlockEntities.remove(blockEntity);</span>
+<span class="nc" id="L185">            return oldEntity;</span>
+        }
+<span class="nc" id="L187">        logger.error(&quot;Attempted to set block entity off-thread&quot;);</span>
+<span class="nc" id="L188">        return EntityRef.NULL;</span>
+    }
+
+    @Override
+    public EntityRef getExistingBlockEntityAt(Vector3i blockPosition) {
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="fc" id="L194">            EntityRef result = blockEntityLookup.get(blockPosition);</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">            return (result == null) ? EntityRef.NULL : result;</span>
+        }
+<span class="nc" id="L197">        logger.error(&quot;Attempted to get block entity off-thread&quot;);</span>
+<span class="nc" id="L198">        return EntityRef.NULL;</span>
+    }
+
+    @Override
+    public Block setBlockForceUpdateEntity(Vector3i pos, Block type) {
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="fc" id="L204">            EntityRef blockEntity = getBlockEntityAt(pos);</span>
+<span class="fc" id="L205">            Block oldType = super.setBlock(pos, type);</span>
+<span class="pc bpc" id="L206" title="1 of 2 branches missed.">            if (oldType != null) {</span>
+<span class="fc" id="L207">                updateBlockEntity(blockEntity, pos, oldType, type, true, Collections.&lt;Class&lt;? extends Component&gt;&gt;emptySet());</span>
+            }
+<span class="fc" id="L209">            return oldType;</span>
+        }
+<span class="nc" id="L211">        return null;</span>
+    }
+
+    @Override
+    public EntityRef getBlockEntityAt(Vector3f position) {
+<span class="nc" id="L216">        Vector3i pos = new Vector3i(position, RoundingMode.HALF_UP);</span>
+<span class="nc" id="L217">        return getBlockEntityAt(pos);</span>
+    }
+
+    @Override
+    public EntityRef getBlockEntityAt(Vector3i blockPosition) {
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="fc" id="L223">            EntityRef blockEntity = getExistingBlockEntityAt(blockPosition);</span>
+<span class="pc bpc" id="L224" title="1 of 6 branches missed.">            if ((!blockEntity.exists() || !blockEntity.hasComponent(NetworkComponent.class)) &amp;&amp; isBlockRelevant(blockPosition.x, blockPosition.y, blockPosition.z)) {</span>
+<span class="fc" id="L225">                Block block = getBlock(blockPosition.x, blockPosition.y, blockPosition.z);</span>
+<span class="fc" id="L226">                blockEntity = createBlockEntity(blockPosition, block);</span>
+            }
+<span class="fc" id="L228">            return blockEntity;</span>
+        }
+<span class="nc" id="L230">        logger.error(&quot;Attempted to get block entity off-thread&quot;);</span>
+<span class="nc" id="L231">        return EntityRef.NULL;</span>
+    }
+
+    private boolean isTemporaryBlock(ComponentContainer entity, Block block) {
+<span class="fc" id="L235">        return isTemporaryBlock(entity, block, null);</span>
+    }
+
+    private boolean isTemporaryBlock(ComponentContainer entity, Block block, Class&lt;? extends Component&gt; ignoreComponent) {
+<span class="fc bfc" id="L239" title="All 2 branches covered.">        if (block.isKeepActive()) {</span>
+<span class="fc" id="L240">            return false;</span>
+        }
+
+<span class="fc bfc" id="L243" title="All 2 branches covered.">        for (ComponentMetadata&lt;?&gt; metadata : entityManager.getComponentLibrary().iterateComponentMetadata()) {</span>
+<span class="fc bfc" id="L244" title="All 4 branches covered.">            if (metadata.isForceBlockActive() &amp;&amp; ignoreComponent != metadata.getType()) {</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">                if (entity.hasComponent(metadata.getType())) {</span>
+<span class="fc" id="L246">                    return false;</span>
+                }
+            }
+<span class="fc" id="L249">        }</span>
+<span class="fc" id="L250">        return true;</span>
+    }
+
+    /**
+     * Transforms a block entity with the change of block type. This is driven from the delta between the old and new
+     * block type prefabs, but takes into account changes made to the block entity.
+     *
+     * @param blockEntity The entity to update
+     * @param oldType     The previous type of the block
+     * @param type        The new type of the block
+     */
+    private void updateBlockEntityComponents(EntityRef blockEntity, Block oldType, Block type, Set&lt;Class&lt;? extends Component&gt;&gt; retainComponents) {
+<span class="fc" id="L262">        BlockComponent blockComponent = blockEntity.getComponent(BlockComponent.class);</span>
+
+<span class="fc" id="L264">        Optional&lt;Prefab&gt; oldPrefab = oldType.getPrefab();</span>
+<span class="fc" id="L265">        EntityBuilder oldEntityBuilder = entityManager.newBuilder(oldPrefab.orElse(null));</span>
+<span class="fc" id="L266">        oldEntityBuilder.addComponent(new BlockComponent(oldType, blockComponent.position));</span>
+<span class="fc" id="L267">        BeforeEntityCreated oldEntityEvent = new BeforeEntityCreated(oldPrefab.orElse(null), oldEntityBuilder.iterateComponents());</span>
+<span class="fc" id="L268">        blockEntity.send(oldEntityEvent);</span>
+<span class="fc bfc" id="L269" title="All 2 branches covered.">        for (Component comp : oldEntityEvent.getResultComponents()) {</span>
+<span class="fc" id="L270">            oldEntityBuilder.addComponent(comp);</span>
+<span class="fc" id="L271">        }</span>
+
+<span class="fc" id="L273">        Optional&lt;Prefab&gt; newPrefab = type.getPrefab();</span>
+<span class="fc" id="L274">        EntityBuilder newEntityBuilder = entityManager.newBuilder(newPrefab.orElse(null));</span>
+<span class="fc" id="L275">        newEntityBuilder.addComponent(new BlockComponent(type, blockComponent.position));</span>
+<span class="fc" id="L276">        BeforeEntityCreated newEntityEvent = new BeforeEntityCreated(newPrefab.orElse(null), newEntityBuilder.iterateComponents());</span>
+<span class="fc" id="L277">        blockEntity.send(newEntityEvent);</span>
+<span class="fc bfc" id="L278" title="All 2 branches covered.">        for (Component comp : newEntityEvent.getResultComponents()) {</span>
+<span class="fc" id="L279">            newEntityBuilder.addComponent(comp);</span>
+<span class="fc" id="L280">        }</span>
+
+<span class="fc bfc" id="L282" title="All 2 branches covered.">        for (Component component : blockEntity.iterateComponents()) {</span>
+<span class="fc bfc" id="L283" title="All 2 branches covered.">            if (!COMMON_BLOCK_COMPONENTS.contains(component.getClass())</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">                    &amp;&amp; !entityManager.getComponentLibrary().getMetadata(component.getClass()).isRetainUnalteredOnBlockChange()</span>
+<span class="fc bfc" id="L285" title="All 4 branches covered.">                    &amp;&amp; !newEntityBuilder.hasComponent(component.getClass()) &amp;&amp; !retainComponents.contains(component.getClass())) {</span>
+<span class="fc" id="L286">                blockEntity.removeComponent(component.getClass());</span>
+            }
+<span class="fc" id="L288">        }</span>
+
+
+<span class="fc" id="L291">        blockComponent.block = type;</span>
+<span class="fc" id="L292">        blockEntity.saveComponent(blockComponent);</span>
+
+<span class="fc bfc" id="L294" title="All 2 branches covered.">        for (Component comp : newEntityBuilder.iterateComponents()) {</span>
+<span class="fc" id="L295">            copyIntoPrefab(blockEntity, comp, retainComponents);</span>
+<span class="fc" id="L296">        }</span>
+<span class="fc" id="L297">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    private &lt;T extends Component&gt; void copyIntoPrefab(EntityRef blockEntity, T comp, Set&lt;Class&lt;? extends Component&gt;&gt; retainComponents) {
+<span class="fc" id="L301">        ComponentMetadata&lt;T&gt; metadata = entityManager.getComponentLibrary().getMetadata((Class&lt;T&gt;) comp.getClass());</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">        if (!blockEntity.hasComponent(comp.getClass())) {</span>
+<span class="fc" id="L303">            blockEntity.addComponent(metadata.copyRaw(comp));</span>
+<span class="pc bpc" id="L304" title="1 of 4 branches missed.">        } else if (!metadata.isRetainUnalteredOnBlockChange() &amp;&amp; !retainComponents.contains(metadata.getType())) {</span>
+<span class="fc" id="L305">            updateComponent(blockEntity, metadata, comp);</span>
+        }
+<span class="fc" id="L307">    }</span>
+
+    private &lt;T extends Component&gt; void updateComponent(EntityRef blockEntity, ComponentMetadata&lt;T&gt; metadata, T targetComponent) {
+<span class="fc" id="L310">        T currentComp = blockEntity.getComponent(metadata.getType());</span>
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">        if (currentComp != null) {</span>
+<span class="fc" id="L312">            boolean changed = false;</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">            for (FieldMetadata&lt;T, ?&gt; field : metadata.getFields()) {</span>
+<span class="fc" id="L314">                Object newVal = field.getValue(targetComponent);</span>
+<span class="fc bfc" id="L315" title="All 2 branches covered.">                if (!Objects.equal(field.getValue(currentComp), newVal)) {</span>
+<span class="fc" id="L316">                    field.setValue(currentComp, newVal);</span>
+<span class="fc" id="L317">                    changed = true;</span>
+                }
+<span class="fc" id="L319">            }</span>
+<span class="fc bfc" id="L320" title="All 2 branches covered.">            if (changed) {</span>
+<span class="fc" id="L321">                blockEntity.saveComponent(currentComp);</span>
+            }
+        }
+<span class="fc" id="L324">    }</span>
+
+    private EntityRef createBlockEntity(Vector3i blockPosition, Block block) {
+<span class="fc" id="L327">        EntityBuilder builder = entityManager.newBuilder(block.getPrefab().orElse(null));</span>
+<span class="fc" id="L328">        builder.addComponent(new LocationComponent(blockPosition.toVector3f()));</span>
+<span class="fc" id="L329">        builder.addComponent(new BlockComponent(block, blockPosition));</span>
+<span class="fc" id="L330">        boolean isTemporary = isTemporaryBlock(builder, block);</span>
+<span class="pc bpc" id="L331" title="1 of 4 branches missed.">        if (!isTemporary &amp;&amp; !builder.hasComponent(NetworkComponent.class)) {</span>
+<span class="fc" id="L332">            builder.addComponent(new NetworkComponent());</span>
+        }
+
+        EntityRef blockEntity;
+<span class="fc bfc" id="L336" title="All 2 branches covered.">        if (isTemporary) {</span>
+<span class="fc" id="L337">            blockEntity = builder.buildWithoutLifecycleEvents();</span>
+<span class="fc" id="L338">            temporaryBlockEntities.add(blockEntity);</span>
+        } else {
+<span class="fc" id="L340">            blockEntity = builder.build();</span>
+        }
+
+<span class="fc" id="L343">        blockEntityLookup.put(new Vector3i(blockPosition), blockEntity);</span>
+<span class="fc" id="L344">        return blockEntity;</span>
+    }
+
+    @Override
+    public EntityRef getExistingEntityAt(Vector3i blockPosition) {
+<span class="nc bnc" id="L349" title="All 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="nc" id="L350">            EntityRef result = blockRegionLookup.get(blockPosition);</span>
+<span class="nc bnc" id="L351" title="All 2 branches missed.">            if (result == null) {</span>
+<span class="nc" id="L352">                return getExistingBlockEntityAt(blockPosition);</span>
+            }
+<span class="nc" id="L354">            return result;</span>
+        }
+<span class="nc" id="L356">        logger.error(&quot;Attempted to get block entity off-thread&quot;);</span>
+<span class="nc" id="L357">        return EntityRef.NULL;</span>
+    }
+
+    @Override
+    public EntityRef getEntityAt(Vector3i blockPosition) {
+<span class="nc bnc" id="L362" title="All 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="nc" id="L363">            EntityRef entity = getExistingEntityAt(blockPosition);</span>
+<span class="nc bnc" id="L364" title="All 2 branches missed.">            if (!entity.exists()) {</span>
+<span class="nc" id="L365">                return getBlockEntityAt(blockPosition);</span>
+            }
+<span class="nc" id="L367">            return entity;</span>
+        }
+<span class="nc" id="L369">        logger.error(&quot;Attempted to get block entity off-thread&quot;);</span>
+<span class="nc" id="L370">        return EntityRef.NULL;</span>
+    }
+
+    @Override
+    public boolean hasPermanentBlockEntity(Vector3i blockPos) {
+<span class="nc bnc" id="L375" title="All 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="nc" id="L376">            EntityRef blockEntity = blockEntityLookup.get(blockPos);</span>
+<span class="nc bnc" id="L377" title="All 4 branches missed.">            return blockEntity != null &amp;&amp; !temporaryBlockEntities.contains(blockEntity);</span>
+        }
+<span class="nc" id="L379">        logger.error(&quot;Attempted check whether a block entity is permanent, off thread&quot;);</span>
+<span class="nc" id="L380">        return false;</span>
+    }
+
+    @ReceiveEvent(components = {BlockComponent.class})
+    public void onActivateBlock(OnActivatedComponent event, EntityRef entity) {
+<span class="nc" id="L385">        BlockComponent block = entity.getComponent(BlockComponent.class);</span>
+<span class="nc" id="L386">        EntityRef oldEntity = blockEntityLookup.put(new Vector3i(block.position), entity);</span>
+        // If this is a client, then an existing block entity may exist. Destroy it.
+<span class="nc bnc" id="L388" title="All 4 branches missed.">        if (oldEntity != null &amp;&amp; !Objects.equal(oldEntity, entity)) {</span>
+<span class="nc" id="L389">            oldEntity.destroy();</span>
+        }
+<span class="nc" id="L391">    }</span>
+
+    @ReceiveEvent(components = {BlockComponent.class})
+    public void onDeactivateBlock(BeforeDeactivateComponent event, EntityRef entity) {
+<span class="nc" id="L395">        BlockComponent block = entity.getComponent(BlockComponent.class);</span>
+<span class="nc bnc" id="L396" title="All 2 branches missed.">        if (blockEntityLookup.get(block.position) == entity) {</span>
+<span class="nc" id="L397">            blockEntityLookup.remove(block.position);</span>
+        }
+<span class="nc" id="L399">    }</span>
+
+    @ReceiveEvent(components = {BlockRegionComponent.class})
+    public void onBlockRegionActivated(OnActivatedComponent event, EntityRef entity) {
+<span class="nc" id="L403">        BlockRegionComponent regionComp = entity.getComponent(BlockRegionComponent.class);</span>
+<span class="nc" id="L404">        blockRegions.put(entity, regionComp.region);</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">        for (Vector3i pos : regionComp.region) {</span>
+<span class="nc" id="L406">            blockRegionLookup.put(pos, entity);</span>
+<span class="nc" id="L407">        }</span>
+<span class="nc" id="L408">    }</span>
+
+    @ReceiveEvent(components = {BlockRegionComponent.class})
+    public void onBlockRegionChanged(OnChangedComponent event, EntityRef entity) {
+<span class="nc" id="L412">        Region3i oldRegion = blockRegions.get(entity);</span>
+<span class="nc bnc" id="L413" title="All 2 branches missed.">        for (Vector3i pos : oldRegion) {</span>
+<span class="nc" id="L414">            blockRegionLookup.remove(pos);</span>
+<span class="nc" id="L415">        }</span>
+<span class="nc" id="L416">        BlockRegionComponent regionComp = entity.getComponent(BlockRegionComponent.class);</span>
+<span class="nc" id="L417">        blockRegions.put(entity, regionComp.region);</span>
+<span class="nc bnc" id="L418" title="All 2 branches missed.">        for (Vector3i pos : regionComp.region) {</span>
+<span class="nc" id="L419">            blockRegionLookup.put(pos, entity);</span>
+<span class="nc" id="L420">        }</span>
+<span class="nc" id="L421">    }</span>
+
+    @ReceiveEvent(components = {BlockRegionComponent.class})
+    public void onBlockRegionDeactivated(BeforeDeactivateComponent event, EntityRef entity) {
+<span class="nc" id="L425">        Region3i oldRegion = blockRegions.get(entity);</span>
+<span class="nc bnc" id="L426" title="All 2 branches missed.">        for (Vector3i pos : oldRegion) {</span>
+<span class="nc" id="L427">            blockRegionLookup.remove(pos);</span>
+<span class="nc" id="L428">        }</span>
+<span class="nc" id="L429">        blockRegions.remove(entity);</span>
+<span class="nc" id="L430">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="fc" id="L434">        PerformanceMonitor.startActivity(&quot;Temp Blocks Cleanup&quot;);</span>
+<span class="fc" id="L435">        List&lt;EntityRef&gt; toRemove = Lists.newArrayList(temporaryBlockEntities);</span>
+<span class="fc" id="L436">        temporaryBlockEntities.clear();</span>
+<span class="fc" id="L437">        toRemove.forEach(this::cleanUpTemporaryEntity);</span>
+<span class="fc" id="L438">        PerformanceMonitor.endActivity();</span>
+<span class="fc" id="L439">    }</span>
+
+    private void cleanUpTemporaryEntity(EntityRef entity) {
+<span class="fc" id="L442">        Prefab prefab = entity.getParentPrefab();</span>
+
+<span class="fc bfc" id="L444" title="All 2 branches covered.">        for (Component comp : entity.iterateComponents()) {</span>
+<span class="fc bfc" id="L445" title="All 6 branches covered.">            if (!COMMON_BLOCK_COMPONENTS.contains(comp.getClass()) &amp;&amp; (prefab == null || !prefab.hasComponent(comp.getClass()))) {</span>
+<span class="fc" id="L446">                entity.removeComponent(comp.getClass());</span>
+            }
+<span class="fc" id="L448">        }</span>
+<span class="fc" id="L449">        entity.removeComponent(NetworkComponent.class);</span>
+
+<span class="fc bfc" id="L451" title="All 2 branches covered.">        if (prefab != null) {</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">            for (Component comp : prefab.iterateComponents()) {</span>
+<span class="fc" id="L453">                Component currentComp = entity.getComponent(comp.getClass());</span>
+<span class="fc bfc" id="L454" title="All 2 branches covered.">                if (currentComp == null) {</span>
+<span class="fc" id="L455">                    entity.addComponent(entityManager.getComponentLibrary().copy(comp));</span>
+                } else {
+<span class="fc" id="L457">                    ComponentMetadata&lt;?&gt; metadata = entityManager.getComponentLibrary().getMetadata(comp.getClass());</span>
+<span class="fc" id="L458">                    boolean changed = false;</span>
+<span class="fc bfc" id="L459" title="All 2 branches covered.">                    for (FieldMetadata field : metadata.getFields()) {</span>
+<span class="fc" id="L460">                        Object expected = field.getValue(comp);</span>
+<span class="fc bfc" id="L461" title="All 2 branches covered.">                        if (!Objects.equal(expected, field.getValue(currentComp))) {</span>
+<span class="fc" id="L462">                            field.setValue(currentComp, expected);</span>
+<span class="fc" id="L463">                            changed = true;</span>
+                        }
+<span class="fc" id="L465">                    }</span>
+<span class="fc bfc" id="L466" title="All 2 branches covered.">                    if (changed) {</span>
+<span class="fc" id="L467">                        entity.saveComponent(currentComp);</span>
+                    }
+                }
+<span class="fc" id="L470">            }</span>
+        }
+<span class="fc" id="L472">        entityManager.destroyEntityWithoutEvents(entity);</span>
+<span class="fc" id="L473">    }</span>
+
+
+    @Override
+    public void onEntityComponentAdded(EntityRef entity, Class&lt;? extends Component&gt; component) {
+<span class="fc bfc" id="L478" title="All 4 branches covered.">        if (temporaryBlockEntities.contains(entity) &amp;&amp; entityManager.getComponentLibrary().getMetadata(component).isForceBlockActive()) {</span>
+<span class="fc" id="L479">            temporaryBlockEntities.remove(entity);</span>
+<span class="pc bpc" id="L480" title="1 of 2 branches missed.">            if (!entity.hasComponent(NetworkComponent.class)) {</span>
+<span class="fc" id="L481">                entity.addComponent(new NetworkComponent());</span>
+            }
+        }
+<span class="fc" id="L484">    }</span>
+
+    @Override
+    public void onEntityComponentChange(EntityRef entity, Class&lt;? extends Component&gt; component) {
+<span class="fc" id="L488">    }</span>
+
+    @Override
+    public void onEntityComponentRemoved(EntityRef entity, Class&lt;? extends Component&gt; component) {
+<span class="fc bfc" id="L492" title="All 2 branches covered.">        if (entityManager.getComponentLibrary().getMetadata(component).isForceBlockActive()) {</span>
+<span class="fc" id="L493">            BlockComponent blockComp = entity.getComponent(BlockComponent.class);</span>
+<span class="pc bpc" id="L494" title="1 of 2 branches missed.">            if (blockComp != null) {</span>
+<span class="fc" id="L495">                Block block = getBlock(blockComp.position.x, blockComp.position.y, blockComp.position.z);</span>
+<span class="fc bfc" id="L496" title="All 2 branches covered.">                if (isTemporaryBlock(entity, block, component)) {</span>
+<span class="fc" id="L497">                    temporaryBlockEntities.add(entity);</span>
+                }
+            }
+        }
+<span class="fc" id="L501">    }</span>
+
+    @Override
+    public void onReactivation(EntityRef entity, Collection&lt;Component&gt; components) {
+        // TODO check if implementation makes sense
+<span class="nc" id="L506">    }</span>
+
+    @Override
+    public void onBeforeDeactivation(EntityRef entity, Collection&lt;Component&gt; components) {
+        // TODO check if implementation makes sense
+<span class="nc" id="L511">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>
