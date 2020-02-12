@@ -21,28 +21,34 @@ Contributors: 237
 Terasology is basically a Minecraft clone.
 
 ## Onboarding experience
+In the following section the experience of using the project Terasology is explained. The experiance where different depending
+on the operativsystem of the used computer. 
+####How easily can you build the project? Briefly describe if everything worked as documented or not:
 
-1. How easily can you build the project? Briefly describe if everything worked as documented or not:
+Did you have to install a lot of additional tools to build the software?
+* The only requirements were Java JDK 8 and Gradle 4.
 
-(a) Did you have to install a lot of additional tools to build the software?
+Were those tools well documented?
+* Yes.
 
-The only requirements were JDK 8 and Gradle.
+Were other components installed automatically by the build script?
+* `Linux` Yes, all necessary dependencies were downloaded and imported by Gradle.
+* `Windows` No, there where a lot of problems with premisision and depricated versions of Java and Gradle. On one windows computer
+it was enough to download Gradle 4 and Java 8. On another system the program where not able to compile in IDEA, but it was possible
+in CMD and Windows integrated Ubuntu support.
+* `Mac` Test and program where not able to run from IDEA, the test could run from Terminal.
 
-(b) Were those tools well documented?
+Did the build conclude automatically without errors?
+* `Linux` No, there was one almost empty Java source file which caused syntax errors. Removing this file solved the issue.
+* `Windows` No, 16 build error in IDEA, 3 build errors in CMD and 0 in Ubuntu terminal
+* `Mac` No
 
-Yes.
+How well do examples and tests run on your system(s)?
 
-(c) Were other components installed automatically by the build script?
+* `Linux` Both the tests and the actual game run well.
+* `Windows` The game can be executed form CMD, the test can be executed from Ubuntu terminal, specific tests can be executed from IDEA.
+* `Mac` No
 
-Yes, all necessary dependencies were downloaded and imported by Gradle.
-
-(d) Did the build conclude automatically without errors?
-
-No, there was one almost empty Java source file which caused syntax errors. Removing this file solved the issue.
-
-(e) How well do examples and tests run on your system(s)?
-
-Both the tests and the actual game run well.
 
 ## Complexity
 
