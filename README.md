@@ -22,7 +22,7 @@ Terasology is basically a Minecraft clone.
 
 ## Onboarding experience
 In the following section the experience of using the project Terasology is explained. The experiance where different depending
-on the operativsystem of the used computer. 
+on the operativsystem of the used computer.
 ####How easily can you build the project? Briefly describe if everything worked as documented or not:
 
 Did you have to install a lot of additional tools to build the software?
@@ -51,15 +51,62 @@ How well do examples and tests run on your system(s)?
 
 
 ## Complexity
+To automatically calculate the cyclomatic complexity for each method, we used the java tool JaCoCo. The methods and their cyclomatic complexity (Cxty) according to JaCoCo were:
 
-1. What are your results for ten complex functions?
+class NetMessage.Builder
+* mergeFrom(NetData.NetMessage) : Cxty = 79
+* clear() : Cxty = 22
+* isInitialized() : Cxty = 44
+
+class NetMessage
+* NetData.NetMessage(CodedInputStream, ExtensionRegistryLite) : Cxty = 68
+* isInitialized() : Cxty = 46
+
+class ServerInfoMessage
+* buildPartial() : Cxty = 23
+* isInitialized() : Cxty = 10
+
+class AABB
+* centerPointForNormal(Vector3f) : Cxty = 19
+
+We used the formula pi - s + 1 to calculate the cyclomatic complexity, where pi where number of decisions, s number of endpoints. The result we got when we calculated the cyclomatic complexity by hand for four different methods:
+
+class ServerInfoMessage
+  * buildPartial()  
+    pi = 22  
+    s = 1  
+    Cxty = 22 - 1 + 2 = 23
+
+class NetMessage.Builder
+  * mergeFrom(NetData.NetMessage)  
+    pi = 81  
+    s =  2  
+    Cxty = 81 - 2 + 2 = 81  
+
+  * clear()  
+    pi = 21  
+    s = 1  
+    Cxty = 21 - 1 + 2 = 22
+
+class AABB
+  * centerPointForNormal(Vector3f)  
+    pi =  18  
+    s =  7  
+    Cxty =  18 - 7 + 2 = 13   
+    (If we use the formula M = B - D + 1 we get M = 36 - 18 + 1 = 19)  
+
+
+#### What are your results for ten complex functions?
    * Did all tools/methods get the same result?
    * Are the results clear?
-2. Are the functions just complex, or also long?
-3. What is the purpose of the functions?
-4. Are exceptions taken into account in the given measurements?
-5. Is the documentation clear w.r.t. all the possible outcomes?
 
+2. Are the functions just complex, or also long?
+
+3. What is the purpose of the functions?
+
+4. Are exceptions taken into account in the given measurements?
+
+5. Is the documentation clear w.r.t. all the possible outcomes?
 ## Coverage
 
 ### Tools
