@@ -96,7 +96,7 @@ class AABB
     (If we use the formula M = B - D + 1 we get M = 36 - 18 + 1 = 19)  
 
 
-#### What are your results for ten complex functions?
+#### What are your results for four complex functions?
 #####What are your results? Did everyone get the same result? Is there something that is unclear? If you have a tool, is its result the same as yours?
 
 `centerPointForNormal(Vector3f) ` Yes everyone got the same result on the complexity. The result is: M = B - D + 1= 36 - 18 +1 = 19. Jacoco: 19. Forumla presented during leacture (gave not the same answer): M = 18 - 7 +2 = 13
