@@ -97,23 +97,23 @@ class AABB
 
 
 #### What are your results for four complex functions?
-#####What are your results? Did everyone get the same result? Is there something that is unclear? If you have a tool, is its result the same as yours?
+##### What are your results? Did everyone get the same result? Is there something that is unclear? If you have a tool, is its result the same as yours?
 
 `centerPointForNormal(Vector3f) ` Yes everyone got the same result on the complexity. The result is: M = B - D + 1= 36 - 18 +1 = 19. Jacoco: 19. Forumla presented during leacture (gave not the same answer): M = 18 - 7 +2 = 13
 
-#####Are the functions/methods with high CC also very long in terms of LOC?
+##### Are the functions/methods with high CC also very long in terms of LOC?
 
 `centerPointForNormal(Vector3f) ` No it´s not, the lenght is only 20 lines of code.
 
-#####What is the purpose of these functions? Is it related to the high CC?
+##### What is the purpose of these functions? Is it related to the high CC?
 
 `centerPointForNormal(Vector3f) ` The purpose of this function is to compute the centerpoint of six available planes given a normal. I´s understandable that this function has high complexity becuse ther are sevral criterias that needs to be checked. This will result in alot of nested if statments that will increase the complexity.
 
-#####If your programming language uses exceptions: Are they taken into account by the tool? If you think of an exception as another possible branch (to the catch block or the end of the function), how is the CC affected?
+##### If your programming language uses exceptions: Are they taken into account by the tool? If you think of an exception as another possible branch (to the catch block or the end of the function), how is the CC affected?
 
 `centerPointForNormal(Vector3f) ` No exceptions are handled by this function.
 
-#####Is the documentation of the function clear about the different possible outcomes induced by different branches taken? 
+##### Is the documentation of the function clear about the different possible outcomes induced by different branches taken? 
 
 `centerPointForNormal(Vector3f) ` No, it´s not clear at all what the function does, the only thing that is documented is what the function does, but not clearly explained.
  
