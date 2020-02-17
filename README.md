@@ -53,6 +53,9 @@ To automatically calculate the cyclomatic complexity for each method, we used th
 * buildPartial() : Cxty = 23
 * isInitialized() : Cxty = 10
 
+#### class SimplexNoise
+* noise(float x, float y, float z) : Cxty = 10
+
 ##### class AABB
 * centerPointForNormal(Vector3f) : Cxty = 19
 * normalForPlaneClosestToOrigin(Vector3f pointOnAABB, Vector3f origin, boolean testX, boolean testY, boolean testZ) : Cxty = 15
@@ -100,6 +103,7 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 * `normalForPlaneClosestToOrigin() ` No it´s not, the length is only 37 lines of code.
 * `mergeFrom(NetData.NetMessage)` Yes, 325 lines of code.
 * `NetData.NetMessage.Builder.ìsInitialized()` Yes, 111 lines of code.
+* `noise(float x, float y, float z)` Yes, 150 lines of code.
 
 ##### What is the purpose of these functions? Is it related to the high CC?
 * `clear()` This function is related to called by the initialization and clear code paths to allow subclasses to reset any of their builtin fields back to the initial values. The reason for such high CC is that there are a lot of if-statements to check if the fields are not null. If they are null, they are initialized. Otherwise, clear method is called on a field if it is not null. However, there is a lot of code duplication. And, the problem should not have high essential complexity after refactoring.
@@ -110,26 +114,29 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 * `normalForPlaneClosestToOrigin() ` The purpose of this function is return the normal of the plane that is closest to the input point. The planes tested are specified as min and max, where the normal can be returned in x, y and z direction. The function can return several normals if the user is interested in more then one plane.
 * `mergeFrom(NetData.NetMessage)` The purpose of this function is to merge a NetMessage.Builder object with a NetMessage object, to create a new NetMessage.Builder object. It has high CC because of ridiculous code duplication. It consists of the same block of code duplicated 11 times, in addition to 11 other if-statements.
 * `NetData.NetMessage.Builder.ìsInitialized()` The purpose of this function is to check if all components of the NetMessage.Builder object have been initialized. The reason for the high CC is that it consists of a large amount of if-statements.
+* `noise(float x, float y, float z)` The purpose of this function is to return a noise value in the interval [-1,1] by using an algorithm to decide the simplex. The reason for the high CC is that it consists of several if-statements.
 
 ##### If your programming language uses exceptions: Are they taken into account by the tool? If you think of an exception as another possible branch (to the catch block or the end of the function), how is the CC affected?
 * `clear()` As per JaCoCo's documentation, "Note that as JaCoCo does not consider exception handling as branches try/catch blocks will also not increase complexity" is said under cyclomatic complexity. If exceptions are considered as branches, the cyclomatic complexity calculated will increase in general. However, in the NetData.NetMessage.Builder.clear(), there are no exceptions thrown. Therefore, the cyclomatic complexity will be the same regardless of whether exceptions are considered as branches or not.
 * `centerPointForNormal(Vector3f) ` No exceptions are handled by this function.
 * `mergeFrom(NetData.ServerInfoMessage)` As per JaCoCo's documentation, "Note that as JaCoCo does not consider exception handling as branches try/catch blocks will also not increase complexity" is said under cyclomatic complexity. If exceptions are considered as branches, the cyclomatic complexity calculated will increase in general. However, in `mergeFrom(NetData.ServerInfoMessage)`, there are no exceptions thrown. Therefore, the cyclomatic complexity will be the same regardless of whether exceptions are considered as branches or not.
 * `buildPartial()` No exception are handled by this function. Therefore, the cyclomatic complexity will be the same.
-* `ìsInitialized()` No exception are handled by this function. Therefore, the cyclomatic complexity will be the same.
+* `NetData.ServerInfoMessage.Builder.ìsInitialized()` No exception are handled by this function. Therefore, the cyclomatic complexity will be the same.
 * `normalForPlaneClosestToOrigin() ` The function does not use exceptions.
 * `mergeFrom(NetData.NetMessage)` The function does not throw any exceptions.
 * `NetData.NetMessage.Builder.ìsInitialized()` The function does not throw any exceptions.
+* `noise(float x, float y, float z)` The function does not throw any exceptions.
 
 ##### Is the documentation of the function clear about the different possible outcomes induced by different branches taken?
 * `clear()` It is relatively clear. However, I had to read through the code a bit to get an idea about the how the documentation maps to the code.
 * `centerPointForNormal(Vector3f) ` No, it´s not clear at all what the function does, the only thing that is documented is what the function does, but not clearly explained.
 * `mergeFrom(NetData.ServerInfoMessage)` There is no explicit documentation. I had to look up the method usage, and then look at the other method's documentation (to be technically correct, i had to look at the documentation of the superclass of the method). The using method's documentation is relatively clear. However, i had to read through the code a bit to get an idea about the how the documentation maps to the code.
 * `buildPartial()` There is no explicit documentation for this function. I had to read through several parts of the code to be able to understand what the functions does.
-* `ìsInitialized()` There is no explicit documentation for this function. However, the function is relatively clear anyway. 
+* `NetData.ServerInfoMessage.Builder.ìsInitialized()` There is no explicit documentation for this function. However, the function is relatively clear anyway.
 * `normalForPlaneClosestToOrigin() ` The documentation is understandable, however it does not state that several normals can be returned.
 * `mergeFrom(NetData.NetMessage)` There is no documentation available, and since the function is ovver 300 LOC and consists of bitwise operations it is very difficult to comprehend.
 * `NetData.NetMessage.Builder.ìsInitialized()` There is no documentation available, but since the function only returns a boolean value it is yet quite comprehensible.
+* `noise(float x, float y, float z)` There is some documentation available and the authors of the function have used Javadoc. However, they have not described the different possible outcomes induced by the different branches. 
 
 ## Coverage
 
