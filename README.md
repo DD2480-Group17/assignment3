@@ -89,26 +89,35 @@ class AABB
 * `clear()` Cxty = 21 - 1 + 2 = 22. Yes. Everyone got the same results. No. There is nothing unclear. We used Jacoco, and the result was the same.
 * `centerPointForNormal(Vector3f) ` Yes everyone got the same result on the complexity. The result is: M = B - D + 1= 36 - 18 +1 = 19. Jacoco: 19. Forumla presented during lecture (gave not the same answer): M = 18 - 7 +2 = 13.
 * `mergeFrom(NetData.ServerInfoMessage)` Jacoco cyclomatic complexity = 47.
+* `buildPartial()` Cxty = 22 - 1 + 2 = 23. Yes, everyone got the same results. JaCoCo got the same result as we where Cxty = 23.
 
 ##### Are the functions/methods with high CC also very long in terms of LOC?
 * `clear()` Yes. The number of lines is about 129 lines.
-* `centerPointForNormal(Vector3f) ` No it´s not, the lenght is only 20 lines of code.
+* `centerPointForNormal(Vector3f) ` No it´s not, the length is only 20 lines of code.
 * `mergeFrom(NetData.ServerInfoMessage)` Yes. 215 lines of code.
+* `buildPartial()` Yes. 110 lines of code.
+* `ìsInitialized()` No it's not. The length of the function is 34 lines of code.
 
 ##### What is the purpose of these functions? Is it related to the high CC?
 * `clear()` This function is related to called by the initialization and clear code paths to allow subclasses to reset any of their builtin fields back to the initial values. The reason for such high CC is that there are a lot of if-statements to check if the fields are not null. If they are null, they are initialized. Otherwise, clear method is called on a field if it is not null. However, there is a lot of code duplication. And, the problem should not have high essential complexity after refactoring.
-* `centerPointForNormal(Vector3f) ` The purpose of this function is to compute the centerpoint of six available planes given a normal. I´s understandable that this function has high complexity becuse ther are sevral criterias that needs to be checked. This will result in alot of nested if statments that will increase the complexity.
+* `centerPointForNormal(Vector3f) ` The purpose of this function is to compute the centerpoint of six available planes given a normal. I´s understandable that this function has high complexity because there are several criterias that needs to be checked. This will result in alot of nested if statments that will increase the complexity.
 * `mergeFrom(NetData.ServerInfoMessage)` This function is used by Protocol message builders to merge two messages with each other. The reason for high CC is multiple is statements. However, there is a lot of code duplication which could be refactored.
+* `buildPartial()` The purpose of this function is to change the values for the bit fields "to" and "from", and to set the different parts of the ServerInfoMessage. The reason for such high CC is that there are a lot of different parts of the ServerInfoMessage that needs to be set, and to do that they have constructed several if-statements that need to be checked before they return the ServerInfoMessage.
+* `ìsInitialized()` The purpose of the method is to check that all components in the class is initialized. If all components and modules are initialized, the method returns true. Otherwise, the method returns false. There are a couple of if-statements in the method that contribute to the high CC. The if-statements could have been split up into different methods (because they are checking different initialization) to decrease the CC.
 
 ##### If your programming language uses exceptions: Are they taken into account by the tool? If you think of an exception as another possible branch (to the catch block or the end of the function), how is the CC affected?
 * `clear()` As per Jacoco's documentation, "Note that as JaCoCo does not consider exception handling as branches try/catch blocks will also not increase complexity" is said under cyclomatic complexity. If exceptions are considered as branches, the cyclomatic complexity calculated will increase in general. However, in the NetData.NetMessage.Builder.clear(), there are no exceptions thrown. Therefore, the cyclomatic complexity will be the same regardless of whether exceptions are considered as branches or not.
 * `centerPointForNormal(Vector3f) ` No exceptions are handled by this function.
 * `mergeFrom(NetData.ServerInfoMessage)` As per Jacoco's documentation, "Note that as JaCoCo does not consider exception handling as branches try/catch blocks will also not increase complexity" is said under cyclomatic complexity. If exceptions are considered as branches, the cyclomatic complexity calculated will increase in general. However, in `mergeFrom(NetData.ServerInfoMessage)`, there are no exceptions thrown. Therefore, the cyclomatic complexity will be the same regardless of whether exceptions are considered as branches or not.
+* `buildPartial()` No exception are handled by this function. Therefore, the cyclomatic complexity will be the same.
+* `ìsInitialized()` No exception are handled by this function. Therefore, the cyclomatic complexity will be the same.
 
 ##### Is the documentation of the function clear about the different possible outcomes induced by different branches taken?
 * `clear()` It is relatively clear. However, I had to read through the code a bit to get an idea about the how the documentation maps to the code.
 * `centerPointForNormal(Vector3f) ` No, it´s not clear at all what the function does, the only thing that is documented is what the function does, but not clearly explained.
 * `mergeFrom(NetData.ServerInfoMessage)` There is no explicit documentation. I had to look up the method usage, and then look at the other method's documentation (to be technically correct, i had to look at the documentation of the superclass of the method). The using method's documentation is relatively clear. However, i had to read through the code a bit to get an idea about the how the documentation maps to the code.
+* `buildPartial()` There is no explicit documentation for this function. I had to read through several parts of the code to be able to understand what the functions does.
+* `ìsInitialized()` There is no explicit documentation for this function. However, the function is relatively clear anyway. 
 
 ## Coverage
 
