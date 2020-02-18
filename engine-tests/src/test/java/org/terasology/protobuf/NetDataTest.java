@@ -29,18 +29,20 @@ class NetDataTest {
         AdHocNetData.NetMessage.Builder.MergeFrom.printRes();
         AdHocNetData.NetMessage.Builder.IsInitialized.printRes();
         BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();
+        AdHocBuildPartial.getCoverage();
+
     }
 
     /**
      * Test that some of the attributes for the ServerInfoMessage's object returned by buildPartial() are as
      * expected and that the adhoc tool works.
-     *
+     * <p>
      * Test case 1:
      * Expected value: An empty list because we haven't added any modules, but not null
-     *
+     * <p>
      * Test case 2:
      * Expected value: playersAmount_ = 0
-     *
+     * <p>
      * Test case 3:
      * Expected value: reflectionHeight_ = 0
      */
@@ -56,11 +58,6 @@ class NetDataTest {
         assertEquals(0, serverinfo2.getOnlinePlayersAmount());
         // gets the correct value for reflectionHeight
         assertEquals(0.0, serverinfo2.getReflectionHeight());
-
-        boolean[] result = AdHocBuildPartial.getAdHoc();
-        for (int i = 0; i < result.length; i++){
-            System.out.println("Visited branch " + (i+1) + " " + result[i]);
-        }
     }
 
     /**
