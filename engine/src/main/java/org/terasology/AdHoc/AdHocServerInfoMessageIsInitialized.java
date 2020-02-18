@@ -15,15 +15,15 @@
  */
 package org.terasology.AdHoc;
 
-/** Ad-hoc tool for function ServerInfoMessage.Builder.buildPartial()
+/** Ad-hoc tool for function ServerInfoMessage.isInitialized()
  */
-public class AdHocBuildPartial {
-    public static boolean[] AdHoc = new boolean[22];
+public class AdHocServerInfoMessageIsInitialized {
+    public static boolean[] AdHoc = new boolean[18];
 
     /**
      * Sets all values in AdHoc[] to false before we runt the function
      */
-    public AdHocBuildPartial(){
+    public AdHocServerInfoMessageIsInitialized(){
         for (int i = 0; i < AdHoc.length; i++)
             AdHoc[i] = false;
     }
@@ -43,7 +43,7 @@ public class AdHocBuildPartial {
     }
 
     public static void getCoverage() {
-        boolean[] result = AdHocBuildPartial.getAdHoc();
+        boolean[] result = AdHocServerInfoMessageIsInitialized.getAdHoc();
         int counter = 0;
         for (int i = 0; i < result.length; i++) {
             if (result[i] == true){
