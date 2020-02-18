@@ -18,6 +18,7 @@ package org.terasology.utilities.procedural;
 import org.terasology.AdHoc.AdHocSimplexNoise;
 import org.terasology.math.TeraMath;
 import org.terasology.utilities.random.FastRandom;
+import static org.terasology.utilities.procedural.BranchCoverageSimplesNoiseNoiseMethod.*;
 
 /**
  * A speed-improved simplex noise algorithm for Simplex noise in 2D, 3D and 4D.
@@ -384,33 +385,45 @@ public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
         int rankz = 0;
         int rankw = 0;
         if (x0 > y0) {
+            branchCovered[0] = true;
             rankx++;
         } else {
+            branchCovered[1] = true;
             ranky++;
         }
         if (x0 > z0) {
+            branchCovered[2] = true;
             rankx++;
         } else {
+            branchCovered[3] = true;
             rankz++;
         }
         if (x0 > w0) {
+            branchCovered[4] = true;
             rankx++;
         } else {
+            branchCovered[5] = true;
             rankw++;
         }
         if (y0 > z0) {
+            branchCovered[6] = true;
             ranky++;
         } else {
+            branchCovered[7] = true;
             rankz++;
         }
         if (y0 > w0) {
+            branchCovered[8] = true;
             ranky++;
         } else {
+            branchCovered[9] = true;
             rankw++;
         }
         if (z0 > w0) {
+            branchCovered[10] = true;
             rankz++;
         } else {
+            branchCovered[11] = true;
             rankw++;
         }
 
@@ -482,39 +495,50 @@ public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
         // Calculate the contribution from the five corners
         float t0 = 0.6f - x0 * x0 - y0 * y0 - z0 * z0 - w0 * w0;
         if (t0 < 0) {
+            branchCovered[12] = true;
             n0 = 0.0f;
         } else {
+            branchCovered[13] = true;
             t0 *= t0;
             n0 = t0 * t0 * dot(grad4[gi0], x0, y0, z0, w0);
         }
         float t1 = 0.6f - x1 * x1 - y1 * y1 - z1 * z1 - w1 * w1;
         if (t1 < 0) {
+            branchCovered[14] = true;
             n1 = 0.0f;
         } else {
+            branchCovered[15] = true;
             t1 *= t1;
             n1 = t1 * t1 * dot(grad4[gi1], x1, y1, z1, w1);
         }
         float t2 = 0.6f - x2 * x2 - y2 * y2 - z2 * z2 - w2 * w2;
         if (t2 < 0) {
+            branchCovered[16] = true;
             n2 = 0.f;
         } else {
+            branchCovered[17] = true;
             t2 *= t2;
             n2 = t2 * t2 * dot(grad4[gi2], x2, y2, z2, w2);
         }
         float t3 = 0.6f - x3 * x3 - y3 * y3 - z3 * z3 - w3 * w3;
         if (t3 < 0) {
+            branchCovered[18] = true;
             n3 = 0.0f;
         } else {
+            branchCovered[19] = true;
             t3 *= t3;
             n3 = t3 * t3 * dot(grad4[gi3], x3, y3, z3, w3);
         }
         float t4 = 0.6f - x4 * x4 - y4 * y4 - z4 * z4 - w4 * w4;
         if (t4 < 0) {
+            branchCovered[20] = true;
             n4 = 0.0f;
         } else {
+            branchCovered[21] = true;
             t4 *= t4;
             n4 = t4 * t4 * dot(grad4[gi4], x4, y4, z4, w4);
         }
+
         // Sum up and scale the result to cover the range [-1,1]
         return 27.0f * (n0 + n1 + n2 + n3 + n4);
     }
