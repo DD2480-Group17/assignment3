@@ -27,7 +27,8 @@ import com.google.protobuf.InvalidProtocolBufferException;
 class NetDataTest {
     @AfterAll
     private static void printCoverage() {
-        AdHocNetData.printRes();
+        AdHocNetData.NetMessage.Builder.MergeFrom.printRes();
+        AdHocNetData.NetMessage.Builder.IsInitialized.printRes();
         BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();
     }
 

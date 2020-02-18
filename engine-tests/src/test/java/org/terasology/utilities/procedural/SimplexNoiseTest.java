@@ -15,12 +15,12 @@
  */
 package org.terasology.utilities.procedural;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocSimplexNoise;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.terasology.AdHoc.AdHocSimplexNoise.*;
-import org.terasology.utilities.procedural.BranchCoverageSimplesNoiseNoiseMethod;
 
 import java.lang.Math;
 class SimplexNoiseTest {

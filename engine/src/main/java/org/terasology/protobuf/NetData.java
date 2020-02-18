@@ -2311,538 +2311,538 @@ public final class NetData {
 
       public Builder mergeFrom(org.terasology.protobuf.NetData.NetMessage other) {
         if (other == org.terasology.protobuf.NetData.NetMessage.getDefaultInstance()) {
-          AdHocNetData.visitBranch(0);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(0);
           return this;
         } else {
-          AdHocNetData.visitBranch(137);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(137);
         }
         if (chunkInfoBuilder_ == null) {
-          AdHocNetData.visitBranch(1);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(1);
           if (!other.chunkInfo_.isEmpty()) {
-            AdHocNetData.visitBranch(2);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(2);
             if (chunkInfo_.isEmpty()) {
-              AdHocNetData.visitBranch(3);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(3);
               chunkInfo_ = other.chunkInfo_;
               bitField0_ = (bitField0_ & ~0x00000001);
             } else {
-              AdHocNetData.visitBranch(4);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(4);
               ensureChunkInfoIsMutable();
               chunkInfo_.addAll(other.chunkInfo_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(5);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(5);
           }
         } else {
-          AdHocNetData.visitBranch(6);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(6);
           if (!other.chunkInfo_.isEmpty()) {
-            AdHocNetData.visitBranch(7);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(7);
             if (chunkInfoBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(8);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(8);
               chunkInfoBuilder_.dispose();
               chunkInfoBuilder_ = null;
               chunkInfo_ = other.chunkInfo_;
               bitField0_ = (bitField0_ & ~0x00000001);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
                 chunkInfoBuilder_ = getChunkInfoFieldBuilder();
-                AdHocNetData.visitBranch(9);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(9);
               } else {
                 chunkInfoBuilder_ = null;
-                AdHocNetData.visitBranch(10);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(10);
               }
             } else {
-              AdHocNetData.visitBranch(11);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(11);
               chunkInfoBuilder_.addAllMessages(other.chunkInfo_);
             }
           } else {
-            AdHocNetData.visitBranch(12);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(12);
           }
         }
         if (invalidateChunkBuilder_ == null) {
-          AdHocNetData.visitBranch(13);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(13);
           if (!other.invalidateChunk_.isEmpty()) {
-            AdHocNetData.visitBranch(14);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(14);
             if (invalidateChunk_.isEmpty()) {
-              AdHocNetData.visitBranch(15);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(15);
               invalidateChunk_ = other.invalidateChunk_;
               bitField0_ = (bitField0_ & ~0x00000002);
             } else {
-              AdHocNetData.visitBranch(16);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(16);
               ensureInvalidateChunkIsMutable();
               invalidateChunk_.addAll(other.invalidateChunk_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(17);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(17);
           }
         } else {
-          AdHocNetData.visitBranch(18);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(18);
           if (!other.invalidateChunk_.isEmpty()) {
-            AdHocNetData.visitBranch(19);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(19);
             if (invalidateChunkBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(20);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(20);
               invalidateChunkBuilder_.dispose();
               invalidateChunkBuilder_ = null;
               invalidateChunk_ = other.invalidateChunk_;
               bitField0_ = (bitField0_ & ~0x00000002);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
                 invalidateChunkBuilder_ = getInvalidateChunkFieldBuilder();
-                AdHocNetData.visitBranch(21);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(21);
               } else {
                 invalidateChunkBuilder_ = null;
-                AdHocNetData.visitBranch(22);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(22);
               }
             } else {
-              AdHocNetData.visitBranch(23);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(23);
               invalidateChunkBuilder_.addAllMessages(other.invalidateChunk_);
             }
           } else {
-            AdHocNetData.visitBranch(24);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(24);
           }
         }
         if (blockChangeBuilder_ == null) {
-          AdHocNetData.visitBranch(25);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(25);
           if (!other.blockChange_.isEmpty()) {
-            AdHocNetData.visitBranch(26);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(26);
             if (blockChange_.isEmpty()) {
-              AdHocNetData.visitBranch(27);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(27);
               blockChange_ = other.blockChange_;
               bitField0_ = (bitField0_ & ~0x00000004);
             } else {
-              AdHocNetData.visitBranch(28);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(28);
               ensureBlockChangeIsMutable();
               blockChange_.addAll(other.blockChange_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(29);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(29);
           }
         } else {
-          AdHocNetData.visitBranch(30);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(30);
           if (!other.blockChange_.isEmpty()) {
-            AdHocNetData.visitBranch(31);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(31);
             if (blockChangeBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(32);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(32);
               blockChangeBuilder_.dispose();
               blockChangeBuilder_ = null;
               blockChange_ = other.blockChange_;
               bitField0_ = (bitField0_ & ~0x00000004);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-                AdHocNetData.visitBranch(33);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(33);
                 blockChangeBuilder_ = getBlockChangeFieldBuilder();
               } else {
-                AdHocNetData.visitBranch(34);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(34);
                 blockChangeBuilder_ = null;
               }
             } else {
-              AdHocNetData.visitBranch(35);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(35);
               blockChangeBuilder_.addAllMessages(other.blockChange_);
             }
           } else {
-            AdHocNetData.visitBranch(36);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(36);
           }
         }
         if (createEntityBuilder_ == null) {
-          AdHocNetData.visitBranch(37);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(37);
           if (!other.createEntity_.isEmpty()) {
-            AdHocNetData.visitBranch(38);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(38);
             if (createEntity_.isEmpty()) {
-              AdHocNetData.visitBranch(39);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(39);
               createEntity_ = other.createEntity_;
               bitField0_ = (bitField0_ & ~0x00000008);
             } else {
-              AdHocNetData.visitBranch(40);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(40);
               ensureCreateEntityIsMutable();
               createEntity_.addAll(other.createEntity_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(41);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(41);
           }
         } else {
-          AdHocNetData.visitBranch(42);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(42);
           if (!other.createEntity_.isEmpty()) {
-            AdHocNetData.visitBranch(43);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(43);
             if (createEntityBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(44);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(44);
               createEntityBuilder_.dispose();
               createEntityBuilder_ = null;
               createEntity_ = other.createEntity_;
               bitField0_ = (bitField0_ & ~0x00000008);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-                AdHocNetData.visitBranch(45);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(45);
                 createEntityBuilder_ = getCreateEntityFieldBuilder();
               } else {
-                AdHocNetData.visitBranch(46);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(46);
                 createEntityBuilder_ = null;
               }
             } else {
-              AdHocNetData.visitBranch(47);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(47);
               createEntityBuilder_.addAllMessages(other.createEntity_);
             }
           } else {
-            AdHocNetData.visitBranch(48);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(48);
           }
         }
         if (removeEntityBuilder_ == null) {
-          AdHocNetData.visitBranch(49);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(49);
           if (!other.removeEntity_.isEmpty()) {
-            AdHocNetData.visitBranch(50);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(50);
             if (removeEntity_.isEmpty()) {
-              AdHocNetData.visitBranch(51);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(51);
               removeEntity_ = other.removeEntity_;
               bitField0_ = (bitField0_ & ~0x00000010);
             } else {
-              AdHocNetData.visitBranch(52);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(52);
               ensureRemoveEntityIsMutable();
               removeEntity_.addAll(other.removeEntity_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(53);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(53);
           }
         } else {
-          AdHocNetData.visitBranch(54);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(54);
           if (!other.removeEntity_.isEmpty()) {
-            AdHocNetData.visitBranch(55);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(55);
             if (removeEntityBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(56);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(56);
               removeEntityBuilder_.dispose();
               removeEntityBuilder_ = null;
               removeEntity_ = other.removeEntity_;
               bitField0_ = (bitField0_ & ~0x00000010);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-                AdHocNetData.visitBranch(57);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(57);
                 removeEntityBuilder_ =getRemoveEntityFieldBuilder();
               } else {
-                AdHocNetData.visitBranch(58);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(58);
                 removeEntityBuilder_ = null;
               }
             } else {
-              AdHocNetData.visitBranch(59);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(59);
               removeEntityBuilder_.addAllMessages(other.removeEntity_);
             }
           } else {
-            AdHocNetData.visitBranch(60);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(60);
           }
         }
         if (updateEntityBuilder_ == null) {
-          AdHocNetData.visitBranch(61);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(61);
           if (!other.updateEntity_.isEmpty()) {
-            AdHocNetData.visitBranch(62);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(62);
             if (updateEntity_.isEmpty()) {
-              AdHocNetData.visitBranch(63);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(63);
               updateEntity_ = other.updateEntity_;
               bitField0_ = (bitField0_ & ~0x00000020);
             } else {
-              AdHocNetData.visitBranch(64);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(64);
               ensureUpdateEntityIsMutable();
               updateEntity_.addAll(other.updateEntity_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(65);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(65);
           }
         } else {
-          AdHocNetData.visitBranch(66);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(66);
           if (!other.updateEntity_.isEmpty()) {
-            AdHocNetData.visitBranch(67);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(67);
             if (updateEntityBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(68);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(68);
               updateEntityBuilder_.dispose();
               updateEntityBuilder_ = null;
               updateEntity_ = other.updateEntity_;
               bitField0_ = (bitField0_ & ~0x00000020);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-                AdHocNetData.visitBranch(69);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(69);
                 updateEntityBuilder_ = getUpdateEntityFieldBuilder();
               } else {
-                AdHocNetData.visitBranch(70);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(70);
                 updateEntityBuilder_ = null;
               }
             } else {
-              AdHocNetData.visitBranch(71);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(71);
               updateEntityBuilder_.addAllMessages(other.updateEntity_);
             }
           } else {
-            AdHocNetData.visitBranch(72);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(72);
           }
         }
         if (eventBuilder_ == null) {
-          AdHocNetData.visitBranch(73);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(73);
           if (!other.event_.isEmpty()) {
-            AdHocNetData.visitBranch(74);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(74);
             if (event_.isEmpty()) {
-              AdHocNetData.visitBranch(75);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(75);
               event_ = other.event_;
               bitField0_ = (bitField0_ & ~0x00000040);
             } else {
-              AdHocNetData.visitBranch(76);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(76);
               ensureEventIsMutable();
               event_.addAll(other.event_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(77);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(77);
           }
         } else {
-          AdHocNetData.visitBranch(78);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(78);
           if (!other.event_.isEmpty()) {
-            AdHocNetData.visitBranch(79);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(79);
             if (eventBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(80);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(80);
               eventBuilder_.dispose();
               eventBuilder_ = null;
               event_ = other.event_;
               bitField0_ = (bitField0_ & ~0x00000040);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-                AdHocNetData.visitBranch(81);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(81);
                 eventBuilder_ = getEventFieldBuilder();
               } else {
-                AdHocNetData.visitBranch(82);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(82);
                 eventBuilder_ = null;
               }
             } else {
-              AdHocNetData.visitBranch(83);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(83);
               eventBuilder_.addAllMessages(other.event_);
             }
           } else {
-            AdHocNetData.visitBranch(84);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(84);
           }
         }
         if (other.hasTime()) {
-          AdHocNetData.visitBranch(85);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(85);
           setTime(other.getTime());
         } else {
-          AdHocNetData.visitBranch(138);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(138);
         }
         if (biomeChangeBuilder_ == null) {
-          AdHocNetData.visitBranch(86);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(86);
           if (!other.biomeChange_.isEmpty()) {
-            AdHocNetData.visitBranch(87);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(87);
             if (biomeChange_.isEmpty()) {
-              AdHocNetData.visitBranch(88);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(88);
               biomeChange_ = other.biomeChange_;
               bitField0_ = (bitField0_ & ~0x00000100);
             } else {
-              AdHocNetData.visitBranch(89);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(89);
               ensureBiomeChangeIsMutable();
               biomeChange_.addAll(other.biomeChange_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(90);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(90);
           }
         } else {
-          AdHocNetData.visitBranch(91);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(91);
           if (!other.biomeChange_.isEmpty()) {
-            AdHocNetData.visitBranch(92);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(92);
             if (biomeChangeBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(93);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(93);
               biomeChangeBuilder_.dispose();
               biomeChangeBuilder_ = null;
               biomeChange_ = other.biomeChange_;
               bitField0_ = (bitField0_ & ~0x00000100);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-                AdHocNetData.visitBranch(94);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(94);
                 biomeChangeBuilder_ = getBiomeChangeFieldBuilder();
               } else {
-                AdHocNetData.visitBranch(95);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(95);
                 biomeChangeBuilder_ = null;
               }
             } else {
-              AdHocNetData.visitBranch(96);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(96);
               biomeChangeBuilder_.addAllMessages(other.biomeChange_);
             }
           } else {
-            AdHocNetData.visitBranch(97);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(97);
           }
         }
         if (extraDataChangeBuilder_ == null) {
-          AdHocNetData.visitBranch(98);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(98);
           if (!other.extraDataChange_.isEmpty()) {
-            AdHocNetData.visitBranch(99);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(99);
             if (extraDataChange_.isEmpty()) {
-              AdHocNetData.visitBranch(100);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(100);
               extraDataChange_ = other.extraDataChange_;
               bitField0_ = (bitField0_ & ~0x00000200);
             } else {
-              AdHocNetData.visitBranch(101);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(101);
               ensureExtraDataChangeIsMutable();
               extraDataChange_.addAll(other.extraDataChange_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(102);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(102);
           }
         } else {
-          AdHocNetData.visitBranch(103);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(103);
           if (!other.extraDataChange_.isEmpty()) {
-            AdHocNetData.visitBranch(104);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(104);
             if (extraDataChangeBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(105);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(105);
               extraDataChangeBuilder_.dispose();
               extraDataChangeBuilder_ = null;
               extraDataChange_ = other.extraDataChange_;
               bitField0_ = (bitField0_ & ~0x00000200);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-                AdHocNetData.visitBranch(106);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(106);
                 extraDataChangeBuilder_ = getExtraDataChangeFieldBuilder();
               } else {
-                AdHocNetData.visitBranch(107);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(107);
                 extraDataChangeBuilder_ = null;
               }
             } else {
-              AdHocNetData.visitBranch(108);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(108);
               extraDataChangeBuilder_.addAllMessages(other.extraDataChange_);
             }
           } else {
-            AdHocNetData.visitBranch(109);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(109);
           }
         }
         if (other.hasServerInfoRequest()) {
-          AdHocNetData.visitBranch(110);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(110);
           mergeServerInfoRequest(other.getServerInfoRequest());
         } else {
-          AdHocNetData.visitBranch(139);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(139);
         }
         if (other.hasServerInfo()) {
-          AdHocNetData.visitBranch(111);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(111);
           mergeServerInfo(other.getServerInfo());
         } else {
-          AdHocNetData.visitBranch(140);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(140);
         }
         if (blockFamilyRegisteredBuilder_ == null) {
-          AdHocNetData.visitBranch(112);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(112);
           if (!other.blockFamilyRegistered_.isEmpty()) {
-            AdHocNetData.visitBranch(113);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(113);
             if (blockFamilyRegistered_.isEmpty()) {
-              AdHocNetData.visitBranch(114);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(114);
               blockFamilyRegistered_ = other.blockFamilyRegistered_;
               bitField0_ = (bitField0_ & ~0x00001000);
             } else {
-              AdHocNetData.visitBranch(115);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(115);
               ensureBlockFamilyRegisteredIsMutable();
               blockFamilyRegistered_.addAll(other.blockFamilyRegistered_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(116);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(116);
           }
         } else {
-          AdHocNetData.visitBranch(117);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(117);
           if (!other.blockFamilyRegistered_.isEmpty()) {
-            AdHocNetData.visitBranch(118);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(118);
             if (blockFamilyRegisteredBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(119);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(119);
               blockFamilyRegisteredBuilder_.dispose();
               blockFamilyRegisteredBuilder_ = null;
               blockFamilyRegistered_ = other.blockFamilyRegistered_;
               bitField0_ = (bitField0_ & ~0x00001000);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-                AdHocNetData.visitBranch(120);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(120);
                 blockFamilyRegisteredBuilder_ = getBlockFamilyRegisteredFieldBuilder();
               } else {
-                AdHocNetData.visitBranch(121);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(121);
                 blockFamilyRegisteredBuilder_ = null;
               }
             } else {
-              AdHocNetData.visitBranch(122);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(122);
               blockFamilyRegisteredBuilder_.addAllMessages(other.blockFamilyRegistered_);
             }
           } else {
-            AdHocNetData.visitBranch(123);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(123);
           }
         }
         if (other.hasJoin()) {
-          AdHocNetData.visitBranch(124);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(124);
           mergeJoin(other.getJoin());
         } else {
-          AdHocNetData.visitBranch(141);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(141);
         }
         if (moduleRequestBuilder_ == null) {
-          AdHocNetData.visitBranch(125);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(125);
           if (!other.moduleRequest_.isEmpty()) {
-            AdHocNetData.visitBranch(126);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(126);
             if (moduleRequest_.isEmpty()) {
-              AdHocNetData.visitBranch(127);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(127);
               moduleRequest_ = other.moduleRequest_;
               bitField0_ = (bitField0_ & ~0x00004000);
             } else {
-              AdHocNetData.visitBranch(128);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(128);
               ensureModuleRequestIsMutable();
               moduleRequest_.addAll(other.moduleRequest_);
             }
             onChanged();
           } else {
-            AdHocNetData.visitBranch(129);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(129);
           }
         } else {
-          AdHocNetData.visitBranch(130);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(130);
           if (!other.moduleRequest_.isEmpty()) {
-            AdHocNetData.visitBranch(131);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(131);
             if (moduleRequestBuilder_.isEmpty()) {
-              AdHocNetData.visitBranch(132);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(132);
               moduleRequestBuilder_.dispose();
               moduleRequestBuilder_ = null;
               moduleRequest_ = other.moduleRequest_;
               bitField0_ = (bitField0_ & ~0x00004000);
               if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-                AdHocNetData.visitBranch(133);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(133);
                 moduleRequestBuilder_ = getModuleRequestFieldBuilder();
               } else {
-                AdHocNetData.visitBranch(134);
+                AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(134);
                 moduleRequestBuilder_ = null;
               }
             } else {
-              AdHocNetData.visitBranch(135);
+              AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(135);
               moduleRequestBuilder_.addAllMessages(other.moduleRequest_);
             }
           } else {
-            AdHocNetData.visitBranch(136);
+            AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(136);
           }
         }
         if (other.hasModuleDataHeader()) {
-          AdHocNetData.visitBranch(142);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(142);
           mergeModuleDataHeader(other.getModuleDataHeader());
         } else {
-          AdHocNetData.visitBranch(143);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(143);
         }
         if (other.hasModuleData()) {
-          AdHocNetData.visitBranch(144);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(144);
           mergeModuleData(other.getModuleData());
         } else {
-          AdHocNetData.visitBranch(145);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(145);
         }
         if (other.hasJoinComplete()) {
-          AdHocNetData.visitBranch(146);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(146);
           mergeJoinComplete(other.getJoinComplete());
         } else {
-          AdHocNetData.visitBranch(147);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(147);
         }
         if (other.hasHandshakeHello()) {
-          AdHocNetData.visitBranch(148);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(148);
           mergeHandshakeHello(other.getHandshakeHello());
         } else {
-          AdHocNetData.visitBranch(149);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(149);
         }
         if (other.hasNewIdentityRequest()) {
-          AdHocNetData.visitBranch(150);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(150);
           mergeNewIdentityRequest(other.getNewIdentityRequest());
         } else {
-          AdHocNetData.visitBranch(151);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(151);
         }
         if (other.hasProvisionIdentity()) {
-          AdHocNetData.visitBranch(152);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(152);
           mergeProvisionIdentity(other.getProvisionIdentity());
         } else {
-          AdHocNetData.visitBranch(153);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(153);
         }
         if (other.hasHandshakeVerification()) {
-          AdHocNetData.visitBranch(154);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(154);
           mergeHandshakeVerification(other.getHandshakeVerification());
         } else {
-          AdHocNetData.visitBranch(155);
+          AdHocNetData.NetMessage.Builder.MergeFrom.visitBranch(155);
         }
         this.mergeExtensionFields(other);
         this.mergeUnknownFields(other.getUnknownFields());
@@ -2851,134 +2851,250 @@ public final class NetData {
 
       public final boolean isInitialized() {
         for (int i = 0; i < getChunkInfoCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(0);
           if (!getChunkInfo(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(1);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(2);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(3, 0);
+
         for (int i = 0; i < getInvalidateChunkCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(4);
           if (!getInvalidateChunk(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(5);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(6);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(7, 4);
+
         for (int i = 0; i < getBlockChangeCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(8);
           if (!getBlockChange(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(9);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(10);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(11, 8);
+
         for (int i = 0; i < getCreateEntityCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(12);
           if (!getCreateEntity(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(13);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(14);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(15, 12);
+
         for (int i = 0; i < getRemoveEntityCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(16);
           if (!getRemoveEntity(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(17);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(18);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(19, 16);
+
         for (int i = 0; i < getUpdateEntityCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(20);
+
           if (!getUpdateEntity(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(21);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(22);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(23, 20);
+
         for (int i = 0; i < getEventCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(24);
           if (!getEvent(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(25);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(26);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(27, 24);
+
         for (int i = 0; i < getBiomeChangeCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(28);
           if (!getBiomeChange(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(29);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(30);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(31, 28);
+
         for (int i = 0; i < getExtraDataChangeCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(32);
           if (!getExtraDataChange(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(33);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(34);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(35, 32);
+
         if (hasServerInfoRequest()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(36);
           if (!getServerInfoRequest().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(37);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(38);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(39);
         }
+
         if (hasServerInfo()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(40);
           if (!getServerInfo().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(41);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(42);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(43);
         }
+
         for (int i = 0; i < getBlockFamilyRegisteredCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(44);
           if (!getBlockFamilyRegistered(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(45);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(46);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(47, 44);
+
         if (hasJoin()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(48);
           if (!getJoin().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(49);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(50);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(51);
         }
+
         for (int i = 0; i < getModuleRequestCount(); i++) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(52);
           if (!getModuleRequest(i).isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(53);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(54);
           }
         }
+        AdHocNetData.NetMessage.Builder.IsInitialized.visitIfUnvisited(55, 52);
+
         if (hasModuleDataHeader()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(56);
           if (!getModuleDataHeader().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(57);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(58);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(59);
         }
+
         if (hasModuleData()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(60);
           if (!getModuleData().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(61);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(62);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(63);
         }
+
         if (hasJoinComplete()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(64);
           if (!getJoinComplete().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(65);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(66);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(67);
         }
+
         if (hasHandshakeHello()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(68);
           if (!getHandshakeHello().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(69);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(70);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(71);
         }
+
         if (hasNewIdentityRequest()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(72);
           if (!getNewIdentityRequest().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(73);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(74);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(75);
         }
         if (hasProvisionIdentity()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(76);
           if (!getProvisionIdentity().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(77);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(78);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(79);
         }
+
         if (hasHandshakeVerification()) {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(80);
           if (!getHandshakeVerification().isInitialized()) {
-            
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(81);
             return false;
+          } else {
+            AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(82);
           }
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(83);
         }
         if (!extensionsAreInitialized()) {
-          
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(84);
           return false;
+        } else {
+          AdHocNetData.NetMessage.Builder.IsInitialized.visitBranch(85);
         }
         return true;
       }

@@ -16,25 +16,74 @@
 package org.terasology.protobuf;
 
 public class AdHocNetData {
-    private static final int BRANCH_AMOUNT = 156;
-    private static final boolean[] branches = new boolean[BRANCH_AMOUNT];
+    public static class BaseAdHocTool {
+        private boolean[] branches;
+        private String name;
 
-    public static void visitBranch(int i) {
-        branches[i] = true;
-    }
+        public BaseAdHocTool(int branchAmount, String name) {
+            branches = new boolean[branchAmount];
+            this.name = name;
+        }
 
-    private static int getVisitedBranches() {
-        int visitedBranches = 0;
-        for (boolean branch : branches) {
-            if (branch) {
-                visitedBranches++;
+        public void visitBranch(int i) {
+            branches[i] = true;
+        }
+
+        public void visitIfUnvisited(int i, int other) {
+            if (!branches[other]) {
+                branches[i] = true;
             }
         }
-        return visitedBranches;
+
+        private int getVisitedBranches() {
+            int visitedBranches = 0;
+            for (boolean branch : branches) {
+                if (branch) {
+                    visitedBranches++;
+                }
+            }
+            return visitedBranches;
+        }
+
+        public void printRes() {
+            System.out.println(name + " branch coverage: " + getVisitedBranches() + " / " + branches.length +
+                    " (" + 1000 * getVisitedBranches() / branches.length * 0.1 + " %)");
+        }
     }
 
-    public static void printRes() {
-        System.out.println("NetData.NetMessage.Builder.mergeFrom branch coverage: " +
-                getVisitedBranches() + " / " + BRANCH_AMOUNT + " (" + 1000 * getVisitedBranches() / BRANCH_AMOUNT * 0.1 + " %)");
+    public static class NetMessage {
+        public static class Builder {
+            public static class MergeFrom {
+                private static BaseAdHocTool tool = new BaseAdHocTool(156, "NetData.NetMessage.Builder.mergeFrom");
+
+                public static void visitBranch(int i) {
+                    tool.visitBranch(i);
+                }
+
+                public static void printRes() {
+                    tool.printRes();
+                }
+
+                public static void visitIfUnvisited(int i, int other) {
+                    tool.visitIfUnvisited(i, other);
+                }
+            }
+
+            public static class IsInitialized {
+                private static BaseAdHocTool tool = new BaseAdHocTool(86, "NetData.NetMessage.Builder.IsInitialized");
+
+                public static void visitBranch(int i) {
+                    tool.visitBranch(i);
+                }
+
+                public static void printRes() {
+                    tool.printRes();
+                }
+
+                public static void visitIfUnvisited(int i, int other) {
+                    tool.visitIfUnvisited(i, other);
+                }
+            }
+        }
     }
 }
