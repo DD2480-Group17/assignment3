@@ -20,6 +20,8 @@ import org.terasology.AdHoc.AdHocSimplexNoise;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.terasology.AdHoc.AdHocSimplexNoise.*;
+import org.terasology.utilities.procedural.BranchCoverageSimplesNoiseNoiseMethod;
+
 import java.lang.Math;
 class SimplexNoiseTest {
 
@@ -159,5 +161,10 @@ class SimplexNoiseTest {
         for (int i = 0; i < result.length; i++){
             System.out.println("Visited branch " + (i+1) + " " + result[i]);
         }
+    }
+
+    @AfterAll
+    private static void printCoverage() {
+        BranchCoverageSimplesNoiseNoiseMethod.printBranchCoveragePercentage();
     }
 }

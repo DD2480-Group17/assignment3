@@ -19,6 +19,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocBuildPartial;
 import static org.junit.jupiter.api.Assertions.*;
+import org.terasology.protobuf.BranchCoverageNetDataNetMessageBuilderClearMethod;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -27,6 +28,7 @@ class NetDataTest {
     @AfterAll
     private static void printCoverage() {
         AdHocNetData.printRes();
+        BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();
     }
 
     /**
@@ -116,5 +118,74 @@ class NetDataTest {
 
 
         assertEquals(1, defaultInstance.getBiomeChange(0).getNewBiome());
+    }
+
+    private void assertListCountsEqualToSize(NetData.NetMessage.Builder builder, int size) {
+        assertEquals(size, builder.getChunkInfoCount());
+        assertEquals(size, builder.getBlockChangeCount());
+        assertEquals(size, builder.getCreateEntityCount());
+        assertEquals(size, builder.getRemoveEntityCount());
+        assertEquals(size, builder.getUpdateEntityCount());
+        assertEquals(size, builder.getEventCount());
+        assertEquals(size, builder.getBiomeChangeCount());
+        assertEquals(size, builder.getExtraDataChangeCount());
+        assertEquals(size, builder.getBlockFamilyRegisteredCount());
+        assertEquals(size, builder.getModuleRequestCount());
+    }
+
+    private void addNewBuilders(NetData.NetMessage.Builder builder) {
+        builder.addChunkInfoBuilder();
+        builder.addInvalidateChunkBuilder();
+        builder.addBlockChangeBuilder();
+        builder.addCreateEntityBuilder();
+        builder.addRemoveEntityBuilder();
+        builder.addUpdateEntityBuilder();
+        builder.addEventBuilder();
+        builder.addBiomeChangeBuilder();
+        builder.addExtraDataChangeBuilder();
+        builder.addBlockFamilyRegisteredBuilder();
+        builder.addModuleRequestBuilder();
+    }
+
+    private void addNewObjects(NetData.NetMessage.Builder builder) {
+        builder.addChunkInfo(EntityData.ChunkStore.newBuilder().build());
+        builder.addInvalidateChunk(NetData.InvalidateChunkMessage.newBuilder().build());
+        builder.addBlockChange(NetData.BlockChangeMessage.newBuilder().build());
+        builder.addCreateEntity(NetData.CreateEntityMessage.newBuilder().build());
+        builder.addRemoveEntity(NetData.RemoveEntityMessage.newBuilder().build());
+        builder.addUpdateEntity(NetData.UpdateEntityMessage.newBuilder().build());
+        builder.addEvent(NetData.EventMessage.newBuilder().build());
+        builder.addBiomeChange(NetData.BiomeChangeMessage.newBuilder().build());
+        builder.addExtraDataChange(NetData.ExtraDataChangeMessage.newBuilder().build());
+        builder.addBlockFamilyRegistered(NetData.BlockFamilyRegisteredMessage.newBuilder().build());
+        builder.addModuleRequest(NetData.ModuleRequest.newBuilder().build());
+    }
+
+    @Test
+    void testClearWithoutAddingNewObjects(){
+        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();
+        assertListCountsEqualToSize(builder, 0);
+        builder.clear();
+        assertListCountsEqualToSize(builder, 0);
+    }
+
+    @Test
+    void testClearAddBuilders(){
+        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();
+        assertListCountsEqualToSize(builder, 0);
+        addNewBuilders(builder);
+        assertListCountsEqualToSize(builder, 1);
+        builder.clear();
+        assertListCountsEqualToSize(builder, 0);
+    }
+
+    @Test
+    void testClearAddBuildersCreatedManually(){
+        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();
+        assertListCountsEqualToSize(builder, 0);
+        addNewObjects(builder);
+        assertListCountsEqualToSize(builder, 1);
+        builder.clear();
+        assertListCountsEqualToSize(builder, 0);
     }
 }
