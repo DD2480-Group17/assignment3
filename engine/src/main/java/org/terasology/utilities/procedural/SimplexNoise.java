@@ -15,6 +15,7 @@
  */
 package org.terasology.utilities.procedural;
 
+import org.terasology.AdHoc.AdHocSimplexNoise;
 import org.terasology.math.TeraMath;
 import org.terasology.utilities.random.FastRandom;
 
@@ -227,7 +228,9 @@ public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
         int k2; // Offsets for third corner of simplex in (i,j,k) coords
 
         if (x0 >= y0) {
+            AdHocSimplexNoise.visitBranch(0);
             if (y0 >= z0) {         // X Y Z order
+                AdHocSimplexNoise.visitBranch(1);
                 i1 = 1;
                 j1 = 0;
                 k1 = 0;
@@ -235,6 +238,7 @@ public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
                 j2 = 1;
                 k2 = 0;
             } else if (x0 >= z0) {  // X Z Y order
+                AdHocSimplexNoise.visitBranch(2);
                 i1 = 1;
                 j1 = 0;
                 k1 = 0;
@@ -251,6 +255,7 @@ public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
             }
         } else { // x0<y0
             if (y0 < z0) {          // Z Y X order
+                AdHocSimplexNoise.visitBranch(3);
                 i1 = 0;
                 j1 = 0;
                 k1 = 1;
@@ -258,6 +263,7 @@ public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
                 j2 = 1;
                 k2 = 1;
             } else if (x0 < z0) {   // Y Z X order
+                AdHocSimplexNoise.visitBranch(4);
                 i1 = 0;
                 j1 = 1;
                 k1 = 0;
@@ -299,6 +305,7 @@ public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
         // Calculate the contribution from the four corners
         float t0 = 0.6f - x0 * x0 - y0 * y0 - z0 * z0;
         if (t0 < 0) {
+            AdHocSimplexNoise.visitBranch(5);
             n0 = 0.0f;
         } else {
             t0 *= t0;
@@ -306,6 +313,7 @@ public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
         }
         float t1 = 0.6f - x1 * x1 - y1 * y1 - z1 * z1;
         if (t1 < 0) {
+            AdHocSimplexNoise.visitBranch(6);
             n1 = 0.0f;
         } else {
             t1 *= t1;
@@ -313,13 +321,16 @@ public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
         }
         float t2 = 0.6f - x2 * x2 - y2 * y2 - z2 * z2;
         if (t2 < 0) {
+            AdHocSimplexNoise.visitBranch(7);
             n2 = 0.0f;
         } else {
+
             t2 *= t2;
             n2 = t2 * t2 * dot(grad3[gi2], x2, y2, z2);
         }
         float t3 = 0.6f - x3 * x3 - y3 * y3 - z3 * z3;
         if (t3 < 0) {
+            AdHocSimplexNoise.visitBranch(8);
             n3 = 0.0f;
         } else {
             t3 *= t3;
