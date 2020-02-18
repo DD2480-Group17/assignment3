@@ -19,14 +19,13 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocBuildPartial;
 import static org.junit.jupiter.api.Assertions.*;
-import org.terasology.protobuf.BranchCoverageNetDataNetMessageBuilderClearMethod;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 class NetDataTest {
     @AfterAll
-    private static void printCoverage() {
+    static void printCoverage() {
         AdHocNetData.NetMessage.Builder.MergeFrom.printRes();
         AdHocNetData.NetMessage.Builder.IsInitialized.printRes();
         BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();

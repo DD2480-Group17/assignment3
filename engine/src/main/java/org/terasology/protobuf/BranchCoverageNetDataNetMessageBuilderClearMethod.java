@@ -15,8 +15,6 @@
  */
 package org.terasology.protobuf;
 
-import org.terasology.audio.Sound;
-
 public class BranchCoverageNetDataNetMessageBuilderClearMethod {
 
     // total 22 branches
