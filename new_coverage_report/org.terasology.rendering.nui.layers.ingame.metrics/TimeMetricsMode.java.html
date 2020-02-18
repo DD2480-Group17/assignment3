@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TimeMetricsMode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.ingame.metrics</a> &gt; <span class="el_source">TimeMetricsMode.java</span></div><h1>TimeMetricsMode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.ingame.metrics;
+
+import com.google.common.collect.Lists;
+import gnu.trove.list.TDoubleList;
+import gnu.trove.list.array.TDoubleArrayList;
+import gnu.trove.map.TObjectDoubleMap;
+
+import java.text.NumberFormat;
+import java.util.List;
+
+/**
+ */
+public abstract class TimeMetricsMode extends MetricsMode {
+
+    private int limit;
+    private NumberFormat format;
+<span class="fc" id="L32">    private String unit = &quot;ms&quot;;</span>
+
+
+    public TimeMetricsMode(String name, int limit) {
+<span class="fc" id="L36">        super(name);</span>
+<span class="fc" id="L37">        this.limit = limit;</span>
+<span class="fc" id="L38">        format = NumberFormat.getInstance();</span>
+<span class="fc" id="L39">        format.setMaximumFractionDigits(2);</span>
+<span class="fc" id="L40">    }</span>
+
+    public TimeMetricsMode(String name, int limit, String unit) {
+<span class="fc" id="L43">        this(name, limit);</span>
+<span class="fc" id="L44">        this.limit = limit;</span>
+<span class="fc" id="L45">    }</span>
+
+    @Override
+    public String getMetrics() {
+<span class="nc" id="L49">        StringBuilder builder = new StringBuilder();</span>
+<span class="nc" id="L50">        builder.append(getName());</span>
+<span class="nc" id="L51">        builder.append(&quot;\n&quot;);</span>
+<span class="nc" id="L52">        displayMetrics(gatherMetrics(), builder);</span>
+<span class="nc" id="L53">        return builder.toString();</span>
+    }
+
+    protected abstract TObjectDoubleMap&lt;String&gt; gatherMetrics();
+
+    private void displayMetrics(TObjectDoubleMap&lt;String&gt; metrics, StringBuilder builder) {
+<span class="nc" id="L59">        final List&lt;String&gt; activities = Lists.newArrayList();</span>
+<span class="nc" id="L60">        final TDoubleList values = new TDoubleArrayList();</span>
+<span class="nc" id="L61">        sortMetrics(metrics, activities, values);</span>
+
+<span class="nc bnc" id="L63" title="All 4 branches missed.">        for (int i = 0; i &lt; limit &amp;&amp; i &lt; activities.size(); ++i) {</span>
+<span class="nc" id="L64">            builder.append(activities.get(i));</span>
+<span class="nc" id="L65">            builder.append(&quot;: &quot;);</span>
+<span class="nc" id="L66">            builder.append(format.format(values.get(i)));</span>
+<span class="nc" id="L67">            builder.append(unit);</span>
+<span class="nc" id="L68">            builder.append(&quot;\n&quot;);</span>
+        }
+<span class="nc" id="L70">    }</span>
+
+    private void sortMetrics(TObjectDoubleMap&lt;String&gt; metrics, final List&lt;String&gt; activities, final TDoubleList values) {
+<span class="nc" id="L73">        metrics.forEachEntry((s, v) -&gt; {</span>
+<span class="nc" id="L74">            boolean inserted = false;</span>
+<span class="nc bnc" id="L75" title="All 4 branches missed.">            for (int i = 0; i &lt; values.size() &amp;&amp; i &lt; limit; i++) {</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                if (v &gt; values.get(i)) {</span>
+<span class="nc" id="L77">                    values.insert(i, v);</span>
+<span class="nc" id="L78">                    activities.add(i, s);</span>
+<span class="nc" id="L79">                    inserted = true;</span>
+<span class="nc" id="L80">                    break;</span>
+                }
+            }
+
+<span class="nc bnc" id="L84" title="All 4 branches missed.">            if (!inserted &amp;&amp; values.size() &lt; limit) {</span>
+<span class="nc" id="L85">                activities.add(s);</span>
+<span class="nc" id="L86">                values.add(v);</span>
+            }
+<span class="nc" id="L88">            return true;</span>
+        });
+<span class="nc" id="L90">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

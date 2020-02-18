@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldAtlasImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.tiles</a> &gt; <span class="el_source">WorldAtlasImpl.java</span></div><h1>WorldAtlasImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.tiles;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Queues;
+import com.google.common.math.IntMath;
+import de.matthiasmann.twl.utils.PNGDecoder;
+import gnu.trove.map.TObjectIntMap;
+import gnu.trove.map.hash.TObjectIntHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Rect2f;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.naming.Name;
+import org.terasology.rendering.assets.atlas.Atlas;
+import org.terasology.rendering.assets.atlas.AtlasData;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.material.MaterialData;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureData;
+import org.terasology.rendering.assets.texture.subtexture.SubtextureData;
+import org.terasology.utilities.Assets;
+
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.BlockingQueue;
+import java.util.function.Consumer;
+
+/**
+ */
+public class WorldAtlasImpl implements WorldAtlas {
+<span class="nc" id="L61">    private static final Logger logger = LoggerFactory.getLogger(WorldAtlasImpl.class);</span>
+
+    private static final int MAX_TILES = 65536;
+<span class="nc" id="L64">    private static final Color UNIT_Z_COLOR = new Color(0.5f, 0.5f, 1.0f, 1.0f);</span>
+<span class="nc" id="L65">    private static final Color TRANSPARENT_COLOR = new Color(0.0f, 0.0f, 0.0f, 0.0f);</span>
+<span class="nc" id="L66">    private static final Color MID_RED_COLOR = new Color(0.5f, 0.0f, 0.0f, 1.0f);</span>
+
+<span class="nc" id="L68">    private int maxAtlasSize = 4096;</span>
+<span class="nc" id="L69">    private int atlasSize = 256;</span>
+<span class="nc" id="L70">    private int tileSize = 16;</span>
+
+<span class="nc" id="L72">    private TObjectIntMap&lt;ResourceUrn&gt; tileIndexes = new TObjectIntHashMap&lt;&gt;();</span>
+<span class="nc" id="L73">    private List&lt;BlockTile&gt; tiles = Lists.newArrayList();</span>
+<span class="nc" id="L74">    private List&lt;BlockTile&gt; tilesNormal = Lists.newArrayList();</span>
+<span class="nc" id="L75">    private List&lt;BlockTile&gt; tilesHeight = Lists.newArrayList();</span>
+<span class="nc" id="L76">    private List&lt;BlockTile&gt; tilesGloss = Lists.newArrayList();</span>
+<span class="nc" id="L77">    private int numFrames = 0;</span>
+
+<span class="nc" id="L79">    private BlockingQueue&lt;BlockTile&gt; reloadQueue = Queues.newLinkedBlockingQueue();</span>
+
+<span class="nc" id="L81">    private Consumer&lt;BlockTile&gt; tileReloadListener = reloadQueue::add;</span>
+
+    /**
+     * @param maxAtlasSize The maximum dimensions of the atlas (both width and height, in pixels)
+     */
+<span class="nc" id="L86">    public WorldAtlasImpl(int maxAtlasSize) {</span>
+<span class="nc" id="L87">        this.maxAtlasSize = maxAtlasSize;</span>
+<span class="nc" id="L88">        Assets.list(BlockTile.class).forEach(this::indexTile);</span>
+<span class="nc" id="L89">        buildAtlas();</span>
+<span class="nc" id="L90">    }</span>
+
+    @Override
+    public int getTileSize() {
+<span class="nc" id="L94">        return tileSize;</span>
+    }
+
+    @Override
+    public int getAtlasSize() {
+<span class="nc" id="L99">        return atlasSize;</span>
+    }
+
+    @Override
+    public float getRelativeTileSize() {
+<span class="nc" id="L104">        return ((float) getTileSize()) / (float) getAtlasSize();</span>
+    }
+
+    @Override
+    public int getNumMipmaps() {
+<span class="nc" id="L109">        return TeraMath.sizeOfPower(tileSize) + 1;</span>
+    }
+
+    @Override
+    public Vector2f getTexCoords(BlockTile tile, boolean warnOnError) {
+<span class="nc" id="L114">        return getTexCoords(tile.getUrn(), warnOnError);</span>
+    }
+
+    /**
+     * Obtains the tex coords of a block tile. If it isn't part of the atlas it is added to the atlas.
+     *
+     * @param uri         The uri of the block tile of interest.
+     * @param warnOnError Whether a warning should be logged if the asset canot be found
+     * @return The tex coords of the tile in the atlas.
+     */
+    @Override
+    public Vector2f getTexCoords(ResourceUrn uri, boolean warnOnError) {
+<span class="nc" id="L126">        return getTexCoords(getTileIndex(uri, warnOnError));</span>
+    }
+
+    @Override
+    public void update() {
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (!reloadQueue.isEmpty()) {</span>
+<span class="nc" id="L132">            List&lt;BlockTile&gt; reloadList = Lists.newArrayListWithExpectedSize(reloadQueue.size());</span>
+<span class="nc" id="L133">            reloadQueue.drainTo(reloadList);</span>
+            // TODO: does this need to be more efficient? could just reload individual block tile locations.
+<span class="nc" id="L135">            buildAtlas();</span>
+        }
+<span class="nc" id="L137">    }</span>
+
+    @Override
+    public void dispose() {
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        for (BlockTile tile : tiles) {</span>
+<span class="nc" id="L142">            tile.unsubscribe(tileReloadListener);</span>
+<span class="nc" id="L143">        }</span>
+<span class="nc" id="L144">    }</span>
+
+    private Vector2f getTexCoords(int id) {
+<span class="nc" id="L147">        int tilesPerDim = atlasSize / tileSize;</span>
+<span class="nc" id="L148">        return new Vector2f((id % tilesPerDim) * getRelativeTileSize(), (id / tilesPerDim) * getRelativeTileSize());</span>
+    }
+
+    private int getTileIndex(ResourceUrn uri, boolean warnOnError) {
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (tileIndexes.containsKey(uri)) {</span>
+<span class="nc" id="L153">            return tileIndexes.get(uri);</span>
+        }
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (warnOnError) {</span>
+<span class="nc" id="L156">            logger.warn(&quot;Tile {} could not be resolved&quot;, uri);</span>
+        }
+<span class="nc" id="L158">        return 0;</span>
+    }
+
+    private int indexTile(ResourceUrn uri) {
+<span class="nc" id="L162">        Optional&lt;BlockTile&gt; maybeTile = Assets.get(uri, BlockTile.class);</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (maybeTile.isPresent()) {</span>
+<span class="nc" id="L164">            BlockTile tile = maybeTile.get();</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            if (numFrames + tile.getLength() &gt; MAX_TILES) {</span>
+<span class="nc" id="L166">                logger.error(&quot;Maximum tiles exceeded&quot;);</span>
+<span class="nc" id="L167">                return 0;</span>
+            }
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (checkTile(tile)) {</span>
+<span class="nc" id="L170">                tiles.add(tile);</span>
+<span class="nc" id="L171">                addTilePart(uri, tile.getLength(), tilesNormal, &quot;Normal&quot;);</span>
+<span class="nc" id="L172">                addTilePart(uri, tile.getLength(), tilesHeight, &quot;Height&quot;);</span>
+<span class="nc" id="L173">                addTilePart(uri, tile.getLength(), tilesGloss, &quot;Gloss&quot;);</span>
+<span class="nc" id="L174">                int index = numFrames;</span>
+<span class="nc" id="L175">                numFrames += tile.getLength();</span>
+<span class="nc" id="L176">                tileIndexes.put(uri, index);</span>
+<span class="nc" id="L177">                tile.subscribe(tileReloadListener);</span>
+<span class="nc" id="L178">                return index;</span>
+            } else {
+<span class="nc" id="L180">                logger.error(&quot;Invalid tile {}, must be a square with power-of-two sides.&quot;, uri);</span>
+<span class="nc" id="L181">                return 0;</span>
+            }
+        }
+<span class="nc" id="L184">        return 0;</span>
+    }
+
+    private boolean checkTile(BlockTile tile) {
+<span class="nc bnc" id="L188" title="All 2 branches missed.">        for (int i=0; i&lt;tile.getLength(); i++) {</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">            if (tile.getImage(i).getWidth() != tile.getImage(i).getHeight()</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">               || !IntMath.isPowerOfTwo(tile.getImage(i).getWidth())) {</span>
+<span class="nc" id="L191">                return false;</span>
+            }
+        }
+<span class="nc" id="L194">        return true;</span>
+    }
+
+    private void addTilePart(ResourceUrn uri, int length, List&lt;BlockTile&gt; list, String nameExtension) {
+<span class="nc" id="L198">        String name = uri.toString() + nameExtension;</span>
+<span class="nc" id="L199">        Optional&lt;BlockTile&gt; tile = Assets.get(name, BlockTile.class);</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        if (tile.isPresent()) {</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            if (tile.get().getLength() == length) {</span>
+<span class="nc" id="L202">                list.add(tile.get());</span>
+<span class="nc" id="L203">                return;</span>
+            } else {
+<span class="nc" id="L205">                logger.error(&quot;Supplementary tiles {} for tile {} has an incorrect number of frames.&quot;, nameExtension, uri);</span>
+            }
+        }
+        // intentionally pad this list with null so that the indexes match the main atlas
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        for (int i=0; i&lt;length; i++) {</span>
+<span class="nc" id="L210">            list.add(null);</span>
+        }
+<span class="nc" id="L212">    }</span>
+
+    private void buildAtlas() {
+<span class="nc" id="L215">        calculateAtlasSizes();</span>
+
+<span class="nc" id="L217">        int numMipMaps = getNumMipmaps();</span>
+<span class="nc" id="L218">        ByteBuffer[] data = createAtlasMipmaps(numMipMaps, TRANSPARENT_COLOR, tiles, &quot;tiles.png&quot;);</span>
+<span class="nc" id="L219">        ByteBuffer[] dataNormal = createAtlasMipmaps(numMipMaps, UNIT_Z_COLOR, tilesNormal, &quot;tilesNormal.png&quot;, tilesGloss);</span>
+<span class="nc" id="L220">        ByteBuffer[] dataHeight = createAtlasMipmaps(numMipMaps, MID_RED_COLOR, tilesHeight, &quot;tilesHeight.png&quot;);</span>
+
+<span class="nc" id="L222">        TextureData terrainTexData = new TextureData(atlasSize, atlasSize, data, Texture.WrapMode.CLAMP, Texture.FilterMode.NEAREST);</span>
+<span class="nc" id="L223">        Texture terrainTex = Assets.generateAsset(new ResourceUrn(&quot;engine:terrain&quot;), terrainTexData, Texture.class);</span>
+
+<span class="nc" id="L225">        TextureData terrainNormalData = new TextureData(atlasSize, atlasSize, dataNormal, Texture.WrapMode.CLAMP, Texture.FilterMode.NEAREST);</span>
+<span class="nc" id="L226">        Assets.generateAsset(new ResourceUrn(&quot;engine:terrainNormal&quot;), terrainNormalData, Texture.class);</span>
+
+<span class="nc" id="L228">        TextureData terrainHeightData = new TextureData(atlasSize, atlasSize, dataHeight, Texture.WrapMode.CLAMP, Texture.FilterMode.LINEAR);</span>
+<span class="nc" id="L229">        Assets.generateAsset(new ResourceUrn(&quot;engine:terrainHeight&quot;), terrainHeightData, Texture.class);</span>
+
+<span class="nc" id="L231">        MaterialData terrainMatData = new MaterialData(Assets.getShader(&quot;engine:block&quot;).get());</span>
+<span class="nc" id="L232">        terrainMatData.setParam(&quot;textureAtlas&quot;, terrainTex);</span>
+<span class="nc" id="L233">        terrainMatData.setParam(&quot;colorOffset&quot;, new float[]{1, 1, 1});</span>
+<span class="nc" id="L234">        terrainMatData.setParam(&quot;textured&quot;, true);</span>
+<span class="nc" id="L235">        Assets.generateAsset(new ResourceUrn(&quot;engine:terrain&quot;), terrainMatData, Material.class);</span>
+
+<span class="nc" id="L237">        createTextureAtlas(terrainTex);</span>
+<span class="nc" id="L238">    }</span>
+
+    private void createTextureAtlas(final Texture texture) {
+<span class="nc" id="L241">        final Map&lt;Name, Map&lt;Name, SubtextureData&gt;&gt; textureAtlases = Maps.newHashMap();</span>
+<span class="nc" id="L242">        final Vector2f texSize = new Vector2f(getRelativeTileSize(), getRelativeTileSize());</span>
+<span class="nc" id="L243">        tileIndexes.forEachEntry((tileUri, index) -&gt; {</span>
+<span class="nc" id="L244">            Vector2f coords = getTexCoords(index);</span>
+<span class="nc" id="L245">            SubtextureData subtextureData = new SubtextureData(texture, Rect2f.createFromMinAndSize(coords, texSize));</span>
+
+<span class="nc" id="L247">            Map&lt;Name, SubtextureData&gt; textureAtlas = textureAtlases.get(tileUri.getModuleName());</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">            if (textureAtlas == null) {</span>
+<span class="nc" id="L249">                textureAtlas = Maps.newHashMap();</span>
+<span class="nc" id="L250">                textureAtlases.put(tileUri.getModuleName(), textureAtlas);</span>
+            }
+<span class="nc" id="L252">            textureAtlas.put(tileUri.getResourceName(), subtextureData);</span>
+
+<span class="nc" id="L254">            return true;</span>
+        });
+
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        for (Map.Entry&lt;Name, Map&lt;Name, SubtextureData&gt;&gt; atlas : textureAtlases.entrySet()) {</span>
+<span class="nc" id="L258">            AtlasData data = new AtlasData(atlas.getValue());</span>
+<span class="nc" id="L259">            Assets.generateAsset(new ResourceUrn(atlas.getKey(), new Name(&quot;terrain&quot;)), data, Atlas.class);</span>
+<span class="nc" id="L260">        }</span>
+<span class="nc" id="L261">    }</span>
+
+    private ByteBuffer[] createAtlasMipmaps(int numMipMaps, Color initialColor, List&lt;BlockTile&gt; tileImages, String screenshotName) {
+<span class="nc" id="L264">        return createAtlasMipmaps(numMipMaps, initialColor, tileImages, screenshotName, Lists.newArrayList());</span>
+    }
+
+    private ByteBuffer[] createAtlasMipmaps(int numMipMaps, Color initialColor, List&lt;BlockTile&gt; tileImages, String screenshotName, List&lt;BlockTile&gt; alphaMaskTiles) {
+<span class="nc" id="L268">        ByteBuffer[] data = new ByteBuffer[numMipMaps];</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">        for (int i = 0; i &lt; numMipMaps; ++i) {</span>
+<span class="nc" id="L270">            BufferedImage image = generateAtlas(i, tileImages, initialColor);</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">            if (alphaMaskTiles.size() &gt; 0) {</span>
+<span class="nc" id="L272">                BufferedImage alphaMask = generateAtlas(i, alphaMaskTiles, Color.BLACK);</span>
+<span class="nc" id="L273">                storeGreyscaleMapIntoAlpha(image, alphaMask);</span>
+            }
+
+<span class="nc bnc" id="L276" title="All 2 branches missed.">            if (i == 0) {</span>
+<span class="nc" id="L277">                try (OutputStream stream = new BufferedOutputStream(Files.newOutputStream(PathManager.getInstance().getScreenshotPath().resolve(screenshotName)))) {</span>
+<span class="nc" id="L278">                    ImageIO.write(image, &quot;png&quot;, stream);</span>
+<span class="nc" id="L279">                } catch (IOException e) {</span>
+<span class="nc" id="L280">                    logger.warn(&quot;Failed to write atlas&quot;);</span>
+<span class="nc" id="L281">                }</span>
+            }
+
+<span class="nc" id="L284">            try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {</span>
+<span class="nc" id="L285">                ImageIO.write(image, &quot;png&quot;, bos);</span>
+<span class="nc" id="L286">                PNGDecoder decoder = new PNGDecoder(new ByteArrayInputStream(bos.toByteArray()));</span>
+<span class="nc" id="L287">                ByteBuffer buf = ByteBuffer.allocateDirect(4 * decoder.getWidth() * decoder.getHeight());</span>
+<span class="nc" id="L288">                decoder.decode(buf, decoder.getWidth() * 4, PNGDecoder.Format.RGBA);</span>
+<span class="nc" id="L289">                buf.flip();</span>
+<span class="nc" id="L290">                data[i] = buf;</span>
+<span class="nc" id="L291">            } catch (IOException e) {</span>
+<span class="nc" id="L292">                logger.error(&quot;Failed to create atlas texture&quot;);</span>
+<span class="nc" id="L293">            }</span>
+        }
+<span class="nc" id="L295">        return data;</span>
+    }
+
+    // Ref: http://stackoverflow.com/questions/221830/set-bufferedimage-alpha-mask-in-java/8058442#8058442
+    public void storeGreyscaleMapIntoAlpha(BufferedImage imageWithoutAlpha, BufferedImage greyscaleImage) {
+<span class="nc" id="L300">        int width = imageWithoutAlpha.getWidth();</span>
+<span class="nc" id="L301">        int height = imageWithoutAlpha.getHeight();</span>
+
+<span class="nc" id="L303">        int[] imagePixels = imageWithoutAlpha.getRGB(0, 0, width, height, null, 0, width);</span>
+<span class="nc" id="L304">        int[] maskPixels = greyscaleImage.getRGB(0, 0, width, height, null, 0, width);</span>
+
+<span class="nc bnc" id="L306" title="All 2 branches missed.">        for (int i = 0; i &lt; imagePixels.length; i++) {</span>
+<span class="nc" id="L307">            int color = imagePixels[i] &amp; 0x00ffffff; // Mask preexisting alpha</span>
+<span class="nc" id="L308">            int alpha = maskPixels[i] &lt;&lt; 24; // Shift blue to alpha</span>
+<span class="nc" id="L309">            imagePixels[i] = color | alpha;</span>
+        }
+
+<span class="nc" id="L312">        imageWithoutAlpha.setRGB(0, 0, width, height, imagePixels, 0, width);</span>
+<span class="nc" id="L313">    }</span>
+
+    // The atlas is configured using the following constraints...
+    // 1.   The overall tile size is the size of the largest tile loaded
+    // 2.   The atlas will never be larger than 4096*4096 px
+    // 3.   The tile size gets adjusted if the tiles won't fit into the atlas using the overall tile size
+    //      (the tile size gets halved until all tiles will fit into the atlas)
+    // 4.   The size of the atlas is always a power of two - as is the tile size
+    private void calculateAtlasSizes() {
+<span class="nc" id="L322">        tileSize = 16;</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">        tiles.stream().filter(tile -&gt; tile.getImage(0).getWidth() &gt; tileSize).forEach(tile -&gt; tileSize = tile.getImage(0).getWidth());</span>
+
+<span class="nc" id="L325">        atlasSize = 1;</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">        while (atlasSize * atlasSize &lt; numFrames) {</span>
+<span class="nc" id="L327">            atlasSize *= 2;</span>
+        }
+<span class="nc" id="L329">        atlasSize = atlasSize * tileSize;</span>
+
+<span class="nc bnc" id="L331" title="All 2 branches missed.">        if (atlasSize &gt; maxAtlasSize) {</span>
+<span class="nc" id="L332">            atlasSize = maxAtlasSize;</span>
+<span class="nc" id="L333">            int maxTiles = (atlasSize / tileSize) * (atlasSize / tileSize);</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">            while (maxTiles &lt; numFrames) {</span>
+<span class="nc" id="L335">                tileSize &gt;&gt;= 1;</span>
+<span class="nc" id="L336">                maxTiles = (atlasSize / tileSize) * (atlasSize / tileSize);</span>
+            }
+        }
+<span class="nc" id="L339">    }</span>
+
+    private BufferedImage generateAtlas(int mipMapLevel, List&lt;BlockTile&gt; tileImages, Color clearColor) {
+<span class="nc" id="L342">        int size = atlasSize / (1 &lt;&lt; mipMapLevel);</span>
+<span class="nc" id="L343">        int textureSize = tileSize / (1 &lt;&lt; mipMapLevel);</span>
+<span class="nc" id="L344">        int tilesPerDim = atlasSize / tileSize;</span>
+
+<span class="nc" id="L346">        BufferedImage result = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);</span>
+<span class="nc" id="L347">        Graphics g = result.getGraphics();</span>
+
+<span class="nc" id="L349">        g.setColor(clearColor);</span>
+<span class="nc" id="L350">        g.fillRect(0, 0, size, size);</span>
+        
+<span class="nc" id="L352">        int totalIndex = 0;</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">        for (int tileIndex = 0; tileIndex &lt; tileImages.size(); tileIndex++) {</span>
+<span class="nc" id="L354">            BlockTile tile = tileImages.get(tileIndex);</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">            if (tile == null) {</span>
+<span class="nc" id="L356">                totalIndex++;</span>
+            } else {
+<span class="nc bnc" id="L358" title="All 2 branches missed.">                for (int frameIndex = 0; frameIndex &lt; tile.getLength(); frameIndex++) {</span>
+<span class="nc" id="L359">                    int posX = totalIndex % tilesPerDim;</span>
+<span class="nc" id="L360">                    int posY = totalIndex / tilesPerDim;</span>
+<span class="nc" id="L361">                    g.drawImage(tile.getImage(frameIndex).getScaledInstance(textureSize, textureSize, Image.SCALE_SMOOTH), posX * textureSize, posY * textureSize, null);</span>
+<span class="nc" id="L362">                    totalIndex++;</span>
+                }
+            }
+        }
+
+<span class="nc" id="L367">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

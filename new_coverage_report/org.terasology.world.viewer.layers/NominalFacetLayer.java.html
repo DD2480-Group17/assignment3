@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NominalFacetLayer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.viewer.layers</a> &gt; <span class="el_source">NominalFacetLayer.java</span></div><h1>NominalFacetLayer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.viewer.layers;
+
+import org.terasology.rendering.nui.Color;
+import org.terasology.world.generation.Region;
+import org.terasology.world.generation.facets.base.ObjectFacet2D;
+import org.terasology.world.viewer.color.ColorBlender;
+import org.terasology.world.viewer.color.ColorBlenders;
+import org.terasology.world.viewer.color.ColorModels;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.DataBufferInt;
+import java.util.function.Function;
+
+/**
+ * Provides info about an {@link ObjectFacet2D}.
+ * @param &lt;E&gt; the object type
+ */
+public abstract class NominalFacetLayer&lt;E&gt; extends AbstractFacetLayer {
+
+    private final Function&lt;? super E, Color&gt; colorMap;
+    private final Class&lt;? extends ObjectFacet2D&lt;E&gt;&gt; facetClass;
+
+<span class="nc" id="L40">    public NominalFacetLayer(Class&lt;? extends ObjectFacet2D&lt;E&gt;&gt; clazz, Function&lt;? super E, Color&gt; colorMap) {</span>
+<span class="nc" id="L41">        this.colorMap = colorMap;</span>
+<span class="nc" id="L42">        this.facetClass = clazz;</span>
+<span class="nc" id="L43">    }</span>
+
+    @Override
+    public void render(BufferedImage img, Region region) {
+<span class="nc" id="L47">        ObjectFacet2D&lt;E&gt; facet = region.getFacet(facetClass);</span>
+
+<span class="nc" id="L49">        int width = img.getWidth();</span>
+<span class="nc" id="L50">        int height = img.getHeight();</span>
+
+<span class="nc" id="L52">        ColorModel colorModel = img.getColorModel();</span>
+<span class="nc" id="L53">        ColorBlender blender = ColorBlenders.forColorModel(ColorModels.RGBA, colorModel);</span>
+<span class="nc" id="L54">        DataBufferInt dataBuffer = (DataBufferInt) img.getRaster().getDataBuffer();</span>
+
+<span class="nc bnc" id="L56" title="All 2 branches missed.">        for (int z = 0; z &lt; height; z++) {</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            for (int x = 0; x &lt; width; x++) {</span>
+<span class="nc" id="L58">                Color src = getColor(facet, x, z);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                if (src != null) {</span>
+<span class="nc" id="L60">                    int blend = blender.get(src.rgba());</span>
+<span class="nc" id="L61">                    dataBuffer.setElem(z * width + x, blend);</span>
+                }
+            }
+        }
+<span class="nc" id="L65">    }</span>
+
+    /**
+     * Computes the color of the facet at a given world coordinate.
+     * @param facet the underlying facet
+     * @param x the world x coordinate
+     * @param z the world z coordinate
+     * @return the color at the given world coords. Never &lt;code&gt;null&lt;/code&gt;.
+     */
+    protected Color getColor(ObjectFacet2D&lt;E&gt; facet, int x, int z) {
+<span class="nc" id="L75">        E val = facet.get(x, z);</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        if (val == null) {</span>
+<span class="nc" id="L77">            return MISSING;</span>
+        }
+
+<span class="nc" id="L80">        return colorMap.apply(val);</span>
+    }
+
+    @Override
+    public String getWorldText(Region region, int wx, int wy) {
+<span class="nc" id="L85">        ObjectFacet2D&lt;E&gt; facet = region.getFacet(facetClass);</span>
+<span class="nc" id="L86">        E val = facet.getWorld(wx, wy);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (val == null) {</span>
+<span class="nc" id="L88">            return &quot;&lt;missing&gt;&quot;;</span>
+        }
+<span class="nc" id="L90">        return val.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

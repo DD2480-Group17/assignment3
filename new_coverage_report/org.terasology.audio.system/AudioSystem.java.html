@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AudioSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.audio.system</a> &gt; <span class="el_source">AudioSystem.java</span></div><h1>AudioSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.audio.system;
+
+import org.terasology.utilities.Assets;
+import org.terasology.audio.AudioManager;
+import org.terasology.audio.events.PlaySoundEvent;
+import org.terasology.audio.events.PlaySoundForOwnerEvent;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.console.commandSystem.annotations.Command;
+import org.terasology.logic.console.commandSystem.annotations.CommandParam;
+import org.terasology.logic.console.commandSystem.annotations.Sender;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.permission.PermissionManager;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.NetworkSystem;
+import org.terasology.registry.In;
+
+/**
+ * This system handles receiving the PlaySound events and activating the AudioManager to play them
+ */
+@RegisterSystem
+<span class="nc" id="L43">public class AudioSystem extends BaseComponentSystem implements UpdateSubscriberSystem {</span>
+
+    @In
+    private NetworkSystem networkSystem;
+    @In
+    private LocalPlayer localPlayer;
+    @In
+    private AudioManager audioManager;
+
+    /**
+     * Toggles the muting of sounds.
+     *
+     * @param sender The entity requesting the mute
+     * @return A human readable string of the mute status
+     */
+    @Command(shortDescription = &quot;Toggle muting all sound&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public String mute(@Sender EntityRef sender) {
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        audioManager.setMute(!audioManager.isMute());</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        return &quot;All sound is now &quot; + ((audioManager.isMute()) ? &quot;muted.&quot; : &quot;unmuted.&quot;);</span>
+    }
+
+    /**
+     * Plays a test dig sound at an offset from the player in the x and z axis.
+     *
+     * @param sender The entity sending the sound request
+     * @param xOffset The x axis offset from the player to play the sound at.
+     * @param zOffset The z axis offset from the player to play the sound at.
+     */
+    @Command(shortDescription = &quot;Plays a test sound&quot;)
+    public void playTestSound(@Sender EntityRef sender, @CommandParam(&quot;xOffset&quot;) float xOffset, @CommandParam(&quot;zOffset&quot;) float zOffset) {
+<span class="nc" id="L73">        Vector3f position = localPlayer.getPosition();</span>
+<span class="nc" id="L74">        position.x += xOffset;</span>
+<span class="nc" id="L75">        position.z += zOffset;</span>
+<span class="nc" id="L76">        audioManager.playSound(Assets.getSound(&quot;engine:dig&quot;).get(), position);</span>
+<span class="nc" id="L77">    }</span>
+
+    /**
+     * Receives the sound played event and calls on the AudioManager to play it.
+     *
+     * @param playSoundEvent The sound event.
+     * @param entity The entity that instigated the event.
+     */
+    @ReceiveEvent
+    public void onPlaySound(PlaySoundEvent playSoundEvent, EntityRef entity) {
+<span class="nc" id="L87">        LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (location != null) {</span>
+<span class="nc" id="L89">            audioManager.playSound(playSoundEvent.getSound(), location.getWorldPosition(), playSoundEvent.getVolume(), AudioManager.PRIORITY_NORMAL);</span>
+        } else {
+<span class="nc" id="L91">            audioManager.playSound(playSoundEvent.getSound(), playSoundEvent.getVolume());</span>
+        }
+<span class="nc" id="L93">    }</span>
+
+    /**
+     * Receives an event send when a sound should be played for the entity owner as well.
+     * Calls on the AudioManager to play it.
+     *
+     * @param playSoundEvent The sound event.
+     * @param entity The entity that instigated the event.
+     */
+    @ReceiveEvent
+    public void onPlaySound(PlaySoundForOwnerEvent playSoundEvent, EntityRef entity) {
+<span class="nc" id="L104">        ClientComponent clientComponent = networkSystem.getOwnerEntity(entity).getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L105" title="All 4 branches missed.">        if (clientComponent != null &amp;&amp; !clientComponent.local) {</span>
+<span class="nc" id="L106">            return;</span>
+        }
+<span class="nc" id="L108">        audioManager.playSound(playSoundEvent.getSound(), playSoundEvent.getVolume(), AudioManager.PRIORITY_HIGH);</span>
+<span class="nc" id="L109">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L113">        audioManager.updateListener(localPlayer.getPosition(), localPlayer.getViewRotation(), localPlayer.getVelocity());</span>
+<span class="nc" id="L114">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

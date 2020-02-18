@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BehaviorTreeFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.asset</a> &gt; <span class="el_source">BehaviorTreeFormat.java</span></div><h1>BehaviorTreeFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.asset;
+
+import com.google.common.base.Charsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.logic.behavior.core.BehaviorNode;
+import org.terasology.logic.behavior.core.BehaviorTreeBuilder;
+import org.terasology.registry.CoreRegistry;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.util.List;
+
+/**
+ * Loader for behavior assets. Can also save assets into json format.
+ * &lt;br&gt;&lt;br&gt;
+ * If there are both, Nodes and Renderables tree, both are loaded/saved. To ensure, the nodes get associated to
+ * the correct renderable, additional ids are introduced (only in the json file).
+ * &lt;br&gt;&lt;br&gt;
+ *
+ */
+@RegisterAssetFileFormat
+public class BehaviorTreeFormat extends AbstractAssetFileFormat&lt;BehaviorTreeData&gt; {
+<span class="fc" id="L45">    private static final Logger logger = LoggerFactory.getLogger(BehaviorTreeFormat.class);</span>
+
+
+
+    public BehaviorTreeFormat() {
+<span class="fc" id="L50">        super(&quot;behavior&quot;);</span>
+<span class="fc" id="L51">    }</span>
+
+    public void save(OutputStream stream, BehaviorTreeData data) throws IOException {
+<span class="nc" id="L54">        BehaviorTreeBuilder builder = CoreRegistry.get(BehaviorTreeBuilder.class);</span>
+<span class="nc" id="L55">        OutputStreamWriter writer = new OutputStreamWriter(stream, Charsets.UTF_8);</span>
+<span class="nc" id="L56">        writer.write(builder.toJson(data.getRoot()));</span>
+<span class="nc" id="L57">        writer.close();</span>
+<span class="nc" id="L58">    }</span>
+
+
+
+    @Override
+    public BehaviorTreeData load(ResourceUrn resourceUrn, List&lt;AssetDataFile&gt; list) throws IOException {
+<span class="nc" id="L64">        BehaviorTreeBuilder builder = CoreRegistry.get(BehaviorTreeBuilder.class);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (builder == null) {</span>
+<span class="nc" id="L66">            builder = new BehaviorTreeBuilder();</span>
+<span class="nc" id="L67">            CoreRegistry.put(BehaviorTreeBuilder.class, builder);</span>
+        }
+<span class="nc" id="L69">        try (InputStream stream = list.get(0).openStream()) {</span>
+<span class="nc" id="L70">            return load(stream);</span>
+        }
+    }
+
+
+
+
+
+    public BehaviorTreeData load(InputStream stream) {
+<span class="nc" id="L79">        BehaviorTreeBuilder builder = CoreRegistry.get(BehaviorTreeBuilder.class);</span>
+
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (builder == null) {</span>
+<span class="nc" id="L82">            builder = new BehaviorTreeBuilder();</span>
+<span class="nc" id="L83">            CoreRegistry.put(BehaviorTreeBuilder.class, builder);</span>
+        }
+<span class="nc" id="L85">        BehaviorNode node = builder.fromJson(stream);</span>
+
+<span class="nc" id="L87">        BehaviorTreeData data = new BehaviorTreeData();</span>
+<span class="nc" id="L88">        data.setRoot(node);</span>
+<span class="nc" id="L89">        return data;</span>
+
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIScrollbar.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIScrollbar.java</span></div><h1>UIScrollbar.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.terasology.input.MouseInput;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
+
+/**
+ * A simple scrollbar
+ */
+public class UIScrollbar extends CoreWidget {
+
+<span class="nc" id="L38">    @LayoutConfig</span>
+<span class="nc" id="L39">    private Binding&lt;Integer&gt; minimum = new DefaultBinding&lt;&gt;(0);</span>
+<span class="nc" id="L40">    @LayoutConfig</span>
+<span class="nc" id="L41">    private Binding&lt;Integer&gt; range = new DefaultBinding&lt;&gt;(100);</span>
+
+<span class="nc" id="L43">    @LayoutConfig</span>
+<span class="nc" id="L44">    private Binding&lt;Integer&gt; value = new DefaultBinding&lt;&gt;(0);</span>
+
+    @LayoutConfig
+    private boolean vertical;
+
+    private int sliderSize;
+    private int handleSize;
+    private boolean dragging;
+    private int mouseOffset;
+
+<span class="nc" id="L54">    private InteractionListener handleListener = new BaseInteractionListener() {</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+<span class="nc" id="L59">                dragging = true;</span>
+<span class="nc" id="L60">                Vector2i pos = event.getRelativeMousePosition();</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">                if (vertical) {</span>
+<span class="nc" id="L62">                    mouseOffset = pos.y - pixelOffsetFor(getValue());</span>
+                } else {
+<span class="nc" id="L64">                    mouseOffset = pos.x - pixelOffsetFor(getValue());</span>
+                }
+<span class="nc" id="L66">                return true;</span>
+            }
+<span class="nc" id="L68">            return false;</span>
+        }
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc" id="L73">            dragging = false;</span>
+<span class="nc" id="L74">        }</span>
+
+        @Override
+        public void onMouseDrag(NUIMouseDragEvent event) {
+<span class="nc" id="L78">            Vector2i pos = event.getRelativeMousePosition();</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            if (vertical) {</span>
+<span class="nc" id="L80">                updatePosition(pos.y - mouseOffset);</span>
+            } else {
+<span class="nc" id="L82">                updatePosition(pos.x - mouseOffset);</span>
+            }
+<span class="nc" id="L84">        }</span>
+    };
+
+    public InteractionListener getHandleListener() {
+<span class="nc" id="L88">        return handleListener;</span>
+    }
+
+<span class="nc" id="L91">    private InteractionListener sliderListener = new BaseInteractionListener() {</span>
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+<span class="nc" id="L95">                Vector2i pos = event.getRelativeMousePosition();</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                mouseOffset = (sliderSize &gt; handleSize) ? (handleSize / 2) : 0;</span>
+
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                int pixelPosition = vertical ? pos.y - mouseOffset : pos.x - mouseOffset;</span>
+<span class="nc" id="L99">                updatePosition(pixelPosition);</span>
+
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                if (sliderSize &gt; 0) {</span>
+<span class="nc" id="L102">                    int clamped = TeraMath.clamp(pixelPosition, 0, sliderSize);</span>
+<span class="nc" id="L103">                    setValue(clamped * getRange() / sliderSize);</span>
+<span class="nc" id="L104">                } else {</span>
+<span class="nc" id="L105">                    setValue(0);</span>
+                }
+
+<span class="nc" id="L108">                dragging = true;</span>
+<span class="nc" id="L109">                return true;</span>
+            }
+<span class="nc" id="L111">            return false;</span>
+        }
+
+        @Override
+        public void onMouseDrag(NUIMouseDragEvent event) {
+<span class="nc" id="L116">            Vector2i pos = event.getRelativeMousePosition();</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">            if (vertical) {</span>
+<span class="nc" id="L118">                updatePosition(pos.y - mouseOffset);</span>
+            } else {
+<span class="nc" id="L120">                updatePosition(pos.x - mouseOffset);</span>
+            }
+<span class="nc" id="L122">        }</span>
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc" id="L126">            dragging = false;</span>
+<span class="nc" id="L127">        }</span>
+    };
+
+    public InteractionListener getSliderListener() {
+<span class="nc" id="L131">        return sliderListener;</span>
+    }
+
+    public UIScrollbar() {
+<span class="nc" id="L135">        this(true);</span>
+<span class="nc" id="L136">    }</span>
+
+<span class="nc" id="L138">    public UIScrollbar(boolean vertical) {</span>
+<span class="nc" id="L139">        this.vertical = vertical;</span>
+<span class="nc" id="L140">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (vertical) {</span>
+<span class="nc" id="L145">            canvas.setPart(&quot;sliderVertical&quot;);</span>
+        } else {
+<span class="nc" id="L147">            canvas.setPart(&quot;sliderHorizontal&quot;);</span>
+        }
+<span class="nc" id="L149">        canvas.drawBackground();</span>
+<span class="nc" id="L150">        canvas.addInteractionRegion(sliderListener);</span>
+
+<span class="nc" id="L152">        canvas.setPart(&quot;handle&quot;);</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        if (vertical) {</span>
+<span class="nc" id="L154">            sliderSize = canvas.size().y - canvas.getCurrentStyle().getFixedHeight();</span>
+        } else {
+<span class="nc" id="L156">            sliderSize = canvas.size().x - canvas.getCurrentStyle().getFixedWidth();</span>
+        }
+
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        if (sliderSize &gt; handleSize) {</span>
+<span class="nc" id="L160">            int drawLocation = pixelOffsetFor(getValue());</span>
+            Rect2i handleRegion;
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            if (vertical) {</span>
+<span class="nc" id="L163">                handleSize = canvas.getCurrentStyle().getFixedHeight();</span>
+<span class="nc" id="L164">                handleRegion = Rect2i.createFromMinAndSize(0, drawLocation, canvas.getCurrentStyle().getFixedWidth(), handleSize);</span>
+            } else {
+<span class="nc" id="L166">                handleSize = canvas.getCurrentStyle().getFixedWidth();</span>
+<span class="nc" id="L167">                handleRegion = Rect2i.createFromMinAndSize(drawLocation, 0, handleSize, canvas.getCurrentStyle().getFixedHeight());</span>
+            }
+<span class="nc" id="L169">            canvas.drawBackground(handleRegion);</span>
+<span class="nc" id="L170">            canvas.addInteractionRegion(handleListener, handleRegion);</span>
+        }
+<span class="nc" id="L172">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc" id="L176">        canvas.setPart(&quot;handle&quot;);</span>
+<span class="nc" id="L177">        int x = canvas.getCurrentStyle().getFixedWidth();</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if (x == 0) {</span>
+<span class="nc" id="L179">            x = canvas.getCurrentStyle().getMinWidth();</span>
+        }
+<span class="nc" id="L181">        int y = canvas.getCurrentStyle().getFixedHeight();</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        if (y == 0) {</span>
+<span class="nc" id="L183">            y = canvas.getCurrentStyle().getMinHeight();</span>
+        }
+<span class="nc" id="L185">        return new Vector2i(x, y);</span>
+    }
+
+    private int pixelOffsetFor(int newValue) {
+<span class="nc" id="L189">        final int r = getRange();</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        return (r &gt; 0) ? (sliderSize * newValue / r) : 0;</span>
+    }
+
+    @Override
+    public String getMode() {
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        if (dragging) {</span>
+<span class="nc" id="L196">            return ACTIVE_MODE;</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        } else if (handleListener.isMouseOver()) {</span>
+<span class="nc" id="L198">            return HOVER_MODE;</span>
+        }
+<span class="nc" id="L200">        return DEFAULT_MODE;</span>
+    }
+
+    public void bindMinimum(Binding&lt;Integer&gt; binding) {
+<span class="nc" id="L204">        minimum = binding;</span>
+<span class="nc" id="L205">    }</span>
+
+    /**
+     * @return The minimum value scrollable to.
+     */
+    public int getMinimum() {
+<span class="nc" id="L211">        return minimum.get();</span>
+    }
+
+    /**
+     * @param val The new minimum above zero.
+     */
+    public void setMinimum(int val) {
+<span class="nc" id="L218">        minimum.set(val);</span>
+<span class="nc" id="L219">    }</span>
+
+    public void bindRange(Binding&lt;Integer&gt; binding) {
+<span class="nc" id="L222">        range = binding;</span>
+<span class="nc" id="L223">    }</span>
+
+    /**
+     * @return The max value scrollable to.
+     */
+    public int getRange() {
+<span class="nc" id="L229">        return Math.max(0, range.get());</span>
+    }
+
+    /**
+     * @param val The new maximum scrollable.
+     */
+    public void setRange(int val) {
+<span class="nc" id="L236">        range.set(val);</span>
+<span class="nc" id="L237">    }</span>
+
+    public void bindValue(Binding&lt;Integer&gt; binding) {
+<span class="nc" id="L240">        value = binding;</span>
+<span class="nc" id="L241">    }</span>
+
+    /**
+     * @return The current scroll value.
+     */
+    public int getValue() {
+<span class="nc" id="L247">        return TeraMath.clamp(value.get(), getMinimum(), getMinimum() + getRange());</span>
+    }
+
+    /**
+     * @param val The new level of scrolling to set.
+     */
+    public void setValue(int val) {
+<span class="nc" id="L254">        value.set(val);</span>
+<span class="nc" id="L255">    }</span>
+
+    private void updatePosition(int pixelPos) {
+<span class="nc" id="L258">        int newPosition = TeraMath.clamp(pixelPos, 0, sliderSize);</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        setValue((sliderSize &gt; 0) ? (newPosition * getRange() / sliderSize) : 0);</span>
+<span class="nc" id="L260">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

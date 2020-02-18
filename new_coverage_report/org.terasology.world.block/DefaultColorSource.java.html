@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultColorSource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block</a> &gt; <span class="el_source">DefaultColorSource.java</span></div><h1>DefaultColorSource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.world.generation.Region;
+import org.terasology.world.generation.facets.SurfaceHumidityFacet;
+import org.terasology.world.generation.facets.SurfaceTemperatureFacet;
+
+import javax.imageio.ImageIO;
+
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+
+/**
+ * Different color sources for blocks.
+ */
+<span class="fc" id="L34">public enum DefaultColorSource implements BlockColorSource {</span>
+
+<span class="fc" id="L36">    DEFAULT {</span>
+        @Override
+        public Vector4f calcColor(Region worldData, int x, int y, int z) {
+<span class="nc" id="L39">            return new Vector4f(1, 1, 1, 1);</span>
+        }
+    },
+<span class="fc" id="L42">    COLOR_LUT {</span>
+        @Override
+        public Vector4f calcColor(Region worldData, int x, int y, int z) {
+<span class="nc" id="L45">            float humidity = worldData.getFacet(SurfaceHumidityFacet.class).get(x, z);</span>
+<span class="nc" id="L46">            float temperature = worldData.getFacet(SurfaceTemperatureFacet.class).get(x, z);</span>
+<span class="nc" id="L47">            float prod = temperature * humidity;</span>
+<span class="nc" id="L48">            int rgbValue = colorLut.getRGB((int) ((1.0 - temperature) * 255.0), (int) ((1.0 - prod) * 255.0));</span>
+
+<span class="nc" id="L50">            Color c = new Color(rgbValue);</span>
+<span class="nc" id="L51">            return new Vector4f(c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, 1.0f);</span>
+        }
+    },
+<span class="fc" id="L54">    FOLIAGE_LUT {</span>
+        @Override
+        public Vector4f calcColor(Region worldData, int x, int y, int z) {
+<span class="nc" id="L57">            float humidity = worldData.getFacet(SurfaceHumidityFacet.class).get(x, z);</span>
+<span class="nc" id="L58">            float temperature = worldData.getFacet(SurfaceTemperatureFacet.class).get(x, z);</span>
+<span class="nc" id="L59">            float prod = humidity * temperature;</span>
+<span class="nc" id="L60">            int rgbValue = foliageLut.getRGB((int) ((1.0 - temperature) * 255.0), (int) ((1.0 - prod) * 255.0));</span>
+
+<span class="nc" id="L62">            Color c = new Color(rgbValue);</span>
+<span class="nc" id="L63">            return new Vector4f(c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, 1.0f);</span>
+        }
+    };
+
+<span class="fc" id="L67">    private static final Logger logger = LoggerFactory.getLogger(DefaultColorSource.class);</span>
+
+    /* LUTs */
+    private static BufferedImage colorLut;
+
+    private static BufferedImage foliageLut;
+
+    static {
+        try {
+            // TODO: Read these from asset manager
+<span class="fc" id="L77">            colorLut = ImageIO.read(DefaultColorSource.class.getResource(&quot;/assets/textures/grasscolor.png&quot;));</span>
+<span class="fc" id="L78">            foliageLut = ImageIO.read(DefaultColorSource.class.getResource(&quot;/assets/textures/foliagecolor.png&quot;));</span>
+<span class="nc" id="L79">        } catch (IOException e) {</span>
+<span class="nc" id="L80">            logger.error(&quot;Failed to load LUTs&quot;, e);</span>
+<span class="fc" id="L81">        }</span>
+<span class="fc" id="L82">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

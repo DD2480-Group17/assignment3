@@ -1,0 +1,404 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProtobufPersistedData.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.protobuf</a> &gt; <span class="el_source">ProtobufPersistedData.java</span></div><h1>ProtobufPersistedData.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.protobuf;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.primitives.Ints;
+import gnu.trove.list.TDoubleList;
+import gnu.trove.list.TFloatList;
+import gnu.trove.list.TIntList;
+import gnu.trove.list.TLongList;
+import gnu.trove.list.array.TDoubleArrayList;
+import gnu.trove.list.array.TFloatArrayList;
+import gnu.trove.list.array.TIntArrayList;
+import gnu.trove.list.array.TLongArrayList;
+import org.terasology.persistence.typeHandling.DeserializationException;
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.PersistedDataArray;
+import org.terasology.persistence.typeHandling.PersistedDataMap;
+import org.terasology.persistence.typeHandling.inMemory.PersistedBoolean;
+import org.terasology.persistence.typeHandling.inMemory.PersistedDouble;
+import org.terasology.persistence.typeHandling.inMemory.PersistedFloat;
+import org.terasology.persistence.typeHandling.inMemory.PersistedInteger;
+import org.terasology.persistence.typeHandling.inMemory.PersistedLong;
+import org.terasology.persistence.typeHandling.inMemory.PersistedMap;
+import org.terasology.persistence.typeHandling.inMemory.PersistedString;
+import org.terasology.protobuf.EntityData;
+
+import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+/**
+ */
+public class ProtobufPersistedData implements PersistedData, PersistedDataArray {
+    private EntityData.Value data;
+
+<span class="fc" id="L52">    public ProtobufPersistedData(EntityData.Value data) {</span>
+<span class="fc" id="L53">        this.data = data;</span>
+<span class="fc" id="L54">    }</span>
+
+    public EntityData.Value getValue() {
+<span class="fc" id="L57">        return data;</span>
+    }
+
+    @Override
+    public String getAsString() {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (data.getStringCount() == 1) {</span>
+<span class="fc" id="L63">            return data.getString(0);</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        } else if (data.getStringCount() &gt; 1) {</span>
+<span class="nc" id="L65">            throw new IllegalStateException(&quot;Data is an array of size != 1&quot;);</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        } else if (!isNull()) {</span>
+<span class="nc" id="L67">            throw new ClassCastException(&quot;Data is not a String: &quot; + data.toString());</span>
+        }
+<span class="fc" id="L69">        return null;</span>
+    }
+
+    @Override
+    public double getAsDouble() {
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (data.getDoubleCount() == 1) {</span>
+<span class="fc" id="L75">            return data.getDouble(0);</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        } else if (data.getFloatCount() == 1) {</span>
+<span class="nc" id="L77">            return data.getFloat(0);</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        } else if (data.getLongCount() == 1) {</span>
+<span class="nc" id="L79">            return data.getLong(0);</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        } else if (data.getIntegerCount() == 1) {</span>
+<span class="nc" id="L81">            return data.getInteger(0);</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        } else if (data.getDoubleCount() + data.getFloatCount() + data.getIntegerCount() + data.getLongCount() &gt; 1) {</span>
+<span class="nc" id="L83">            throw new IllegalStateException(&quot;Data is an array of size != 1&quot;);</span>
+        } else {
+<span class="nc" id="L85">            throw new ClassCastException(&quot;Data is not a number: &quot; + data.toString());</span>
+        }
+    }
+
+    @Override
+    public float getAsFloat() {
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        if (data.getFloatCount() == 1) {</span>
+<span class="fc" id="L92">            return data.getFloat(0);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        } else if (data.getDoubleCount() == 1) {</span>
+<span class="nc" id="L94">            return (float) data.getDouble(0);</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        } else if (data.getLongCount() == 1) {</span>
+<span class="nc" id="L96">            return data.getLong(0);</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        } else if (data.getIntegerCount() == 1) {</span>
+<span class="nc" id="L98">            return data.getInteger(0);</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        } else if (data.getDoubleCount() + data.getFloatCount() + data.getIntegerCount() + data.getLongCount() &gt; 1) {</span>
+<span class="nc" id="L100">            throw new IllegalStateException(&quot;Data is an array of size != 1&quot;);</span>
+        } else {
+<span class="nc" id="L102">            throw new ClassCastException(&quot;Data is not a number: &quot; + data.toString());</span>
+        }
+    }
+
+    @Override
+    public int getAsInteger() {
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">        if (data.getIntegerCount() == 1) {</span>
+<span class="fc" id="L109">            return data.getInteger(0);</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        } else if (data.getDoubleCount() == 1) {</span>
+<span class="nc" id="L111">            return (int) data.getDouble(0);</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        } else if (data.getFloatCount() == 1) {</span>
+<span class="nc" id="L113">            return (int) data.getFloat(0);</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        } else if (data.getLongCount() == 1) {</span>
+<span class="nc" id="L115">            return (int) data.getLong(0);</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        } else if (data.getDoubleCount() + data.getFloatCount() + data.getIntegerCount() + data.getLongCount() &gt; 1) {</span>
+<span class="nc" id="L117">            throw new IllegalStateException(&quot;Data is an array of size != 1&quot;);</span>
+        } else {
+<span class="nc" id="L119">            throw new ClassCastException(&quot;Data is not a number: &quot; + data.toString());</span>
+        }
+    }
+
+    @Override
+    public long getAsLong() {
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (data.getLongCount() == 1) {</span>
+<span class="fc" id="L126">            return (int) data.getLong(0);</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        } else if (data.getIntegerCount() == 1) {</span>
+<span class="nc" id="L128">            return data.getInteger(0);</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        } else if (data.getDoubleCount() == 1) {</span>
+<span class="nc" id="L130">            return (int) data.getDouble(0);</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        } else if (data.getFloatCount() == 1) {</span>
+<span class="nc" id="L132">            return (int) data.getFloat(0);</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        } else if (data.getDoubleCount() + data.getFloatCount() + data.getIntegerCount() + data.getLongCount() &gt; 1) {</span>
+<span class="nc" id="L134">            throw new IllegalStateException(&quot;Data is an array of size != 1&quot;);</span>
+        } else {
+<span class="nc" id="L136">            throw new ClassCastException(&quot;Data is not a number: &quot; + data.toString());</span>
+        }
+    }
+
+    @Override
+    public boolean getAsBoolean() {
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">        if (data.getBooleanCount() == 1) {</span>
+<span class="fc" id="L143">            return data.getBoolean(0);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        } else if (data.getBooleanCount() &gt; 1) {</span>
+<span class="nc" id="L145">            throw new IllegalStateException(&quot;Data is an array of size != 1&quot;);</span>
+        } else {
+<span class="nc" id="L147">            throw new ClassCastException(&quot;Data is not a boolean: &quot; + data.toString());</span>
+        }
+    }
+
+    @Override
+    public byte[] getAsBytes() {
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        if (data.hasBytes()) {</span>
+<span class="nc" id="L154">            return data.getBytes().toByteArray();</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        } else if (!isNull()) {</span>
+<span class="nc" id="L156">            throw new DeserializationException(&quot;Data is not bytes: &quot; + data.toString());</span>
+        } else {
+<span class="nc" id="L158">            return new byte[0];</span>
+        }
+    }
+
+    @Override
+    public ByteBuffer getAsByteBuffer() {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        if (data.hasBytes()) {</span>
+<span class="nc" id="L165">            return data.getBytes().asReadOnlyByteBuffer();</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">        } else if (!isNull()) {</span>
+<span class="nc" id="L167">            throw new DeserializationException(&quot;Data is not bytes: &quot; + data.toString());</span>
+        } else {
+<span class="nc" id="L169">            return ByteBuffer.wrap(new byte[0]);</span>
+        }
+    }
+
+    @Override
+    public PersistedDataArray getAsArray() {
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        if (isArray()) {</span>
+<span class="fc" id="L176">            return this;</span>
+        }
+<span class="nc" id="L178">        throw new IllegalStateException(&quot;Data is not an array: &quot; + data.toString());</span>
+    }
+
+    @Override
+    public PersistedDataMap getAsValueMap() {
+<span class="fc" id="L183">        Map&lt;String, PersistedData&gt; result = Maps.newLinkedHashMap();</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">        if (data.getNameValueCount() &gt; 0) {</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">            for (int i = 0; i &lt; data.getNameValueCount(); ++i) {</span>
+<span class="fc" id="L186">                result.put(data.getNameValue(i).getName(), new ProtobufPersistedData(data.getNameValue(i).getValue()));</span>
+            }
+<span class="nc bnc" id="L188" title="All 2 branches missed.">        } else if (!isNull()) {</span>
+<span class="nc" id="L189">            throw new IllegalStateException(&quot;Data is not a value map: &quot; + data.toString());</span>
+        }
+<span class="fc" id="L191">        return new PersistedMap(result);</span>
+    }
+
+    @Override
+    public boolean isString() {
+<span class="pc bpc" id="L196" title="1 of 4 branches missed.">        return data.getStringCount() == 1 || isNull();</span>
+    }
+
+    @Override
+    public boolean isNumber() {
+<span class="pc bpc" id="L201" title="1 of 8 branches missed.">        return data.getIntegerCount() == 1 || data.getFloatCount() == 1 || data.getLongCount() == 1 || data.getDoubleCount() == 1;</span>
+    }
+
+    @Override
+    public boolean isBoolean() {
+<span class="pc bpc" id="L206" title="1 of 2 branches missed.">        return data.getBooleanCount() == 1;</span>
+    }
+
+    @Override
+    public boolean isBytes() {
+<span class="nc bnc" id="L211" title="All 4 branches missed.">        return data.hasBytes() || isNull();</span>
+    }
+
+    @Override
+    public boolean isArray() {
+<span class="fc" id="L216">        return true;</span>
+    }
+
+    @Override
+    public boolean isValueMap() {
+<span class="pc bpc" id="L221" title="1 of 4 branches missed.">        return data.getNameValueCount() != 0 || isNull();</span>
+    }
+
+    @Override
+    public boolean isNull() {
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">        return !data.hasBytes() &amp;&amp; data.getBooleanCount() + data.getFloatCount() + data.getDoubleCount() + data.getIntegerCount() + data.getLongCount()</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">                + data.getStringCount() + data.getValueCount() + data.getNameValueCount() == 0;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L232">        return data.toString();</span>
+    }
+
+    @Override
+    public int size() {
+<span class="fc" id="L237">        return Math.max(Math.max(Math.max(data.getBooleanCount(), data.getFloatCount()), Math.max(data.getDoubleCount(), data.getIntegerCount())),</span>
+<span class="fc" id="L238">                Math.max(Math.max(data.getLongCount(), data.getStringCount()), data.getValueCount()));</span>
+    }
+
+    @Override
+    public PersistedData getArrayItem(int index) {
+<span class="nc bnc" id="L243" title="All 2 branches missed.">        if (data.getValueCount() &gt; 0) {</span>
+<span class="nc" id="L244">            return new ProtobufPersistedData(data.getValue(index));</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        } else if (data.getFloatCount() &gt; 0) {</span>
+<span class="nc" id="L246">            return new PersistedFloat(data.getFloat(index));</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">        } else if (data.getIntegerCount() &gt; 0) {</span>
+<span class="nc" id="L248">            return new PersistedInteger(data.getInteger(index));</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        } else if (data.getDoubleCount() &gt; 0) {</span>
+<span class="nc" id="L250">            return new PersistedDouble(data.getDouble(index));</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">        } else if (data.getBooleanCount() &gt; 0) {</span>
+<span class="nc" id="L252">            return new PersistedBoolean(data.getBoolean(index));</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">        } else if (data.getLongCount() &gt; 0) {</span>
+<span class="nc" id="L254">            return new PersistedLong(data.getLong(index));</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        } else if (data.getStringCount() &gt; 0) {</span>
+<span class="nc" id="L256">            return new PersistedString(data.getString(index));</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        } else if (data.hasBytes()) {</span>
+<span class="nc" id="L258">            throw new IllegalStateException(&quot;Data is not an array: &quot; + data.toString());</span>
+        }
+<span class="nc" id="L260">        throw new IndexOutOfBoundsException(index + &quot; exceeds size of array data&quot;);</span>
+    }
+
+    @Override
+    public boolean isNumberArray() {
+<span class="pc bpc" id="L265" title="3 of 4 branches missed.">        return data.getIntegerCount() + data.getFloatCount() + data.getDoubleCount() + data.getLongCount() &gt; 0 || isNull();</span>
+    }
+
+    @Override
+    public boolean isBooleanArray() {
+<span class="nc bnc" id="L270" title="All 4 branches missed.">        return data.getBooleanCount() &gt; 0 || isNull();</span>
+    }
+
+    @Override
+    public boolean isStringArray() {
+<span class="nc bnc" id="L275" title="All 4 branches missed.">        return data.getStringCount() &gt; 0 || isNull();</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getAsStringArray() {
+<span class="nc" id="L280">        return data.getStringList();</span>
+    }
+
+    @Override
+    public TDoubleList getAsDoubleArray() {
+<span class="nc bnc" id="L285" title="All 2 branches missed.">        if (data.getDoubleCount() != 0) {</span>
+<span class="nc" id="L286">            TDoubleList result = new TDoubleArrayList(data.getDoubleCount());</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getDoubleCount(); ++i) {</span>
+<span class="nc" id="L288">                result.add(data.getDouble(i));</span>
+            }
+<span class="nc" id="L290">            return result;</span>
+        } else {
+<span class="nc" id="L292">            TDoubleList result = new TDoubleArrayList(data.getFloatCount());</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getFloatCount(); ++i) {</span>
+<span class="nc" id="L294">                result.add(data.getFloat(i));</span>
+            }
+<span class="nc" id="L296">            return result;</span>
+        }
+    }
+
+    @Override
+    public TFloatList getAsFloatArray() {
+<span class="pc bpc" id="L302" title="1 of 2 branches missed.">        if (data.getFloatCount() != 0) {</span>
+<span class="fc" id="L303">            TFloatList result = new TFloatArrayList(data.getFloatCount());</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">            for (int i = 0; i &lt; data.getFloatCount(); ++i) {</span>
+<span class="fc" id="L305">                result.add(data.getFloat(i));</span>
+            }
+<span class="fc" id="L307">            return result;</span>
+        } else {
+<span class="nc" id="L309">            TFloatList result = new TFloatArrayList(data.getDoubleCount());</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getDoubleCount(); ++i) {</span>
+<span class="nc" id="L311">                result.add((float) data.getDouble(i));</span>
+            }
+<span class="nc" id="L313">            return result;</span>
+        }
+    }
+
+    @Override
+    public TIntList getAsIntegerArray() {
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">        if (data.getIntegerCount() &gt; 0) {</span>
+<span class="fc" id="L320">            TIntList result = new TIntArrayList(data.getIntegerCount());</span>
+<span class="fc bfc" id="L321" title="All 2 branches covered.">            for (int i = 0; i &lt; data.getIntegerCount(); ++i) {</span>
+<span class="fc" id="L322">                result.add(data.getInteger(i));</span>
+            }
+<span class="fc" id="L324">            return result;</span>
+        } else {
+<span class="nc" id="L326">            TIntList result = new TIntArrayList(data.getLongCount());</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getLongCount(); ++i) {</span>
+<span class="nc" id="L328">                result.add(Ints.saturatedCast(data.getLong(i)));</span>
+            }
+<span class="nc" id="L330">            return result;</span>
+        }
+    }
+
+    @Override
+    public TLongList getAsLongArray() {
+<span class="nc bnc" id="L336" title="All 2 branches missed.">        if (data.getLongCount() &gt; 0) {</span>
+<span class="nc" id="L337">            TLongList result = new TLongArrayList(data.getLongCount());</span>
+<span class="nc bnc" id="L338" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getLongCount(); ++i) {</span>
+<span class="nc" id="L339">                result.add(data.getLong(i));</span>
+            }
+<span class="nc" id="L341">            return result;</span>
+        } else {
+<span class="nc" id="L343">            TLongList result = new TLongArrayList(data.getIntegerCount());</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getIntegerCount(); ++i) {</span>
+<span class="nc" id="L345">                result.add(data.getInteger(i));</span>
+            }
+<span class="nc" id="L347">            return result;</span>
+        }
+    }
+
+    @Override
+    public boolean[] getAsBooleanArray() {
+<span class="nc" id="L353">        boolean[] result = new boolean[data.getBooleanCount()];</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">        for (int i = 0; i &lt; data.getBooleanCount(); ++i) {</span>
+<span class="nc" id="L355">            result[i] = data.getBoolean(i);</span>
+        }
+<span class="nc" id="L357">        return result;</span>
+    }
+
+    @Override
+    public List&lt;PersistedData&gt; getAsValueArray() {
+<span class="fc" id="L362">        List&lt;PersistedData&gt; result = Lists.newArrayList();</span>
+<span class="fc bfc" id="L363" title="All 2 branches covered.">        if (data.getValueCount() &gt; 0) {</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">            for (EntityData.Value val : data.getValueList()) {</span>
+<span class="fc" id="L365">                result.add(new ProtobufPersistedData(val));</span>
+<span class="fc" id="L366">            }</span>
+<span class="pc bpc" id="L367" title="1 of 2 branches missed.">        } else if (data.getFloatCount() &gt; 0) {</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getFloatCount(); ++i) {</span>
+<span class="nc" id="L369">                result.add(new PersistedFloat(data.getFloat(i)));</span>
+            }
+<span class="pc bpc" id="L371" title="1 of 2 branches missed.">        } else if (data.getIntegerCount() &gt; 0) {</span>
+<span class="nc bnc" id="L372" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getIntegerCount(); ++i) {</span>
+<span class="nc" id="L373">                result.add(new PersistedInteger(data.getInteger(i)));</span>
+            }
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">        } else if (data.getDoubleCount() &gt; 0) {</span>
+<span class="nc bnc" id="L376" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getDoubleCount(); ++i) {</span>
+<span class="nc" id="L377">                result.add(new PersistedDouble(data.getDouble(i)));</span>
+            }
+<span class="pc bpc" id="L379" title="1 of 2 branches missed.">        } else if (data.getBooleanCount() &gt; 0) {</span>
+<span class="nc bnc" id="L380" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getBooleanCount(); ++i) {</span>
+<span class="nc" id="L381">                result.add(new PersistedBoolean(data.getBoolean(i)));</span>
+            }
+<span class="pc bpc" id="L383" title="1 of 2 branches missed.">        } else if (data.getLongCount() &gt; 0) {</span>
+<span class="nc bnc" id="L384" title="All 2 branches missed.">            for (int i = 0; i &lt; data.getLongCount(); ++i) {</span>
+<span class="nc" id="L385">                result.add(new PersistedLong(data.getLong(i)));</span>
+            }
+<span class="pc bpc" id="L387" title="1 of 2 branches missed.">        } else if (data.getStringCount() &gt; 0) {</span>
+<span class="fc bfc" id="L388" title="All 2 branches covered.">            for (int i = 0; i &lt; data.getStringCount(); ++i) {</span>
+<span class="fc" id="L389">                result.add(new PersistedString(data.getString(i)));</span>
+            }
+<span class="nc bnc" id="L391" title="All 2 branches missed.">        } else if (data.getNameValueCount() &gt; 0) {</span>
+<span class="nc" id="L392">            result.add(new ProtobufPersistedData(data));</span>
+<span class="nc bnc" id="L393" title="All 2 branches missed.">        } else if (data.hasBytes()) {</span>
+<span class="nc" id="L394">            throw new IllegalStateException(&quot;Data is not an array: &quot; + data.toString());</span>
+        }
+<span class="fc" id="L396">        return result;</span>
+    }
+
+    @Override
+    public Iterator&lt;PersistedData&gt; iterator() {
+<span class="fc" id="L401">        return getAsValueArray().iterator();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

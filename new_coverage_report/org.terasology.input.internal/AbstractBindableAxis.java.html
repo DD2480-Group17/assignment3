@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractBindableAxis.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.input.internal</a> &gt; <span class="el_source">AbstractBindableAxis.java</span></div><h1>AbstractBindableAxis.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.input.internal;
+
+import com.google.common.collect.Lists;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.input.BindAxisEvent;
+import org.terasology.input.BindAxisSubscriber;
+import org.terasology.input.BindableAxis;
+import org.terasology.input.SendEventMode;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+
+import java.util.List;
+
+/**
+ * Implements common functionality of {@link BindableAxis}.
+ */
+public abstract class AbstractBindableAxis implements BindableAxis {
+    private String id;
+    private BindAxisEvent event;
+    private float value;
+
+<span class="nc" id="L38">    private List&lt;BindAxisSubscriber&gt; subscribers = Lists.newArrayList();</span>
+
+<span class="nc" id="L40">    private SendEventMode sendEventMode = SendEventMode.WHEN_NON_ZERO;</span>
+
+<span class="nc" id="L42">    public AbstractBindableAxis(String id, BindAxisEvent event) {</span>
+<span class="nc" id="L43">        this.id = id;</span>
+<span class="nc" id="L44">        this.event = event;</span>
+<span class="nc" id="L45">    }</span>
+
+    @Override
+    public String getId() {
+<span class="nc" id="L49">        return id;</span>
+    }
+
+    @Override
+    public void setSendEventMode(SendEventMode mode) {
+<span class="nc" id="L54">        sendEventMode = mode;</span>
+<span class="nc" id="L55">    }</span>
+
+    @Override
+    public SendEventMode getSendEventMode() {
+<span class="nc" id="L59">        return sendEventMode;</span>
+    }
+
+    @Override
+    public void subscribe(BindAxisSubscriber subscriber) {
+<span class="nc" id="L64">        this.subscribers.add(subscriber);</span>
+<span class="nc" id="L65">    }</span>
+
+    @Override
+    public void unsubscribe(BindAxisSubscriber subscriber) {
+<span class="nc" id="L69">        this.subscribers.remove(subscriber);</span>
+<span class="nc" id="L70">    }</span>
+
+    @Override
+    public float getValue() {
+<span class="nc" id="L74">        return value;</span>
+    }
+
+    public void update(EntityRef[] inputEntities, float delta, EntityRef target, Vector3i targetBlockPos, Vector3f hitPosition, Vector3f hitNormal) {
+
+        // TODO: Interpolate, based on some settings (immediate, linear, lerp?)
+
+<span class="nc" id="L81">        float newValue = getTargetValue();</span>
+
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        if (sendEventMode.shouldSendEvent(value, newValue)) {</span>
+<span class="nc" id="L84">            event.prepare(id, newValue, delta);</span>
+<span class="nc" id="L85">            event.setTargetInfo(target, targetBlockPos, hitPosition, hitNormal);</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">            for (EntityRef entity : inputEntities) {</span>
+<span class="nc" id="L87">                entity.send(event);</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                if (event.isConsumed()) {</span>
+<span class="nc" id="L89">                    break;</span>
+                }
+            }
+<span class="nc" id="L92">            sendEventToSubscribers(delta, target);</span>
+        }
+<span class="nc" id="L94">        value = newValue;</span>
+<span class="nc" id="L95">    }</span>
+
+    protected abstract float getTargetValue();
+
+    private void sendEventToSubscribers(float delta, EntityRef target) {
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        for (BindAxisSubscriber subscriber : subscribers) {</span>
+<span class="nc" id="L101">            subscriber.update(value, delta, target);</span>
+<span class="nc" id="L102">        }</span>
+<span class="nc" id="L103">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

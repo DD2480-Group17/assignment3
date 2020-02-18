@@ -1,0 +1,1001 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetworkSystemImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.network.internal</a> &gt; <span class="el_source">NetworkSystemImpl.java</span></div><h1>NetworkSystemImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.network.internal;
+
+import com.google.common.base.Objects;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Queues;
+import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
+import com.google.protobuf.ByteString;
+import gnu.trove.map.TIntLongMap;
+import gnu.trove.map.hash.TIntLongHashMap;
+import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelException;
+import org.jboss.netty.channel.ChannelFactory;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.group.ChannelGroup;
+import org.jboss.netty.channel.group.DefaultChannelGroup;
+import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
+import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.config.NetworkConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.Time;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.module.StandardModuleExtension;
+import org.terasology.engine.subsystem.common.hibernation.HibernationManager;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.entity.internal.EntityChangeSubscriber;
+import org.terasology.entitySystem.entity.internal.OwnershipHelper;
+import org.terasology.entitySystem.event.Event;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
+import org.terasology.entitySystem.metadata.EventLibrary;
+import org.terasology.entitySystem.metadata.EventMetadata;
+import org.terasology.module.Module;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.network.Client;
+import org.terasology.network.JoinStatus;
+import org.terasology.network.NetworkComponent;
+import org.terasology.network.NetworkMode;
+import org.terasology.network.NetworkSystem;
+import org.terasology.network.Server;
+import org.terasology.network.events.ConnectedEvent;
+import org.terasology.network.events.DisconnectedEvent;
+import org.terasology.network.exceptions.HostingFailedException;
+import org.terasology.network.internal.pipelineFactory.TerasologyClientPipelineFactory;
+import org.terasology.network.internal.pipelineFactory.TerasologyServerPipelineFactory;
+import org.terasology.network.serialization.NetComponentSerializeCheck;
+import org.terasology.network.serialization.NetEntityRefTypeHandler;
+import org.terasology.persistence.PlayerStore;
+import org.terasology.persistence.StorageManager;
+import org.terasology.persistence.serializers.EventSerializer;
+import org.terasology.persistence.serializers.NetworkEntitySerializer;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.protobuf.NetData;
+import org.terasology.reflection.metadata.ClassLibrary;
+import org.terasology.reflection.metadata.ClassMetadata;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.Color;
+import org.terasology.world.BlockEntityRegistry;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.family.BlockFamily;
+import org.terasology.world.chunks.remoteChunkProvider.RemoteChunkProvider;
+import org.terasology.world.generator.WorldGenerator;
+
+import java.net.BindException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Executors;
+
+/**
+ * Implementation of the Network System using Netty and TCP/IP
+ *
+ */
+public class NetworkSystemImpl implements EntityChangeSubscriber, NetworkSystem {
+<span class="fc" id="L113">    private static final Logger logger = LoggerFactory.getLogger(NetworkSystemImpl.class);</span>
+    private static final int OWNER_DEPTH_LIMIT = 50;
+    private static final int NET_TICK_RATE = 50;
+    private static final int NULL_NET_ID = 0;
+
+    // Shared
+    private Context context;
+    private Optional&lt;HibernationManager&gt; hibernationSettings;
+    private NetworkConfig config;
+<span class="fc" id="L122">    private NetworkMode mode = NetworkMode.NONE;</span>
+    private EngineEntityManager entityManager;
+    private ComponentLibrary componentLibrary;
+    private EventLibrary eventLibrary;
+    private EventSerializer eventSerializer;
+    private NetworkEntitySerializer entitySerializer;
+    private BlockManager blockManager;
+    private OwnershipHelper ownershipHelper;
+
+    private ChannelFactory factory;
+<span class="fc" id="L132">    private TIntLongMap netIdToEntityId = new TIntLongHashMap();</span>
+
+    private Time time;
+    private long nextNetworkTick;
+
+    private boolean kicked;
+
+    // Server only
+<span class="fc" id="L140">    private ChannelGroup allChannels = new DefaultChannelGroup(&quot;tera-channels&quot;);</span>
+<span class="fc" id="L141">    private BlockingQueue&lt;NetClient&gt; newClients = Queues.newLinkedBlockingQueue();</span>
+<span class="fc" id="L142">    private BlockingQueue&lt;NetClient&gt; disconnectedClients = Queues.newLinkedBlockingQueue();</span>
+<span class="fc" id="L143">    private int nextNetId = 1;</span>
+<span class="fc" id="L144">    private final Set&lt;Client&gt; clientList = Sets.newLinkedHashSet();</span>
+<span class="fc" id="L145">    private final Set&lt;NetClient&gt; netClientList = Sets.newLinkedHashSet();</span>
+<span class="fc" id="L146">    private Map&lt;EntityRef, Client&gt; clientPlayerLookup = Maps.newHashMap();</span>
+<span class="fc" id="L147">    private Map&lt;EntityRef, EntityRef&gt; ownerLookup = Maps.newHashMap();</span>
+<span class="fc" id="L148">    private SetMultimap&lt;EntityRef, EntityRef&gt; ownedLookup = HashMultimap.create();</span>
+    private StorageManager storageManager;
+
+    // Client only
+    private ServerImpl server;
+
+<span class="fc" id="L154">    public NetworkSystemImpl(Time time, Context context) {</span>
+<span class="fc" id="L155">        this.time = time;</span>
+<span class="fc" id="L156">        this.config = context.get(Config.class).getNetwork();</span>
+<span class="fc" id="L157">        this.hibernationSettings = Optional.ofNullable(context.get(HibernationManager.class));</span>
+<span class="fc" id="L158">    }</span>
+
+    @Override
+    public void host(int port, boolean dedicatedServer) throws HostingFailedException {
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        if (mode == NetworkMode.NONE) {</span>
+            try {
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">                if (hibernationSettings.isPresent()) {</span>
+<span class="nc" id="L165">                    hibernationSettings.get().setHibernationAllowed(false);</span>
+                }
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">                mode = dedicatedServer ? NetworkMode.DEDICATED_SERVER : NetworkMode.LISTEN_SERVER;</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">                for (EntityRef entity : entityManager.getEntitiesWith(NetworkComponent.class)) {</span>
+<span class="fc" id="L169">                    registerNetworkEntity(entity);</span>
+<span class="fc" id="L170">                }</span>
+<span class="fc" id="L171">                generateSerializationTables();</span>
+
+<span class="fc" id="L173">                factory = new NioServerSocketChannelFactory(Executors.newCachedThreadPool(), Executors.newCachedThreadPool());</span>
+<span class="fc" id="L174">                ServerBootstrap bootstrap = new ServerBootstrap(factory);</span>
+<span class="fc" id="L175">                bootstrap.setPipelineFactory(new TerasologyServerPipelineFactory(this));</span>
+<span class="fc" id="L176">                bootstrap.setOption(&quot;child.tcpNoDelay&quot;, true);</span>
+<span class="fc" id="L177">                bootstrap.setOption(&quot;child.keepAlive&quot;, true);</span>
+<span class="fc" id="L178">                Channel listenChannel = bootstrap.bind(new InetSocketAddress(port));</span>
+<span class="fc" id="L179">                allChannels.add(listenChannel);</span>
+<span class="fc" id="L180">                logger.info(&quot;Started server on port {}&quot;, port);</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">                if (config.getServerMOTD() != null) {</span>
+<span class="nc" id="L182">                    logger.info(&quot;Server MOTD is \&quot;{}\&quot;&quot;, config.getServerMOTD());</span>
+                } else {
+<span class="fc" id="L184">                    logger.info(&quot;No server MOTD is defined&quot;);</span>
+                }
+
+                // enumerate all network interfaces that listen
+<span class="fc" id="L188">                Enumeration&lt;NetworkInterface&gt; interfaces = NetworkInterface.getNetworkInterfaces();</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">                while (interfaces.hasMoreElements()) {</span>
+<span class="fc" id="L190">                    NetworkInterface ifc = interfaces.nextElement();</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">                    if (!ifc.isLoopback()) {</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">                        for (InterfaceAddress ifadr : ifc.getInterfaceAddresses()) {</span>
+<span class="fc" id="L193">                            InetAddress adr = ifadr.getAddress();</span>
+<span class="fc" id="L194">                            logger.info(&quot;Listening on network interface \&quot;{}\&quot;, hostname \&quot;{}\&quot; ({})&quot;,</span>
+<span class="fc" id="L195">                                    ifc.getDisplayName(), adr.getCanonicalHostName(), adr.getHostAddress());</span>
+<span class="fc" id="L196">                        }</span>
+                    }
+<span class="fc" id="L198">                }</span>
+
+<span class="fc" id="L200">                nextNetworkTick = time.getRealTimeInMs();</span>
+<span class="nc" id="L201">            } catch (SocketException e) {</span>
+<span class="nc" id="L202">                throw new HostingFailedException(&quot;Could not identify network interfaces&quot;, e);</span>
+<span class="nc" id="L203">            } catch (ChannelException e) {</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">                if (e.getCause() instanceof BindException) {</span>
+<span class="nc" id="L205">                    throw new HostingFailedException(&quot;Port already in use (are you already hosting a game?)&quot;, e.getCause());</span>
+                } else {
+<span class="nc" id="L207">                    throw new HostingFailedException(&quot;Failed to host game&quot;, e.getCause());</span>
+                }
+
+<span class="fc" id="L210">            }</span>
+        }
+<span class="fc" id="L212">    }</span>
+
+    @Override
+    public JoinStatus join(String address, int port) throws InterruptedException {
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">        if (mode == NetworkMode.NONE) {</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">            if (hibernationSettings.isPresent()) {</span>
+<span class="nc" id="L218">                hibernationSettings.get().setHibernationAllowed(false);</span>
+            }
+<span class="fc" id="L220">            factory = new NioClientSocketChannelFactory(Executors.newCachedThreadPool(), Executors.newCachedThreadPool());</span>
+<span class="fc" id="L221">            ClientBootstrap bootstrap = new ClientBootstrap(factory);</span>
+<span class="fc" id="L222">            bootstrap.setPipelineFactory(new TerasologyClientPipelineFactory(this));</span>
+<span class="fc" id="L223">            bootstrap.setOption(&quot;tcpNoDelay&quot;, true);</span>
+<span class="fc" id="L224">            bootstrap.setOption(&quot;keepAlive&quot;, true);</span>
+<span class="fc" id="L225">            ChannelFuture connectCheck = bootstrap.connect(new InetSocketAddress(address, port));</span>
+            try {
+<span class="fc" id="L227">                connectCheck.await();</span>
+<span class="nc" id="L228">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L229">                connectCheck.cancel();</span>
+<span class="nc" id="L230">                connectCheck.getChannel().getCloseFuture().awaitUninterruptibly();</span>
+<span class="nc" id="L231">                factory.releaseExternalResources();</span>
+<span class="nc" id="L232">                throw e;</span>
+<span class="fc" id="L233">            }</span>
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">            if (!connectCheck.isSuccess()) {</span>
+<span class="nc" id="L235">                logger.warn(&quot;Failed to connect to server&quot;, connectCheck.getCause());</span>
+<span class="nc" id="L236">                connectCheck.getChannel().getCloseFuture().awaitUninterruptibly();</span>
+<span class="nc" id="L237">                factory.releaseExternalResources();</span>
+<span class="nc" id="L238">                return new JoinStatusImpl(&quot;Failed to connect to server - &quot; + connectCheck.getCause().getMessage());</span>
+            } else {
+<span class="fc" id="L240">                allChannels.add(connectCheck.getChannel());</span>
+<span class="fc" id="L241">                ClientConnectionHandler connectionHandler = connectCheck.getChannel().getPipeline().get(ClientConnectionHandler.class);</span>
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">                if (connectionHandler == null) {</span>
+<span class="nc" id="L243">                    JoinStatusImpl status = new JoinStatusImpl();</span>
+<span class="nc" id="L244">                    status.setComplete();</span>
+<span class="nc" id="L245">                    return status;</span>
+                } else {
+<span class="fc" id="L247">                    return connectionHandler.getJoinStatus();</span>
+                }
+            }
+        }
+<span class="nc" id="L251">        return new JoinStatusImpl(&quot;Network system already active&quot;);</span>
+    }
+
+    @Override
+    public void shutdown() {
+<span class="fc" id="L256">        allChannels.close().awaitUninterruptibly();</span>
+        // Factory may be null if a local game session has happened, yet be initialized if networking has been used
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">        if (factory != null) {</span>
+<span class="fc" id="L259">            factory.releaseExternalResources();</span>
+        }
+<span class="fc" id="L261">        processPendingDisconnects();</span>
+<span class="fc" id="L262">        clientList.forEach(this::processRemovedClient);</span>
+<span class="fc" id="L263">        server = null;</span>
+<span class="fc" id="L264">        nextNetId = 1;</span>
+<span class="fc" id="L265">        netIdToEntityId.clear();</span>
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">        if (mode != NetworkMode.CLIENT) {</span>
+<span class="fc bfc" id="L267" title="All 2 branches covered.">            if (this.entityManager != null) {</span>
+<span class="fc bfc" id="L268" title="All 2 branches covered.">                for (EntityRef entity : entityManager.getEntitiesWith(NetworkComponent.class)) {</span>
+<span class="fc" id="L269">                    NetworkComponent netComp = entity.getComponent(NetworkComponent.class);</span>
+<span class="fc" id="L270">                    netComp.setNetworkId(0);</span>
+<span class="fc" id="L271">                    entity.saveComponent(netComp);</span>
+<span class="fc" id="L272">                }</span>
+<span class="fc" id="L273">                this.entityManager.unsubscribe(this);</span>
+            }
+        }
+<span class="fc" id="L276">        mode = NetworkMode.NONE;</span>
+<span class="fc" id="L277">        entityManager = null;</span>
+<span class="fc" id="L278">        eventLibrary = null;</span>
+<span class="fc" id="L279">        componentLibrary = null;</span>
+<span class="fc" id="L280">        eventSerializer = null;</span>
+<span class="fc" id="L281">        entitySerializer = null;</span>
+<span class="fc" id="L282">        clientList.clear();</span>
+<span class="fc" id="L283">        netClientList.clear();</span>
+<span class="fc" id="L284">        blockManager = null;</span>
+<span class="fc" id="L285">        ownerLookup.clear();</span>
+<span class="fc" id="L286">        ownedLookup.clear();</span>
+<span class="fc" id="L287">        ownershipHelper = null;</span>
+<span class="fc" id="L288">        storageManager = null;</span>
+<span class="fc" id="L289">        logger.info(&quot;Network shutdown&quot;);</span>
+<span class="fc" id="L290">    }</span>
+
+    @Override
+    public Client joinLocal(String preferredName, Color color) {
+<span class="nc" id="L294">        Client localClient = new LocalClient(preferredName, color, entityManager);</span>
+<span class="nc" id="L295">        clientList.add(localClient);</span>
+<span class="nc" id="L296">        clientPlayerLookup.put(localClient.getEntity(), localClient);</span>
+<span class="nc" id="L297">        connectClient(localClient);</span>
+<span class="nc" id="L298">        return localClient;</span>
+    }
+
+    @Override
+    public void update() {
+<span class="pc bpc" id="L303" title="1 of 2 branches missed.">        if (mode != NetworkMode.NONE) {</span>
+<span class="pc bpc" id="L304" title="1 of 2 branches missed.">            if (entityManager != null) {</span>
+<span class="fc" id="L305">                processPendingConnections();</span>
+<span class="fc" id="L306">                processPendingDisconnects();</span>
+<span class="fc" id="L307">                long currentTimer = time.getRealTimeInMs();</span>
+<span class="fc" id="L308">                boolean netTick = false;</span>
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">                if (currentTimer &gt; nextNetworkTick) {</span>
+<span class="nc" id="L310">                    nextNetworkTick += NET_TICK_RATE;</span>
+<span class="nc" id="L311">                    netTick = true;</span>
+                }
+<span class="fc" id="L313">                PerformanceMonitor.startActivity(&quot;Client update&quot;);</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">                for (Client client : clientList) {</span>
+<span class="fc" id="L315">                    client.update(netTick);</span>
+<span class="fc" id="L316">                }</span>
+<span class="fc" id="L317">                PerformanceMonitor.endActivity();</span>
+<span class="pc bpc" id="L318" title="1 of 2 branches missed.">                if (server != null) {</span>
+<span class="nc" id="L319">                    server.update(netTick);</span>
+                }
+            }
+        }
+<span class="fc" id="L323">    }</span>
+
+    private void processPendingDisconnects() {
+<span class="pc bpc" id="L326" title="1 of 2 branches missed.">        if (!disconnectedClients.isEmpty()) {</span>
+<span class="nc" id="L327">            List&lt;NetClient&gt; removedPlayers = Lists.newArrayListWithExpectedSize(disconnectedClients.size());</span>
+<span class="nc" id="L328">            disconnectedClients.drainTo(removedPlayers);</span>
+<span class="nc" id="L329">            removedPlayers.forEach(this::processRemovedClient);</span>
+        }
+<span class="fc" id="L331">    }</span>
+
+    private void processPendingConnections() {
+<span class="pc bpc" id="L334" title="1 of 2 branches missed.">        if (!newClients.isEmpty()) {</span>
+<span class="fc" id="L335">            List&lt;NetClient&gt; newPlayers = Lists.newArrayListWithExpectedSize(newClients.size());</span>
+<span class="fc" id="L336">            newClients.drainTo(newPlayers);</span>
+<span class="fc" id="L337">            newPlayers.forEach(this::processNewClient);</span>
+        }
+<span class="fc" id="L339">    }</span>
+
+    @Override
+    public NetworkMode getMode() {
+<span class="fc" id="L343">        return mode;</span>
+    }
+
+    @Override
+    public Server getServer() {
+<span class="nc" id="L348">        return this.server;</span>
+    }
+
+    @Override
+    public Iterable&lt;Client&gt; getPlayers() {
+<span class="nc" id="L353">        return this.clientList;</span>
+    }
+
+    @Override
+    public Client getOwner(EntityRef entity) {
+<span class="fc" id="L358">        EntityRef owner = getOwnerEntity(entity);</span>
+<span class="fc" id="L359">        return clientPlayerLookup.get(owner);</span>
+    }
+
+    NetClient getNetOwner(EntityRef entity) {
+<span class="fc" id="L363">        Client owner = getOwner(entity);</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">        if (owner instanceof NetClient) {</span>
+<span class="fc" id="L365">            return (NetClient) owner;</span>
+        }
+<span class="fc" id="L367">        return null;</span>
+    }
+
+    public int getBandwidthPerClient() {
+<span class="nc bnc" id="L371" title="All 2 branches missed.">        if (netClientList.size() &gt; 0) {</span>
+<span class="nc" id="L372">            return config.getUpstreamBandwidth() / netClientList.size();</span>
+        }
+<span class="nc" id="L374">        return config.getUpstreamBandwidth();</span>
+    }
+
+    @Override
+    public EntityRef getOwnerEntity(EntityRef entity) {
+<span class="fc" id="L379">        EntityRef owner = entity;</span>
+        //NetworkComponent ownerNetComp = entity.getComponent(NetworkComponent.class);
+<span class="fc" id="L381">        int i = 0;</span>
+<span class="pc bpc" id="L382" title="1 of 2 branches missed.">        while (i++ &lt; OWNER_DEPTH_LIMIT) {</span>
+<span class="fc" id="L383">            EntityRef nextOwner = owner.getOwner();</span>
+<span class="fc bfc" id="L384" title="All 2 branches covered.">            if (nextOwner.exists()) {</span>
+<span class="fc" id="L385">                owner = nextOwner;</span>
+            } else {
+                break;
+            }
+<span class="fc" id="L389">        }</span>
+<span class="fc" id="L390">        return owner;</span>
+    }
+
+    @Override
+    public void setRemoteWorldProvider(RemoteChunkProvider remoteWorldProvider) {
+<span class="nc" id="L395">        server.setRemoteWorldProvider(remoteWorldProvider);</span>
+<span class="nc" id="L396">    }</span>
+
+    public void registerClientNetworkEntity(int netId, long entityId) {
+<span class="nc" id="L399">        long oldId = netIdToEntityId.put(netId, entityId);</span>
+<span class="nc bnc" id="L400" title="All 4 branches missed.">        if (oldId != NULL_NET_ID &amp;&amp; oldId != entityId) {</span>
+<span class="nc" id="L401">            logger.error(&quot;Registered duplicate network id: {}&quot;, netId);</span>
+        } else {
+<span class="nc" id="L403">            logger.debug(&quot;Registered Network Entity: {}&quot;, netId);</span>
+        }
+<span class="nc" id="L405">    }</span>
+
+    public void registerNetworkEntity(EntityRef entity) {
+<span class="fc bfc" id="L408" title="All 2 branches covered.">        if (mode == NetworkMode.NONE) {</span>
+<span class="fc" id="L409">            return;</span>
+        }
+
+<span class="pc bpc" id="L412" title="1 of 2 branches missed.">        if (mode.isServer()) {</span>
+<span class="fc" id="L413">            NetworkComponent netComponent = entity.getComponent(NetworkComponent.class);</span>
+<span class="fc" id="L414">            netComponent.setNetworkId(nextNetId++);</span>
+<span class="fc" id="L415">            entity.saveComponent(netComponent);</span>
+<span class="fc" id="L416">            netIdToEntityId.put(netComponent.getNetworkId(), entity.getId());</span>
+<span class="fc bfc" id="L417" title="All 2 branches covered.">            switch (netComponent.replicateMode) {</span>
+                case OWNER:
+<span class="fc" id="L419">                    NetClient clientPlayer = getNetOwner(entity);</span>
+<span class="fc bfc" id="L420" title="All 2 branches covered.">                    if (clientPlayer != null) {</span>
+<span class="fc" id="L421">                        clientPlayer.setNetInitial(netComponent.getNetworkId());</span>
+                    }
+                    break;
+                default:
+<span class="fc bfc" id="L425" title="All 2 branches covered.">                    for (NetClient client : netClientList) {</span>
+                        // TODO: Relevance Check
+<span class="fc" id="L427">                        client.setNetInitial(netComponent.getNetworkId());</span>
+<span class="fc" id="L428">                    }</span>
+                    break;
+            }
+<span class="fc" id="L431">            EntityRef owner = entity.getOwner();</span>
+<span class="fc bfc" id="L432" title="All 2 branches covered.">            if (owner.exists()) {</span>
+<span class="fc" id="L433">                ownerLookup.put(entity, owner);</span>
+<span class="fc" id="L434">                ownedLookup.put(owner, entity);</span>
+            }
+        }
+
+<span class="fc" id="L438">    }</span>
+
+    public void updateOwnership(EntityRef entity) {
+<span class="fc" id="L441">        NetworkComponent netComponent = entity.getComponent(NetworkComponent.class);</span>
+<span class="pc bpc" id="L442" title="2 of 4 branches missed.">        if (netComponent == null || netComponent.getNetworkId() == NULL_NET_ID) {</span>
+<span class="nc" id="L443">            return;</span>
+        }
+
+<span class="fc" id="L446">        EntityRef lastOwnerEntity = ownerLookup.get(entity);</span>
+<span class="fc bfc" id="L447" title="All 2 branches covered.">        if (lastOwnerEntity == null) {</span>
+<span class="fc" id="L448">            lastOwnerEntity = EntityRef.NULL;</span>
+        }
+
+<span class="fc" id="L451">        EntityRef newOwnerEntity = entity.getOwner();</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">        if (!Objects.equal(lastOwnerEntity, newOwnerEntity)) {</span>
+<span class="fc" id="L453">            NetClient lastOwner = getNetOwner(lastOwnerEntity);</span>
+<span class="fc" id="L454">            NetClient newOwner = getNetOwner(newOwnerEntity);</span>
+
+<span class="pc bpc" id="L456" title="1 of 2 branches missed.">            if (!Objects.equal(lastOwner, newOwner)) {</span>
+<span class="fc" id="L457">                recursiveUpdateOwnership(entity, lastOwner, newOwner);</span>
+<span class="pc bpc" id="L458" title="1 of 2 branches missed.">                if (newOwner != null) {</span>
+<span class="fc" id="L459">                    int id = netComponent.getNetworkId();</span>
+<span class="fc bfc" id="L460" title="All 2 branches covered.">                    for (Component component : entity.iterateComponents()) {</span>
+<span class="pc bpc" id="L461" title="1 of 2 branches missed.">                        if (componentLibrary.getMetadata(component.getClass()).isReplicated()) {</span>
+<span class="fc" id="L462">                            newOwner.setComponentDirty(id, component.getClass());</span>
+                        }
+<span class="fc" id="L464">                    }</span>
+                }
+            }
+
+<span class="pc bpc" id="L468" title="1 of 2 branches missed.">            if (lastOwnerEntity.exists()) {</span>
+<span class="nc" id="L469">                ownedLookup.remove(lastOwnerEntity, entity);</span>
+            }
+<span class="pc bpc" id="L471" title="1 of 2 branches missed.">            if (newOwnerEntity.exists()) {</span>
+<span class="fc" id="L472">                ownerLookup.put(entity, newOwnerEntity);</span>
+<span class="fc" id="L473">                ownedLookup.put(newOwnerEntity, entity);</span>
+            } else {
+<span class="nc" id="L475">                ownerLookup.remove(entity);</span>
+            }
+        }
+<span class="fc" id="L478">    }</span>
+
+    private void recursiveUpdateOwnership(EntityRef entity, NetClient lastOwner, NetClient newOwner) {
+<span class="fc" id="L481">        NetworkComponent networkComponent = entity.getComponent(NetworkComponent.class);</span>
+<span class="pc bpc" id="L482" title="1 of 2 branches missed.">        if (networkComponent != null) {</span>
+<span class="pc bpc" id="L483" title="1 of 2 branches missed.">            if (networkComponent.replicateMode == NetworkComponent.ReplicateMode.OWNER) {</span>
+<span class="fc" id="L484">                logger.debug(&quot;{}'s owner changed from {} to {}, so replicating.&quot;, entity, lastOwner, newOwner);</span>
+                // Remove from last owner
+<span class="pc bpc" id="L486" title="1 of 2 branches missed.">                if (lastOwner != null) {</span>
+<span class="nc" id="L487">                    lastOwner.setNetRemoved(networkComponent.getNetworkId());</span>
+                }
+                // Add to new owner
+<span class="pc bpc" id="L490" title="1 of 2 branches missed.">                if (newOwner != null) {</span>
+<span class="fc" id="L491">                    newOwner.setNetInitial(networkComponent.getNetworkId());</span>
+                }
+            }
+<span class="fc bfc" id="L494" title="All 2 branches covered.">            for (EntityRef owned : ownedLookup.get(entity)) {</span>
+<span class="fc" id="L495">                recursiveUpdateOwnership(owned, lastOwner, newOwner);</span>
+<span class="fc" id="L496">            }</span>
+        }
+<span class="fc" id="L498">    }</span>
+
+    public void unregisterClientNetworkEntity(int netId) {
+<span class="nc" id="L501">        netIdToEntityId.remove(netId);</span>
+<span class="nc" id="L502">    }</span>
+
+    public void unregisterNetworkEntity(EntityRef entity) {
+<span class="nc bnc" id="L505" title="All 2 branches missed.">        if (mode != NetworkMode.CLIENT) {</span>
+<span class="nc" id="L506">            NetworkComponent netComponent = entity.getComponent(NetworkComponent.class);</span>
+<span class="nc bnc" id="L507" title="All 2 branches missed.">            if (netComponent != null) {</span>
+<span class="nc" id="L508">                logger.debug(&quot;Unregistering network entity: {} with netId {}&quot;, entity, netComponent.getNetworkId());</span>
+<span class="nc" id="L509">                netIdToEntityId.remove(netComponent.getNetworkId());</span>
+<span class="nc bnc" id="L510" title="All 2 branches missed.">                if (mode.isServer()) {</span>
+<span class="nc bnc" id="L511" title="All 2 branches missed.">                    for (NetClient client : netClientList) {</span>
+<span class="nc" id="L512">                        client.setNetRemoved(netComponent.getNetworkId());</span>
+<span class="nc" id="L513">                    }</span>
+                }
+<span class="nc" id="L515">                netComponent.setNetworkId(NULL_NET_ID);</span>
+<span class="nc" id="L516">                entity.saveComponent(netComponent);</span>
+            }
+        }
+<span class="nc" id="L519">        ownerLookup.remove(entity);</span>
+<span class="nc" id="L520">    }</span>
+
+    @Override
+    public void connectToEntitySystem(EngineEntityManager newEntityManager, EventLibrary newEventLibrary, BlockEntityRegistry blockEntityRegistry) {
+<span class="pc bpc" id="L524" title="1 of 2 branches missed.">        if (this.entityManager != null) {</span>
+<span class="nc" id="L525">            this.entityManager.unsubscribe(this);</span>
+        }
+<span class="fc" id="L527">        this.entityManager = newEntityManager;</span>
+<span class="fc" id="L528">        this.entityManager.subscribeForChanges(this);</span>
+<span class="fc" id="L529">        this.blockManager = context.get(BlockManager.class);</span>
+<span class="fc" id="L530">        this.ownershipHelper = new OwnershipHelper(newEntityManager.getComponentLibrary());</span>
+<span class="fc" id="L531">        this.storageManager = context.get(StorageManager.class);</span>
+<span class="fc" id="L532">        this.eventLibrary = newEventLibrary;</span>
+<span class="fc" id="L533">        this.componentLibrary = entityManager.getComponentLibrary();</span>
+
+<span class="fc" id="L535">        context.get(ComponentSystemManager.class).register(new NetworkEntitySystem(this), &quot;engine:networkEntitySystem&quot;);</span>
+
+<span class="fc" id="L537">        TypeHandlerLibrary typeHandlerLibrary = new TypeHandlerLibrary(entityManager.getTypeSerializerLibrary());</span>
+<span class="fc" id="L538">        typeHandlerLibrary.addTypeHandler(EntityRef.class, new NetEntityRefTypeHandler(this, blockEntityRegistry));</span>
+        // TODO: Add network override types here (that use id lookup tables)
+
+<span class="fc" id="L541">        eventSerializer = new EventSerializer(eventLibrary, typeHandlerLibrary);</span>
+<span class="fc" id="L542">        entitySerializer = new NetworkEntitySerializer(newEntityManager, entityManager.getComponentLibrary(), typeHandlerLibrary);</span>
+<span class="fc" id="L543">        entitySerializer.setComponentSerializeCheck(new NetComponentSerializeCheck());</span>
+
+<span class="pc bpc" id="L545" title="1 of 2 branches missed.">        if (mode == NetworkMode.CLIENT) {</span>
+<span class="nc" id="L546">            entityManager.setEntityRefStrategy(new NetworkClientRefStrategy(this));</span>
+<span class="nc" id="L547">            applySerializationTables();</span>
+        }
+
+<span class="pc bpc" id="L550" title="1 of 2 branches missed.">        if (server != null) {</span>
+<span class="nc" id="L551">            server.connectToEntitySystem(newEntityManager, entitySerializer, eventSerializer, blockEntityRegistry);</span>
+        }
+<span class="fc" id="L553">    }</span>
+
+    @Override
+    public void onEntityComponentAdded(EntityRef entity, Class&lt;? extends Component&gt; component) {
+<span class="fc" id="L557">        ComponentMetadata&lt;? extends Component&gt; metadata = componentLibrary.getMetadata(component);</span>
+<span class="fc" id="L558">        NetworkComponent netComp = entity.getComponent(NetworkComponent.class);</span>
+<span class="pc bpc" id="L559" title="2 of 4 branches missed.">        if (netComp != null &amp;&amp; netComp.getNetworkId() != NULL_NET_ID) {</span>
+<span class="pc bpc" id="L560" title="1 of 2 branches missed.">            if (mode.isServer()) {</span>
+<span class="pc bpc" id="L561" title="1 of 2 branches missed.">                if (metadata.isReplicated()) {</span>
+<span class="fc bfc" id="L562" title="All 2 branches covered.">                    for (NetClient client : netClientList) {</span>
+<span class="fc" id="L563">                        logger.info(&quot;Component {} added to {}&quot;, component, entity);</span>
+<span class="fc" id="L564">                        client.setComponentAdded(netComp.getNetworkId(), component);</span>
+<span class="fc" id="L565">                    }</span>
+                }
+            }
+        }
+<span class="fc" id="L569">        updatedOwnedEntities(entity, component, metadata);</span>
+<span class="fc" id="L570">    }</span>
+
+    @Override
+    public void onEntityComponentRemoved(EntityRef entity, Class&lt;? extends Component&gt; component) {
+<span class="nc" id="L574">        ComponentMetadata&lt;? extends Component&gt; metadata = componentLibrary.getMetadata(component);</span>
+<span class="nc" id="L575">        NetworkComponent netComp = entity.getComponent(NetworkComponent.class);</span>
+<span class="nc bnc" id="L576" title="All 4 branches missed.">        if (netComp != null &amp;&amp; netComp.getNetworkId() != NULL_NET_ID) {</span>
+<span class="nc bnc" id="L577" title="All 2 branches missed.">            if (mode.isServer()) {</span>
+<span class="nc bnc" id="L578" title="All 2 branches missed.">                if (metadata.isReplicated()) {</span>
+<span class="nc bnc" id="L579" title="All 2 branches missed.">                    for (NetClient client : netClientList) {</span>
+<span class="nc" id="L580">                        logger.info(&quot;Component {} removed from {}&quot;, component, entity);</span>
+<span class="nc" id="L581">                        client.setComponentRemoved(netComp.getNetworkId(), component);</span>
+<span class="nc" id="L582">                    }</span>
+                }
+            }
+        }
+<span class="nc bnc" id="L586" title="All 4 branches missed.">        if (mode.isAuthority() &amp;&amp; metadata.isReferenceOwner()) {</span>
+<span class="nc" id="L587">            ownershipHelper.listOwnedEntities(entity.getComponent(component)).forEach(EntityRef::destroy);</span>
+        }
+<span class="nc" id="L589">    }</span>
+
+    @Override
+    public void onReactivation(EntityRef entity, Collection&lt;Component&gt; components) {
+        // TODO decide if reactivaton should be transfred.
+<span class="nc" id="L594">    }</span>
+
+    @Override
+    public void onBeforeDeactivation(EntityRef entity, Collection&lt;Component&gt; components) {
+        // TODO decide if activations should be transfred.
+<span class="nc" id="L599">    }</span>
+
+    @Override
+    public void onEntityComponentChange(EntityRef entity, Class&lt;? extends Component&gt; component) {
+<span class="fc" id="L603">        NetworkComponent netComp = entity.getComponent(NetworkComponent.class);</span>
+<span class="fc" id="L604">        ComponentMetadata&lt;? extends Component&gt; metadata = componentLibrary.getMetadata(component);</span>
+<span class="pc bpc" id="L605" title="1 of 4 branches missed.">        if (netComp != null &amp;&amp; netComp.getNetworkId() != NULL_NET_ID) {</span>
+<span class="pc bpc" id="L606" title="2 of 3 branches missed.">            switch (mode) {</span>
+                case LISTEN_SERVER:
+                case DEDICATED_SERVER:
+<span class="pc bpc" id="L609" title="1 of 2 branches missed.">                    if (metadata.isReplicated()) {</span>
+<span class="fc bfc" id="L610" title="All 2 branches covered.">                        for (NetClient client : netClientList) {</span>
+<span class="fc" id="L611">                            client.setComponentDirty(netComp.getNetworkId(), component);</span>
+<span class="fc" id="L612">                        }</span>
+                    }
+                    break;
+                case CLIENT:
+<span class="nc bnc" id="L616" title="All 6 branches missed.">                    if (server != null &amp;&amp; metadata.isReplicatedFromOwner() &amp;&amp; getOwnerEntity(entity).equals(server.getClientEntity())) {</span>
+<span class="nc" id="L617">                        server.setComponentDirty(netComp.getNetworkId(), component);</span>
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+<span class="fc" id="L624">        updatedOwnedEntities(entity, component, metadata);</span>
+<span class="fc" id="L625">    }</span>
+
+    private void updatedOwnedEntities(EntityRef entity, Class&lt;? extends Component&gt; component, ComponentMetadata&lt;? extends Component&gt; metadata) {
+<span class="pc bpc" id="L628" title="2 of 4 branches missed.">        if (mode.isAuthority() &amp;&amp; metadata.isReferenceOwner()) {</span>
+<span class="nc bnc" id="L629" title="All 2 branches missed.">            for (EntityRef ownedEntity : ownershipHelper.listOwnedEntities(entity.getComponent(component))) {</span>
+<span class="nc" id="L630">                EntityRef previousOwner = ownedEntity.getOwner();</span>
+<span class="nc bnc" id="L631" title="All 2 branches missed.">                if (!previousOwner.equals(entity)) {</span>
+<span class="nc" id="L632">                    ownedEntity.setOwner(entity);</span>
+                }
+<span class="nc" id="L634">            }</span>
+        }
+<span class="fc" id="L636">    }</span>
+
+    /**
+     * @return The number of received messages since last request
+     */
+    @Override
+    public int getIncomingMessagesDelta() {
+<span class="nc bnc" id="L643" title="All 3 branches missed.">        switch (mode) {</span>
+            case LISTEN_SERVER:
+            case DEDICATED_SERVER:
+<span class="nc" id="L646">                int total = 0;</span>
+<span class="nc bnc" id="L647" title="All 2 branches missed.">                for (NetClient client : netClientList) {</span>
+<span class="nc" id="L648">                    total += client.getMetrics().getReceivedMessagesSinceLastCall();</span>
+<span class="nc" id="L649">                }</span>
+<span class="nc" id="L650">                return total;</span>
+            case CLIENT:
+<span class="nc bnc" id="L652" title="All 2 branches missed.">                if (server != null) {</span>
+<span class="nc" id="L653">                    return server.getMetrics().getReceivedMessagesSinceLastCall();</span>
+                }
+<span class="nc" id="L655">                return 0;</span>
+            default:
+<span class="nc" id="L657">                return 0;</span>
+        }
+    }
+
+    /**
+     * @return The number of received bytes since last request
+     */
+    @Override
+    public int getIncomingBytesDelta() {
+<span class="nc bnc" id="L666" title="All 3 branches missed.">        switch (mode) {</span>
+            case LISTEN_SERVER:
+            case DEDICATED_SERVER:
+<span class="nc" id="L669">                int total = 0;</span>
+<span class="nc bnc" id="L670" title="All 2 branches missed.">                for (NetClient client : netClientList) {</span>
+<span class="nc" id="L671">                    total += client.getMetrics().getReceivedBytesSinceLastCall();</span>
+<span class="nc" id="L672">                }</span>
+<span class="nc" id="L673">                return total;</span>
+            case CLIENT:
+<span class="nc bnc" id="L675" title="All 2 branches missed.">                if (server != null) {</span>
+<span class="nc" id="L676">                    return server.getMetrics().getReceivedBytesSinceLastCall();</span>
+                }
+<span class="nc" id="L678">                return 0;</span>
+            default:
+<span class="nc" id="L680">                return 0;</span>
+        }
+    }
+
+    @Override
+    public int getOutgoingMessagesDelta() {
+<span class="nc bnc" id="L686" title="All 3 branches missed.">        switch (mode) {</span>
+            case LISTEN_SERVER:
+            case DEDICATED_SERVER:
+<span class="nc" id="L689">                int total = 0;</span>
+<span class="nc bnc" id="L690" title="All 2 branches missed.">                for (NetClient client : netClientList) {</span>
+<span class="nc" id="L691">                    total += client.getMetrics().getSentMessagesSinceLastCall();</span>
+<span class="nc" id="L692">                }</span>
+<span class="nc" id="L693">                return total;</span>
+            case CLIENT:
+<span class="nc bnc" id="L695" title="All 2 branches missed.">                if (server != null) {</span>
+<span class="nc" id="L696">                    return server.getMetrics().getSentMessagesSinceLastCall();</span>
+                }
+<span class="nc" id="L698">                return 0;</span>
+            default:
+<span class="nc" id="L700">                return 0;</span>
+        }
+    }
+
+    @Override
+    public int getOutgoingBytesDelta() {
+<span class="nc bnc" id="L706" title="All 3 branches missed.">        switch (mode) {</span>
+            case LISTEN_SERVER:
+            case DEDICATED_SERVER:
+<span class="nc" id="L709">                int total = 0;</span>
+<span class="nc bnc" id="L710" title="All 2 branches missed.">                for (NetClient client : netClientList) {</span>
+<span class="nc" id="L711">                    total += client.getMetrics().getSentBytesSinceLastCall();</span>
+<span class="nc" id="L712">                }</span>
+<span class="nc" id="L713">                return total;</span>
+            case CLIENT:
+<span class="nc bnc" id="L715" title="All 2 branches missed.">                if (server != null) {</span>
+<span class="nc" id="L716">                    return server.getMetrics().getSentBytesSinceLastCall();</span>
+                }
+<span class="nc" id="L718">                return 0;</span>
+            default:
+<span class="nc" id="L720">                return 0;</span>
+        }
+    }
+
+    long getEntityId(int netId) {
+<span class="nc" id="L725">        return netIdToEntityId.get(netId);</span>
+    }
+
+    public EntityRef getEntity(int netId) {
+<span class="nc bnc" id="L729" title="All 2 branches missed.">        if (mode == NetworkMode.CLIENT) {</span>
+<span class="nc bnc" id="L730" title="All 2 branches missed.">            if (entityManager != null) {</span>
+<span class="nc" id="L731">                return new NetEntityRef(netId, this, entityManager);</span>
+            } else {
+<span class="nc" id="L733">                logger.error(&quot;Requesting entity before entity manager set up&quot;);</span>
+            }
+        } else {
+<span class="nc" id="L736">            long entityId = netIdToEntityId.get(netId);</span>
+<span class="nc bnc" id="L737" title="All 4 branches missed.">            if (entityManager != null &amp;&amp; entityId != NULL_NET_ID) {</span>
+<span class="nc" id="L738">                return entityManager.getEntity(entityId);</span>
+            }
+        }
+<span class="nc" id="L741">        return EntityRef.NULL;</span>
+    }
+
+    @Override
+    public void forceDisconnect(Client client) {
+<span class="nc bnc" id="L746" title="All 2 branches missed.">        if (client instanceof NetClient) {</span>
+<span class="nc" id="L747">            NetClient nc = (NetClient) client;</span>
+<span class="nc" id="L748">            removeKickedClient(nc);</span>
+        }
+<span class="nc" id="L750">    }</span>
+
+    /**
+     * Sets the context within which this system should operate
+     * @param context
+     */
+    @Override
+    public void setContext(Context context) {
+<span class="fc" id="L758">        this.context = context;</span>
+<span class="fc" id="L759">    }</span>
+
+    void removeKickedClient(NetClient client) {
+<span class="nc" id="L762">        kicked = true;</span>
+<span class="nc" id="L763">        disconnectedClients.offer(client);</span>
+<span class="nc" id="L764">    }</span>
+
+    void registerChannel(Channel channel) {
+<span class="fc" id="L767">        allChannels.add(channel);</span>
+<span class="fc" id="L768">    }</span>
+
+    void addClient(NetClient client) {
+<span class="fc" id="L771">        newClients.offer(client);</span>
+<span class="fc" id="L772">    }</span>
+
+    void removeClient(NetClient client) {
+<span class="nc bnc" id="L775" title="All 2 branches missed.">        if (!kicked) {</span>
+<span class="nc" id="L776">            disconnectedClients.offer(client);</span>
+        }
+<span class="nc" id="L778">    }</span>
+
+    private void processRemovedClient(Client client) {
+<span class="nc bnc" id="L781" title="All 2 branches missed.">        if (client instanceof NetClient) {</span>
+<span class="nc" id="L782">            ServerConnectListManager serverConnectListManager = context.get(ServerConnectListManager.class);</span>
+<span class="nc bnc" id="L783" title="All 2 branches missed.">            if (!serverConnectListManager.isClientAllowedToConnect(client.getId())) {</span>
+<span class="nc" id="L784">                return;</span>
+            }
+<span class="nc" id="L786">            NetClient netClient = (NetClient) client;</span>
+<span class="nc" id="L787">            netClientList.remove(netClient);</span>
+        }
+<span class="nc" id="L789">        clientList.remove(client);</span>
+<span class="nc" id="L790">        clientPlayerLookup.remove(client.getEntity());</span>
+<span class="nc" id="L791">        logger.info(&quot;Client disconnected: &quot; + client.getName());</span>
+<span class="nc" id="L792">        storageManager.deactivatePlayer(client);</span>
+<span class="nc" id="L793">        client.getEntity().send(new DisconnectedEvent());</span>
+<span class="nc" id="L794">        client.disconnect();</span>
+<span class="nc" id="L795">    }</span>
+
+    private void processNewClient(NetClient client) {
+<span class="fc" id="L798">        ServerConnectListManager serverConnectListManager = context.get(ServerConnectListManager.class);</span>
+<span class="pc bpc" id="L799" title="1 of 2 branches missed.">        if (!serverConnectListManager.isClientAllowedToConnect(client.getId())) {</span>
+<span class="nc" id="L800">            String errorMessage = serverConnectListManager.getErrorMessage(client.getId());</span>
+<span class="nc" id="L801">            client.send(NetData.NetMessage.newBuilder().setServerInfo(getServerInfoMessage(errorMessage)).build());</span>
+<span class="nc" id="L802">            forceDisconnect(client);</span>
+            // reset kicked status so the next connection is set correctly
+<span class="nc" id="L804">            kicked = false;</span>
+<span class="nc" id="L805">            return;</span>
+        }
+
+<span class="fc" id="L808">        client.connected(entityManager, entitySerializer, eventSerializer, eventLibrary);</span>
+<span class="fc" id="L809">        client.send(NetData.NetMessage.newBuilder().setJoinComplete(</span>
+<span class="fc" id="L810">                NetData.JoinCompleteMessage.newBuilder().setClientId(client.getEntity().getComponent(NetworkComponent.class).getNetworkId())).build());</span>
+<span class="fc" id="L811">        clientList.add(client);</span>
+<span class="fc" id="L812">        netClientList.add(client);</span>
+<span class="fc" id="L813">        clientPlayerLookup.put(client.getEntity(), client);</span>
+
+<span class="fc" id="L815">        connectClient(client);</span>
+
+        // log after connect so that the name has been set:
+<span class="fc" id="L818">        logger.info(&quot;New client entity: {}&quot;, client.getEntity());</span>
+<span class="fc bfc" id="L819" title="All 2 branches covered.">        for (EntityRef netEntity : entityManager.getEntitiesWith(NetworkComponent.class)) {</span>
+<span class="fc" id="L820">            NetworkComponent netComp = netEntity.getComponent(NetworkComponent.class);</span>
+<span class="pc bpc" id="L821" title="1 of 2 branches missed.">            if (netComp.getNetworkId() != NULL_NET_ID) {</span>
+<span class="fc bfc" id="L822" title="All 2 branches covered.">                switch (netComp.replicateMode) {</span>
+                    case OWNER:
+<span class="fc bfc" id="L824" title="All 2 branches covered.">                        if (client.equals(getOwner(netEntity))) {</span>
+<span class="fc" id="L825">                            client.setNetInitial(netComp.getNetworkId());</span>
+                        }
+                        break;
+                    default:
+                        // TODO: Relevance Check
+<span class="fc" id="L830">                        client.setNetInitial(netComp.getNetworkId());</span>
+                        break;
+                }
+            }
+<span class="fc" id="L834">        }</span>
+<span class="fc" id="L835">    }</span>
+
+    private void connectClient(Client client) {
+<span class="fc" id="L838">        PlayerStore entityStore = storageManager.loadPlayerStore(client.getId());</span>
+<span class="fc" id="L839">        client.getEntity().send(new ConnectedEvent(entityStore));</span>
+<span class="fc" id="L840">    }</span>
+
+    NetData.ServerInfoMessage getServerInfoMessage() {
+<span class="nc" id="L843">        return getServerInfoMessage(null);</span>
+    }
+
+    private NetData.ServerInfoMessage getServerInfoMessage(String errorMessage) {
+<span class="fc" id="L847">        NetData.ServerInfoMessage.Builder serverInfoMessageBuilder = NetData.ServerInfoMessage.newBuilder();</span>
+<span class="fc" id="L848">        serverInfoMessageBuilder.setTime(time.getGameTimeInMs());</span>
+<span class="pc bpc" id="L849" title="1 of 2 branches missed.">        if (config.getServerMOTD() != null) {</span>
+<span class="nc" id="L850">            serverInfoMessageBuilder.setMOTD(config.getServerMOTD());</span>
+        }
+<span class="fc" id="L852">        serverInfoMessageBuilder.setOnlinePlayersAmount(clientList.size());</span>
+<span class="fc" id="L853">        WorldProvider worldProvider = context.get(WorldProvider.class);</span>
+<span class="pc bpc" id="L854" title="1 of 2 branches missed.">        if (worldProvider != null) {</span>
+<span class="fc" id="L855">            NetData.WorldInfo.Builder worldInfoBuilder = NetData.WorldInfo.newBuilder();</span>
+<span class="fc" id="L856">            worldInfoBuilder.setTime(worldProvider.getTime().getMilliseconds());</span>
+<span class="nc" id="L857">            worldInfoBuilder.setTitle(worldProvider.getTitle());</span>
+<span class="nc" id="L858">            serverInfoMessageBuilder.addWorldInfo(worldInfoBuilder);</span>
+        }
+<span class="nc" id="L860">        WorldGenerator worldGen = context.get(WorldGenerator.class);</span>
+<span class="nc bnc" id="L861" title="All 2 branches missed.">        if (worldGen != null) {</span>
+<span class="nc" id="L862">            serverInfoMessageBuilder.setReflectionHeight(worldGen.getWorld().getSeaLevel() + 0.5f);</span>
+        }
+<span class="nc bnc" id="L864" title="All 2 branches missed.">        for (Module module : CoreRegistry.get(ModuleManager.class).getEnvironment()) {</span>
+<span class="nc bnc" id="L865" title="All 2 branches missed.">            if (!StandardModuleExtension.isServerSideOnly(module)) {</span>
+<span class="nc" id="L866">                serverInfoMessageBuilder.addModule(NetData.ModuleInfo.newBuilder()</span>
+<span class="nc" id="L867">                        .setModuleId(module.getId().toString())</span>
+<span class="nc" id="L868">                        .setModuleVersion(module.getVersion().toString()).build());</span>
+            }
+<span class="nc" id="L870">        }</span>
+<span class="nc bnc" id="L871" title="All 2 branches missed.">        for (Map.Entry&lt;String, Short&gt; blockMapping : blockManager.getBlockIdMap().entrySet()) {</span>
+<span class="nc" id="L872">            serverInfoMessageBuilder.addBlockId(blockMapping.getValue());</span>
+<span class="nc" id="L873">            serverInfoMessageBuilder.addBlockName(blockMapping.getKey());</span>
+<span class="nc" id="L874">        }</span>
+<span class="nc bnc" id="L875" title="All 2 branches missed.">        for (BlockFamily registeredBlockFamily : blockManager.listRegisteredBlockFamilies()) {</span>
+<span class="nc" id="L876">            serverInfoMessageBuilder.addRegisterBlockFamily(registeredBlockFamily.getURI().toString());</span>
+<span class="nc" id="L877">        }</span>
+<span class="nc bnc" id="L878" title="All 4 branches missed.">        if (errorMessage != null &amp;&amp; !errorMessage.isEmpty()) {</span>
+<span class="nc" id="L879">            serverInfoMessageBuilder.setErrorMessage(errorMessage);</span>
+        }
+<span class="nc" id="L881">        serializeComponentInfo(serverInfoMessageBuilder);</span>
+<span class="nc" id="L882">        serializeEventInfo(serverInfoMessageBuilder);</span>
+
+<span class="nc" id="L884">        return serverInfoMessageBuilder.build();</span>
+    }
+
+    private void serializeEventInfo(NetData.ServerInfoMessage.Builder serverInfoMessageBuilder) {
+<span class="nc" id="L888">        Map&lt;Class&lt;? extends Event&gt;, Integer&gt; eventIdTable = eventSerializer.getIdMapping();</span>
+<span class="nc bnc" id="L889" title="All 2 branches missed.">        for (Map.Entry&lt;Class&lt;? extends Event&gt;, Integer&gt; eventMapping : eventIdTable.entrySet()) {</span>
+<span class="nc" id="L890">            ByteString.Output fieldIds = ByteString.newOutput();</span>
+<span class="nc" id="L891">            EventMetadata&lt;?&gt; metadata = eventLibrary.getMetadata(eventMapping.getKey());</span>
+<span class="nc" id="L892">            NetData.SerializationInfo.Builder info = NetData.SerializationInfo.newBuilder()</span>
+<span class="nc" id="L893">                    .setId(eventMapping.getValue())</span>
+<span class="nc" id="L894">                    .setName(metadata.getUri().toString());</span>
+<span class="nc bnc" id="L895" title="All 2 branches missed.">            for (FieldMetadata&lt;?, ?&gt; field : metadata.getFields()) {</span>
+<span class="nc" id="L896">                fieldIds.write(field.getId());</span>
+<span class="nc" id="L897">                info.addFieldName(field.getName());</span>
+<span class="nc" id="L898">            }</span>
+<span class="nc" id="L899">            info.setFieldIds(fieldIds.toByteString());</span>
+<span class="nc" id="L900">            serverInfoMessageBuilder.addEvent(info);</span>
+<span class="nc" id="L901">        }</span>
+<span class="nc" id="L902">    }</span>
+
+    private void serializeComponentInfo(NetData.ServerInfoMessage.Builder serverInfoMessageBuilder) {
+<span class="nc" id="L905">        Map&lt;Class&lt;? extends Component&gt;, Integer&gt; componentIdTable = entitySerializer.getIdMapping();</span>
+<span class="nc bnc" id="L906" title="All 2 branches missed.">        for (Map.Entry&lt;Class&lt;? extends Component&gt;, Integer&gt; componentIdMapping : componentIdTable.entrySet()) {</span>
+<span class="nc" id="L907">            ByteString.Output fieldIds = ByteString.newOutput();</span>
+<span class="nc" id="L908">            ComponentMetadata&lt;?&gt; metadata = componentLibrary.getMetadata(componentIdMapping.getKey());</span>
+<span class="nc" id="L909">            NetData.SerializationInfo.Builder info = NetData.SerializationInfo.newBuilder()</span>
+<span class="nc" id="L910">                    .setId(componentIdMapping.getValue())</span>
+<span class="nc" id="L911">                    .setName(metadata.getUri().toString());</span>
+<span class="nc bnc" id="L912" title="All 2 branches missed.">            for (FieldMetadata&lt;?, ?&gt; field : metadata.getFields()) {</span>
+<span class="nc" id="L913">                fieldIds.write(field.getId());</span>
+<span class="nc" id="L914">                info.addFieldName(field.getName());</span>
+<span class="nc" id="L915">            }</span>
+<span class="nc" id="L916">            info.setFieldIds(fieldIds.toByteString());</span>
+<span class="nc" id="L917">            serverInfoMessageBuilder.addComponent(info);</span>
+<span class="nc" id="L918">        }</span>
+<span class="nc" id="L919">    }</span>
+
+    void setServer(ServerImpl server) {
+<span class="nc bnc" id="L922" title="All 2 branches missed.">        if (server != null) {</span>
+<span class="nc" id="L923">            mode = NetworkMode.CLIENT;</span>
+<span class="nc" id="L924">            nextNetworkTick = time.getRealTimeInMs();</span>
+<span class="nc" id="L925">            logger.info(&quot;Connected to server&quot;);</span>
+        }
+<span class="nc" id="L927">        this.server = server;</span>
+
+<span class="nc" id="L929">    }</span>
+
+    private void generateSerializationTables() {
+<span class="fc" id="L932">        entitySerializer.setIdMapping(generateIds(componentLibrary));</span>
+<span class="fc" id="L933">        eventSerializer.setIdMapping(generateIds(eventLibrary));</span>
+<span class="fc" id="L934">    }</span>
+
+    private &lt;T&gt; Map&lt;Class&lt;? extends T&gt;, Integer&gt; generateIds(ClassLibrary&lt;T&gt; classLibrary) {
+<span class="fc" id="L937">        Map&lt;Class&lt;? extends T&gt;, Integer&gt; result = Maps.newHashMap();</span>
+<span class="fc bfc" id="L938" title="All 2 branches covered.">        for (ClassMetadata&lt;? extends T, ?&gt; metadata : classLibrary) {</span>
+<span class="fc" id="L939">            int index = result.size();</span>
+<span class="fc" id="L940">            result.put(metadata.getType(), index);</span>
+
+<span class="fc" id="L942">            int fieldId = 0;</span>
+<span class="fc bfc" id="L943" title="All 2 branches covered.">            for (FieldMetadata&lt;?, ?&gt; field : metadata.getFields()) {</span>
+<span class="pc bpc" id="L944" title="1 of 2 branches missed.">                if (fieldId &gt;= 256) {</span>
+<span class="nc" id="L945">                    logger.error(&quot;Class {} has too many fields (&gt;255), serialization will be incomplete&quot;, metadata.getUri());</span>
+<span class="nc" id="L946">                    break;</span>
+                }
+<span class="fc" id="L948">                field.setId((byte) fieldId);</span>
+<span class="fc" id="L949">                fieldId++;</span>
+<span class="fc" id="L950">            }</span>
+<span class="fc" id="L951">        }</span>
+<span class="fc" id="L952">        return result;</span>
+    }
+
+    private void applySerializationTables() {
+<span class="nc" id="L956">        NetData.ServerInfoMessage serverInfo = server.getRawInfo();</span>
+<span class="nc" id="L957">        entitySerializer.setIdMapping(applySerializationInfo(serverInfo.getComponentList(), componentLibrary));</span>
+<span class="nc" id="L958">        eventSerializer.setIdMapping(applySerializationInfo(serverInfo.getEventList(), eventLibrary));</span>
+<span class="nc" id="L959">    }</span>
+
+    private &lt;T&gt; Map&lt;Class&lt;? extends T&gt;, Integer&gt; applySerializationInfo(List&lt;NetData.SerializationInfo&gt; infoList, ClassLibrary&lt;T&gt; classLibrary) {
+<span class="nc" id="L962">        Map&lt;Class&lt;? extends T&gt;, Integer&gt; idTable = Maps.newHashMap();</span>
+<span class="nc bnc" id="L963" title="All 2 branches missed.">        for (NetData.SerializationInfo info : infoList) {</span>
+<span class="nc" id="L964">            ClassMetadata&lt;? extends T, ?&gt; metadata = classLibrary.getMetadata(new SimpleUri(info.getName()));</span>
+<span class="nc bnc" id="L965" title="All 2 branches missed.">            if (metadata != null) {</span>
+<span class="nc" id="L966">                idTable.put(metadata.getType(), info.getId());</span>
+<span class="nc bnc" id="L967" title="All 2 branches missed.">                for (int i = 0; i &lt; info.getFieldIds().size(); ++i) {</span>
+<span class="nc" id="L968">                    FieldMetadata&lt;?, ?&gt; field = metadata.getField(info.getFieldName(i));</span>
+<span class="nc bnc" id="L969" title="All 2 branches missed.">                    if (field != null) {</span>
+<span class="nc" id="L970">                        field.setId(info.getFieldIds().byteAt(i));</span>
+                    } else {
+<span class="nc" id="L972">                        logger.error(&quot;Server has unknown field '{}' on '{}'&quot;, info.getFieldName(i), info.getName());</span>
+                    }
+                }
+            } else {
+<span class="nc" id="L976">                logger.error(&quot;Server has unknown class '{}'&quot;, info.getName());</span>
+            }
+<span class="nc" id="L978">        }</span>
+<span class="nc" id="L979">        return idTable;</span>
+
+    }
+
+    /**
+     * Used for testing only
+     */
+    void mockHost() {
+<span class="fc" id="L987">        mode = NetworkMode.DEDICATED_SERVER;</span>
+<span class="fc" id="L988">    }</span>
+
+    @Override
+    public void onBlockFamilyRegistered(BlockFamily family) {
+<span class="nc bnc" id="L992" title="All 2 branches missed.">        if (mode.isServer()) {</span>
+<span class="nc bnc" id="L993" title="All 2 branches missed.">            for (NetClient client : netClientList) {</span>
+<span class="nc" id="L994">                client.blockFamilyRegistered(family);</span>
+<span class="nc" id="L995">            }</span>
+        }
+<span class="nc" id="L997">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

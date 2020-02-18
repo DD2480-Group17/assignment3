@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BloomBlurNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">BloomBlurNode.java</span></div><h1>BloomBlurNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.rendering.opengl.FBO;
+
+/**
+ * If bloom is enabled via the rendering settings, this method generates the blurred images needed
+ * for the bloom shader effect and stores them in their own frame buffers.
+ * &lt;p&gt;
+ * This effects renders adds fringes (or &quot;feathers&quot;) of light to areas of intense brightness.
+ * This in turn give the impression of those areas partially overwhelming the camera or the eye.
+ * &lt;p&gt;
+ * For more information see: http://en.wikipedia.org/wiki/Bloom_(shader_effect)
+ */
+public class BloomBlurNode extends BlurNode {
+<span class="nc" id="L34">    public static final SimpleUri HALF_SCALE_FBO_URI = new SimpleUri(&quot;engine:fbo.halfScaleBlurredBloom&quot;);</span>
+<span class="nc" id="L35">    public static final SimpleUri QUARTER_SCALE_FBO_URI = new SimpleUri(&quot;engine:fbo.quarterScaleBlurredBloom&quot;);</span>
+<span class="nc" id="L36">    public static final SimpleUri ONE_8TH_SCALE_FBO_URI = new SimpleUri(&quot;engine:fbo.one8thScaleBlurredBloom&quot;);</span>
+    private static final float BLUR_RADIUS = 12.0f;
+
+    /**
+     * Constructs a BloomBlurNode instance. This method must be called once shortly after instantiation
+     * to fully initialize the node and make it ready for rendering.
+     *
+     * @param inputFbo The input fbo, containing the image to be blurred.
+     * @param outputFbo The output fbo, to store the blurred image.
+     */
+    public BloomBlurNode(String nodeUri, Context context, FBO inputFbo, FBO outputFbo) {
+<span class="nc" id="L47">        super(nodeUri, context, inputFbo, outputFbo, BLUR_RADIUS);</span>
+
+<span class="nc" id="L49">        RenderingConfig renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L50">        requiresCondition(renderingConfig::isBloom);</span>
+<span class="nc" id="L51">        renderingConfig.subscribe(RenderingConfig.BLOOM, this);</span>
+<span class="nc" id="L52">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

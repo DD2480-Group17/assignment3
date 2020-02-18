@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultCelestialSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.sun</a> &gt; <span class="el_source">DefaultCelestialSystem.java</span></div><h1>DefaultCelestialSystem.java</h1><pre class="source lang-java linenums">/*
+  * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.sun;
+
+import com.google.common.math.LongMath;
+import org.terasology.context.Context;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.world.WorldComponent;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.time.WorldTime;
+
+import java.math.RoundingMode;
+
+import static org.terasology.world.time.WorldTime.DAY_LENGTH;
+
+/**
+ * A base class that fires events at different times of the day.
+ */
+public class DefaultCelestialSystem extends BaseComponentSystem implements CelestialSystem, UpdateSubscriberSystem {
+
+    private final WorldTime worldTime;
+
+    private long lastUpdate;
+
+    private final CelestialModel model;
+
+    private final EntityManager entityManager;
+
+<span class="fc" id="L46">    private boolean haltSunPosition = false;</span>
+
+<span class="fc" id="L48">    private float haltedTime = 0f;</span>
+
+<span class="fc" id="L50">    public DefaultCelestialSystem(CelestialModel model, Context context) {</span>
+<span class="fc" id="L51">        WorldProvider worldProvider = context.get(WorldProvider.class);</span>
+<span class="fc" id="L52">        entityManager = context.get(EntityManager.class);</span>
+<span class="fc" id="L53">        worldTime = worldProvider.getTime();</span>
+<span class="fc" id="L54">        lastUpdate = worldTime.getMilliseconds();</span>
+<span class="fc" id="L55">        this.model = model;</span>
+<span class="fc" id="L56">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L60">        fireEvents();</span>
+<span class="nc" id="L61">    }</span>
+
+    @Override
+    public float getSunPosAngle() {
+        float days;
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        if (isSunHalted()) {</span>
+<span class="nc" id="L67">            days = haltedTime;</span>
+        } else {
+<span class="nc" id="L69">            days = getWorldTime().getDays();</span>
+        }
+<span class="nc" id="L71">        return  model.getSunPosAngle(days);</span>
+    }
+
+    @Override
+    public boolean isSunHalted() {
+<span class="nc" id="L76">        return haltSunPosition;</span>
+    }
+
+    @Override
+    public void toggleSunHalting (float timeInDays) {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        haltSunPosition = !haltSunPosition;</span>
+<span class="nc" id="L82">        haltedTime = timeInDays;</span>
+<span class="nc" id="L83">    }</span>
+    /**
+     * Updates the game perception of the time of day via launching a new OnMiddayEvent(),
+     * OnDuskEvent(), OnMidnightEvent(), or OnDawnEvent() based on the time of day when
+     * this method is called upon.
+     */
+    protected void fireEvents() {
+<span class="nc" id="L90">        long startTime = worldTime.getMilliseconds();</span>
+<span class="nc" id="L91">        long delta = startTime - lastUpdate;</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (delta &gt; 0) {</span>
+<span class="nc" id="L93">            long timeInDay = LongMath.mod(startTime, DAY_LENGTH);</span>
+<span class="nc" id="L94">            long day = LongMath.divide(startTime, DAY_LENGTH, RoundingMode.FLOOR);</span>
+
+<span class="nc" id="L96">            long dawn = model.getDawn(day);</span>
+<span class="nc" id="L97">            long midday = model.getMidday(day);</span>
+<span class="nc" id="L98">            long dusk = model.getDusk(day);</span>
+<span class="nc" id="L99">            long midnight = model.getMidnight(day);</span>
+
+<span class="nc bnc" id="L101" title="All 4 branches missed.">            if (timeInDay - delta &lt; midday &amp;&amp; timeInDay &gt;= midday) {</span>
+<span class="nc" id="L102">                long tick = day * DAY_LENGTH + midday;</span>
+<span class="nc" id="L103">                getWorldEntity().send(new OnMiddayEvent(tick));</span>
+            }
+
+<span class="nc bnc" id="L106" title="All 4 branches missed.">            if (timeInDay - delta &lt; dusk &amp;&amp; timeInDay &gt;= dusk) {</span>
+<span class="nc" id="L107">                long tick = day * DAY_LENGTH + dusk;</span>
+<span class="nc" id="L108">                getWorldEntity().send(new OnDuskEvent(tick));</span>
+            }
+
+<span class="nc bnc" id="L111" title="All 4 branches missed.">            if (timeInDay - delta &lt; midnight &amp;&amp; timeInDay &gt;= midnight) {</span>
+<span class="nc" id="L112">                long tick = day * DAY_LENGTH + midnight;</span>
+<span class="nc" id="L113">                getWorldEntity().send(new OnMidnightEvent(tick));</span>
+            }
+
+<span class="nc bnc" id="L116" title="All 4 branches missed.">            if (timeInDay - delta &lt; dawn &amp;&amp; timeInDay &gt;= dawn) {</span>
+<span class="nc" id="L117">                long tick = day * DAY_LENGTH + dawn;</span>
+<span class="nc" id="L118">                getWorldEntity().send(new OnDawnEvent(tick));</span>
+            }
+        }
+
+<span class="nc" id="L122">        lastUpdate = startTime;</span>
+<span class="nc" id="L123">    }</span>
+
+    protected WorldTime getWorldTime() {
+<span class="nc" id="L126">        return worldTime;</span>
+    }
+
+    protected EntityRef getWorldEntity() {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        for (EntityRef entity : entityManager.getEntitiesWith(WorldComponent.class)) {</span>
+<span class="nc" id="L131">            return entity;</span>
+        }
+<span class="nc" id="L133">        return EntityRef.NULL;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

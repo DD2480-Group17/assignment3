@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StorageServiceWorker.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.identity.storageServiceClient</a> &gt; <span class="el_source">StorageServiceWorker.java</span></div><h1>StorageServiceWorker.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.identity.storageServiceClient;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.config.IdentityStorageServiceConfig;
+import org.terasology.config.SecurityConfig;
+import org.terasology.context.Context;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.identity.ClientIdentity;
+import org.terasology.identity.PublicIdentityCertificate;
+import org.terasology.logic.console.Console;
+import org.terasology.logic.console.CoreMessageType;
+
+import java.net.URL;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Map;
+import java.util.concurrent.LinkedBlockingDeque;
+
+/**
+ * The public interface to this package. Manages a communication session with the storage service server,
+ * can answer for status information queries and can perform asynchronous operations on the storage service.
+ * This class can be in two states, with the default being &quot;logged out&quot;.
+ */
+public final class StorageServiceWorker {
+
+<span class="nc" id="L45">    private static final Logger logger = LoggerFactory.getLogger(StorageServiceWorker.class);</span>
+
+<span class="nc" id="L47">    StorageServiceWorkerStatus status = StorageServiceWorkerStatus.LOGGED_OUT;</span>
+    APISession sessionInstance;
+    String loginName;
+    Deque&lt;IdentityBundle&gt; conflictingRemoteIdentities;
+
+    final IdentityStorageServiceConfig storageConfig;
+    final SecurityConfig securityConfig;
+
+    private final Config config;
+    private final TranslationSystem translationSystem;
+    private final Deque&lt;ConsoleNotification&gt; notificationBuffer;
+    private Map&lt;PublicIdentityCertificate, ClientIdentity&gt; conflictSolutionsToUpload;
+
+<span class="nc" id="L60">    public StorageServiceWorker(Context context) {</span>
+<span class="nc" id="L61">        this.config = context.get(Config.class);</span>
+<span class="nc" id="L62">        this.storageConfig = this.config.getIdentityStorageService();</span>
+<span class="nc" id="L63">        this.securityConfig = this.config.getSecurity();</span>
+<span class="nc" id="L64">        this.translationSystem = context.get(TranslationSystem.class);</span>
+<span class="nc" id="L65">        this.notificationBuffer = new LinkedBlockingDeque&lt;&gt;();</span>
+<span class="nc" id="L66">        this.conflictingRemoteIdentities = new ArrayDeque&lt;&gt;();</span>
+<span class="nc" id="L67">    }</span>
+
+    void resetConflicts() {
+<span class="nc" id="L70">        this.conflictingRemoteIdentities = new ArrayDeque&lt;&gt;();</span>
+<span class="nc" id="L71">        this.conflictSolutionsToUpload = Maps.newHashMap();</span>
+<span class="nc" id="L72">    }</span>
+
+    void saveConfig() {
+<span class="nc" id="L75">        config.save();</span>
+<span class="nc" id="L76">    }</span>
+
+    void logMessage(boolean warning, String messageId, Object... args) {
+<span class="nc" id="L79">        notificationBuffer.push(new ConsoleNotification(messageId, args));</span>
+<span class="nc" id="L80">    }</span>
+
+    private synchronized void performAction(Action action, StorageServiceWorkerStatus requiredStatus) {
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        if (status != requiredStatus) {</span>
+<span class="nc" id="L84">            throw new RuntimeException(&quot;StorageServiceWorker is not in the required status&quot;);</span>
+        }
+<span class="nc" id="L86">        status = StorageServiceWorkerStatus.WORKING;</span>
+<span class="nc" id="L87">        logger.info(&quot;Performing action {}&quot;, action.getClass().getSimpleName());</span>
+<span class="nc" id="L88">        new Thread(() -&gt; {</span>
+<span class="nc" id="L89">            action.perform(this);</span>
+<span class="nc" id="L90">            logger.info(&quot;Completed action {}&quot;, action.getClass().getSimpleName());</span>
+<span class="nc" id="L91">        }).start();</span>
+<span class="nc" id="L92">    }</span>
+
+    public void flushNotificationsToConsole(Console target) {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        while (!notificationBuffer.isEmpty()) {</span>
+<span class="nc" id="L96">            ConsoleNotification notification = notificationBuffer.pop();</span>
+<span class="nc" id="L97">            String message = translationSystem.translate(&quot;${engine:menu#storage-service}&quot;) + &quot;: &quot; + String.format(translationSystem.translate(notification.messageId), notification.args);</span>
+<span class="nc" id="L98">            target.addMessage(message, CoreMessageType.NOTIFICATION);</span>
+<span class="nc" id="L99">        }</span>
+<span class="nc" id="L100">    }</span>
+
+    public StorageServiceWorkerStatus getStatus() {
+<span class="nc" id="L103">        return status;</span>
+    }
+
+    public String getLoginName() {
+<span class="nc" id="L107">        return loginName;</span>
+    }
+
+    /**
+     * Tries to initialize the session using the parameters (host URL and session token) read from configuration.
+     * The session token is verified against the server; if it's valid, the status is switched to logged in.
+     */
+    public void initializeFromConfig() {
+<span class="nc" id="L115">        performAction(new InitializeFromTokenAction(), StorageServiceWorkerStatus.LOGGED_OUT);</span>
+<span class="nc" id="L116">    }</span>
+
+    /**
+     * Tries to login with the specified credentials; on success, the status is switched to logged in
+     * and the parameters are stored in configuration.
+     */
+    public void login(URL serviceURL, String login, String password) {
+<span class="nc" id="L123">        performAction(new LoginAction(serviceURL, login, password), StorageServiceWorkerStatus.LOGGED_OUT);</span>
+<span class="nc" id="L124">    }</span>
+
+    /**
+     * Destroys the current session and switches to the logged out status.
+     * @param deleteLocalIdentities whether the locally stored identities should be deleted or not.
+     */
+    public void logout(boolean deleteLocalIdentities) {
+<span class="nc" id="L131">        performAction(new LogoutAction(deleteLocalIdentities), StorageServiceWorkerStatus.LOGGED_IN);</span>
+<span class="nc" id="L132">    }</span>
+
+    private void putIdentities(Map&lt;PublicIdentityCertificate, ClientIdentity&gt; identities) {
+<span class="nc" id="L135">        performAction(new PutIdentityAction(identities), StorageServiceWorkerStatus.LOGGED_IN);</span>
+<span class="nc" id="L136">    }</span>
+
+    /**
+     * Uploads the specified identity certificate to the server.
+     */
+    public void putIdentity(PublicIdentityCertificate serverIdentity, ClientIdentity clientIdentity) {
+<span class="nc" id="L142">        putIdentities(ImmutableMap.of(serverIdentity, clientIdentity));</span>
+<span class="nc" id="L143">    }</span>
+
+    /**
+     * Performs a full synchronization of the locally stored identity certificates with the ones stored on the service.
+     */
+    public void syncIdentities() {
+<span class="nc" id="L149">        performAction(new SyncIdentitiesAction(), StorageServiceWorkerStatus.LOGGED_IN);</span>
+<span class="nc" id="L150">    }</span>
+
+    /**
+     * @return whether synchronization conflicts happened during the latest identity sync.
+     */
+    public boolean hasConflictingIdentities() {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        return !conflictingRemoteIdentities.isEmpty();</span>
+    }
+
+    /**
+     * @return details about one synchronization conflict.
+     */
+    public IdentityConflict getNextConflict() {
+<span class="nc" id="L163">        IdentityBundle entry = conflictingRemoteIdentities.peekFirst();</span>
+<span class="nc" id="L164">        return new IdentityConflict(entry.getServer(), securityConfig.getIdentity(entry.getServer()), entry.getClient());</span>
+    }
+
+    /**
+     * @param solution the strategy to resolve the conflict returned by the latest call to {@link #getNextConflict()}.
+     * If there are no more conflicts and some of the solved conflicts must keep the local version, the uploads are performed asynchronously.
+     */
+    public void solveNextConflict(IdentityConflictSolution solution) {
+<span class="nc" id="L172">        IdentityBundle entry = conflictingRemoteIdentities.removeFirst();</span>
+<span class="nc" id="L173">        PublicIdentityCertificate server = entry.getServer();</span>
+<span class="nc" id="L174">        ClientIdentity remote = entry.getClient();</span>
+<span class="nc" id="L175">        ClientIdentity local = securityConfig.getIdentity(server);</span>
+<span class="nc bnc" id="L176" title="All 3 branches missed.">        switch(solution) {</span>
+            case KEEP_LOCAL: //save for upload (remote will be overwritten)
+<span class="nc" id="L178">                conflictSolutionsToUpload.put(server, local);</span>
+<span class="nc" id="L179">                break;</span>
+            case KEEP_REMOTE: //store the remote identity locally, overwriting the local version
+<span class="nc" id="L181">                securityConfig.addIdentity(server, remote);</span>
+<span class="nc" id="L182">                break;</span>
+            case IGNORE:
+                //do nothing
+        }
+        //if there are no more conflicts, perform the uploads and reset
+<span class="nc bnc" id="L187" title="All 2 branches missed.">        if (!hasConflictingIdentities()) {</span>
+<span class="nc" id="L188">            putIdentities(conflictSolutionsToUpload);</span>
+<span class="nc" id="L189">            resetConflicts();</span>
+        }
+<span class="nc" id="L191">    }</span>
+
+    private static final class ConsoleNotification {
+        private String messageId;
+        private Object[] args;
+<span class="nc" id="L196">        private ConsoleNotification(String messageId, Object[] args) {</span>
+<span class="nc" id="L197">            this.messageId = messageId;</span>
+<span class="nc" id="L198">            this.args = args;</span>
+<span class="nc" id="L199">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

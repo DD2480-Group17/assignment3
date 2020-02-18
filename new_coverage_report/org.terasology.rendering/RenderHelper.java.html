@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RenderHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering</a> &gt; <span class="el_source">RenderHelper.java</span></div><h1>RenderHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering;
+
+import org.terasology.rendering.dag.nodes.RefractiveReflectiveBlocksNode;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+
+/**
+ */
+public final class RenderHelper {
+
+    // Parameters which are also defined on shader side
+    private static final int OCEAN_OCTAVES = 16;
+<span class="nc" id="L28">    private static final Vector2f[] OCEAN_WAVE_DIRECTIONS = {</span>
+            new Vector2f(-0.613392f, 0.617481f),
+            new Vector2f(0.170019f, -0.040254f),
+            new Vector2f(-0.299417f, 0.791925f),
+            new Vector2f(0.645680f, 0.493210f),
+            new Vector2f(-0.651784f, 0.717887f),
+            new Vector2f(0.421003f, 0.027070f),
+            new Vector2f(-0.817194f, -0.271096f),
+            new Vector2f(-0.705374f, -0.668203f),
+            new Vector2f(0.977050f, -0.108615f),
+            new Vector2f(0.063326f, 0.142369f),
+            new Vector2f(0.203528f, 0.214331f),
+            new Vector2f(-0.667531f, 0.326090f),
+            new Vector2f(-0.098422f, -0.295755f),
+            new Vector2f(-0.885922f, 0.215369f),
+            new Vector2f(0.566637f, 0.605213f),
+            new Vector2f(0.039766f, -0.396100f)
+    };
+
+    private RenderHelper() {
+    }
+
+    // Various functions that are also available on the shader side but need to be
+    // evaluated on the CPU
+    public static float smoothCurve(float x) {
+<span class="nc" id="L53">        return x * x * (3.f - 2.0f * x);</span>
+    }
+
+    public static float triangleWave(float x) {
+<span class="nc" id="L57">        float normX = x + 0.5f;</span>
+<span class="nc" id="L58">        float fract = normX - (float) Math.floor(normX);</span>
+<span class="nc" id="L59">        return Math.abs(fract * 2.0f - 1.0f);</span>
+    }
+
+    public static float smoothTriangleWave(float x) {
+<span class="nc" id="L63">        return smoothCurve(triangleWave(x)) * 2.0f - 1.0f;</span>
+    }
+
+    public static float timeToTick(float time, float speed) {
+<span class="nc" id="L67">        return time * 4000.0f * speed;</span>
+    }
+
+    public static float evaluateOceanHeightAtPosition(Vector3f position, float days) {
+<span class="nc" id="L71">        float height = 0.0f;</span>
+
+<span class="nc" id="L73">        float waveSize = RefractiveReflectiveBlocksNode.waveSize;</span>
+<span class="nc" id="L74">        float waveIntensity = RefractiveReflectiveBlocksNode.waveIntensity;</span>
+<span class="nc" id="L75">        float timeFactor = RefractiveReflectiveBlocksNode.waveSpeed;</span>
+
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        for (int i = 0; i &lt; OCEAN_OCTAVES; ++i) {</span>
+<span class="nc" id="L78">            height += (float) (smoothTriangleWave(timeToTick(days,</span>
+                    timeFactor) + position.x * OCEAN_WAVE_DIRECTIONS[i].x * waveSize + position.z * OCEAN_WAVE_DIRECTIONS[i].y * waveSize) * 2.0 - 1.0) * waveIntensity;
+
+<span class="nc" id="L81">            waveSize *= RefractiveReflectiveBlocksNode.waveSizeFalloff;</span>
+<span class="nc" id="L82">            waveIntensity *= RefractiveReflectiveBlocksNode.waveIntensityFalloff;</span>
+<span class="nc" id="L83">            timeFactor *= RefractiveReflectiveBlocksNode.waveSpeedFalloff;</span>
+        }
+
+<span class="nc" id="L86">        height /= OCEAN_OCTAVES;</span>
+
+<span class="nc" id="L88">        return height + RefractiveReflectiveBlocksNode.waterOffsetY;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FlowParagraphRenderable.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets.browser.data.basic</a> &gt; <span class="el_source">FlowParagraphRenderable.java</span></div><h1>FlowParagraphRenderable.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets.browser.data.basic;
+
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.HorizontalAlign;
+import org.terasology.rendering.nui.widgets.browser.data.basic.flow.ContainerRenderSpace;
+import org.terasology.rendering.nui.widgets.browser.data.basic.flow.FlowLineBuilder;
+import org.terasology.rendering.nui.widgets.browser.data.basic.flow.FlowRenderable;
+import org.terasology.rendering.nui.widgets.browser.data.basic.flow.LaidFlowLine;
+import org.terasology.rendering.nui.widgets.browser.ui.ParagraphRenderable;
+import org.terasology.rendering.nui.widgets.browser.ui.style.ParagraphRenderStyle;
+
+import java.util.Collection;
+
+public class FlowParagraphRenderable implements ParagraphRenderable {
+    private Collection&lt;FlowRenderable&gt; flowParagraphData;
+
+<span class="nc" id="L34">    public FlowParagraphRenderable(Collection&lt;FlowRenderable&gt; flowParagraphData) {</span>
+<span class="nc" id="L35">        this.flowParagraphData = flowParagraphData;</span>
+<span class="nc" id="L36">    }</span>
+
+    @Override
+    public int getContentsMinWidth(ParagraphRenderStyle defaultStyle) {
+<span class="nc" id="L40">        int minWidth = 0;</span>
+
+<span class="nc bnc" id="L42" title="All 2 branches missed.">        for (FlowRenderable element : flowParagraphData) {</span>
+<span class="nc" id="L43">            minWidth = Math.max(minWidth, element.getMinWidth(defaultStyle));</span>
+<span class="nc" id="L44">        }</span>
+
+<span class="nc" id="L46">        return minWidth;</span>
+    }
+
+    @Override
+    public void renderContents(Canvas canvas, Vector2i startPos, ContainerRenderSpace containerRenderSpace, int leftIndent, int rightIndent,
+                               ParagraphRenderStyle defaultStyle, HorizontalAlign horizontalAlign, HyperlinkRegister hyperlinkRegister) {
+<span class="nc" id="L52">        int y = startPos.y;</span>
+
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        for (LaidFlowLine&lt;FlowRenderable&gt; line : updateCacheIfNeeded(defaultStyle, startPos.y, containerRenderSpace)) {</span>
+<span class="nc" id="L55">            int x = 0;</span>
+
+<span class="nc" id="L57">            int insetXAdvance = containerRenderSpace.getAdvanceForVerticalPosition(y);</span>
+<span class="nc" id="L58">            int availableWidth = containerRenderSpace.getWidthForVerticalPosition(y);</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">            if (horizontalAlign == HorizontalAlign.LEFT || horizontalAlign == HorizontalAlign.CENTER) {</span>
+<span class="nc" id="L60">                availableWidth -= leftIndent;</span>
+            }
+<span class="nc bnc" id="L62" title="All 4 branches missed.">            if (horizontalAlign == HorizontalAlign.RIGHT || horizontalAlign == HorizontalAlign.CENTER) {</span>
+<span class="nc" id="L63">                availableWidth -= rightIndent;</span>
+            }
+
+<span class="nc" id="L66">            int lineHeight = line.getHeight();</span>
+<span class="nc" id="L67">            int lineWidth = line.getWidth();</span>
+
+<span class="nc" id="L69">            int alignOffset = horizontalAlign.getOffset(lineWidth, availableWidth);</span>
+
+<span class="nc bnc" id="L71" title="All 2 branches missed.">            for (FlowRenderable flowRenderable : line.getFlowRenderables()) {</span>
+<span class="nc" id="L72">                int elementWidth = flowRenderable.getWidth(defaultStyle);</span>
+<span class="nc" id="L73">                Rect2i renderableRegion = Rect2i.createFromMinAndSize(insetXAdvance + leftIndent + alignOffset + startPos.x + x, y, elementWidth, lineHeight);</span>
+<span class="nc" id="L74">                String hyperlink = flowRenderable.getAction();</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                if (hyperlink != null) {</span>
+<span class="nc" id="L76">                    hyperlinkRegister.registerHyperlink(renderableRegion, hyperlink);</span>
+                }
+<span class="nc" id="L78">                flowRenderable.render(canvas, renderableRegion, defaultStyle);</span>
+<span class="nc" id="L79">                x += elementWidth;</span>
+<span class="nc" id="L80">            }</span>
+
+<span class="nc" id="L82">            y += lineHeight;</span>
+<span class="nc" id="L83">        }</span>
+<span class="nc" id="L84">    }</span>
+
+    @Override
+    public int getPreferredContentsHeight(ParagraphRenderStyle defaultStyle, int yStart, ContainerRenderSpace containerRenderSpace, int sideIndents) {
+<span class="nc" id="L88">        int height = 0;</span>
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        for (LaidFlowLine&lt;FlowRenderable&gt; element : updateCacheIfNeeded(defaultStyle, yStart, containerRenderSpace)) {</span>
+<span class="nc" id="L91">            height += element.getHeight();</span>
+<span class="nc" id="L92">        }</span>
+<span class="nc" id="L93">        return height;</span>
+    }
+
+    private Iterable&lt;LaidFlowLine&lt;FlowRenderable&gt;&gt; updateCacheIfNeeded(ParagraphRenderStyle defaultStyle, int yStart, ContainerRenderSpace containerRenderSpace) {
+        // TODO introduce cache, once the RenderSpace gets stabilized and allows comparing
+<span class="nc" id="L98">        return FlowLineBuilder.getLines(flowParagraphData, defaultStyle, yStart, containerRenderSpace);</span>
+    }
+//
+//    private static final class LineBuilderCache {
+//        public final RenderSpace renderSpace;
+//        public final Iterable&lt;LaidFlowLine&lt;FlowRenderable&gt;&gt; laidLines;
+//
+//        private LineBuilderCache(RenderSpace renderSpace, Iterable&lt;LaidFlowLine&lt;FlowRenderable&gt;&gt; laidLines) {
+//            this.renderSpace = renderSpace;
+//            this.laidLines = laidLines;
+//        }
+//    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

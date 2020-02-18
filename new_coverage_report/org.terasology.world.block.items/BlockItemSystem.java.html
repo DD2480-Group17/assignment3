@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockItemSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.items</a> &gt; <span class="el_source">BlockItemSystem.java</span></div><h1>BlockItemSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.items;
+
+import org.terasology.telemetry.GamePlayStatsComponent;
+import org.terasology.utilities.Assets;
+import org.terasology.audio.AudioManager;
+import org.terasology.audio.events.PlaySoundEvent;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.logic.characters.KinematicCharacterMover;
+import org.terasology.logic.common.ActivateEvent;
+import org.terasology.logic.inventory.ItemComponent;
+import org.terasology.math.AABB;
+import org.terasology.math.ChunkMath;
+import org.terasology.math.Side;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.network.NetworkSystem;
+import org.terasology.physics.Physics;
+import org.terasology.physics.StandardCollisionGroup;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.registry.In;
+import org.terasology.world.BlockEntityRegistry;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockComponent;
+import org.terasology.world.block.entity.placement.PlaceBlocks;
+import org.terasology.world.block.family.BlockFamily;
+
+import java.util.Map;
+
+// TODO: Predict placement client-side (and handle confirm/denial)
+@RegisterSystem(RegisterMode.AUTHORITY)
+<span class="nc" id="L51">public class BlockItemSystem extends BaseComponentSystem {</span>
+
+    /**
+     * Margin and other allowed penetration is also 0.03 or 0.04.
+     * Since precision is only float it needs to be that high.
+     */
+    private static final float ADDITIONAL_ALLOWED_PENETRATION = 0.4f;
+
+    @In
+    private WorldProvider worldProvider;
+
+    @In
+    private BlockEntityRegistry blockEntityRegistry;
+
+    @In
+    private AudioManager audioManager;
+
+    @In
+    private NetworkSystem networkSystem;
+
+    @ReceiveEvent(components = {BlockItemComponent.class, ItemComponent.class})
+    public void onPlaceBlock(ActivateEvent event, EntityRef item) {
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if (!event.getTarget().exists()) {</span>
+<span class="nc" id="L74">            event.consume();</span>
+<span class="nc" id="L75">            return;</span>
+        }
+
+<span class="nc" id="L78">        BlockItemComponent blockItem = item.getComponent(BlockItemComponent.class);</span>
+<span class="nc" id="L79">        BlockFamily type = blockItem.blockFamily;</span>
+<span class="nc" id="L80">        Side surfaceSide = Side.inDirection(event.getHitNormal());</span>
+<span class="nc" id="L81">        Side secondaryDirection = ChunkMath.getSecondaryPlacementDirection(event.getDirection(), event.getHitNormal());</span>
+
+<span class="nc" id="L83">        BlockComponent blockComponent = event.getTarget().getComponent(BlockComponent.class);</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (blockComponent == null) {</span>
+            // If there is no block there (i.e. it's a BlockGroup, we don't allow placing block, try somewhere else)
+<span class="nc" id="L86">            event.consume();</span>
+<span class="nc" id="L87">            return;</span>
+        }
+<span class="nc" id="L89">        Vector3i targetBlock = new Vector3i(blockComponent.position);</span>
+<span class="nc" id="L90">        Vector3i placementPos = new Vector3i(targetBlock);</span>
+<span class="nc" id="L91">        placementPos.add(surfaceSide.getVector3i());</span>
+
+<span class="nc" id="L93">        Block block = type.getBlockForPlacement(placementPos, surfaceSide, secondaryDirection);</span>
+
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (canPlaceBlock(block, targetBlock, placementPos)) {</span>
+            // TODO: Fix this for changes.
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            if (networkSystem.getMode().isAuthority()) {</span>
+<span class="nc" id="L98">                PlaceBlocks placeBlocks = new PlaceBlocks(placementPos, block, event.getInstigator());</span>
+<span class="nc" id="L99">                worldProvider.getWorldEntity().send(placeBlocks);</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                if (!placeBlocks.isConsumed()) {</span>
+<span class="nc" id="L101">                    item.send(new OnBlockItemPlaced(placementPos, blockEntityRegistry.getBlockEntityAt(placementPos), event.getInstigator()));</span>
+                } else {
+<span class="nc" id="L103">                    event.consume();</span>
+                }
+            }
+<span class="nc" id="L106">            recordBlockPlaced(event, type);</span>
+<span class="nc" id="L107">            event.getInstigator().send(new PlaySoundEvent(Assets.getSound(&quot;engine:PlaceBlock&quot;).get(), 0.5f));</span>
+        } else {
+<span class="nc" id="L109">            event.consume();</span>
+        }
+<span class="nc" id="L111">    }</span>
+
+    private void recordBlockPlaced(ActivateEvent event, BlockFamily block) {
+<span class="nc" id="L114">        EntityRef instigator = event.getInstigator();</span>
+<span class="nc" id="L115">        String blockName = block.getDisplayName();</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        if (instigator.hasComponent(GamePlayStatsComponent.class)) {</span>
+<span class="nc" id="L117">            GamePlayStatsComponent gamePlayStatsComponent = instigator.getComponent(GamePlayStatsComponent.class);</span>
+<span class="nc" id="L118">            Map&lt;String, Integer&gt; blockPlacedMap = gamePlayStatsComponent.blockPlacedMap;</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">            if (blockPlacedMap.containsKey(blockName)) {</span>
+<span class="nc" id="L120">                blockPlacedMap.put(blockName, blockPlacedMap.get(blockName) + 1);</span>
+            } else {
+<span class="nc" id="L122">                blockPlacedMap.put(blockName, 1);</span>
+            }
+<span class="nc" id="L124">            instigator.saveComponent(gamePlayStatsComponent);</span>
+<span class="nc" id="L125">        } else {</span>
+<span class="nc" id="L126">            GamePlayStatsComponent gamePlayStatsComponent = new GamePlayStatsComponent();</span>
+<span class="nc" id="L127">            Map&lt;String, Integer&gt; blockPlacedMap = gamePlayStatsComponent.blockPlacedMap;</span>
+<span class="nc" id="L128">            blockPlacedMap.put(blockName, 1);</span>
+<span class="nc" id="L129">            instigator.addOrSaveComponent(gamePlayStatsComponent);</span>
+        }
+<span class="nc" id="L131">    }</span>
+
+    private boolean canPlaceBlock(Block block, Vector3i targetBlock, Vector3i blockPos) {
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (block == null) {</span>
+<span class="nc" id="L135">            return false;</span>
+        }
+
+<span class="nc" id="L138">        Block centerBlock = worldProvider.getBlock(targetBlock.x, targetBlock.y, targetBlock.z);</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        if (!centerBlock.isAttachmentAllowed()) {</span>
+<span class="nc" id="L140">            return false;</span>
+        }
+
+<span class="nc" id="L143">        Block adjBlock = worldProvider.getBlock(blockPos.x, blockPos.y, blockPos.z);</span>
+<span class="nc bnc" id="L144" title="All 4 branches missed.">        if (!adjBlock.isReplacementAllowed() || adjBlock.isTargetable()) {</span>
+<span class="nc" id="L145">            return false;</span>
+        }
+
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (block.getBlockFamily().equals(adjBlock.getBlockFamily())) {</span>
+<span class="nc" id="L149">            return false;</span>
+        }
+
+        // Prevent players from placing blocks inside their bounding boxes
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        if (!block.isPenetrable()) {</span>
+<span class="nc" id="L154">            Physics physics = CoreRegistry.get(Physics.class);</span>
+<span class="nc" id="L155">            AABB blockBounds = block.getBounds(blockPos);</span>
+<span class="nc" id="L156">            Vector3f min = new Vector3f(blockBounds.getMin());</span>
+<span class="nc" id="L157">            Vector3f max = new Vector3f(blockBounds.getMax());</span>
+
+            /**
+             * Characters can enter other solid objects/blocks for certain amount. This is does to detect collsion
+             * start and end without noise. So if the user walked as close to a block as possible it is only natural
+             * to let it place a block exactly above it even if that technically would mean a collision start.
+             */
+<span class="nc" id="L164">            min.x += KinematicCharacterMover.HORIZONTAL_PENETRATION;</span>
+<span class="nc" id="L165">            max.x -= KinematicCharacterMover.HORIZONTAL_PENETRATION;</span>
+<span class="nc" id="L166">            min.y += KinematicCharacterMover.VERTICAL_PENETRATION;</span>
+<span class="nc" id="L167">            max.y -= KinematicCharacterMover.VERTICAL_PENETRATION;</span>
+<span class="nc" id="L168">            min.z += KinematicCharacterMover.HORIZONTAL_PENETRATION;</span>
+<span class="nc" id="L169">            max.z -= KinematicCharacterMover.HORIZONTAL_PENETRATION;</span>
+
+            /*
+             * Calculations aren't exact and in the corner cases it is better to let the user place the block.
+             */
+<span class="nc" id="L174">            float additionalAllowedPenetration = 0.04f; // ignore small rounding mistakes</span>
+<span class="nc" id="L175">            min.add(ADDITIONAL_ALLOWED_PENETRATION, ADDITIONAL_ALLOWED_PENETRATION, ADDITIONAL_ALLOWED_PENETRATION);</span>
+<span class="nc" id="L176">            max.sub(ADDITIONAL_ALLOWED_PENETRATION, ADDITIONAL_ALLOWED_PENETRATION, ADDITIONAL_ALLOWED_PENETRATION);</span>
+
+<span class="nc" id="L178">            AABB newBounds = AABB.createMinMax(min, max);</span>
+<span class="nc" id="L179">            return physics.scanArea(newBounds, StandardCollisionGroup.DEFAULT, StandardCollisionGroup.CHARACTER).isEmpty();</span>
+        }
+<span class="nc" id="L181">        return true;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

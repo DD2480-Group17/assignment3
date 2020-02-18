@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AddServerPopup.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">AddServerPopup.java</span></div><h1>AddServerPopup.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import com.google.common.primitives.Ints;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.ServerInfo;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.widgets.ActivateEventListener;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIText;
+
+import java.util.function.Consumer;
+
+/**
+ */
+<span class="nc" id="L33">public class AddServerPopup extends CoreScreenLayer {</span>
+
+<span class="nc" id="L35">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:addServerPopup!instance&quot;);</span>
+
+    private UIText nameText;
+    private UIText ownerText;
+    private UIText addressText;
+    private UIText portText;
+    private UIButton okButton;
+    private UIButton cancelButton;
+    private ServerInfo serverInfo;
+    private UILabel tip;
+
+    private Consumer&lt;ServerInfo&gt; successFunc;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L50">        nameText = find(&quot;name&quot;, UIText.class);</span>
+<span class="nc" id="L51">        ownerText = find(&quot;owner&quot;, UIText.class);</span>
+<span class="nc" id="L52">        addressText = find(&quot;address&quot;, UIText.class);</span>
+<span class="nc" id="L53">        portText = find(&quot;port&quot;, UIText.class);</span>
+<span class="nc" id="L54">        okButton = find(&quot;ok&quot;, UIButton.class);</span>
+<span class="nc" id="L55">        cancelButton = find(&quot;cancel&quot;, UIButton.class);</span>
+<span class="nc" id="L56">        tip = find(&quot;tip&quot;, UILabel.class);</span>
+
+<span class="nc" id="L58">        okButton.subscribe(button -&gt; {</span>
+
+<span class="nc" id="L60">            String name = nameText.getText();</span>
+<span class="nc" id="L61">            String owner = ownerText.getText();</span>
+<span class="nc" id="L62">            String address = addressText.getText();</span>
+<span class="nc" id="L63">            Integer portBoxed = Ints.tryParse(portText.getText().trim());</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            int port = (portBoxed != null) ? portBoxed : TerasologyConstants.DEFAULT_PORT;</span>
+
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (serverInfo == null) {</span>
+                // create new
+<span class="nc" id="L68">                serverInfo = new ServerInfo(name, address, port);</span>
+<span class="nc" id="L69">                serverInfo.setOwner(owner);</span>
+            } else {
+                // update existing
+<span class="nc" id="L72">                serverInfo.setName(name);</span>
+<span class="nc" id="L73">                serverInfo.setAddress(address);</span>
+<span class="nc" id="L74">                serverInfo.setPort(port);</span>
+<span class="nc" id="L75">                serverInfo.setOwner(owner);</span>
+            }
+
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if (successFunc != null) {</span>
+<span class="nc" id="L79">                successFunc.accept(serverInfo);</span>
+            }
+<span class="nc" id="L81">            getManager().popScreen();</span>
+<span class="nc" id="L82">        });</span>
+
+<span class="nc" id="L84">        okButton.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                return !nameText.getText().isEmpty()</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                        &amp;&amp; !addressText.getText().isEmpty()</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                        &amp;&amp; Ints.tryParse(portText.getText().trim()) != null;</span>
+            }
+        });
+
+<span class="nc" id="L94">        cancelButton.subscribe(button -&gt; getManager().popScreen());</span>
+
+        // copy name to address on ENTER if address is empty
+<span class="nc" id="L97">        nameText.subscribe(widget -&gt; {</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">            if (addressText.getText().isEmpty()) {</span>
+<span class="nc" id="L99">                addressText.setText(nameText.getText());</span>
+<span class="nc" id="L100">                addressText.setCursorPosition(addressText.getText().length());</span>
+            }
+
+<span class="nc" id="L103">            getManager().setFocus(addressText);</span>
+<span class="nc" id="L104">        });</span>
+
+        // simulate tabbing behavior
+        // TODO: replace with NUI tabbing, once available
+<span class="nc" id="L108">        addressText.subscribe(widget -&gt; {</span>
+<span class="nc" id="L109">            getManager().setFocus(portText);</span>
+<span class="nc" id="L110">        });</span>
+
+<span class="nc" id="L112">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L116">        super.onOpened();</span>
+
+<span class="nc" id="L118">        serverInfo = null;</span>
+<span class="nc" id="L119">        successFunc = null;</span>
+<span class="nc" id="L120">        ownerText.setText(null);</span>
+<span class="nc" id="L121">        nameText.setText(null);</span>
+<span class="nc" id="L122">        addressText.setText(null);</span>
+
+<span class="nc" id="L124">        portText.setText(Integer.toString(TerasologyConstants.DEFAULT_PORT));</span>
+<span class="nc" id="L125">        portText.setCursorPosition(portText.getText().length());</span>
+
+<span class="nc" id="L127">        getManager().setFocus(nameText);</span>
+<span class="nc" id="L128">    }</span>
+
+    @Override
+    public void onClosed() {
+<span class="nc" id="L132">        super.onClosed();</span>
+<span class="nc" id="L133">    }</span>
+
+    public void setServerInfo(ServerInfo serverInfo) {
+<span class="nc" id="L136">        this.serverInfo = serverInfo;</span>
+
+<span class="nc" id="L138">        nameText.setText(serverInfo.getName());</span>
+<span class="nc" id="L139">        nameText.setCursorPosition(nameText.getText().length());</span>
+
+<span class="nc" id="L141">        ownerText.setText(serverInfo.getOwner());</span>
+<span class="nc" id="L142">        ownerText.setCursorPosition(ownerText.getText().length());</span>
+
+<span class="nc" id="L144">        addressText.setText(serverInfo.getAddress());</span>
+<span class="nc" id="L145">        addressText.setCursorPosition(addressText.getText().length());</span>
+
+<span class="nc" id="L147">        portText.setText(Integer.toString(serverInfo.getPort()));</span>
+<span class="nc" id="L148">        portText.setCursorPosition(portText.getText().length());</span>
+<span class="nc" id="L149">    }</span>
+
+    /**
+     * @param success the method to call when editing is complete
+     */
+    public void onSuccess(Consumer&lt;ServerInfo&gt; success) {
+<span class="nc" id="L155">        this.successFunc = success;</span>
+<span class="nc" id="L156">    }</span>
+
+    /**
+     * And a listen to the cancel button.
+     * @param listener The listener added on the cancel button
+     */
+    public void onCancel(ActivateEventListener listener) {
+<span class="nc" id="L163">        cancelButton.subscribe(listener);</span>
+<span class="nc" id="L164">    }</span>
+
+    public void removeTip() {
+<span class="nc" id="L167">        tip.setVisible(false);</span>
+<span class="nc" id="L168">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

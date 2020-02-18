@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HierarchicalAISystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.ai</a> &gt; <span class="el_source">HierarchicalAISystem.java</span></div><h1>HierarchicalAISystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.ai;
+
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.characters.CharacterMoveInputEvent;
+import org.terasology.logic.characters.CharacterMovementComponent;
+import org.terasology.logic.characters.events.HorizontalCollisionEvent;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.registry.In;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.utilities.random.Random;
+import org.terasology.world.WorldProvider;
+
+/**
+ * Hierarchical AI, idea from robotics
+ *
+ */
+@RegisterSystem(RegisterMode.AUTHORITY)
+<span class="nc" id="L42">public class HierarchicalAISystem extends BaseComponentSystem implements</span>
+        UpdateSubscriberSystem {
+
+    @In
+    private WorldProvider worldProvider;
+
+    @In
+    private EntityManager entityManager;
+
+<span class="nc" id="L51">    private Random random = new FastRandom();</span>
+    @In
+    private Time time;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    private boolean idling;
+
+    // TODO add way to recognize if attacked
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        for (EntityRef entity : entityManager.getEntitiesWith(</span>
+                HierarchicalAIComponent.class, CharacterMovementComponent.class,
+                LocationComponent.class)) {
+<span class="nc" id="L67">            LocationComponent location = entity</span>
+<span class="nc" id="L68">                    .getComponent(LocationComponent.class);</span>
+<span class="nc" id="L69">            Vector3f worldPos = location.getWorldPosition();</span>
+
+            // Skip this AI if not in a loaded chunk
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            if (!worldProvider.isBlockRelevant(worldPos)) {</span>
+<span class="nc" id="L73">                continue;</span>
+            }
+
+            // goto Hierarchical system
+<span class="nc" id="L77">            loop(entity, location, worldPos);</span>
+<span class="nc" id="L78">        }</span>
+<span class="nc" id="L79">    }</span>
+
+    /**
+     * main loop of hierarchical system
+     *
+     * @param entity
+     * @param location
+     * @param worldPos
+     */
+    private void loop(EntityRef entity, LocationComponent location,
+                      Vector3f worldPos) {
+<span class="nc" id="L90">        HierarchicalAIComponent ai = entity</span>
+<span class="nc" id="L91">                .getComponent(HierarchicalAIComponent.class);</span>
+<span class="nc" id="L92">        long tempTime = time.getGameTimeInMs();</span>
+        //TODO remove next
+<span class="nc" id="L94">        long lastAttack = 0;</span>
+
+        // skip update if set to skip them
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (tempTime - ai.lastProgressedUpdateAt &lt; ai.updateFrequency) {</span>
+<span class="nc" id="L98">            ai.lastProgressedUpdateAt = time</span>
+<span class="nc" id="L99">                    .getGameTimeInMs();</span>
+<span class="nc" id="L100">            return;</span>
+        }
+
+<span class="nc" id="L103">        long directionChangeTime = ai.moveUpdateTime;</span>
+<span class="nc" id="L104">        long moveChangeTime = ai.moveUpdateTime;</span>
+<span class="nc" id="L105">        long idleChangeTime = ai.idlingUpdateTime;</span>
+<span class="nc" id="L106">        long dangerChangeTime = ai.dangerUpdateTime;</span>
+
+        // get movement
+<span class="nc" id="L109">        Vector3f drive = new Vector3f();</span>
+
+        // find player position
+        // TODO: shouldn't use local player, need some way to find nearest
+        // player
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (localPlayer != null) {</span>
+<span class="nc" id="L115">            Vector3f dist = new Vector3f(worldPos);</span>
+<span class="nc" id="L116">            dist.sub(localPlayer.getPosition());</span>
+<span class="nc" id="L117">            double distanceToPlayer = dist.lengthSquared();</span>
+
+<span class="nc" id="L119">            ai.inDanger = false;</span>
+<span class="nc bnc" id="L120" title="All 4 branches missed.">            if (ai.dieIfPlayerFar &amp;&amp; distanceToPlayer &gt; ai.dieDistance) {</span>
+<span class="nc" id="L121">                entity.destroy();</span>
+            }
+
+            //update
+<span class="nc bnc" id="L125" title="All 2 branches missed.">            if (tempTime - ai.lastChangeOfDangerAt &gt; dangerChangeTime) {</span>
+<span class="nc" id="L126">                dangerChangeTime = (long) (ai.dangerUpdateTime * random.nextDouble() * ai.hectic);</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                if (ai.hunter) {</span>
+<span class="nc bnc" id="L128" title="All 4 branches missed.">                    if (distanceToPlayer &gt; ai.playerdistance</span>
+                            &amp;&amp; distanceToPlayer &lt; ai.playerSense) {
+                        // Head to player
+<span class="nc" id="L131">                        Vector3f tempTarget = localPlayer.getPosition();</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                        if (ai.forgiving != 0) {</span>
+<span class="nc" id="L133">                            ai.movementTarget.set(new Vector3f(</span>
+<span class="nc" id="L134">                                    tempTarget.x + random.nextFloat(-ai.forgiving, ai.forgiving),</span>
+<span class="nc" id="L135">                                    tempTarget.y + random.nextFloat(-ai.forgiving, ai.forgiving),</span>
+<span class="nc" id="L136">                                    tempTarget.z + random.nextFloat(-ai.forgiving, ai.forgiving)</span>
+                            ));
+                        } else {
+<span class="nc" id="L139">                            ai.movementTarget.set(tempTarget);</span>
+                        }
+<span class="nc" id="L141">                        ai.inDanger = true;</span>
+<span class="nc" id="L142">                        entity.saveComponent(ai);</span>
+
+                        // System.out.print(&quot;\nhunting palyer\n&quot;);
+                    }
+                }
+                // run opposite direction
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                if (ai.wild) {</span>
+<span class="nc bnc" id="L149" title="All 4 branches missed.">                    if (distanceToPlayer &gt; ai.panicDistance</span>
+                            &amp;&amp; distanceToPlayer &lt; ai.runDistance) {
+<span class="nc" id="L151">                        runAway(entity, ai);</span>
+                    }
+                }
+<span class="nc" id="L154">                ai.lastChangeOfDangerAt = time.getGameTimeInMs();</span>
+            }
+        }
+
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        if (!ai.inDanger) {</span>
+
+            //----------------eat----------
+            // if anything edible is in front
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            if (foodInFront()) {</span>
+<span class="nc" id="L163">                return;</span>
+            }
+
+            //----------------idle----------
+            // Idling part
+            // what AI does when nothing better to do
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (idling) {</span>
+                // time to stop idling
+<span class="nc bnc" id="L171" title="All 2 branches missed.">                if (tempTime - ai.lastChangeOfidlingtAt &gt; idleChangeTime) {</span>
+<span class="nc" id="L172">                    idleChangeTime = (long) (ai.idlingUpdateTime * random.nextDouble() * ai.hectic);</span>
+<span class="nc" id="L173">                    idling = false;</span>
+                    // mark idling state changed
+<span class="nc" id="L175">                    ai.lastChangeOfidlingtAt = time.getGameTimeInMs();</span>
+                }
+<span class="nc" id="L177">                entity.saveComponent(location);</span>
+<span class="nc" id="L178">                ai.lastProgressedUpdateAt = time.getGameTimeInMs();</span>
+<span class="nc" id="L179">                return;</span>
+
+            }
+
+            // check if it is time to idle again
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            if (tempTime - ai.lastChangeOfMovementAt &gt; moveChangeTime) {</span>
+                // update time
+<span class="nc" id="L186">                moveChangeTime = (long) (ai.moveUpdateTime * random.nextDouble() * ai.hectic);</span>
+<span class="nc" id="L187">                idling = true;</span>
+<span class="nc" id="L188">                entity.saveComponent(location);</span>
+
+                // mark start idling
+<span class="nc" id="L191">                ai.lastChangeOfMovementAt = time.getGameTimeInMs();</span>
+<span class="nc" id="L192">                ai.lastProgressedUpdateAt = time.getGameTimeInMs();</span>
+<span class="nc" id="L193">                return;</span>
+            }
+
+            // Random walk
+            // check if time to change direction
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            if (tempTime - ai.lastChangeOfDirectionAt &gt; directionChangeTime) {</span>
+<span class="nc" id="L199">                directionChangeTime = (long) (ai.moveUpdateTime * random.nextDouble() * ai.straightLined);</span>
+<span class="nc" id="L200">                randomWalk(worldPos, ai);</span>
+<span class="nc" id="L201">                entity.saveComponent(ai);</span>
+                // System.out.print(&quot;direction changed\n&quot;);
+
+            }
+        }
+
+<span class="nc" id="L207">        Vector3f targetDirection = new Vector3f();</span>
+<span class="nc" id="L208">        targetDirection.sub(ai.movementTarget, worldPos);</span>
+<span class="nc" id="L209">        targetDirection.normalize();</span>
+<span class="nc" id="L210">        drive.set(targetDirection);</span>
+
+<span class="nc" id="L212">        float yaw = (float) Math.atan2(targetDirection.x, targetDirection.z);</span>
+<span class="nc" id="L213">        entity.send(new CharacterMoveInputEvent(0, 0, yaw, drive, false, false, time.getGameDeltaInMs()));</span>
+<span class="nc" id="L214">        entity.saveComponent(location);</span>
+        // System.out.print(&quot;\Destination set: &quot; + targetDirection.x + &quot;:&quot; +targetDirection.z + &quot;\n&quot;);
+        // System.out.print(&quot;\nI am: &quot; + worldPos.x + &quot;:&quot; + worldPos.z + &quot;\n&quot;);
+
+<span class="nc" id="L218">        ai.lastProgressedUpdateAt = time.getGameTimeInMs();</span>
+<span class="nc" id="L219">    }</span>
+
+    private void runAway(EntityRef entity, HierarchicalAIComponent ai) {
+<span class="nc" id="L222">        Vector3f tempTarget = localPlayer.getPosition();</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        if (ai.forgiving != 0) {</span>
+<span class="nc" id="L224">            ai.movementTarget.set(new Vector3f(</span>
+<span class="nc" id="L225">                    -tempTarget.x + random.nextFloat(-ai.forgiving, ai.forgiving),</span>
+<span class="nc" id="L226">                    -tempTarget.y + random.nextFloat(-ai.forgiving, ai.forgiving),</span>
+<span class="nc" id="L227">                    -tempTarget.z + random.nextFloat(-ai.forgiving, ai.forgiving)</span>
+            ));
+        } else {
+<span class="nc" id="L230">            ai.movementTarget</span>
+<span class="nc" id="L231">                .set(new Vector3f(tempTarget.x * -1,</span>
+                        tempTarget.y * -1, tempTarget.z
+                         * -1));
+        }
+<span class="nc" id="L235">        entity.saveComponent(ai);</span>
+<span class="nc" id="L236">        ai.inDanger = true;</span>
+<span class="nc" id="L237">    }</span>
+
+    private void randomWalk(Vector3f worldPos, HierarchicalAIComponent ai) {
+        // if ai flies
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        if (ai.flying) {</span>
+<span class="nc" id="L242">            float targetY = 0;</span>
+            do {
+<span class="nc" id="L244">                targetY = worldPos.y + random.nextFloat(-100.0f, 100.0f);</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">            } while (targetY &gt; ai.maxAltitude);</span>
+<span class="nc" id="L246">            ai.movementTarget.set(</span>
+<span class="nc" id="L247">                    worldPos.x + random.nextFloat(-500.0f, 500.0f),</span>
+                    targetY,
+<span class="nc" id="L249">                    worldPos.z + random.nextFloat(-500.0f, 500.0f));</span>
+<span class="nc" id="L250">        } else {</span>
+<span class="nc" id="L251">            ai.movementTarget.set(</span>
+<span class="nc" id="L252">                    worldPos.x + random.nextFloat(-500.0f, 500.0f),</span>
+                    worldPos.y,
+<span class="nc" id="L254">                    worldPos.z + random.nextFloat(-500.0f, 500.0f));</span>
+        }
+<span class="nc" id="L256">        ai.lastChangeOfDirectionAt = time.getGameTimeInMs();</span>
+<span class="nc" id="L257">    }</span>
+
+    private boolean foodInFront() {
+<span class="nc" id="L260">        return false;</span>
+        // return true;
+    }
+
+    //TODO change eating thingy to use this
+    @ReceiveEvent(components = {HierarchicalAIComponent.class})
+    public void onBump(HorizontalCollisionEvent event, EntityRef entity) {
+<span class="nc" id="L267">        CharacterMovementComponent moveComp = entity</span>
+<span class="nc" id="L268">                .getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L269" title="All 4 branches missed.">        if (moveComp != null &amp;&amp; moveComp.grounded) {</span>
+<span class="nc" id="L270">            moveComp.jump = true;</span>
+<span class="nc" id="L271">            entity.saveComponent(moveComp);</span>
+        }
+<span class="nc" id="L273">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetDataTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.protobuf</a> &gt; <span class="el_source">NetDataTest.java</span></div><h1>NetDataTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2020 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.protobuf;
+
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Test;
+import org.terasology.AdHoc.AdHocBuildPartial;
+import org.terasology.AdHoc.AdHocServerInfoMessageIsInitialized;
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
+
+<span class="fc" id="L27">class NetDataTest {</span>
+    @AfterAll
+    static void printCoverage() {
+<span class="fc" id="L30">        AdHocNetData.NetMessage.Builder.MergeFrom.printRes();</span>
+<span class="fc" id="L31">        AdHocNetData.NetMessage.Builder.IsInitialized.printRes();</span>
+<span class="fc" id="L32">        BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();</span>
+<span class="fc" id="L33">        AdHocBuildPartial.getCoverage();</span>
+<span class="fc" id="L34">        AdHocServerInfoMessageIsInitialized.getCoverage();</span>
+<span class="fc" id="L35">    }</span>
+
+    /**
+     * Test that some of the attributes for the ServerInfoMessage's object returned by buildPartial() are as
+     * expected and that the adhoc tool works.
+     * &lt;p&gt;
+     * Test case 1:
+     * Expected value: An empty list because we haven't added any modules, but not null
+     * &lt;p&gt;
+     * Test case 2:
+     * Expected value: playersAmount_ = 0
+     * &lt;p&gt;
+     * Test case 3:
+     * Expected value: reflectionHeight_ = 0
+     */
+    @Test
+    void testBuildPartial() {
+<span class="fc" id="L52">        NetData.ServerInfoMessage serverinfo1 = NetData.ServerInfoMessage.getDefaultInstance();</span>
+<span class="fc" id="L53">        NetData.ServerInfoMessage.Builder builder = serverinfo1.newBuilder(serverinfo1);</span>
+<span class="fc" id="L54">        NetData.ServerInfoMessage serverinfo2 = builder.buildPartial();</span>
+
+        // returns an empty list
+<span class="fc" id="L57">        assertNotNull(serverinfo2.getModuleList());</span>
+        // gets the correct value for playersAmount
+<span class="fc" id="L59">        assertEquals(0, serverinfo2.getOnlinePlayersAmount());</span>
+        // gets the correct value for reflectionHeight
+<span class="fc" id="L61">        assertEquals(0.0, serverinfo2.getReflectionHeight());</span>
+<span class="fc" id="L62">    }</span>
+
+    /**
+     * Test that mergeFrom an empty ByteString message is initialized
+     */
+    @Test
+    public void mergeFromEmptyNetMessage() throws InvalidProtocolBufferException {
+<span class="fc" id="L69">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
+<span class="fc" id="L70">        NetData.NetMessage empty = NetData.NetMessage.parseFrom(ByteString.EMPTY);</span>
+<span class="fc" id="L71">        builder.mergeFrom(empty);</span>
+<span class="fc" id="L72">        assertTrue(builder.isInitialized());</span>
+<span class="fc" id="L73">    }</span>
+
+    /**
+     * Test that mergeFrom the same NetMessage is initalized
+     */
+    @Test
+    public void mergeFromSameNetMessage() {
+<span class="fc" id="L80">        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();</span>
+<span class="fc" id="L81">        NetData.NetMessage.Builder builder = defaultInstance.toBuilder();</span>
+<span class="fc" id="L82">        builder.mergeFrom(defaultInstance);</span>
+<span class="fc" id="L83">        assertTrue(builder.isInitialized());</span>
+<span class="fc" id="L84">    }</span>
+
+    /**
+     * Test that mergeFrom merges a JoinMessage
+     */
+    @Test
+    public void mergeFromWithJoinMessage() {
+<span class="fc" id="L91">        NetData.JoinMessage.Builder joinMessageBuilder = NetData.JoinMessage.newBuilder();</span>
+<span class="fc" id="L92">        joinMessageBuilder.setName(&quot;test&quot;);</span>
+
+<span class="fc" id="L94">        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();</span>
+<span class="fc" id="L95">        NetData.NetMessage.Builder netMessageBuilder = defaultInstance.toBuilder();</span>
+
+<span class="fc" id="L97">        netMessageBuilder.setJoin(joinMessageBuilder);</span>
+<span class="fc" id="L98">        defaultInstance = defaultInstance.toBuilder().mergeFrom(netMessageBuilder.build()).build();</span>
+
+<span class="fc" id="L100">        assertEquals(&quot;test&quot;, defaultInstance.getJoin().getName());</span>
+<span class="fc" id="L101">    }</span>
+
+    /**
+     * Test that mergeFrom merges a BiomeChangeMessage
+     */
+    @Test
+    public void mergeFromWithBiomeChange() {
+<span class="fc" id="L108">        NetData.BiomeChangeMessage.Builder biomeChangeMessageBuilder = NetData.BiomeChangeMessage.newBuilder();</span>
+<span class="fc" id="L109">        biomeChangeMessageBuilder.setNewBiome(1);</span>
+
+<span class="fc" id="L111">        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();</span>
+<span class="fc" id="L112">        NetData.NetMessage.Builder netMessageBuilder = defaultInstance.toBuilder();</span>
+
+<span class="fc" id="L114">        netMessageBuilder.addBiomeChange(biomeChangeMessageBuilder);</span>
+<span class="fc" id="L115">        defaultInstance = defaultInstance.toBuilder().mergeFrom(netMessageBuilder.build()).build();</span>
+
+
+<span class="fc" id="L118">        assertEquals(1, defaultInstance.getBiomeChange(0).getNewBiome());</span>
+<span class="fc" id="L119">    }</span>
+
+    private void assertListCountsEqualToSize(NetData.NetMessage.Builder builder, int size) {
+<span class="fc" id="L122">        assertEquals(size, builder.getChunkInfoCount());</span>
+<span class="fc" id="L123">        assertEquals(size, builder.getBlockChangeCount());</span>
+<span class="fc" id="L124">        assertEquals(size, builder.getCreateEntityCount());</span>
+<span class="fc" id="L125">        assertEquals(size, builder.getRemoveEntityCount());</span>
+<span class="fc" id="L126">        assertEquals(size, builder.getUpdateEntityCount());</span>
+<span class="fc" id="L127">        assertEquals(size, builder.getEventCount());</span>
+<span class="fc" id="L128">        assertEquals(size, builder.getBiomeChangeCount());</span>
+<span class="fc" id="L129">        assertEquals(size, builder.getExtraDataChangeCount());</span>
+<span class="fc" id="L130">        assertEquals(size, builder.getBlockFamilyRegisteredCount());</span>
+<span class="fc" id="L131">        assertEquals(size, builder.getModuleRequestCount());</span>
+<span class="fc" id="L132">    }</span>
+
+    private void addNewBuilders(NetData.NetMessage.Builder builder) {
+<span class="fc" id="L135">        builder.addChunkInfoBuilder();</span>
+<span class="fc" id="L136">        builder.addInvalidateChunkBuilder();</span>
+<span class="fc" id="L137">        builder.addBlockChangeBuilder();</span>
+<span class="fc" id="L138">        builder.addCreateEntityBuilder();</span>
+<span class="fc" id="L139">        builder.addRemoveEntityBuilder();</span>
+<span class="fc" id="L140">        builder.addUpdateEntityBuilder();</span>
+<span class="fc" id="L141">        builder.addEventBuilder();</span>
+<span class="fc" id="L142">        builder.addBiomeChangeBuilder();</span>
+<span class="fc" id="L143">        builder.addExtraDataChangeBuilder();</span>
+<span class="fc" id="L144">        builder.addBlockFamilyRegisteredBuilder();</span>
+<span class="fc" id="L145">        builder.addModuleRequestBuilder();</span>
+<span class="fc" id="L146">    }</span>
+
+    private void addNewObjects(NetData.NetMessage.Builder builder) {
+<span class="fc" id="L149">        builder.addChunkInfo(EntityData.ChunkStore.newBuilder().build());</span>
+<span class="fc" id="L150">        builder.addInvalidateChunk(NetData.InvalidateChunkMessage.newBuilder().build());</span>
+<span class="fc" id="L151">        builder.addBlockChange(NetData.BlockChangeMessage.newBuilder().build());</span>
+<span class="fc" id="L152">        builder.addCreateEntity(NetData.CreateEntityMessage.newBuilder().build());</span>
+<span class="fc" id="L153">        builder.addRemoveEntity(NetData.RemoveEntityMessage.newBuilder().build());</span>
+<span class="fc" id="L154">        builder.addUpdateEntity(NetData.UpdateEntityMessage.newBuilder().build());</span>
+<span class="fc" id="L155">        builder.addEvent(NetData.EventMessage.newBuilder().build());</span>
+<span class="fc" id="L156">        builder.addBiomeChange(NetData.BiomeChangeMessage.newBuilder().build());</span>
+<span class="fc" id="L157">        builder.addExtraDataChange(NetData.ExtraDataChangeMessage.newBuilder().build());</span>
+<span class="fc" id="L158">        builder.addBlockFamilyRegistered(NetData.BlockFamilyRegisteredMessage.newBuilder().build());</span>
+<span class="fc" id="L159">        builder.addModuleRequest(NetData.ModuleRequest.newBuilder().build());</span>
+<span class="fc" id="L160">    }</span>
+
+    @Test
+    void testClearWithoutAddingNewObjects(){
+<span class="fc" id="L164">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
+<span class="fc" id="L165">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L166">        builder.clear();</span>
+<span class="fc" id="L167">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L168">    }</span>
+
+    @Test
+    void testClearAddBuilders(){
+<span class="fc" id="L172">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
+<span class="fc" id="L173">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L174">        addNewBuilders(builder);</span>
+<span class="fc" id="L175">        assertListCountsEqualToSize(builder, 1);</span>
+<span class="fc" id="L176">        builder.clear();</span>
+<span class="fc" id="L177">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L178">    }</span>
+
+    @Test
+    void testClearAddBuildersCreatedManually(){
+<span class="fc" id="L182">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
+<span class="fc" id="L183">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L184">        addNewObjects(builder);</span>
+<span class="fc" id="L185">        assertListCountsEqualToSize(builder, 1);</span>
+<span class="fc" id="L186">        builder.clear();</span>
+<span class="fc" id="L187">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L188">    }</span>
+
+    /**
+     * Test that the playersAmount and reflectionHeight are correct
+     * Test that the ServerInfoMessage's Builder is initialized
+     */
+    @Test
+    void testIsInitialized() {
+<span class="fc" id="L196">        NetData.ServerInfoMessage serverinfo1 = NetData.ServerInfoMessage.getDefaultInstance();</span>
+<span class="fc" id="L197">        NetData.ServerInfoMessage.Builder builder = serverinfo1.newBuilder(serverinfo1);</span>
+<span class="fc" id="L198">        NetData.ServerInfoMessage serverinfo2 = builder.buildPartial();</span>
+
+        // gets the correct value for playersAmount
+<span class="fc" id="L201">        assertEquals(0, serverinfo2.getOnlinePlayersAmount());</span>
+        // gets the correct value for reflectionHeight
+<span class="fc" id="L203">        assertEquals(0.0, serverinfo2.getReflectionHeight());</span>
+        // Assertion should be true even if we haven't added any components to object
+<span class="fc" id="L205">        assertTrue(builder.isInitialized());</span>
+<span class="fc" id="L206">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

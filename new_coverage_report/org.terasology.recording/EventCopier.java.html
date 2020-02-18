@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EventCopier.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.recording</a> &gt; <span class="el_source">EventCopier.java</span></div><h1>EventCopier.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.recording;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.audio.events.PlaySoundEvent;
+import org.terasology.entitySystem.event.Event;
+import org.terasology.input.BindAxisEvent;
+import org.terasology.input.BindButtonEvent;
+import org.terasology.input.cameraTarget.CameraTargetChangedEvent;
+import org.terasology.input.events.InputEvent;
+import org.terasology.input.events.KeyUpEvent;
+import org.terasology.input.events.KeyRepeatEvent;
+import org.terasology.input.events.KeyDownEvent;
+import org.terasology.input.events.KeyEvent;
+import org.terasology.input.events.MouseAxisEvent;
+import org.terasology.input.events.MouseButtonEvent;
+import org.terasology.input.events.MouseWheelEvent;
+import org.terasology.logic.characters.CharacterMoveInputEvent;
+import org.terasology.logic.characters.GetMaxSpeedEvent;
+import org.terasology.logic.characters.events.AttackEvent;
+
+import java.lang.reflect.InvocationTargetException;
+
+/**
+ * Responsible for making deep copies of the events to be recorded. It is necessary to record copies instead of the
+ * events themselves since the events can change during the game.
+ */
+class EventCopier {
+
+<span class="fc" id="L45">    private static final Logger logger = LoggerFactory.getLogger(EventCopier.class);</span>
+
+
+<span class="fc" id="L48">    public EventCopier() {</span>
+
+<span class="fc" id="L50">    }</span>
+
+    public Event copyEvent(Event toBeCopied) {
+<span class="nc bnc" id="L53" title="All 2 branches missed.">        if (toBeCopied instanceof PlaySoundEvent) {</span>
+<span class="nc" id="L54">            return toBeCopied;</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        } else if (toBeCopied instanceof BindButtonEvent) {</span>
+<span class="nc" id="L56">            BindButtonEvent originalEvent = (BindButtonEvent) toBeCopied;</span>
+<span class="nc" id="L57">            BindButtonEvent newEvent = (BindButtonEvent) createNewBindEvent(originalEvent);</span>
+<span class="nc" id="L58">            newEvent.prepare(originalEvent.getId(), originalEvent.getState(), originalEvent.getDelta());</span>
+<span class="nc" id="L59">            inputEventSetup(newEvent, originalEvent);</span>
+<span class="nc" id="L60">            return newEvent;</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        } else if (toBeCopied instanceof KeyEvent) {</span>
+<span class="nc" id="L62">            KeyEvent originalEvent = (KeyEvent) toBeCopied;</span>
+<span class="nc" id="L63">            KeyEvent newEvent = createNewKeyEvent(originalEvent);</span>
+<span class="nc" id="L64">            inputEventSetup(newEvent, originalEvent);</span>
+<span class="nc" id="L65">            return newEvent;</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        } else if (toBeCopied instanceof BindAxisEvent) {</span>
+<span class="nc" id="L67">            BindAxisEvent originalEvent = (BindAxisEvent) toBeCopied;</span>
+<span class="nc" id="L68">            BindAxisEvent newEvent = (BindAxisEvent) createNewBindEvent(originalEvent);</span>
+<span class="nc" id="L69">            newEvent.prepare(originalEvent.getId(), originalEvent.getValue(), originalEvent.getDelta());</span>
+<span class="nc" id="L70">            inputEventSetup(newEvent, originalEvent);</span>
+<span class="nc" id="L71">            return newEvent;</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        } else if (toBeCopied instanceof MouseAxisEvent) {</span>
+<span class="nc" id="L73">            MouseAxisEvent originalEvent = (MouseAxisEvent) toBeCopied;</span>
+<span class="nc" id="L74">            MouseAxisEvent newEvent = createNewMouseAxisEvent(originalEvent);</span>
+<span class="nc" id="L75">            inputEventSetup(newEvent, originalEvent);</span>
+<span class="nc" id="L76">            return newEvent;</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        } else if (toBeCopied instanceof CameraTargetChangedEvent) {</span>
+<span class="nc" id="L78">            CameraTargetChangedEvent originalEvent = (CameraTargetChangedEvent) toBeCopied;</span>
+<span class="nc" id="L79">            return new CameraTargetChangedEvent(originalEvent.getOldTarget(), originalEvent.getNewTarget());</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        } else if (toBeCopied instanceof CharacterMoveInputEvent) {</span>
+<span class="nc" id="L81">            CharacterMoveInputEvent originalEvent = (CharacterMoveInputEvent) toBeCopied;</span>
+<span class="nc" id="L82">            return  new CharacterMoveInputEvent(originalEvent.getSequenceNumber(), originalEvent.getPitch(),</span>
+<span class="nc" id="L83">                    originalEvent.getYaw(), originalEvent.getMovementDirection(), originalEvent.isRunning(),</span>
+<span class="nc" id="L84">                    originalEvent.isCrouching(), originalEvent.isJumpRequested(), originalEvent.getDeltaMs());</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        } else if (toBeCopied instanceof MouseButtonEvent) {</span>
+<span class="nc" id="L86">            MouseButtonEvent originalEvent = (MouseButtonEvent) toBeCopied;</span>
+<span class="nc" id="L87">            MouseButtonEvent newEvent = new MouseButtonEvent(originalEvent.getButton(), originalEvent.getState(), originalEvent.getDelta());</span>
+<span class="nc" id="L88">            newEvent.setMousePosition(originalEvent.getMousePosition());</span>
+<span class="nc" id="L89">            inputEventSetup(newEvent, originalEvent);</span>
+<span class="nc" id="L90">            return newEvent;</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        } else if (toBeCopied instanceof MouseWheelEvent) {</span>
+<span class="nc" id="L92">            MouseWheelEvent originalEvent = (MouseWheelEvent) toBeCopied;</span>
+<span class="nc" id="L93">            MouseWheelEvent newEvent = new MouseWheelEvent(originalEvent.getMousePosition(), originalEvent.getWheelTurns(), originalEvent.getDelta());</span>
+<span class="nc" id="L94">            inputEventSetup(newEvent, originalEvent);</span>
+<span class="nc" id="L95">            return newEvent;</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        } else if (toBeCopied instanceof GetMaxSpeedEvent) {</span>
+<span class="nc" id="L97">            GetMaxSpeedEvent originalEvent = (GetMaxSpeedEvent) toBeCopied;</span>
+<span class="nc" id="L98">            GetMaxSpeedEvent newEvent = new GetMaxSpeedEvent(originalEvent.getBaseValue(), originalEvent.getMovementMode());</span>
+<span class="nc" id="L99">            newEvent.setModifiers(originalEvent.getModifiers());</span>
+<span class="nc" id="L100">            newEvent.setMultipliers(originalEvent.getMultipliers());</span>
+<span class="nc" id="L101">            newEvent.setPostModifiers(originalEvent.getPostModifiers());</span>
+<span class="nc" id="L102">            return newEvent;</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        } else if (toBeCopied instanceof AttackEvent) {</span>
+<span class="nc" id="L104">            AttackEvent originalEvent = (AttackEvent) toBeCopied;</span>
+<span class="nc" id="L105">            AttackEvent  newEvent = new AttackEvent(originalEvent.getInstigator(), originalEvent.getDirectCause());</span>
+<span class="nc" id="L106">            return newEvent;</span>
+        } else {
+<span class="nc" id="L108">            return null;</span>
+        }
+    }
+
+    private void inputEventSetup(InputEvent newEvent, InputEvent originalEvent) {
+<span class="nc" id="L113">        newEvent.setTargetInfo(originalEvent.getTarget(),</span>
+<span class="nc" id="L114">                originalEvent.getTargetBlockPosition(),</span>
+<span class="nc" id="L115">                originalEvent.getHitPosition(),</span>
+<span class="nc" id="L116">                originalEvent.getHitNormal());</span>
+<span class="nc" id="L117">    }</span>
+
+
+    private InputEvent createNewBindEvent(InputEvent originalEvent) {
+        try {
+<span class="nc" id="L122">            return originalEvent.getClass()</span>
+<span class="nc" id="L123">                    .getConstructor()</span>
+<span class="nc" id="L124">                    .newInstance();</span>
+
+<span class="nc" id="L126">        } catch (NoSuchMethodException</span>
+                | IllegalAccessException
+                | InvocationTargetException
+                | InstantiationException
+                exception) {
+<span class="nc" id="L131">            logger.error(&quot;ERROR!!! Event not Identified: &quot; + originalEvent.toString(), exception);</span>
+        }
+<span class="nc" id="L133">        return null;</span>
+    }
+
+    private KeyEvent createNewKeyEvent(KeyEvent originalEvent) {
+<span class="nc" id="L137">        KeyEvent newEvent = null;</span>
+<span class="nc" id="L138">        Class eventClass = originalEvent.getClass();</span>
+
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if (eventClass.equals(KeyDownEvent.class)) {</span>
+<span class="nc" id="L141">            newEvent = KeyDownEvent.createCopy((KeyDownEvent) originalEvent);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        } else if (eventClass.equals(KeyRepeatEvent.class)) {</span>
+<span class="nc" id="L143">            newEvent = KeyRepeatEvent.createCopy((KeyRepeatEvent) originalEvent);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        } else if (eventClass.equals(KeyUpEvent.class)) {</span>
+<span class="nc" id="L145">            newEvent = KeyUpEvent.createCopy((KeyUpEvent) originalEvent);</span>
+        } else {
+<span class="nc" id="L147">            logger.error(&quot;ERROR!!! Event not Identified&quot;);</span>
+        }
+<span class="nc" id="L149">        return newEvent;</span>
+    }
+
+    private MouseAxisEvent createNewMouseAxisEvent(MouseAxisEvent originalEvent) {
+<span class="nc" id="L153">        return MouseAxisEvent.createCopy(originalEvent);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

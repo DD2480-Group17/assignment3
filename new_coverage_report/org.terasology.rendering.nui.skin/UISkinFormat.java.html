@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UISkinFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.skin</a> &gt; <span class="el_source">UISkinFormat.java</span></div><h1>UISkinFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.skin;
+
+import com.google.common.base.Charsets;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
+import com.google.gson.stream.JsonReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.persistence.ModuleContext;
+import org.terasology.persistence.typeHandling.extensionTypes.ColorTypeHandler;
+import org.terasology.persistence.typeHandling.gson.GsonTypeHandlerAdapterFactory;
+import org.terasology.reflection.metadata.ClassLibrary;
+import org.terasology.reflection.metadata.ClassMetadata;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.utilities.Assets;
+import org.terasology.utilities.gson.AssetTypeAdapter;
+import org.terasology.utilities.gson.CaseInsensitiveEnumTypeAdapterFactory;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ */
+@RegisterAssetFileFormat
+public class UISkinFormat extends AbstractAssetFileFormat&lt;UISkinData&gt; {
+
+<span class="fc" id="L59">    private static final Logger logger = LoggerFactory.getLogger(UISkinFormat.class);</span>
+    private Gson gson;
+
+    public UISkinFormat() {
+<span class="fc" id="L63">        super(&quot;skin&quot;);</span>
+<span class="fc" id="L64">        gson = new GsonBuilder()</span>
+<span class="fc" id="L65">            .registerTypeAdapterFactory(new CaseInsensitiveEnumTypeAdapterFactory())</span>
+<span class="fc" id="L66">            .registerTypeAdapter(Font.class, new AssetTypeAdapter&lt;&gt;(Font.class))</span>
+<span class="fc" id="L67">            .registerTypeAdapter(UISkinData.class, new UISkinTypeAdapter())</span>
+<span class="fc" id="L68">            .registerTypeAdapter(TextureRegion.class, new TextureRegionTypeAdapter())</span>
+<span class="fc" id="L69">            .registerTypeAdapterFactory(new GsonTypeHandlerAdapterFactory() {</span>
+                {
+<span class="fc" id="L71">                    addTypeHandler(Color.class, new ColorTypeHandler());</span>
+<span class="fc" id="L72">                }</span>
+            })
+<span class="fc" id="L74">            .registerTypeAdapter(Optional.class, new OptionalTextureRegionTypeAdapter())</span>
+<span class="fc" id="L75">            .create();</span>
+<span class="fc" id="L76">    }</span>
+
+    @Override
+    public UISkinData load(ResourceUrn urn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="nc" id="L80">        try (JsonReader reader = new JsonReader(new InputStreamReader(inputs.get(0).openStream(), Charsets.UTF_8))) {</span>
+<span class="nc" id="L81">            reader.setLenient(true);</span>
+<span class="nc" id="L82">            UISkinData data = gson.fromJson(reader, UISkinData.class);</span>
+<span class="nc" id="L83">            data.setSource(inputs.get(0));</span>
+<span class="nc" id="L84">            return data;</span>
+<span class="nc" id="L85">        } catch (JsonParseException e) {</span>
+<span class="nc" id="L86">            throw new IOException(&quot;Failed to load skin '&quot; + urn + &quot;'&quot;, e);</span>
+        }
+    }
+
+    public UISkinData load(JsonElement element) throws IOException {
+<span class="nc" id="L91">        return gson.fromJson(element, UISkinData.class);</span>
+    }
+
+    private static class TextureRegionTypeAdapter implements JsonDeserializer&lt;TextureRegion&gt; {
+
+        @Override
+        public TextureRegion deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="nc" id="L98">            String uri = json.getAsString();</span>
+<span class="nc" id="L99">            return Assets.getTextureRegion(uri).orElse(null);</span>
+        }
+    }
+
+    private static class UISkinTypeAdapter implements JsonDeserializer&lt;UISkinData&gt; {
+        @Override
+        public UISkinData deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if (json.isJsonObject()) {</span>
+<span class="nc" id="L107">                UISkinBuilder builder = new UISkinBuilder();</span>
+<span class="nc" id="L108">                DefaultInfo defaultInfo = context.deserialize(json, DefaultInfo.class);</span>
+<span class="nc" id="L109">                defaultInfo.apply(builder);</span>
+<span class="nc" id="L110">                return builder.build();</span>
+            }
+<span class="nc" id="L112">            return null;</span>
+        }
+    }
+
+<span class="nc" id="L116">    private static class DefaultInfo extends FamilyInfo {</span>
+        public String inherit;
+        public Map&lt;String, FamilyInfo&gt; families;
+
+        @Override
+        public void apply(UISkinBuilder builder) {
+<span class="nc" id="L122">            super.apply(builder);</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">            if (inherit != null) {</span>
+<span class="nc" id="L124">                Optional&lt;? extends UISkin&gt; skin = Assets.get(inherit, UISkin.class);</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                if (skin.isPresent()) {</span>
+<span class="nc" id="L126">                    builder.setBaseSkin(skin.get());</span>
+                }
+            }
+<span class="nc bnc" id="L129" title="All 2 branches missed.">            if (families != null) {</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                for (Map.Entry&lt;String, FamilyInfo&gt; entry : families.entrySet()) {</span>
+<span class="nc" id="L131">                    builder.setFamily(entry.getKey());</span>
+<span class="nc" id="L132">                    entry.getValue().apply(builder);</span>
+<span class="nc" id="L133">                }</span>
+            }
+<span class="nc" id="L135">        }</span>
+    }
+
+<span class="nc" id="L138">    private static class FamilyInfo extends StyleInfo {</span>
+        public Map&lt;String, ElementInfo&gt; elements;
+
+        public void apply(UISkinBuilder builder) {
+<span class="nc" id="L142">            super.apply(builder);</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">            if (elements != null) {</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                for (Map.Entry&lt;String, ElementInfo&gt; entry : elements.entrySet()) {</span>
+<span class="nc" id="L145">                    ClassLibrary&lt;UIWidget&gt; library = CoreRegistry.get(NUIManager.class).getWidgetMetadataLibrary();</span>
+<span class="nc" id="L146">                    ClassMetadata&lt;? extends UIWidget, ?&gt; metadata = library.resolve(entry.getKey(), ModuleContext.getContext());</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                    if (metadata != null) {</span>
+<span class="nc" id="L148">                        builder.setElementClass(metadata.getType());</span>
+<span class="nc" id="L149">                        entry.getValue().apply(builder);</span>
+                    } else {
+<span class="nc" id="L151">                        logger.warn(&quot;Failed to resolve UIWidget class {}, skipping style information&quot;, entry.getKey());</span>
+                    }
+
+<span class="nc" id="L154">                }</span>
+            }
+<span class="nc" id="L156">        }</span>
+    }
+
+<span class="nc" id="L159">    private static class PartsInfo extends StyleInfo {</span>
+        public Map&lt;String, StyleInfo&gt; modes;
+
+        public void apply(UISkinBuilder builder) {
+<span class="nc" id="L163">            super.apply(builder);</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">            if (modes != null) {</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                for (Map.Entry&lt;String, StyleInfo&gt; entry : modes.entrySet()) {</span>
+<span class="nc" id="L166">                    builder.setElementMode(entry.getKey());</span>
+<span class="nc" id="L167">                    entry.getValue().apply(builder);</span>
+<span class="nc" id="L168">                }</span>
+            }
+<span class="nc" id="L170">        }</span>
+    }
+
+<span class="nc" id="L173">    private static class ElementInfo extends StyleInfo {</span>
+        public Map&lt;String, PartsInfo&gt; parts;
+        public Map&lt;String, StyleInfo&gt; modes;
+
+        public void apply(UISkinBuilder builder) {
+<span class="nc" id="L178">            super.apply(builder);</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">            if (modes != null) {</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                for (Map.Entry&lt;String, StyleInfo&gt; entry : modes.entrySet()) {</span>
+<span class="nc" id="L181">                    builder.setElementMode(entry.getKey());</span>
+<span class="nc" id="L182">                    entry.getValue().apply(builder);</span>
+<span class="nc" id="L183">                }</span>
+            }
+<span class="nc bnc" id="L185" title="All 2 branches missed.">            if (parts != null) {</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                for (Map.Entry&lt;String, PartsInfo&gt; entry : parts.entrySet()) {</span>
+<span class="nc" id="L187">                    builder.setElementPart(entry.getKey());</span>
+<span class="nc" id="L188">                    entry.getValue().apply(builder);</span>
+<span class="nc" id="L189">                }</span>
+            }
+<span class="nc" id="L191">        }</span>
+    }
+
+    private static class StyleInfo extends UIStyleFragment {
+
+        private void apply(UISkinBuilder builder) {
+<span class="nc" id="L197">            builder.setStyleFragment(this);</span>
+<span class="nc" id="L198">        }</span>
+    }
+
+    private static class OptionalTextureRegionTypeAdapter implements JsonDeserializer&lt;Optional&lt;?&gt;&gt; {
+        @Override
+        public Optional&lt;?&gt; deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="nc" id="L204">            return Assets.getTextureRegion(json.getAsString());</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

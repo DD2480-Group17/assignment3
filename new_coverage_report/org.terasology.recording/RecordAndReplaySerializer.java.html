@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecordAndReplaySerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.recording</a> &gt; <span class="el_source">RecordAndReplaySerializer.java</span></div><h1>RecordAndReplaySerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.recording;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.reflection.TypeRegistry;
+
+import java.io.FileWriter;
+import java.io.FileReader;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Responsible for serializing and saving every Recording data.
+ */
+public final class RecordAndReplaySerializer {
+
+<span class="fc" id="L44">    private static final Logger logger = LoggerFactory.getLogger(RecordAndReplaySerializer.class);</span>
+    private static final String EVENT_DIR = &quot;/events&quot;;
+    private static final String JSON = &quot;.json&quot;;
+    private static final String FILE_AMOUNT = &quot;/file_amount&quot; + JSON;
+    private static final String STATE_EVENT_POSITION = &quot;/state_event_position&quot; + JSON;
+    private static final String DIRECTION_ORIGIN_LIST = &quot;/direction_origin_list&quot; + JSON;
+
+    private RecordedEventStore recordedEventStore;
+    private RecordAndReplayUtils recordAndReplayUtils;
+    private CharacterStateEventPositionMap characterStateEventPositionMap;
+    private DirectionAndOriginPosRecorderList directionAndOriginPosRecorderList;
+    private RecordedEventSerializer recordedEventSerializer;
+
+    public RecordAndReplaySerializer(EntityManager manager, RecordedEventStore store,
+                                     RecordAndReplayUtils recordAndReplayUtils,
+                                     CharacterStateEventPositionMap characterStateEventPositionMap,
+                                     DirectionAndOriginPosRecorderList directionAndOriginPosRecorderList,
+<span class="fc" id="L61">                                     ModuleManager moduleManager, TypeRegistry typeRegistry) {</span>
+<span class="fc" id="L62">        this.recordedEventStore = store;</span>
+<span class="fc" id="L63">        this.recordAndReplayUtils = recordAndReplayUtils;</span>
+<span class="fc" id="L64">        this.characterStateEventPositionMap = characterStateEventPositionMap;</span>
+<span class="fc" id="L65">        this.directionAndOriginPosRecorderList = directionAndOriginPosRecorderList;</span>
+<span class="fc" id="L66">        this.recordedEventSerializer = new RecordedEventSerializer(manager, moduleManager, typeRegistry);</span>
+<span class="fc" id="L67">    }</span>
+
+    /**
+     * Serialize the recorded data.
+     */
+    public void serializeRecordAndReplayData() {
+<span class="nc" id="L73">        String recordingPath = PathManager.getInstance().getRecordingPath(recordAndReplayUtils.getGameTitle()).toString();</span>
+<span class="nc" id="L74">        serializeRecordedEvents(recordingPath);</span>
+<span class="nc" id="L75">        Gson gson = new GsonBuilder().create();</span>
+<span class="nc" id="L76">        serializeFileAmount(gson, recordingPath);</span>
+<span class="nc" id="L77">        serializeCharacterStateEventPositionMap(gson, recordingPath);</span>
+<span class="nc" id="L78">        serializeAttackEventExtraRecorder(gson, recordingPath);</span>
+<span class="nc" id="L79">    }</span>
+
+    /**
+     * Serialize RecordedEvents.
+     * @param recordingPath path where the data should be saved.
+     */
+    public void serializeRecordedEvents(String recordingPath) {
+<span class="nc" id="L86">        String filepath = recordingPath + EVENT_DIR + recordAndReplayUtils.getFileCount() + JSON;</span>
+<span class="nc" id="L87">        recordAndReplayUtils.setFileAmount(recordAndReplayUtils.getFileAmount() + 1);</span>
+<span class="nc" id="L88">        recordAndReplayUtils.setFileCount(recordAndReplayUtils.getFileCount() + 1);</span>
+<span class="nc" id="L89">        recordedEventSerializer.serializeRecordedEvents(recordedEventStore.popEvents(), filepath);</span>
+<span class="nc" id="L90">        logger.info(&quot;RecordedEvents Serialization completed!&quot;);</span>
+<span class="nc" id="L91">    }</span>
+
+    /**
+     * Deserialize recorded data.
+     */
+    public void deserializeRecordAndReplayData() {
+<span class="nc" id="L97">        String recordingPath = PathManager.getInstance().getRecordingPath(recordAndReplayUtils.getGameTitle()).toString();</span>
+<span class="nc" id="L98">        deserializeRecordedEvents(recordingPath);</span>
+<span class="nc" id="L99">        Gson gson = new GsonBuilder().create();</span>
+<span class="nc" id="L100">        deserializeFileAmount(gson, recordingPath);</span>
+<span class="nc" id="L101">        deserializeCharacterStateEventPositionMap(gson, recordingPath);</span>
+<span class="nc" id="L102">        deserializeAttackEventExtraRecorder(gson, recordingPath);</span>
+<span class="nc" id="L103">    }</span>
+
+    /**
+     * Deserialize RecordedEvents.
+     * @param recordingPath path where the data was saved.
+     */
+    void deserializeRecordedEvents(String recordingPath) {
+<span class="nc" id="L110">        String filepath = recordingPath + EVENT_DIR + recordAndReplayUtils.getFileCount() + JSON;</span>
+<span class="nc" id="L111">        recordAndReplayUtils.setFileCount(recordAndReplayUtils.getFileCount() + 1);</span>
+<span class="nc" id="L112">        recordedEventStore.setEvents(recordedEventSerializer.deserializeRecordedEvents(filepath));</span>
+<span class="nc" id="L113">        logger.info(&quot;RecordedEvents Deserialization completed!&quot;);</span>
+<span class="nc" id="L114">    }</span>
+
+    private void serializeFileAmount(Gson gson, String recordingPath) {
+        try {
+<span class="nc" id="L118">            JsonWriter writer = new JsonWriter(new FileWriter(recordingPath + FILE_AMOUNT));</span>
+<span class="nc" id="L119">            gson.toJson(recordAndReplayUtils.getFileAmount(), Integer.class, writer);</span>
+<span class="nc" id="L120">            writer.close();</span>
+<span class="nc" id="L121">            logger.info(&quot;File Amount Serialization completed!&quot;);</span>
+<span class="nc" id="L122">        } catch (Exception e) {</span>
+<span class="nc" id="L123">            logger.error(&quot;Error while serializing file amount:&quot;, e);</span>
+<span class="nc" id="L124">        }</span>
+<span class="nc" id="L125">    }</span>
+
+    private void deserializeFileAmount(Gson gson, String recordingPath) {
+<span class="nc" id="L128">        try (FileReader fileReader = new FileReader(recordingPath + FILE_AMOUNT)){</span>
+<span class="nc" id="L129">            JsonParser parser = new JsonParser();</span>
+<span class="nc" id="L130">            JsonElement jsonElement = parser.parse(fileReader);</span>
+<span class="nc" id="L131">            Type typeOfCount = new TypeToken&lt;Integer&gt;() { }.getType();</span>
+<span class="nc" id="L132">            recordAndReplayUtils.setFileAmount(gson.fromJson(jsonElement, typeOfCount));</span>
+<span class="nc" id="L133">            logger.info(&quot;File Amount Deserialization completed!&quot;);</span>
+<span class="nc" id="L134">        } catch (Exception e) {</span>
+<span class="nc" id="L135">            logger.error(&quot;Error while deserializing file amount:&quot;, e);</span>
+<span class="nc" id="L136">        }</span>
+<span class="nc" id="L137">    }</span>
+
+    private void serializeCharacterStateEventPositionMap(Gson gson, String recordingPath) {
+        try {
+<span class="nc" id="L141">            JsonWriter writer = new JsonWriter(new FileWriter(recordingPath + STATE_EVENT_POSITION));</span>
+<span class="nc" id="L142">            gson.toJson(characterStateEventPositionMap.getIdToData(), HashMap.class, writer);</span>
+<span class="nc" id="L143">            writer.close();</span>
+<span class="nc" id="L144">            characterStateEventPositionMap.reset();</span>
+<span class="nc" id="L145">            logger.info(&quot;CharacterStateEvent positions Serialization completed!&quot;);</span>
+<span class="nc" id="L146">        } catch (Exception e) {</span>
+<span class="nc" id="L147">            logger.error(&quot;Error while serializing CharacterStateEvent positions:&quot;, e);</span>
+<span class="nc" id="L148">        }</span>
+<span class="nc" id="L149">    }</span>
+
+    private void deserializeCharacterStateEventPositionMap(Gson gson, String recordingPath) {
+<span class="nc" id="L152">        try (FileReader fileReader = new FileReader(recordingPath + STATE_EVENT_POSITION)) {</span>
+<span class="nc" id="L153">            JsonParser parser = new JsonParser();</span>
+<span class="nc" id="L154">            JsonElement jsonElement = parser.parse(fileReader);</span>
+<span class="nc" id="L155">            Type typeOfHashMap = new TypeToken&lt;HashMap&lt;Integer, Vector3f[]&gt;&gt;() { }.getType();</span>
+<span class="nc" id="L156">            Map&lt;Integer, Vector3f[]&gt; previousMap = gson.fromJson(jsonElement, typeOfHashMap);</span>
+<span class="nc" id="L157">            characterStateEventPositionMap.setIdToData(previousMap);</span>
+<span class="nc" id="L158">            logger.info(&quot;CharacterStateEvent positions Deserialization completed!&quot;);</span>
+<span class="nc" id="L159">        } catch (Exception e) {</span>
+<span class="nc" id="L160">            logger.error(&quot;Error while deserializing CharacterStateEvent positions:&quot;, e);</span>
+<span class="nc" id="L161">        }</span>
+<span class="nc" id="L162">    }</span>
+
+    private void serializeAttackEventExtraRecorder(Gson gson, String recordingPath) {
+        try {
+<span class="nc" id="L166">            JsonWriter writer = new JsonWriter(new FileWriter(recordingPath + DIRECTION_ORIGIN_LIST));</span>
+<span class="nc" id="L167">            gson.toJson(directionAndOriginPosRecorderList.getList(), ArrayList.class, writer);</span>
+<span class="nc" id="L168">            writer.close();</span>
+<span class="nc" id="L169">            directionAndOriginPosRecorderList.reset();</span>
+<span class="nc" id="L170">            logger.info(&quot;AttackEvent extras serialization completed!&quot;);</span>
+<span class="nc" id="L171">        } catch (Exception e) {</span>
+<span class="nc" id="L172">            logger.error(&quot;Error while serializing AttackEvent extras:&quot;, e);</span>
+<span class="nc" id="L173">        }</span>
+<span class="nc" id="L174">    }</span>
+    
+    private void deserializeAttackEventExtraRecorder(Gson gson, String recordingPath) {
+<span class="nc" id="L177">        try (FileReader fileReader = new FileReader(recordingPath + DIRECTION_ORIGIN_LIST)) {</span>
+<span class="nc" id="L178">            JsonParser parser = new JsonParser();</span>
+<span class="nc" id="L179">            JsonElement jsonElement = parser.parse(fileReader);</span>
+<span class="nc" id="L180">            Type type = new TypeToken&lt;ArrayList&lt;DirectionAndOriginPosRecorder&gt;&gt;() {}.getType();</span>
+<span class="nc" id="L181">            ArrayList&lt;DirectionAndOriginPosRecorder&gt; list = gson.fromJson(jsonElement, type);</span>
+<span class="nc" id="L182">            directionAndOriginPosRecorderList.setList(list);</span>
+<span class="nc" id="L183">            logger.info(&quot;AttackEvent extras deserialization completed!&quot;);</span>
+<span class="nc" id="L184">        } catch (Exception e) {</span>
+<span class="nc" id="L185">            logger.error(&quot;Error while deserializing AttackEvent extras:&quot;, e);</span>
+<span class="nc" id="L186">        }</span>
+<span class="nc" id="L187">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

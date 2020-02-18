@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WhiteNoise.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.procedural</a> &gt; <span class="el_source">WhiteNoise.java</span></div><h1>WhiteNoise.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities.procedural;
+
+/**
+ * This implementation is based on Robert Jenkins' 96 bit mix function as described in
+ * in &quot;Integer Hash Function&quot; by Thomas Wang, Jan 1997. The original code is public domain.
+ *
+ */
+public class WhiteNoise implements Noise {
+
+    private final int seed;
+
+    /**
+     * Initializes a new instance of the random number generator using a
+     * specified seed.
+     *
+     * @param seed The seed to use
+     */
+<span class="fc" id="L34">    public WhiteNoise(long seed) {</span>
+<span class="fc" id="L35">        this.seed = (int) (seed ^ 780291637); // flip some bits</span>
+<span class="fc" id="L36">    }</span>
+
+    @Override
+    public float noise(float x, float y, float z) {
+        // the floatToIntBits conversion messes with the coords
+        // this is ok, because white noise is invariant to position
+<span class="fc" id="L42">        int fx = Float.floatToIntBits(x);</span>
+<span class="fc" id="L43">        int fy = Float.floatToIntBits(y);</span>
+<span class="fc" id="L44">        int fz = Float.floatToIntBits(z);</span>
+<span class="fc" id="L45">        return noise(fx, fy, fz);</span>
+    }
+
+    @Override
+    public float noise(float x, float y) {
+        // the floatToIntBits conversion messes with the coords
+        // this is ok, because white noise is invariant to position
+<span class="nc" id="L52">        int fx = Float.floatToIntBits(x);</span>
+<span class="nc" id="L53">        int fy = Float.floatToIntBits(y);</span>
+<span class="nc" id="L54">        return noise(fx, fy);</span>
+    }
+
+    @Override
+    public float noise(int x, int y) {
+<span class="nc" id="L59">        return noise(intNoise(x) + y);</span>
+    }
+
+    @Override
+    public float noise(int x, int y, int z) {
+<span class="fc" id="L64">        return noise(intNoise(intNoise(x) + y) + z);</span>
+    }
+
+    /**
+     * @param x any float value
+     * @return a random, but deterministic float value in [-1..1]
+     */
+    public float noise(float x) {
+        // the floatToIntBits conversion messes with the coords
+        // this is ok, because white noise is invariant to position
+<span class="nc" id="L74">        int fx = Float.floatToIntBits(x);</span>
+<span class="nc" id="L75">        return noise(fx);</span>
+    }
+
+    /**
+     * @param x and integer value
+     * @return a random, but deterministic float value in [-1..1]
+     */
+    public float noise(int x) {
+<span class="fc" id="L83">        float noise = intNoise(x);</span>
+<span class="fc" id="L84">        return noise / Integer.MAX_VALUE;</span>
+    }
+
+    public int intNoise(int x, int y) {
+<span class="nc" id="L88">        return intNoise(intNoise(x) + y);</span>
+    }
+
+    public int intNoise(int x, int y, int z) {
+<span class="nc" id="L92">        return intNoise(intNoise(intNoise(x) + y) + z);</span>
+    }
+
+    /**
+     * @param x any integer value
+     * @return the 32-bit Jenkins hash
+     */
+    public int intNoise(int x) {
+<span class="fc" id="L100">        int key = seed ^ x;</span>
+<span class="fc" id="L101">        int c2 = 0x27d4eb2d; // a prime or an odd constant</span>
+<span class="fc" id="L102">        key = (key ^ 61) ^ (key &gt;&gt;&gt; 16);</span>
+<span class="fc" id="L103">        key = key + (key &lt;&lt; 3);</span>
+<span class="fc" id="L104">        key = key ^ (key &gt;&gt;&gt; 4);</span>
+<span class="fc" id="L105">        key = key * c2;</span>
+<span class="fc" id="L106">        key = key ^ (key &gt;&gt;&gt; 15);</span>
+<span class="fc" id="L107">        return key;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

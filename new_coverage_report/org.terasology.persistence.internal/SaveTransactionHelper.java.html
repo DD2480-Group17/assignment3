@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SaveTransactionHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.internal</a> &gt; <span class="el_source">SaveTransactionHelper.java</span></div><h1>SaveTransactionHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.internal;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
+
+/**
+ * Helper class for methods around {@link SaveTransaction}s that are also needed outside of the save transaction.
+ *
+ */
+public class SaveTransactionHelper {
+<span class="fc" id="L36">    private static final Logger logger = LoggerFactory.getLogger(SaveTransactionHelper.class);</span>
+    private final StoragePathProvider storagePathProvider;
+
+<span class="fc" id="L39">    public SaveTransactionHelper(StoragePathProvider storagePathProvider) {</span>
+<span class="fc" id="L40">        this.storagePathProvider = storagePathProvider;</span>
+<span class="fc" id="L41">    }</span>
+
+    public void cleanupSaveTransactionDirectory() throws IOException {
+<span class="fc" id="L44">        Path directory = storagePathProvider.getUnfinishedSaveTransactionPath();</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (!Files.exists(directory)) {</span>
+<span class="fc" id="L46">            return;</span>
+        }
+<span class="nc" id="L48">        Files.walkFileTree(directory, new SimpleFileVisitor&lt;Path&gt;() {</span>
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+<span class="nc" id="L51">                Files.delete(file);</span>
+<span class="nc" id="L52">                return FileVisitResult.CONTINUE;</span>
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+<span class="nc" id="L57">                Files.delete(dir);</span>
+<span class="nc" id="L58">                return FileVisitResult.CONTINUE;</span>
+            }
+        });
+<span class="nc" id="L61">    }</span>
+
+    /**
+     * Merges all outstanding changes into the save game. If this operation gets interrupted it can be started again
+     * without any file corruption when the file system supports atomic moves.
+     * &lt;br&gt;&lt;br&gt;
+     * The write lock for the save directory should be acquired before this method gets called.
+     */
+    public void mergeChanges() throws IOException {
+<span class="fc" id="L70">        final Path sourceDirectory = storagePathProvider.getUnmergedChangesPath();</span>
+<span class="fc" id="L71">        final Path targetDirectory = storagePathProvider.getStoragePathDirectory();</span>
+
+<span class="fc" id="L73">        Files.walkFileTree(sourceDirectory, new SimpleFileVisitor&lt;Path&gt;() {</span>
+            boolean atomicNotPossibleLogged;
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path sourceSubDir, BasicFileAttributes attrs) throws IOException {
+<span class="fc" id="L78">                Path targetSubDir = targetDirectory.resolve(sourceDirectory.relativize(sourceSubDir));</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">                if (!Files.isDirectory(targetSubDir)) {</span>
+<span class="fc" id="L80">                    Files.createDirectory(targetSubDir);</span>
+                }
+<span class="fc" id="L82">                return FileVisitResult.CONTINUE;</span>
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path sourcePath, BasicFileAttributes attrs) throws IOException {
+<span class="fc" id="L87">                Path targetPath = targetDirectory.resolve(sourceDirectory.relativize(sourcePath));</span>
+                try {
+                    // Delete file, as behavior of atomic move is undefined if target file exists:
+<span class="fc" id="L90">                    Files.deleteIfExists(targetPath);</span>
+<span class="fc" id="L91">                    Files.move(sourcePath, targetPath, StandardCopyOption.ATOMIC_MOVE);</span>
+<span class="nc" id="L92">                } catch (AtomicMoveNotSupportedException e) {</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                    if (!atomicNotPossibleLogged) {</span>
+<span class="nc" id="L94">                        logger.warn(&quot;Atomic move was not possible, doing it non atomically...&quot;);</span>
+<span class="nc" id="L95">                        atomicNotPossibleLogged = true;</span>
+                    }
+<span class="nc" id="L97">                    Files.move(sourcePath, targetPath);</span>
+<span class="fc" id="L98">                }</span>
+<span class="fc" id="L99">                return FileVisitResult.CONTINUE;</span>
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                try {
+<span class="fc" id="L105">                    Files.delete(dir);</span>
+<span class="nc" id="L106">                } catch (DirectoryNotEmptyException e) {</span>
+                    /**
+                     * Happens rarely for some players on windows (See issue #2160). Exact reason for this behavior is
+                     * unknown. Maybe they have some kind of background task that processes that creates a temporary
+                     * files in new directories to store some intermediate scan result.
+                     */
+<span class="nc" id="L112">                    logger.warn(&quot;The save job could not cleanup a temporarly created directory, it will retry once in one second&quot;);</span>
+                    try {
+<span class="nc" id="L114">                        Thread.sleep(1000L);</span>
+<span class="nc" id="L115">                    } catch (InterruptedException e1) {</span>
+                        // Reset flag and ignore it
+<span class="nc" id="L117">                        Thread.currentThread().interrupt();</span>
+<span class="nc" id="L118">                    }</span>
+<span class="nc" id="L119">                    Files.delete(dir);</span>
+<span class="fc" id="L120">                }</span>
+<span class="fc" id="L121">                return FileVisitResult.CONTINUE;</span>
+            }
+        });
+<span class="fc" id="L124">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

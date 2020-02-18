@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AutoConfigSerializerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config.flexible</a> &gt; <span class="el_source">AutoConfigSerializerTest.java</span></div><h1>AutoConfigSerializerTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.config.flexible;
+
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.reflections.Reflections;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+
+<span class="fc" id="L29">public class AutoConfigSerializerTest {</span>
+    private static final String NON_DEFAULT_JSON = &quot;{\&quot;integerListSetting\&quot;:[1,2,3],\&quot;Human Readable Name\&quot;:\&quot;xyz\&quot;}&quot;;
+    private static final String DEFAULT_JSON = &quot;{}&quot;;
+
+<span class="fc" id="L33">    private final Gson gson = new Gson();</span>
+<span class="fc" id="L34">    private final TestAutoConfig config = new TestAutoConfig();</span>
+
+    private AutoConfigSerializer&lt;TestAutoConfig&gt; autoConfigSerializer;
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L40">        TypeHandlerLibrary library = TypeHandlerLibrary.withReflections(mock(Reflections.class));</span>
+<span class="fc" id="L41">        autoConfigSerializer = new AutoConfigSerializer&lt;&gt;(TestAutoConfig.class, library);</span>
+<span class="fc" id="L42">    }</span>
+
+    @Test
+    public void testSerializeAllDefault() {
+<span class="fc" id="L46">        assertEquals(DEFAULT_JSON, serialize());</span>
+<span class="fc" id="L47">    }</span>
+
+    @Test
+    public void testSerializeNonDefault() {
+<span class="fc" id="L51">        config.integerListSetting.set(ImmutableList.of(1, 2, 3));</span>
+<span class="fc" id="L52">        config.stringSetting.set(&quot;xyz&quot;);</span>
+
+<span class="fc" id="L54">        assertEquals(NON_DEFAULT_JSON, serialize());</span>
+<span class="fc" id="L55">    }</span>
+
+    private String serialize() {
+<span class="fc" id="L58">        return gson.toJson(autoConfigSerializer.serialize(config));</span>
+    }
+
+    @Test
+    public void testDeserializeAllDefault() {
+<span class="fc" id="L63">        deserializeOnto(DEFAULT_JSON);</span>
+
+<span class="fc" id="L65">        assertEquals(config.stringSetting.getDefaultValue(), config.stringSetting.get());</span>
+<span class="fc" id="L66">        assertEquals(config.integerListSetting.getDefaultValue(), config.integerListSetting.get());</span>
+<span class="fc" id="L67">    }</span>
+
+    @Test
+    public void testDeserializeNonDefault() {
+<span class="fc" id="L71">        deserializeOnto(NON_DEFAULT_JSON);</span>
+
+<span class="fc" id="L73">        assertEquals(&quot;xyz&quot;, config.stringSetting.get());</span>
+<span class="fc" id="L74">        assertEquals(ImmutableList.of(1, 2, 3), config.integerListSetting.get());</span>
+<span class="fc" id="L75">    }</span>
+
+    private void deserializeOnto(String json) {
+<span class="fc" id="L78">        autoConfigSerializer.deserializeOnto(config, gson.fromJson(json, JsonElement.class));</span>
+<span class="fc" id="L79">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

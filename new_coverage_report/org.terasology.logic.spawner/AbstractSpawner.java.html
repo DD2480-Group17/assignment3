@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractSpawner.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.spawner</a> &gt; <span class="el_source">AbstractSpawner.java</span></div><h1>AbstractSpawner.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.logic.spawner;
+
+import org.terasology.math.Region3i;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.BaseVector2i;
+import org.terasology.math.geom.SpiralIterable;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.generation.Region;
+import org.terasology.world.generation.World;
+import org.terasology.world.generation.facets.SeaLevelFacet;
+import org.terasology.world.generation.facets.SpawnHeightFacet;
+import org.terasology.world.generation.facets.StrictlySparseSeaLevelFacet;
+import org.terasology.world.generation.facets.SurfaceHeightFacet;
+
+import java.util.Optional;
+import java.util.function.Function;
+
+<span class="nc" id="L36">public abstract class AbstractSpawner implements Spawner {</span>
+
+    /**
+     * Tries to find a suitable spawning point based on {@link SurfaceHeightFacet} and {@link SeaLevelFacet}.
+     * @param searchRadius the radius within a suitable spawning point will be searched
+     * @param world the facet-based world
+     * @param pos the desired 2D position in that world
+     * @return a 3D position above the surface and sea level or &lt;code&gt;null&lt;/code&gt; if none was found
+     * @throws IllegalStateException if no SurfaceHeightFacet can be created.
+     */
+    protected Vector3f findSpawnPosition(World world, Vector2i pos, int searchRadius) {
+
+<span class="nc" id="L48">        Vector3i ext = new Vector3i(searchRadius, 1, searchRadius);</span>
+<span class="nc" id="L49">        Vector3i desiredPos = new Vector3i(pos.getX(), 1, pos.getY());</span>
+
+        // try and find somewhere in this region a spot to land
+<span class="nc" id="L52">        Region3i spawnArea = Region3i.createFromCenterExtents(desiredPos, ext);</span>
+<span class="nc" id="L53">        Region worldRegion = world.getWorldData(spawnArea);</span>
+
+        Function&lt;BaseVector2i, Optional&lt;Float&gt;&gt; getWorld;
+
+        // check if generation uses sea level and surface height facets
+<span class="nc" id="L58">        SurfaceHeightFacet surfaceHeightFacet = worldRegion.getFacet(SurfaceHeightFacet.class);</span>
+<span class="nc" id="L59">        SpawnHeightFacet spawnHeightFacet = worldRegion.getFacet(SpawnHeightFacet.class);</span>
+        
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        if (spawnHeightFacet != null) {</span>
+<span class="nc" id="L62">            getWorld = v -&gt; spawnHeightFacet.getWorld(v.getX(), v.getY());</span>
+        }
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        else if (surfaceHeightFacet != null) {</span>
+<span class="nc" id="L65">            getWorld = v -&gt; Optional.of(surfaceHeightFacet.getWorld(v.getX(), v.getY()));</span>
+        }
+        else {
+<span class="nc" id="L68">            throw new IllegalStateException(&quot;Surface height facet and spawn height facet not found&quot;);</span>
+        }
+
+        Function&lt;BaseVector2i, Optional&lt;Integer&gt;&gt; getSeaLevel;
+
+<span class="nc" id="L73">        SeaLevelFacet seaLevelFacet = worldRegion.getFacet(SeaLevelFacet.class);</span>
+<span class="nc" id="L74">        StrictlySparseSeaLevelFacet sparseSeaLevelFacet = worldRegion.getFacet(StrictlySparseSeaLevelFacet.class);</span>
+
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        if (sparseSeaLevelFacet != null) {</span>
+<span class="nc" id="L77">            getSeaLevel = v -&gt; sparseSeaLevelFacet.getSeaLevel(v.getX(), v.getY());</span>
+        }
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        else if (seaLevelFacet != null) {</span>
+<span class="nc" id="L80">            getSeaLevel = v -&gt; Optional.of(seaLevelFacet.getSeaLevel());</span>
+        }
+        else {
+<span class="nc" id="L83">            getSeaLevel = v -&gt; Optional.of(0);</span>
+        }
+
+<span class="nc" id="L86">        int spiralRad = searchRadius / 2 - 1;</span>
+<span class="nc" id="L87">        SpiralIterable spiral = SpiralIterable.clockwise(pos).maxRadius(spiralRad).scale(2).build();</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        for (BaseVector2i test : spiral) {</span>
+<span class="nc" id="L89">            Optional&lt;Float&gt; val = getWorld.apply(test);</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            if(!val.isPresent()) {</span>
+<span class="nc" id="L91">                continue;</span>
+            }
+<span class="nc" id="L93">            int height = TeraMath.floorToInt(val.get());</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">            if (!getSeaLevel.apply(test).isPresent() || height &gt;= getSeaLevel.apply(test).get()) {</span>
+<span class="nc" id="L95">                return new Vector3f(test.getX(), height, test.getY());</span>
+            }
+<span class="nc" id="L97">        }</span>
+
+        // nothing above sea level found
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        for (BaseVector2i test : spiral) {</span>
+<span class="nc" id="L101">            Optional&lt;Float&gt; val = getWorld.apply(test);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">            if(!val.isPresent()) {</span>
+<span class="nc" id="L103">                continue;</span>
+            }
+<span class="nc" id="L105">            return new Vector3f(test.getX(), TeraMath.floorToInt(val.get()), test.getY());</span>
+        }
+
+<span class="nc" id="L108">        throw new IllegalStateException(&quot;No spawn location found&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

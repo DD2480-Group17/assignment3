@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InternalLightGeneratorTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.generator</a> &gt; <span class="el_source">InternalLightGeneratorTest.java</span></div><h1>InternalLightGeneratorTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.generator;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.math.Diamond3iIterator;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.BlockUri;
+import org.terasology.world.block.family.SymmetricFamily;
+import org.terasology.world.block.internal.BlockManagerImpl;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.loader.BlockFamilyDefinitionData;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.tiles.NullWorldAtlas;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+import org.terasology.world.chunks.internal.ChunkImpl;
+import org.terasology.world.propagation.light.InternalLightProcessor;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+<span class="fc" id="L44">public class InternalLightGeneratorTest extends TerasologyTestingEnvironment {</span>
+
+    Block airBlock;
+    Block solidBlock;
+    Block fullLight;
+
+    private BlockManager blockManager;
+    private ExtraBlockDataManager extraDataManager;
+
+
+    @BeforeEach
+    public void setup() throws Exception {
+<span class="fc" id="L56">        super.setup();</span>
+<span class="fc" id="L57">        AssetManager assetManager = CoreRegistry.get(AssetManager.class);</span>
+<span class="fc" id="L58">        blockManager = new BlockManagerImpl(new NullWorldAtlas(), assetManager);</span>
+<span class="fc" id="L59">        CoreRegistry.put(BlockManager.class, blockManager);</span>
+<span class="fc" id="L60">        airBlock = blockManager.getBlock(BlockManager.AIR_ID);</span>
+
+
+<span class="fc" id="L63">        extraDataManager = new ExtraBlockDataManager();</span>
+
+<span class="fc" id="L65">        BlockFamilyDefinitionData solidData = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L66">        solidData.getBaseSection().setDisplayName(&quot;Stone&quot;);</span>
+<span class="fc" id="L67">        solidData.getBaseSection().setShape(assetManager.getAsset(&quot;engine:cube&quot;, BlockShape.class).get());</span>
+<span class="fc" id="L68">        solidData.getBaseSection().setTranslucent(false);</span>
+<span class="fc" id="L69">        solidData.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L70">        assetManager.loadAsset(new ResourceUrn(&quot;engine:stone&quot;), solidData, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L71">        solidBlock = blockManager.getBlock(new BlockUri(new ResourceUrn(&quot;engine:stone&quot;)));</span>
+
+<span class="fc" id="L73">        BlockFamilyDefinitionData fullLightData = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L74">        fullLightData.getBaseSection().setDisplayName(&quot;Torch&quot;);</span>
+<span class="fc" id="L75">        fullLightData.getBaseSection().setShape(assetManager.getAsset(&quot;engine:cube&quot;, BlockShape.class).get());</span>
+<span class="fc" id="L76">        fullLightData.getBaseSection().setLuminance(ChunkConstants.MAX_LIGHT);</span>
+<span class="fc" id="L77">        fullLightData.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L78">        assetManager.loadAsset(new ResourceUrn(&quot;engine:torch&quot;), fullLightData, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L79">        fullLight = blockManager.getBlock(new BlockUri(new ResourceUrn(&quot;engine:torch&quot;)));</span>
+<span class="fc" id="L80">    }</span>
+
+    @Test
+    public void testUnblockedSunlightRegenPropagation() {
+<span class="fc" id="L84">        Chunk chunk = new ChunkImpl(0, 0, 0, blockManager, extraDataManager);</span>
+<span class="fc" id="L85">        InternalLightProcessor.generateInternalLighting(chunk);</span>
+
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(Vector3i.zero(), new Vector3i(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z))) {</span>
+<span class="fc" id="L88">            byte expectedRegen = (byte) Math.min(ChunkConstants.SIZE_Y - pos.y - 1, ChunkConstants.MAX_SUNLIGHT_REGEN);</span>
+<span class="fc" id="L89">            assertEquals(expectedRegen, chunk.getSunlightRegen(pos));</span>
+<span class="fc" id="L90">        }</span>
+<span class="fc" id="L91">    }</span>
+
+    @Test
+    public void testBlockedSunlightRegenPropagationResets() {
+<span class="fc" id="L95">        Chunk chunk = new ChunkImpl(0, 0, 0, blockManager, extraDataManager);</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 60, 0), new Vector3i(ChunkConstants.SIZE_X, 1, ChunkConstants.SIZE_Z))) {</span>
+<span class="fc" id="L97">            chunk.setBlock(pos, solidBlock);</span>
+<span class="fc" id="L98">        }</span>
+<span class="fc" id="L99">        InternalLightProcessor.generateInternalLighting(chunk);</span>
+
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 61, 0), new Vector3i(ChunkConstants.SIZE_X, 3, ChunkConstants.SIZE_Z))) {</span>
+<span class="fc" id="L102">            byte expectedRegen = (byte) Math.min(ChunkConstants.SIZE_Y - pos.y - 1, ChunkConstants.MAX_SUNLIGHT_REGEN);</span>
+<span class="fc" id="L103">            assertEquals(expectedRegen, chunk.getSunlightRegen(pos));</span>
+<span class="fc" id="L104">        }</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 60, 0), new Vector3i(ChunkConstants.SIZE_X, 1, ChunkConstants.SIZE_Z))) {</span>
+<span class="fc" id="L106">            assertEquals(0, chunk.getSunlightRegen(pos));</span>
+<span class="fc" id="L107">        }</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 0, 0), new Vector3i(ChunkConstants.SIZE_X, 59, ChunkConstants.SIZE_Z))) {</span>
+<span class="fc" id="L109">            byte expectedRegen = (byte) Math.min(60 - pos.y - 1, ChunkConstants.MAX_SUNLIGHT_REGEN);</span>
+<span class="fc" id="L110">            assertEquals(expectedRegen, chunk.getSunlightRegen(pos));</span>
+<span class="fc" id="L111">        }</span>
+<span class="fc" id="L112">    }</span>
+
+    @Test
+    public void testBlockedAtTopSunlightRegenPropagationResets() {
+<span class="fc" id="L116">        Chunk chunk = new ChunkImpl(0, 0, 0, blockManager, extraDataManager);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 63, 0), new Vector3i(ChunkConstants.SIZE_X, 1, ChunkConstants.SIZE_Z))) {</span>
+<span class="fc" id="L118">            chunk.setBlock(pos, solidBlock);</span>
+<span class="fc" id="L119">        }</span>
+<span class="fc" id="L120">        InternalLightProcessor.generateInternalLighting(chunk);</span>
+
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(Vector3i.zero(), new Vector3i(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y - 1, ChunkConstants.SIZE_Z))) {</span>
+<span class="fc" id="L123">            byte expectedRegen = (byte) Math.min(ChunkConstants.SIZE_Y - pos.y - 2, ChunkConstants.MAX_SUNLIGHT_REGEN);</span>
+<span class="fc" id="L124">            assertEquals(expectedRegen, chunk.getSunlightRegen(pos));</span>
+<span class="fc" id="L125">        }</span>
+<span class="fc" id="L126">    }</span>
+
+    @Test
+    public void testUnblockedSunlightPropagationAfterHittingMaxRegen() {
+<span class="fc" id="L130">        Chunk chunk = new ChunkImpl(0, 0, 0, blockManager, extraDataManager);</span>
+<span class="fc" id="L131">        InternalLightProcessor.generateInternalLighting(chunk);</span>
+
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 15, 0), new Vector3i(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y - 15,</span>
+                ChunkConstants.SIZE_Z))) {
+<span class="fc" id="L135">            assertEquals(0, chunk.getSunlight(pos));</span>
+<span class="fc" id="L136">        }</span>
+
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(Vector3i.zero(), new Vector3i(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y - ChunkConstants.MAX_SUNLIGHT_REGEN,</span>
+                ChunkConstants.SIZE_Z))) {
+<span class="fc" id="L140">            byte expectedSunlight = (byte) Math.min(ChunkConstants.SIZE_Y - ChunkConstants.SUNLIGHT_REGEN_THRESHOLD - pos.y - 1, ChunkConstants.MAX_SUNLIGHT);</span>
+<span class="pc" id="L141">            assertEquals(expectedSunlight, chunk.getSunlight(pos), () -&gt; &quot;Incorrect lighting at &quot; + pos);</span>
+<span class="fc" id="L142">        }</span>
+<span class="fc" id="L143">    }</span>
+
+    @Test
+    public void testBlockedSunlightPropagation() {
+<span class="fc" id="L147">        Chunk chunk = new ChunkImpl(0, 0, 0, blockManager, extraDataManager);</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 4, 0), new Vector3i(ChunkConstants.SIZE_X, 1, ChunkConstants.SIZE_Z))) {</span>
+<span class="fc" id="L149">            chunk.setBlock(pos, solidBlock);</span>
+<span class="fc" id="L150">        }</span>
+<span class="fc" id="L151">        InternalLightProcessor.generateInternalLighting(chunk);</span>
+
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 0, 0), new Vector3i(ChunkConstants.SIZE_X, 5,</span>
+                ChunkConstants.SIZE_Z))) {
+<span class="pc" id="L155">            assertEquals(0, chunk.getSunlight(pos), () -&gt; &quot;Incorrect lighting at &quot; + pos);</span>
+<span class="fc" id="L156">        }</span>
+<span class="fc" id="L157">    }</span>
+
+    @Test
+    public void testUnblockedSunlightPropagation() {
+<span class="fc" id="L161">        Chunk chunk = new ChunkImpl(0, 0, 0, blockManager, extraDataManager);</span>
+<span class="fc" id="L162">        InternalLightProcessor.generateInternalLighting(chunk);</span>
+
+<span class="fc bfc" id="L164" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 0, 0), new Vector3i(ChunkConstants.SIZE_X, 15,</span>
+                ChunkConstants.SIZE_Z))) {
+<span class="pc" id="L166">            assertEquals(15 - pos.y, chunk.getSunlight(pos), () -&gt; &quot;Incorrect lighting at &quot; + pos);</span>
+<span class="fc" id="L167">        }</span>
+<span class="fc" id="L168">    }</span>
+
+    @Test
+    public void testHorizontalSunlightPropagation() {
+<span class="fc" id="L172">        Chunk chunk = new ChunkImpl(0, 0, 0, blockManager, extraDataManager);</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromMinAndSize(new Vector3i(0, 4, 0), new Vector3i(ChunkConstants.SIZE_X, 1, ChunkConstants.SIZE_Z))) {</span>
+<span class="fc" id="L174">            chunk.setBlock(pos, solidBlock);</span>
+<span class="fc" id="L175">        }</span>
+<span class="fc" id="L176">        chunk.setBlock(new Vector3i(16, 4, 16), airBlock);</span>
+<span class="fc" id="L177">        InternalLightProcessor.generateInternalLighting(chunk);</span>
+
+<span class="fc" id="L179">        assertEquals(12, chunk.getSunlight(16, 3, 16));</span>
+<span class="fc" id="L180">        assertEquals(11, chunk.getSunlight(15, 3, 16));</span>
+<span class="fc" id="L181">        assertEquals(11, chunk.getSunlight(17, 3, 16));</span>
+<span class="fc" id="L182">        assertEquals(11, chunk.getSunlight(16, 3, 15));</span>
+<span class="fc" id="L183">        assertEquals(11, chunk.getSunlight(16, 3, 17));</span>
+
+<span class="fc" id="L185">        assertEquals(12, chunk.getSunlight(15, 2, 16));</span>
+<span class="fc" id="L186">        assertEquals(12, chunk.getSunlight(17, 2, 16));</span>
+<span class="fc" id="L187">        assertEquals(12, chunk.getSunlight(16, 2, 15));</span>
+<span class="fc" id="L188">        assertEquals(12, chunk.getSunlight(16, 2, 17));</span>
+<span class="fc" id="L189">    }</span>
+
+    @Test
+    public void testLightPropagation() {
+<span class="fc" id="L193">        Chunk chunk = new ChunkImpl(0, 0, 0, blockManager, extraDataManager);</span>
+<span class="fc" id="L194">        chunk.setBlock(16, 32, 16, fullLight);</span>
+
+<span class="fc" id="L196">        InternalLightProcessor.generateInternalLighting(chunk);</span>
+<span class="fc" id="L197">        assertEquals(fullLight.getLuminance(), chunk.getLight(16, 32, 16));</span>
+<span class="fc" id="L198">        assertEquals(fullLight.getLuminance() - 1, chunk.getLight(new Vector3i(16, 33, 16)));</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        for (int i = 1; i &lt; fullLight.getLuminance(); ++i) {</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(new Vector3i(16, 32, 16), i)) {</span>
+<span class="fc" id="L201">                assertEquals(fullLight.getLuminance() - i, chunk.getLight(pos));</span>
+<span class="fc" id="L202">            }</span>
+        }
+<span class="fc" id="L204">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

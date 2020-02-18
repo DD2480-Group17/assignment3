@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractWidget.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui</a> &gt; <span class="el_source">AbstractWidget.java</span></div><h1>AbstractWidget.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui;
+
+import com.google.common.collect.Lists;
+import org.terasology.engine.SimpleUri;
+import org.terasology.input.BindButtonEvent;
+import org.terasology.input.ButtonState;
+import org.terasology.input.MouseInput;
+import org.terasology.input.events.MouseButtonEvent;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.skin.UISkin;
+import org.terasology.rendering.nui.widgets.UIDropdown;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIList;
+import org.terasology.rendering.nui.widgets.UIRadialSection;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+
+public abstract class AbstractWidget implements UIWidget {
+
+    @LayoutConfig
+    private String id;
+
+    @LayoutConfig
+    private UISkin skin;
+
+<span class="pc" id="L45">    @LayoutConfig</span>
+    private Binding&lt;String&gt; family = new DefaultBinding&lt;&gt;();
+
+<span class="pc" id="L48">    @LayoutConfig</span>
+<span class="pc" id="L49">    private Binding&lt;Boolean&gt; visible = new DefaultBinding&lt;&gt;(true);</span>
+
+<span class="pc" id="L51">    @LayoutConfig</span>
+    private Binding&lt;UIWidget&gt; tooltip = new DefaultBinding&lt;&gt;();
+
+<span class="pc" id="L54">    @LayoutConfig</span>
+    private float tooltipDelay = 0.5f;
+
+<span class="pc" id="L57">    protected int depth = new DefaultBinding&lt;Integer&gt;(SortOrderSystem.DEFAULT_DEPTH).get();</span>
+
+    private boolean focused;
+
+    private static boolean shiftPressed;
+
+<span class="pc" id="L63">    @LayoutConfig</span>
+<span class="pc" id="L64">    private Binding&lt;Boolean&gt; enabled = new DefaultBinding&lt;&gt;(true);</span>
+
+<span class="fc" id="L66">    public AbstractWidget() {</span>
+<span class="fc" id="L67">        id = &quot;&quot;;</span>
+<span class="fc" id="L68">    }</span>
+
+<span class="nc" id="L70">    public AbstractWidget(String id) {</span>
+<span class="nc" id="L71">        this.id = id;</span>
+<span class="nc" id="L72">    }</span>
+
+    @Override
+    public String getMode() {
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        if (this.isEnabled()) {</span>
+<span class="nc" id="L77">            return DEFAULT_MODE;</span>
+        }
+<span class="nc" id="L79">        return DISABLED_MODE;</span>
+    }
+
+    @Override
+    public final String getId() {
+<span class="nc" id="L84">        return id;</span>
+    }
+
+    protected void setId(String id) {
+<span class="nc" id="L88">        this.id = id;</span>
+<span class="nc" id="L89">    }</span>
+
+    @Override
+    public final UISkin getSkin() {
+<span class="nc" id="L93">        return skin;</span>
+    }
+
+    @Override
+    public final void setSkin(UISkin skin) {
+<span class="nc" id="L98">        this.skin = skin;</span>
+<span class="nc" id="L99">    }</span>
+
+    @Override
+    public final String getFamily() {
+<span class="nc" id="L103">        return family.get();</span>
+    }
+
+    @Override
+    public final void setFamily(String family) {
+<span class="nc" id="L108">        this.family.set(family);</span>
+<span class="nc" id="L109">    }</span>
+
+    @Override
+    public void bindFamily(Binding&lt;String&gt; binding) {
+<span class="nc" id="L113">        this.family = binding;</span>
+<span class="nc" id="L114">    }</span>
+
+    @Override
+    public final &lt;T extends UIWidget&gt; T find(String targetId, Class&lt;T&gt; type) {
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if (this.id.equals(targetId)) {</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">            if (type.isInstance(this)) {</span>
+<span class="nc" id="L120">                return type.cast(this);</span>
+            }
+<span class="nc" id="L122">            return null;</span>
+        }
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        for (UIWidget contents : this) {</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">            if (contents != null) {</span>
+<span class="nc" id="L126">                T result = contents.find(targetId, type);</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                if (result != null) {</span>
+<span class="nc" id="L128">                    return result;</span>
+                }
+            }
+<span class="nc" id="L131">        }</span>
+<span class="nc" id="L132">        return null;</span>
+    }
+
+    @Override
+    public &lt;T extends UIWidget&gt; Optional&lt;T&gt; tryFind(String id, Class&lt;T&gt; type) {
+<span class="nc" id="L137">        return Optional.ofNullable(find(id, type));</span>
+    }
+
+    @Override
+    public final &lt;T extends UIWidget&gt; Collection&lt;T&gt; findAll(Class&lt;T&gt; type) {
+<span class="nc" id="L142">        List&lt;T&gt; results = Lists.newArrayList();</span>
+<span class="nc" id="L143">        findAll(type, this, results);</span>
+<span class="nc" id="L144">        return results;</span>
+    }
+
+    private &lt;T extends UIWidget&gt; void findAll(Class&lt;T&gt; type, UIWidget widget, List&lt;T&gt; results) {
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (type.isInstance(widget)) {</span>
+<span class="nc" id="L149">            results.add(type.cast(widget));</span>
+        }
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        for (UIWidget content : widget) {</span>
+<span class="nc" id="L152">            findAll(type, content, results);</span>
+<span class="nc" id="L153">        }</span>
+<span class="nc" id="L154">    }</span>
+
+    @Override
+    public boolean isVisible() {
+<span class="nc" id="L158">        return visible.get();</span>
+    }
+
+    public void setVisible(boolean visible) {
+<span class="nc" id="L162">        this.visible.set(visible);</span>
+<span class="nc" id="L163">    }</span>
+
+    public boolean isEnabled() {
+<span class="nc" id="L166">        return enabled.get();</span>
+    }
+
+    public void setEnabled(boolean enabled) {
+<span class="nc" id="L170">        this.enabled.set(enabled);</span>
+
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        for (UIWidget child : this) {</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            if (child instanceof AbstractWidget) {</span>
+<span class="nc" id="L174">                AbstractWidget widget = (AbstractWidget) child;</span>
+<span class="nc" id="L175">                widget.setEnabled(this.isEnabled());</span>
+            }
+<span class="nc" id="L177">        }</span>
+
+<span class="nc" id="L179">    }</span>
+
+    public void bindEnabled(Binding&lt;Boolean&gt; binding) {
+<span class="nc" id="L182">        enabled = binding;</span>
+
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        for (UIWidget child : this) {</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">            if (child instanceof AbstractWidget) {</span>
+<span class="nc" id="L186">                AbstractWidget widget = (AbstractWidget) child;</span>
+<span class="nc" id="L187">                widget.bindEnabled(binding);</span>
+            }
+<span class="nc" id="L189">        }</span>
+<span class="nc" id="L190">    }</span>
+
+    public void bindVisible(Binding&lt;Boolean&gt; bind) {
+<span class="nc" id="L193">        this.visible = bind;</span>
+<span class="nc" id="L194">    }</span>
+
+    public void clearVisibleBinding() {
+<span class="nc" id="L197">        this.visible = new DefaultBinding&lt;&gt;(true);</span>
+<span class="nc" id="L198">    }</span>
+
+    @Override
+    public void onGainFocus() {
+<span class="nc" id="L202">        focused = true;</span>
+<span class="nc" id="L203">        this.onMouseButtonEvent(new MouseButtonEvent(MouseInput.MOUSE_LEFT, ButtonState.UP, 0));</span>
+<span class="nc" id="L204">    }</span>
+
+    @Override
+    public void onLoseFocus() {
+<span class="nc" id="L208">        focused = false;</span>
+
+<span class="nc bnc" id="L210" title="All 4 branches missed.">        if (TabbingManager.focusedWidget != null &amp;&amp; TabbingManager.focusedWidget.equals(this)) {</span>
+<span class="nc" id="L211">            TabbingManager.unfocusWidget();</span>
+        }
+<span class="nc" id="L213">    }</span>
+
+    public final boolean isFocused() {
+<span class="nc" id="L216">        return focused;</span>
+    }
+
+    @Override
+    public boolean isSkinAppliedByCanvas() {
+<span class="nc" id="L221">        return true;</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        for (UIWidget item : this) {</span>
+<span class="nc" id="L227">            item.update(delta);</span>
+<span class="nc" id="L228">        }</span>
+<span class="nc" id="L229">    }</span>
+
+    @Override
+    public boolean canBeFocus() {
+<span class="nc" id="L233">        return true;</span>
+    }
+
+    @Override
+    public void bindTooltip(Binding&lt;UIWidget&gt; binding) {
+<span class="nc" id="L238">        tooltip = binding;</span>
+<span class="nc" id="L239">    }</span>
+
+    @Override
+    public UIWidget getTooltip() {
+<span class="nc" id="L243">        return tooltip.get();</span>
+    }
+
+    @Override
+    public void setTooltip(String value) {
+<span class="nc bnc" id="L248" title="All 4 branches missed.">        if (value != null &amp;&amp; !value.isEmpty()) {</span>
+<span class="nc" id="L249">            setTooltip(new UILabel(value));</span>
+        } else {
+<span class="nc" id="L251">            tooltip = new DefaultBinding&lt;&gt;(null);</span>
+        }
+<span class="nc" id="L253">    }</span>
+
+    @Override
+    public void setTooltip(UIWidget val) {
+<span class="nc" id="L257">        tooltip.set(val);</span>
+<span class="nc" id="L258">    }</span>
+
+    @Override
+    public void bindTooltipString(Binding&lt;String&gt; bind) {
+<span class="nc" id="L262">        bindTooltip(new TooltipLabelBinding(bind));</span>
+<span class="nc" id="L263">    }</span>
+
+    @Override
+    public float getTooltipDelay() {
+<span class="nc" id="L267">        return tooltipDelay;</span>
+    }
+
+    public final void setTooltipDelay(float value) {
+<span class="nc" id="L271">        this.tooltipDelay = value;</span>
+<span class="nc" id="L272">    }</span>
+
+    private static class TooltipLabelBinding extends ReadOnlyBinding&lt;UIWidget&gt; {
+
+<span class="nc" id="L276">        private UILabel tooltipLabel = new UILabel();</span>
+
+<span class="nc" id="L278">        TooltipLabelBinding(Binding&lt;String&gt; stringBind) {</span>
+<span class="nc" id="L279">            tooltipLabel.bindText(stringBind);</span>
+<span class="nc" id="L280">        }</span>
+
+        @Override
+        public UIWidget get() {
+<span class="nc bnc" id="L284" title="All 2 branches missed.">            if (tooltipLabel.getText().isEmpty()) {</span>
+<span class="nc" id="L285">                return null;</span>
+            }
+<span class="nc" id="L287">            return tooltipLabel;</span>
+        }
+    }
+
+    @Override
+    public void onBindEvent(BindButtonEvent event) {
+<span class="nc bnc" id="L293" title="All 4 branches missed.">        if (event.getState().equals(ButtonState.DOWN) &amp;&amp; !SortOrderSystem.containsConsole()) {</span>
+
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            if (event.getId().equals(new SimpleUri(&quot;engine:tabbingModifier&quot;))) {</span>
+<span class="nc" id="L296">                shiftPressed = true;</span>
+            }
+
+<span class="nc bnc" id="L299" title="All 2 branches missed.">            if (event.getId().equals(new SimpleUri(&quot;engine:tabbingUI&quot;))) {</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">                if (!TabbingManager.isInitialized()) {</span>
+<span class="nc" id="L301">                    TabbingManager.init();</span>
+                }
+<span class="nc bnc" id="L303" title="All 2 branches missed.">                if (TabbingManager.getOpenScreen().getManager().getFocus() == null) {</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">                    if (TabbingManager.getWidgetsList().size() &gt; 0) {</span>
+<span class="nc" id="L305">                        TabbingManager.resetCurrentNum();</span>
+<span class="nc" id="L306">                        TabbingManager.focusedWidget = TabbingManager.getWidgetsList().get(0);</span>
+                    }
+                }
+<span class="nc" id="L309">                TabbingManager.focusSetThrough = true;</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">                TabbingManager.changeCurrentNum(!shiftPressed);</span>
+
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                for (WidgetWithOrder widget : TabbingManager.getWidgetsList()) {</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">                    if (widget.getOrder() == TabbingManager.getCurrentNum()) {</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">                        if (!widget.isEnabled()) {</span>
+<span class="nc" id="L315">                            TabbingManager.changeCurrentNum(true);</span>
+                        } else {
+<span class="nc" id="L317">                            widget.onGainFocus();</span>
+<span class="nc" id="L318">                            TabbingManager.focusedWidget = widget;</span>
+<span class="nc" id="L319">                            TabbingManager.getOpenScreen().getManager().setFocus(widget);</span>
+                        }
+                    } else {
+<span class="nc" id="L322">                        widget.onLoseFocus();</span>
+
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                        if (widget instanceof UIRadialSection) {</span>
+<span class="nc" id="L325">                            ((UIRadialSection) widget).setSelected(false);</span>
+                        }
+                    }
+<span class="nc" id="L328">                }</span>
+
+<span class="nc" id="L330">                event.prepare(new SimpleUri(&quot;engine:tabbingUI&quot;), ButtonState.UP, event.getDelta());</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">            } else if (event.getId().equals(new SimpleUri(&quot;engine:activate&quot;))) {</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">                if (TabbingManager.focusedWidget instanceof UIDropdown) {</span>
+<span class="nc" id="L333">                    UIDropdown dropdown = ((UIDropdown) TabbingManager.focusedWidget);</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">                    if (dropdown.isOpened()) {</span>
+<span class="nc" id="L335">                        dropdown.setOpenedReverse(true);</span>
+                    }
+<span class="nc bnc" id="L337" title="All 2 branches missed.">                } else if  (TabbingManager.focusedWidget instanceof ActivatableWidget) {</span>
+<span class="nc" id="L338">                    ((ActivatableWidget) TabbingManager.focusedWidget).activateWidget();</span>
+                }
+
+<span class="nc" id="L341">                event.prepare(new SimpleUri(&quot;engine:activate&quot;), ButtonState.UP, event.getDelta());</span>
+            }
+        }
+<span class="nc bnc" id="L344" title="All 4 branches missed.">        if (event.getState().equals(ButtonState.UP) &amp;&amp; !SortOrderSystem.containsConsole()) {</span>
+
+<span class="nc bnc" id="L346" title="All 2 branches missed.">            if (event.getId().equals(new SimpleUri(&quot;engine:tabbingModifier&quot;))) {</span>
+<span class="nc" id="L347">                shiftPressed = false;</span>
+            }
+        }
+<span class="nc" id="L350">    }</span>
+
+    public static boolean getShiftPressed() {
+<span class="nc" id="L353">        return shiftPressed;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

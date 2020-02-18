@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldProviderCore.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.internal</a> &gt; <span class="el_source">WorldProviderCore.java</span></div><h1>WorldProviderCore.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.internal;
+
+import com.google.common.collect.Maps;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.WorldChangeListener;
+import org.terasology.world.block.Block;
+import org.terasology.world.time.WorldTime;
+
+import java.util.Collection;
+import java.util.Map;
+
+/**
+ * Provides the basic interface for all world providers.
+ */
+public interface WorldProviderCore {
+
+    /**
+     * Returns the world entity.
+     *
+     * @return the entity of the world
+     */
+    EntityRef getWorldEntity();
+
+    /**
+     * Returns the title of this world.
+     *
+     * @return the title of this world
+     */
+    String getTitle();
+
+    /**
+     * Returns the seed of this world.
+     *
+     * @return The seed value
+     */
+    String getSeed();
+
+    /**
+     * @return General world info
+     */
+    WorldInfo getWorldInfo();
+
+    /**
+     * Process any propagation, such as light
+     */
+    void processPropagation();
+
+    /**
+     * @param listener
+     */
+    void registerListener(WorldChangeListener listener);
+
+    void unregisterListener(WorldChangeListener listener);
+
+    /**
+     * @param chunkPos
+     * @return A world view centered on the desired chunk, with the surrounding chunks present.
+     */
+    ChunkViewCore getLocalView(Vector3i chunkPos);
+
+    /**
+     * @param chunk
+     * @return A world view of the chunks around the desired chunk, uncentered.
+     */
+    ChunkViewCore getWorldViewAround(Vector3i chunk);
+
+
+    /**
+     * An active block is in a chunk that is available and fully generated.
+     *
+     * @param x
+     * @param y
+     * @param z
+     * @return Whether the given block is active
+     */
+    boolean isBlockRelevant(int x, int y, int z);
+
+    boolean isRegionRelevant(Region3i region);
+
+    /**
+     * Places a block of a specific type at a given position
+     *
+     * @param pos  The world position to change
+     * @param type The type of the block to set
+     * @return The previous block type. Null if the change failed (because the necessary chunk was not loaded)
+     */
+    Block setBlock(Vector3i pos, Block type);
+
+    /**
+     * Places all given blocks of specific types at their corresponding positions
+     * &lt;/p&gt;
+     * Chunks are
+     *
+     * @param blocks A mapping from world position to change to the type of block to set
+     * @return A mapping from world position to previous block type.
+     * The value of a map entry is Null if the change failed (because the necessary chunk was not loaded)
+     */
+    default Map&lt;Vector3i, Block&gt; setBlocks(Map&lt;Vector3i, Block&gt; blocks) {
+<span class="nc" id="L116">        Map&lt;Vector3i, Block&gt; resultMap = Maps.newHashMap();</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        for (Map.Entry&lt;Vector3i, Block&gt; entry: blocks.entrySet()) {</span>
+<span class="nc" id="L118">            Block oldBlock = setBlock(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L119">            resultMap.put(entry.getKey(), oldBlock);</span>
+<span class="nc" id="L120">        }</span>
+<span class="nc" id="L121">        return resultMap;</span>
+    }
+
+    /**
+     * Returns the block at the given position.
+     *
+     * @param x The X-coordinate
+     * @param y The Y-coordinate
+     * @param z The Z-coordinate
+     * @return The type of the block
+     */
+    Block getBlock(int x, int y, int z);
+
+    /**
+     * Returns the light value at the given position.
+     *
+     * @param x The X-coordinate
+     * @param y The Y-coordinate
+     * @param z The Z-coordinate
+     * @return The light value
+     */
+    byte getLight(int x, int y, int z);
+
+    /**
+     * Returns the sunlight value at the given position
+     *
+     * @param x
+     * @param y
+     * @param z
+     * @return The sunlight value
+     */
+    byte getSunlight(int x, int y, int z);
+
+    byte getTotalLight(int x, int y, int z);
+    
+    /**
+     * Gets one of the per-block custom data values at the given position. Returns 0 outside the view.
+     *
+     * @param index The index of the extra data field
+     * @param x
+     * @param y
+     * @param z
+     * @return The (index)th extra-data value at the given position
+     */
+    int getExtraData(int index, int x, int y, int z);
+    
+    /**
+     * Sets one of the per-block custom data values at the given position, if it is within the view.
+     *
+     * @param index The index of the extra data field
+     * @param pos
+     * @param value
+     * @return The replaced value
+     */
+    int setExtraData(int index, Vector3i pos, int value);
+
+    /**
+     * Disposes this world provider.
+     */
+    void dispose();
+
+    WorldTime getTime();
+
+    /**
+     * @return an unmodifiable view on the generated relevant regions
+     */
+    Collection&lt;Region3i&gt; getRelevantRegions();
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

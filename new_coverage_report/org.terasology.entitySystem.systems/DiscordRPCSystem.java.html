@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscordRPCSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem.systems</a> &gt; <span class="el_source">DiscordRPCSystem.java</span></div><h1>DiscordRPCSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem.systems;
+
+import org.terasology.engine.subsystem.rpc.DiscordRPCSubSystem;
+import org.terasology.game.Game;
+import org.terasology.network.NetworkMode;
+import org.terasology.network.NetworkSystem;
+import org.terasology.registry.In;
+
+/**
+ * It's a system that runs when a single player or multi player game has been started to process some stuff
+ * throw the {@link DiscordRPCSubSystem}.
+ *
+ * @see DiscordRPCSubSystem
+ */
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L31">public class DiscordRPCSystem extends BaseComponentSystem {</span>
+
+    @In
+    private Game game;
+
+    @In
+    private NetworkSystem networkSystem;
+
+    public String getGame() {
+<span class="nc" id="L40">        NetworkMode networkMode = networkSystem.getMode();</span>
+<span class="nc" id="L41">        String mode = &quot;Playing Online&quot;;</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">        if (networkMode == NetworkMode.DEDICATED_SERVER) {</span>
+<span class="nc" id="L43">            mode = &quot;Hosting | &quot; + game.getName();</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">        } else if (networkMode == NetworkMode.NONE) {</span>
+<span class="nc" id="L45">            mode = &quot;Solo | &quot; + game.getName();</span>
+        }
+<span class="nc" id="L47">        return mode;</span>
+    }
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L52">        DiscordRPCSubSystem.tryToDiscover();</span>
+<span class="nc" id="L53">    }</span>
+
+    @Override
+    public void preBegin() {
+<span class="nc" id="L57">        DiscordRPCSubSystem.setState(getGame(), false);</span>
+<span class="nc" id="L58">    }</span>
+
+    @Override
+    public void postBegin() {
+<span class="nc" id="L62">        DiscordRPCSubSystem.setState(getGame(), true);</span>
+<span class="nc" id="L63">    }</span>
+
+    @Override
+    public void shutdown() {
+<span class="nc" id="L67">        DiscordRPCSubSystem.setState(&quot;In Lobby&quot;);</span>
+<span class="nc" id="L68">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

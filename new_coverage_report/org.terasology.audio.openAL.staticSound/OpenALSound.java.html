@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenALSound.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.audio.openAL.staticSound</a> &gt; <span class="el_source">OpenALSound.java</span></div><h1>OpenALSound.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.audio.openAL.staticSound;
+
+import org.lwjgl.openal.AL10;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.audio.StaticSound;
+import org.terasology.audio.StaticSoundData;
+import org.terasology.audio.openAL.OpenALException;
+import org.terasology.audio.openAL.OpenALManager;
+import org.terasology.engine.GameThread;
+
+import java.lang.ref.WeakReference;
+
+import static org.lwjgl.openal.AL10.AL_BITS;
+import static org.lwjgl.openal.AL10.AL_CHANNELS;
+import static org.lwjgl.openal.AL10.AL_FREQUENCY;
+import static org.lwjgl.openal.AL10.AL_SIZE;
+import static org.lwjgl.openal.AL10.alDeleteBuffers;
+import static org.lwjgl.openal.AL10.alGenBuffers;
+import static org.lwjgl.openal.AL10.alGetBufferi;
+
+public final class OpenALSound extends StaticSound {
+
+<span class="nc" id="L41">    private static final Logger logger = LoggerFactory.getLogger(OpenALSound.class);</span>
+
+    protected float length;
+    private final OpenALManager audioManager;
+
+    private DisposalAction disposalAction;
+
+    // TODO: Do we have proper support for unloading sounds (as mods are changed?)
+    private int bufferId;
+
+    public OpenALSound(ResourceUrn urn, AssetType&lt;?, StaticSoundData&gt; assetType, StaticSoundData data, OpenALManager audioManager) {
+<span class="nc" id="L52">        super(urn, assetType);</span>
+<span class="nc" id="L53">        this.audioManager = audioManager;</span>
+<span class="nc" id="L54">        disposalAction = new DisposalAction(urn, this);</span>
+<span class="nc" id="L55">        getDisposalHook().setDisposeAction(disposalAction);</span>
+<span class="nc" id="L56">        reload(data);</span>
+<span class="nc" id="L57">    }</span>
+
+    @Override
+    public float getLength() {
+<span class="nc" id="L61">        return length;</span>
+    }
+
+    @Override
+    public int getChannels() {
+<span class="nc" id="L66">        return alGetBufferi(bufferId, AL_CHANNELS);</span>
+    }
+
+    @Override
+    public int getSamplingRate() {
+<span class="nc" id="L71">        return alGetBufferi(bufferId, AL_FREQUENCY);</span>
+    }
+
+    public int getBufferId() {
+<span class="nc" id="L75">        return bufferId;</span>
+    }
+
+    public int getBufferBits() {
+<span class="nc" id="L79">        return alGetBufferi(bufferId, AL_BITS);</span>
+    }
+
+    @Override
+    public int getBufferSize() {
+<span class="nc" id="L84">        return alGetBufferi(bufferId, AL_SIZE);</span>
+    }
+
+    @Override
+    public void play() {
+<span class="nc" id="L89">        audioManager.playSound(this);</span>
+<span class="nc" id="L90">    }</span>
+
+    @Override
+    public void play(float volume) {
+<span class="nc" id="L94">        audioManager.playSound(this, volume);</span>
+<span class="nc" id="L95">    }</span>
+
+    @Override
+    protected void doReload(StaticSoundData newData) {
+        try {
+<span class="nc" id="L100">            GameThread.synch(() -&gt; {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                if (bufferId == 0) {</span>
+<span class="nc" id="L102">                    bufferId = alGenBuffers();</span>
+<span class="nc" id="L103">                    disposalAction.bufferId = bufferId;</span>
+                } else {
+<span class="nc" id="L105">                    audioManager.purgeSound(this);</span>
+                }
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                AL10.alBufferData(bufferId, newData.getChannels() == 1 ? AL10.AL_FORMAT_MONO16 : AL10.AL_FORMAT_STEREO16, newData.getData(), newData.getSampleRate());</span>
+<span class="nc" id="L109">                OpenALException.checkState(&quot;Allocating sound buffer&quot;);</span>
+
+<span class="nc" id="L111">                int bits = newData.getBufferBits();</span>
+<span class="nc" id="L112">                int size = getBufferSize();</span>
+<span class="nc" id="L113">                int channels = getChannels();</span>
+<span class="nc" id="L114">                int frequency = getSamplingRate();</span>
+<span class="nc" id="L115">                length = (float) size / channels / (bits / 8) / frequency;</span>
+<span class="nc" id="L116">            });</span>
+<span class="nc" id="L117">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L118">            logger.error(&quot;Failed to reload {}&quot;, getUrn(), e);</span>
+<span class="nc" id="L119">        }</span>
+<span class="nc" id="L120">    }</span>
+
+    private static class DisposalAction implements Runnable {
+        private final ResourceUrn urn;
+        private int bufferId;
+        private final WeakReference&lt;OpenALSound&gt; asset;
+
+<span class="nc" id="L127">        DisposalAction(ResourceUrn urn, OpenALSound openALSound) {</span>
+<span class="nc" id="L128">            this.urn = urn;</span>
+<span class="nc" id="L129">             asset = new WeakReference&lt;&gt;(openALSound);</span>
+<span class="nc" id="L130">        }</span>
+
+        @Override
+        public void run() {
+            try {
+<span class="nc" id="L135">                GameThread.synch(() -&gt; {</span>
+<span class="nc" id="L136">                    OpenALSound sound = asset.get();</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                    if (bufferId != 0) {</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                        if (sound != null) {</span>
+<span class="nc" id="L139">                            sound.audioManager.purgeSound(sound);</span>
+                        }
+<span class="nc" id="L141">                        alDeleteBuffers(bufferId);</span>
+<span class="nc" id="L142">                        OpenALException.checkState(&quot;Deleting buffer data&quot;);</span>
+                    }
+<span class="nc" id="L144">                });</span>
+<span class="nc" id="L145">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L146">                logger.error(&quot;Failed to dispose {}&quot;, urn, e);</span>
+<span class="nc" id="L147">            }</span>
+<span class="nc" id="L148">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

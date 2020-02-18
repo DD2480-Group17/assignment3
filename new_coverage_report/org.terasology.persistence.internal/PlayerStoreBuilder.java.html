@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlayerStoreBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.internal</a> &gt; <span class="el_source">PlayerStoreBuilder.java</span></div><h1>PlayerStoreBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.internal;
+
+import com.google.common.collect.Sets;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.protobuf.EntityData;
+
+import java.util.Set;
+
+/**
+ *
+ * Has all the data of a player to create save it with a copy of the entity manager.
+ *
+ */
+class PlayerStoreBuilder {
+    private Long characterEntityId;
+    private Vector3f relevanceLocation;
+    private Set&lt;EntityRef&gt; storedEntities;
+
+<span class="fc" id="L36">     PlayerStoreBuilder(Long characterEntityId, Vector3f relevanceLocation) {</span>
+<span class="fc" id="L37">        this.characterEntityId = characterEntityId;</span>
+<span class="fc" id="L38">        this.relevanceLocation = relevanceLocation;</span>
+<span class="fc" id="L39">    }</span>
+
+    public EntityData.PlayerStore build(EngineEntityManager entityManager) {
+<span class="fc" id="L42">        EntityData.PlayerStore.Builder playerEntityStore = EntityData.PlayerStore.newBuilder();</span>
+<span class="fc" id="L43">        playerEntityStore.setCharacterPosX(relevanceLocation.x);</span>
+<span class="fc" id="L44">        playerEntityStore.setCharacterPosY(relevanceLocation.y);</span>
+<span class="fc" id="L45">        playerEntityStore.setCharacterPosZ(relevanceLocation.z);</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        playerEntityStore.setHasCharacter(characterEntityId != null);</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (characterEntityId != null) {</span>
+<span class="fc" id="L48">            EntityRef character = entityManager.getEntity(characterEntityId);</span>
+<span class="fc" id="L49">            EntityStorer storer = new EntityStorer(entityManager);</span>
+<span class="fc" id="L50">            storer.store(character, PlayerStoreInternal.CHARACTER);</span>
+<span class="fc" id="L51">            storedEntities = storer.getStoredEntities();</span>
+<span class="fc" id="L52">            playerEntityStore.setStore(storer.finaliseStore());</span>
+<span class="fc" id="L53">        } else {</span>
+<span class="fc" id="L54">            storedEntities = Sets.newHashSet();</span>
+        }
+<span class="fc" id="L56">        return playerEntityStore.build();</span>
+    }
+
+    public Long getCharacterEntityId() {
+<span class="fc" id="L60">        return characterEntityId;</span>
+    }
+
+    /**
+     *
+     * @return all entitites that got stored when {@link #build(EngineEntityManager)} got called.
+     */
+    public Set&lt;EntityRef&gt; getStoredEntities() {
+<span class="fc" id="L68">        return storedEntities;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

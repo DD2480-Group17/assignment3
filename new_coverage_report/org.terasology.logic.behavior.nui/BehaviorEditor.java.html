@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BehaviorEditor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.nui</a> &gt; <span class="el_source">BehaviorEditor.java</span></div><h1>BehaviorEditor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.nui;
+
+import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.abego.treelayout.TreeForTreeLayout;
+import org.abego.treelayout.TreeLayout;
+import org.abego.treelayout.util.DefaultConfiguration;
+import org.abego.treelayout.util.FixedNodeExtentProvider;
+import org.terasology.context.Context;
+import org.terasology.logic.behavior.BehaviorSystem;
+import org.terasology.logic.behavior.DefaultBehaviorTreeRunner;
+import org.terasology.logic.behavior.asset.BehaviorTree;
+import org.terasology.logic.behavior.asset.BehaviorTreeFormat;
+import org.terasology.logic.behavior.core.BehaviorNode;
+import org.terasology.logic.behavior.core.BehaviorState;
+import org.terasology.logic.behavior.core.BehaviorTreeBuilder;
+import org.terasology.logic.behavior.core.Visitor;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.SubRegion;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseOverEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
+import org.terasology.rendering.nui.layouts.ZoomableLayout;
+
+import java.awt.geom.Rectangle2D;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Call {@link #initialize(Context)} before using this widget.
+ * (Ideally the logic would be moved to the BehaviorEditorScreen instead)
+ */
+public class BehaviorEditor extends ZoomableLayout implements DefaultBehaviorTreeRunner.Callback {
+    private Port activeConnectionStart;
+    private RenderableNode selectedNode;
+    private RenderableNode newNode;
+    private BehaviorTree tree;
+<span class="nc" id="L65">    private Vector2f mouseWorldPosition = new Vector2f();</span>
+    private Binding&lt;RenderableNode&gt; selectionBinding;
+<span class="nc" id="L67">    private Map&lt;BehaviorNode, BehaviorState&gt; stateMap = Maps.newHashMap();</span>
+
+    private BehaviorNodeFactory behaviorNodeFactory;
+    private BehaviorSystem behaviorSystem;
+
+<span class="nc" id="L72">    private final InteractionListener mouseInteractionListener = new BaseInteractionListener() {</span>
+        @Override
+        public void onMouseOver(NUIMouseOverEvent event) {
+<span class="nc" id="L75">            mouseWorldPosition = screenToWorld(event.getRelativeMousePosition());</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            if (newNode != null) {</span>
+<span class="nc" id="L77">                Vector2f diff = screenToWorld(event.getRelativeMousePosition()).sub(newNode.getPosition());</span>
+<span class="nc" id="L78">                newNode.move(diff);</span>
+            }
+<span class="nc" id="L80">        }</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            if (newNode != null) {</span>
+<span class="nc" id="L85">                newNode.setPosition(screenToWorld(event.getRelativeMousePosition()));</span>
+<span class="nc" id="L86">                addNode(newNode);</span>
+<span class="nc" id="L87">                return true;</span>
+            }
+<span class="nc" id="L89">            return false;</span>
+        }
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc" id="L94">            newNode = null;</span>
+<span class="nc" id="L95">        }</span>
+    };
+
+    public BehaviorEditor() {
+<span class="nc" id="L99">        super();</span>
+<span class="nc" id="L100">    }</span>
+
+    public BehaviorEditor(String id) {
+<span class="nc" id="L103">        super(id);</span>
+<span class="nc" id="L104">    }</span>
+
+    public void initialize(Context context) {
+<span class="nc" id="L107">        this.behaviorNodeFactory = context.get(BehaviorNodeFactory.class);</span>
+<span class="nc" id="L108">        this.behaviorSystem = context.get(BehaviorSystem.class);</span>
+<span class="nc" id="L109">    }</span>
+
+    public void setTree(BehaviorTree tree) {
+<span class="nc" id="L112">        this.tree = tree;</span>
+<span class="nc" id="L113">        selectedNode = null;</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (selectionBinding != null) {</span>
+<span class="nc" id="L115">            selectionBinding.set(null);</span>
+        }
+<span class="nc" id="L117">        stateMap.clear();</span>
+<span class="nc" id="L118">        removeAll();</span>
+<span class="nc" id="L119">        List&lt;RenderableNode&gt; renderables = createRenderables(tree);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        for (RenderableNode widget : renderables) {</span>
+<span class="nc" id="L121">            addWidget(widget);</span>
+<span class="nc" id="L122">        }</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (renderables.size() &gt; 0) {</span>
+<span class="nc" id="L124">            layout(renderables.get(0));</span>
+        }
+<span class="nc" id="L126">    }</span>
+
+    public BehaviorTree getTree() {
+<span class="nc" id="L129">        return tree;</span>
+    }
+
+    public String save() {
+<span class="nc" id="L133">        BehaviorTreeFormat loader = new BehaviorTreeFormat();</span>
+<span class="nc" id="L134">        ByteArrayOutputStream baos = new ByteArrayOutputStream(10000);</span>
+        try {
+<span class="nc" id="L136">            loader.save(baos, tree.getData());</span>
+<span class="nc" id="L137">            return baos.toString(Charsets.UTF_8.name());</span>
+<span class="nc" id="L138">        } catch (IOException e) {</span>
+<span class="nc" id="L139">            throw new RuntimeException(e);</span>
+        }
+    }
+
+    @Override
+    public void onDraw(final Canvas canvas) {
+<span class="nc" id="L145">        super.onDraw(canvas);</span>
+<span class="nc" id="L146">        canvas.addInteractionRegion(mouseInteractionListener);</span>
+<span class="nc" id="L147">        try (SubRegion subRegion = canvas.subRegion(canvas.getRegion(), false)) {</span>
+<span class="nc" id="L148">            canvas.setDrawOnTop(true);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            for (UIWidget widget : getWidgets()) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                if (!widget.isVisible()) {</span>
+<span class="nc" id="L151">                    continue;</span>
+                }
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                if (widget instanceof RenderableNode) {</span>
+<span class="nc" id="L154">                    RenderableNode renderableNode = (RenderableNode) widget;</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                    for (Port port : renderableNode.getPorts()) {</span>
+<span class="nc" id="L156">                        Port targetPort = port.getTargetPort();</span>
+<span class="nc bnc" id="L157" title="All 6 branches missed.">                        if (port.isInput() || targetPort == null || !targetPort.node.isVisible()) {</span>
+<span class="nc" id="L158">                            continue;</span>
+                        }
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                        drawConnection(canvas, port, targetPort, port == activeConnectionStart ? Color.BLACK : Color.GREY);</span>
+<span class="nc" id="L161">                    }</span>
+                }
+<span class="nc" id="L163">            }</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">            if (activeConnectionStart != null) {</span>
+<span class="nc" id="L165">                drawConnection(canvas, activeConnectionStart, mouseWorldPosition, Color.WHITE);</span>
+            }
+<span class="nc bnc" id="L167" title="All 2 branches missed.">            if (selectedNode != null) {</span>
+<span class="nc" id="L168">                Vector2f size = selectedNode.getSize();</span>
+<span class="nc" id="L169">                Vector2f topLeft = selectedNode.getPosition();</span>
+<span class="nc" id="L170">                Vector2f topRight = new Vector2f(topLeft);</span>
+<span class="nc" id="L171">                topRight.add(new Vector2f(size.x + .1f, 0));</span>
+<span class="nc" id="L172">                Vector2f bottomLeft = new Vector2f(topLeft);</span>
+<span class="nc" id="L173">                bottomLeft.add(new Vector2f(0, size.y + .1f));</span>
+<span class="nc" id="L174">                Vector2f bottomRight = new Vector2f(topLeft);</span>
+<span class="nc" id="L175">                bottomRight.add(new Vector2f(size.x + 0.1f, size.y + 0.1f));</span>
+<span class="nc" id="L176">                drawConnection(canvas, topLeft, topRight, Color.GREEN);</span>
+<span class="nc" id="L177">                drawConnection(canvas, topRight, bottomRight, Color.GREEN);</span>
+<span class="nc" id="L178">                drawConnection(canvas, bottomRight, bottomLeft, Color.GREEN);</span>
+<span class="nc" id="L179">                drawConnection(canvas, bottomLeft, topLeft, Color.GREEN);</span>
+            }
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (newNode != null) {</span>
+<span class="nc" id="L182">                newNode.visit(node -&gt; drawWidget(canvas, node));</span>
+            }
+
+<span class="nc" id="L185">            canvas.setDrawOnTop(false);</span>
+        }
+<span class="nc" id="L187">    }</span>
+
+    public void portClicked(Port port) {
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if (activeConnectionStart == null) {</span>
+<span class="nc" id="L191">            activeConnectionStart = port;</span>
+        } else {
+<span class="nc bnc" id="L193" title="All 4 branches missed.">            if (activeConnectionStart.isInput() &amp;&amp; !port.isInput()) {</span>
+<span class="nc" id="L194">                ((Port.OutputPort) port).setTarget((Port.InputPort) activeConnectionStart);</span>
+<span class="nc bnc" id="L195" title="All 4 branches missed.">            } else if (!activeConnectionStart.isInput() &amp;&amp; port.isInput()) {</span>
+<span class="nc" id="L196">                ((Port.OutputPort) activeConnectionStart).setTarget((Port.InputPort) port);</span>
+            }
+<span class="nc" id="L198">            behaviorSystem.treeModified(tree);</span>
+<span class="nc" id="L199">            activeConnectionStart = null;</span>
+        }
+<span class="nc" id="L201">    }</span>
+
+    public void nodeClicked(RenderableNode node) {
+<span class="nc" id="L204">        selectedNode = node;</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        if (selectionBinding != null) {</span>
+<span class="nc" id="L206">            selectionBinding.set(node);</span>
+        }
+<span class="nc" id="L208">    }</span>
+
+    private void drawConnection(Canvas canvas, Vector2f from, Vector2f to, Color color) {
+<span class="nc" id="L211">        Vector2i s = worldToScreen(from);</span>
+<span class="nc" id="L212">        Vector2i e = worldToScreen(to);</span>
+<span class="nc" id="L213">        canvas.drawLine(s.x, s.y, e.x, e.y, color);</span>
+
+<span class="nc" id="L215">    }</span>
+
+    private void drawConnection(Canvas canvas, Port from, Vector2f to, Color color) {
+<span class="nc" id="L218">        Vector2f start = new Vector2f(from.node.getPosition());</span>
+<span class="nc" id="L219">        start.add(from.mid());</span>
+<span class="nc" id="L220">        drawConnection(canvas, start, to, color);</span>
+<span class="nc" id="L221">    }</span>
+
+    private void drawConnection(Canvas canvas, Port from, Port to, Color color) {
+<span class="nc" id="L224">        Vector2f start = new Vector2f(from.node.getPosition());</span>
+<span class="nc" id="L225">        start.add(from.mid());</span>
+<span class="nc" id="L226">        Vector2f end = new Vector2f(to.node.getPosition());</span>
+<span class="nc" id="L227">        end.add(to.mid());</span>
+<span class="nc" id="L228">        drawConnection(canvas, start, end, color);</span>
+<span class="nc" id="L229">    }</span>
+
+    public RenderableNode createNode(BehaviorNodeComponent data) {
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        if (tree == null) {</span>
+<span class="nc" id="L233">            return null;</span>
+        }
+<span class="nc" id="L235">        BehaviorNode node = behaviorNodeFactory.createNode(data);</span>
+<span class="nc" id="L236">        newNode = createRenderableNode(node);</span>
+
+<span class="nc" id="L238">        behaviorSystem.treeModified(tree);</span>
+<span class="nc" id="L239">        return newNode;</span>
+    }
+
+    public void bindSelection(Binding&lt;RenderableNode&gt; binding) {
+<span class="nc" id="L243">        selectionBinding = binding;</span>
+<span class="nc" id="L244">    }</span>
+
+    private void addNode(RenderableNode node) {
+<span class="nc" id="L247">        addWidget(node);</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        for (int i = 0; i &lt; node.getChildrenCount(); i++) {</span>
+<span class="nc" id="L249">            addNode(node.getChild(i));</span>
+        }
+<span class="nc" id="L251">    }</span>
+
+    @Override
+    public void afterExecute(BehaviorNode node, BehaviorState state) {
+<span class="nc" id="L255">        stateMap.put(node, state);</span>
+<span class="nc" id="L256">    }</span>
+
+    public BehaviorState getState(BehaviorNode node) {
+<span class="nc" id="L259">        return stateMap.get(node);</span>
+    }
+
+    public void copyNode(RenderableNode node) {
+<span class="nc" id="L263">        BehaviorTreeBuilder treeBuilder = CoreRegistry.get(BehaviorTreeBuilder.class);</span>
+<span class="nc" id="L264">        String json = treeBuilder.toJson(node.getNode());</span>
+<span class="nc" id="L265">        BehaviorNode nodeCopy = treeBuilder.fromJson(json);</span>
+<span class="nc" id="L266">        List&lt;RenderableNode&gt; renderables = createRenderables(nodeCopy);</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">        if (renderables.size() &gt; 0) {</span>
+<span class="nc" id="L268">            newNode = renderables.get(0);</span>
+<span class="nc" id="L269">            Vector2f oldPos = newNode.getPosition();</span>
+<span class="nc" id="L270">            layout(newNode);</span>
+<span class="nc" id="L271">            oldPos.sub(newNode.getPosition());</span>
+<span class="nc" id="L272">            newNode.move(oldPos);</span>
+        }
+<span class="nc" id="L274">    }</span>
+
+    private RenderableNode createRenderableNode(BehaviorNode node) {
+<span class="nc" id="L277">        BehaviorNodeComponent nodeComponent = CoreRegistry.get(BehaviorNodeFactory.class).getNodeComponent(node);</span>
+<span class="nc" id="L278">        RenderableNode self = new RenderableNode(nodeComponent);</span>
+<span class="nc" id="L279">        self.setNode(node);</span>
+<span class="nc" id="L280">        return self;</span>
+    }
+
+    private List&lt;RenderableNode&gt; createRenderables(BehaviorTree aTree) {
+<span class="nc" id="L284">        return createRenderables(aTree.getRoot());</span>
+    }
+
+    private List&lt;RenderableNode&gt; createRenderables(BehaviorNode root) {
+<span class="nc" id="L288">        final List&lt;RenderableNode&gt; renderables = Lists.newArrayList();</span>
+<span class="nc" id="L289">        root.visit(null, (Visitor&lt;RenderableNode&gt;) (parent, node) -&gt; {</span>
+<span class="nc" id="L290">            RenderableNode self = createRenderableNode(node);</span>
+<span class="nc" id="L291">            renderables.add(self);</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">            if (parent != null) {</span>
+<span class="nc" id="L293">                parent.withoutModel().insertChild(-1, self);</span>
+            }
+<span class="nc" id="L295">            return self;</span>
+        });
+<span class="nc" id="L297">        return renderables;</span>
+    }
+
+    public void layout(RenderableNode start) {
+<span class="nc" id="L301">        LayoutTree layoutTree = new LayoutTree(start);</span>
+<span class="nc" id="L302">        TreeLayout&lt;RenderableNode&gt; layout = new TreeLayout&lt;&gt;(layoutTree, new FixedNodeExtentProvider&lt;RenderableNode&gt;(10, 5), new DefaultConfiguration&lt;RenderableNode&gt;(4, 2));</span>
+<span class="nc" id="L303">        Map&lt;RenderableNode, Rectangle2D.Double&gt; bounds = layout.getNodeBounds();</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">        for (Map.Entry&lt;RenderableNode, Rectangle2D.Double&gt; entry : bounds.entrySet()) {</span>
+<span class="nc" id="L305">            RenderableNode node = entry.getKey();</span>
+<span class="nc" id="L306">            Rectangle2D.Double rect = entry.getValue();</span>
+<span class="nc" id="L307">            node.setPosition((float) rect.getX(), (float) rect.getY());</span>
+<span class="nc" id="L308">        }</span>
+<span class="nc" id="L309">    }</span>
+
+    private static final class LayoutTree implements TreeForTreeLayout&lt;RenderableNode&gt; {
+        private RenderableNode root;
+
+<span class="nc" id="L314">        private LayoutTree(RenderableNode root) {</span>
+<span class="nc" id="L315">            this.root = root;</span>
+<span class="nc" id="L316">        }</span>
+
+        @Override
+        public RenderableNode getRoot() {
+<span class="nc" id="L320">            return root;</span>
+        }
+
+        @Override
+        public boolean isLeaf(RenderableNode uiWidgets) {
+<span class="nc bnc" id="L325" title="All 2 branches missed.">            return uiWidgets.getChildrenCount() == 0;</span>
+        }
+
+        @Override
+        public boolean isChildOfParent(RenderableNode node, RenderableNode parentNode) {
+<span class="nc" id="L330">            return parentNode.children().contains(node);</span>
+        }
+
+        @Override
+        public Iterable&lt;RenderableNode&gt; getChildren(RenderableNode parentNode) {
+<span class="nc" id="L335">            return parentNode.children();</span>
+        }
+
+        @Override
+        public Iterable&lt;RenderableNode&gt; getChildrenReverse(RenderableNode parentNode) {
+<span class="nc" id="L340">            List&lt;RenderableNode&gt; list = Lists.newArrayList(parentNode.children());</span>
+<span class="nc" id="L341">            Collections.reverse(list);</span>
+<span class="nc" id="L342">            return list;</span>
+        }
+
+        @Override
+        public RenderableNode getFirstChild(RenderableNode parentNode) {
+<span class="nc" id="L347">            return parentNode.getChild(0);</span>
+        }
+
+        @Override
+        public RenderableNode getLastChild(RenderableNode parentNode) {
+<span class="nc" id="L352">            return parentNode.getChild(Math.max(0, parentNode.getChildrenCount() - 1));</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

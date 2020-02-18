@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TextureData.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.texture</a> &gt; <span class="el_source">TextureData.java</span></div><h1>TextureData.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.assets.texture;
+
+import com.google.common.math.IntMath;
+import org.terasology.assets.AssetData;
+
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+
+/**
+ */
+public class TextureData implements AssetData {
+    private static final int BYTES_PER_PIXEL = 4;
+
+    private int width;
+    private int height;
+<span class="fc" id="L31">    private Texture.WrapMode wrapMode = Texture.WrapMode.CLAMP;</span>
+<span class="fc" id="L32">    private Texture.FilterMode filterMode = Texture.FilterMode.NEAREST;</span>
+<span class="fc" id="L33">    private Texture.Type type = Texture.Type.TEXTURE2D;</span>
+    private ByteBuffer[] data;
+
+<span class="fc" id="L36">    public TextureData(int width, int height, Texture.WrapMode wrapMode, Texture.FilterMode filterMode) {</span>
+<span class="fc" id="L37">        this.width = width;</span>
+<span class="fc" id="L38">        this.height = height;</span>
+<span class="fc" id="L39">        this.wrapMode = wrapMode;</span>
+<span class="fc" id="L40">        this.filterMode = filterMode;</span>
+<span class="fc" id="L41">    }</span>
+
+    public TextureData(int width, int height, ByteBuffer[] mipmaps, Texture.WrapMode wrapMode, Texture.FilterMode filterMode, Texture.Type type) {
+<span class="fc" id="L44">        this(width, height, wrapMode, filterMode);</span>
+
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">        if (mipmaps.length == 0) {</span>
+<span class="nc" id="L47">            throw new IllegalArgumentException(&quot;Must supply at least one mipmap&quot;);</span>
+        }
+
+<span class="fc" id="L50">        this.type = type;</span>
+<span class="fc" id="L51">        this.data = Arrays.copyOf(mipmaps, mipmaps.length);</span>
+
+<span class="pc bpc" id="L53" title="2 of 4 branches missed.">        if (width &lt;= 0 || height &lt;= 0) {</span>
+<span class="nc" id="L54">            throw new IllegalArgumentException(&quot;Width and height must be positive&quot;);</span>
+        }
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        if (mipmaps[0].limit() % BYTES_PER_PIXEL != 0) {</span>
+<span class="nc" id="L57">            throw new IllegalArgumentException(&quot;Texture data format incorrect, must be a set of RGBA values for each pixel&quot;);</span>
+        }
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        if (mipmaps[0].limit() != width * height * BYTES_PER_PIXEL) {</span>
+<span class="nc" id="L60">            throw new IllegalArgumentException(&quot;Texture data size incorrect, must be a set of RGBA values for each pixel (given &quot;</span>
+<span class="nc" id="L61">                                               + mipmaps[0].limit() + &quot;, expected &quot; + width * height * BYTES_PER_PIXEL + &quot;)&quot;);</span>
+        }
+<span class="pc bpc" id="L63" title="5 of 6 branches missed.">        if (mipmaps.length &gt; 1 &amp;&amp; !(IntMath.isPowerOfTwo(width) &amp;&amp; IntMath.isPowerOfTwo(height))) {</span>
+<span class="nc" id="L64">            throw new IllegalArgumentException(&quot;Texture width, height and depth must be powers of 2 for mipmapping&quot;);</span>
+        }
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        for (int i = 1; i &lt; mipmaps.length; ++i) {</span>
+<span class="nc" id="L67">            int mipWidth = width &gt;&gt; i;</span>
+<span class="nc" id="L68">            int mipHeight = height &gt;&gt; i;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            if (mipWidth * mipHeight * BYTES_PER_PIXEL != mipmaps[i].limit()) {</span>
+<span class="nc" id="L70">                throw new IllegalArgumentException(&quot;Mipmap has wrong dimensions&quot;);</span>
+            }
+        }
+<span class="fc" id="L73">    }</span>
+
+    public TextureData(int width, int height, ByteBuffer[] mipmaps, Texture.WrapMode wrapMode, Texture.FilterMode filterMode) {
+<span class="fc" id="L76">        this(width, height, mipmaps, wrapMode, filterMode, Texture.Type.TEXTURE2D);</span>
+<span class="fc" id="L77">    }</span>
+
+    public TextureData(TextureData fromCopy) {
+<span class="fc" id="L80">        this(fromCopy.width, fromCopy.height, fromCopy.wrapMode, fromCopy.filterMode);</span>
+<span class="fc" id="L81">        this.type = fromCopy.type;</span>
+<span class="fc" id="L82">        this.data = new ByteBuffer[fromCopy.data.length];</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        for (int i = 0; i &lt; fromCopy.data.length; ++i) {</span>
+<span class="fc" id="L84">            data[i] = fromCopy.data[i].duplicate();</span>
+        }
+<span class="fc" id="L86">    }</span>
+
+    public int getWidth() {
+<span class="fc" id="L89">        return width;</span>
+    }
+
+    public int getHeight() {
+<span class="fc" id="L93">        return height;</span>
+    }
+
+    public Texture.Type getType() {
+<span class="fc" id="L97">        return type;</span>
+    }
+
+    public Texture.WrapMode getWrapMode() {
+<span class="fc" id="L101">        return wrapMode;</span>
+    }
+
+    public Texture.FilterMode getFilterMode() {
+<span class="fc" id="L105">        return filterMode;</span>
+    }
+
+    public ByteBuffer[] getBuffers() {
+<span class="fc" id="L109">        return data;</span>
+    }
+
+    public void setFilterMode(Texture.FilterMode filterMode) {
+<span class="nc" id="L113">        this.filterMode = filterMode;</span>
+<span class="nc" id="L114">    }</span>
+
+    public void setWrapMode(Texture.WrapMode wrapMode) {
+<span class="nc" id="L117">        this.wrapMode = wrapMode;</span>
+<span class="nc" id="L118">    }</span>
+
+    public void setType(Texture.Type type) {
+<span class="nc" id="L121">        this.type = type;</span>
+<span class="nc" id="L122">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

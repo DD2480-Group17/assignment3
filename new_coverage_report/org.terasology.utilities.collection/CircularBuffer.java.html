@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CircularBuffer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.collection</a> &gt; <span class="el_source">CircularBuffer.java</span></div><h1>CircularBuffer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities.collection;
+
+import java.util.AbstractList;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+
+/**
+ * A circular/cyclic/ring buffer. Adding elements is allowed only at the end of the buffer. 
+ * Removing elements can be done through {@link #popFirst()} and {@link #popLast()} or {@link #remove(int)}.
+ */
+public final class CircularBuffer&lt;T&gt; extends AbstractList&lt;T&gt; {
+    private final T[] buffer;
+    private int startIndex;
+    private int occupancy;
+
+<span class="fc" id="L32">    private CircularBuffer(int length) {</span>
+<span class="fc" id="L33">        buffer = (T[]) new Object[length];</span>
+<span class="fc" id="L34">    }</span>
+
+    public static &lt;T&gt; CircularBuffer&lt;T&gt; create(int length) {
+<span class="fc" id="L37">        return new CircularBuffer&lt;&gt;(length);</span>
+    }
+
+    @Override
+    public T get(int index) {
+<span class="pc bpc" id="L42" title="2 of 4 branches missed.">        if (index &lt; 0 || index &gt;= occupancy) {</span>
+<span class="nc" id="L43">            throw new IndexOutOfBoundsException();</span>
+        }
+<span class="fc" id="L45">        return buffer[calculateIndex(index)];</span>
+    }
+
+    @Override
+    public T set(int index, T element) {
+<span class="pc bpc" id="L50" title="2 of 4 branches missed.">        if (index &lt; 0 || index &gt;= occupancy) {</span>
+<span class="nc" id="L51">            throw new IndexOutOfBoundsException();</span>
+        }
+        
+<span class="fc" id="L54">        int bufIndex = calculateIndex(index);</span>
+<span class="fc" id="L55">        T prev = buffer[bufIndex];</span>
+<span class="fc" id="L56">        buffer[bufIndex] = element;</span>
+<span class="fc" id="L57">        return prev;</span>
+    }
+
+    /**
+     * @return the last element in the buffer
+     */
+    public T getLast() {
+<span class="fc" id="L64">        return get(occupancy - 1);</span>
+    }
+
+    @Override
+    public boolean add(T item) {
+<span class="fc" id="L69">        buffer[(startIndex + occupancy) % buffer.length] = item;</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (occupancy &lt; buffer.length) {</span>
+<span class="fc" id="L71">            occupancy++;</span>
+        } else {
+<span class="fc" id="L73">            startIndex = (startIndex + 1) % buffer.length;</span>
+        }
+<span class="fc" id="L75">        return true;</span>
+    }
+
+    @Override
+    public T remove(int idx) {
+<span class="pc bpc" id="L80" title="2 of 4 branches missed.">        if (idx &lt; 0 || idx &gt;= occupancy) {</span>
+<span class="nc" id="L81">            throw new IndexOutOfBoundsException();</span>
+        }
+        
+<span class="fc" id="L84">        T old = buffer[calculateIndex(idx)];</span>
+
+        // shift all elements that are on the right side of element by one
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        for (int i = idx; i &lt; occupancy - 1; i++) {</span>
+<span class="fc" id="L88">            int thisIdx = calculateIndex(i);</span>
+<span class="fc" id="L89">            int nextIdx = calculateIndex(i + 1);</span>
+
+<span class="fc" id="L91">            buffer[thisIdx] = buffer[nextIdx];</span>
+        }
+
+<span class="fc" id="L94">        buffer[calculateIndex(occupancy - 1)] = null;</span>
+<span class="fc" id="L95">        occupancy--;</span>
+        
+<span class="fc" id="L97">        return old;</span>
+    }
+    
+    /**
+     * @return the first element in the buffer
+     */
+    public T getFirst() {
+<span class="fc" id="L104">        return buffer[startIndex];</span>
+    }
+
+    /**
+     * Removes the first element from the buffer
+     * @return the first element
+     */
+    public T popFirst() {
+<span class="fc" id="L112">        T result = buffer[startIndex];</span>
+<span class="fc" id="L113">        buffer[startIndex] = null;</span>
+<span class="fc" id="L114">        startIndex++;</span>
+<span class="fc" id="L115">        occupancy--;</span>
+<span class="fc" id="L116">        return result;</span>
+    }
+
+    /**
+     * Removes the last element from the buffer
+     * @return the last element
+     */
+    public T popLast() {
+<span class="fc" id="L124">        int index = calculateIndex(occupancy - 1);</span>
+<span class="fc" id="L125">        T result = buffer[index];</span>
+<span class="fc" id="L126">        buffer[index] = null;</span>
+<span class="fc" id="L127">        occupancy--;</span>
+<span class="fc" id="L128">        return result;</span>
+    }
+
+    @Override
+    public boolean isEmpty() {
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">        return size() == 0;</span>
+    }
+
+    @Override
+    public int size() {
+<span class="fc" id="L138">        return occupancy;</span>
+    }
+
+    /**
+     * @return the maximum size of the buffer
+     */
+    public int capacity() {
+<span class="nc" id="L145">        return buffer.length;</span>
+    }
+
+
+    private int calculateIndex(int relativeIndex) {
+<span class="fc" id="L150">        return (relativeIndex + startIndex) % buffer.length;</span>
+    }
+
+    @Override
+    public Iterator&lt;T&gt; iterator() {
+<span class="fc" id="L155">        return new BufferIterator();</span>
+    }
+
+    @Override
+    public void clear() {
+<span class="fc" id="L160">        occupancy = 0;</span>
+<span class="fc" id="L161">        startIndex = 0;</span>
+<span class="fc" id="L162">    }</span>
+
+<span class="fc" id="L164">    private class BufferIterator implements Iterator&lt;T&gt; {</span>
+        private int index;
+<span class="fc" id="L166">        private int prevIndex = -1;</span>
+
+        @Override
+        public boolean hasNext() {
+<span class="fc bfc" id="L170" title="All 2 branches covered.">            return index &lt; occupancy;</span>
+        }
+
+        @Override
+        public T next() {
+<span class="fc bfc" id="L175" title="All 2 branches covered.">            if (index &gt;= occupancy) {</span>
+<span class="fc" id="L176">                throw new NoSuchElementException();</span>
+            }
+            
+<span class="fc" id="L179">            prevIndex = index;</span>
+<span class="fc" id="L180">            return get(index++);</span>
+        }
+
+        @Override
+        public void remove() {
+<span class="fc bfc" id="L185" title="All 2 branches covered.">            if (prevIndex &gt;= 0) {</span>
+<span class="fc" id="L186">                CircularBuffer.this.remove(prevIndex);</span>
+<span class="fc" id="L187">                index = prevIndex;</span>
+<span class="fc" id="L188">                prevIndex = -1;</span>
+            } else {
+<span class="fc" id="L190">                throw new IllegalStateException();</span>
+            }
+<span class="fc" id="L192">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StateIngame.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.modes</a> &gt; <span class="el_source">StateIngame.java</span></div><h1>StateIngame.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.modes;
+
+import org.terasology.audio.AudioManager;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.GameThread;
+import org.terasology.engine.bootstrap.EnvironmentSwitchHandler;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.event.internal.EventSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.game.GameManifest;
+import org.terasology.identity.storageServiceClient.StorageServiceWorker;
+import org.terasology.input.InputSystem;
+import org.terasology.input.cameraTarget.CameraTargetSystem;
+import org.terasology.logic.console.Console;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.network.NetworkMode;
+import org.terasology.network.NetworkSystem;
+import org.terasology.persistence.StorageManager;
+import org.terasology.physics.engine.PhysicsEngine;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.layers.mainMenu.MessagePopup;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.rendering.world.WorldRenderer.RenderingStage;
+import org.terasology.world.chunks.ChunkProvider;
+
+import java.util.Collections;
+
+/**
+ * Play mode.
+ *
+ * @version 0.1
+ */
+public class StateIngame implements GameState {
+
+    private ComponentSystemManager componentSystemManager;
+    private EventSystem eventSystem;
+    private NUIManager nuiManager;
+    private WorldRenderer worldRenderer;
+    private EngineEntityManager entityManager;
+    private CameraTargetSystem cameraTargetSystem;
+    private InputSystem inputSystem;
+    private NetworkSystem networkSystem;
+    private StorageServiceWorker storageServiceWorker;
+    private Console console;
+    private Context context;
+
+    /* GAME LOOP */
+    private boolean pauseGame;
+
+    private StorageManager storageManager;
+
+    private GameManifest gameManifest;
+
+<span class="nc" id="L77">    public StateIngame(GameManifest gameManifest, Context context) {</span>
+<span class="nc" id="L78">        this.gameManifest = gameManifest;</span>
+<span class="nc" id="L79">        this.context = context;</span>
+<span class="nc" id="L80">    }</span>
+
+    @Override
+    public void init(GameEngine engine) {
+        // context from loading state gets used.
+<span class="nc" id="L85">        nuiManager = context.get(NUIManager.class);</span>
+<span class="nc" id="L86">        worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L87">        eventSystem = context.get(EventSystem.class);</span>
+<span class="nc" id="L88">        componentSystemManager = context.get(ComponentSystemManager.class);</span>
+<span class="nc" id="L89">        entityManager = context.get(EngineEntityManager.class);</span>
+<span class="nc" id="L90">        cameraTargetSystem = context.get(CameraTargetSystem.class);</span>
+<span class="nc" id="L91">        inputSystem = context.get(InputSystem.class);</span>
+<span class="nc" id="L92">        eventSystem.registerEventHandler(nuiManager);</span>
+<span class="nc" id="L93">        networkSystem = context.get(NetworkSystem.class);</span>
+<span class="nc" id="L94">        storageManager = context.get(StorageManager.class);</span>
+<span class="nc" id="L95">        storageServiceWorker = context.get(StorageServiceWorker.class);</span>
+<span class="nc" id="L96">        console = context.get(Console.class);</span>
+
+        // Show or hide the HUD according to the settings
+<span class="nc" id="L99">        nuiManager.getHUD().bindVisible(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L102" title="All 2 branches missed.">                return !context.get(Config.class).getRendering().getDebug().isHudHidden();</span>
+            }
+        });
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        if (networkSystem.getMode() == NetworkMode.CLIENT) {</span>
+<span class="nc" id="L107">            String motd = networkSystem.getServer().getInfo().getMOTD();</span>
+<span class="nc bnc" id="L108" title="All 4 branches missed.">            if (motd != null &amp;&amp; motd.length() != 0) {</span>
+<span class="nc" id="L109">                nuiManager.pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Server MOTD&quot;, motd);</span>
+            }
+        }
+<span class="nc" id="L112">    }</span>
+
+    @Override
+    public void dispose(boolean shuttingDown) {
+<span class="nc" id="L116">        ChunkProvider chunkProvider = context.get(ChunkProvider.class);</span>
+<span class="nc" id="L117">        chunkProvider.dispose();</span>
+
+<span class="nc" id="L119">        boolean save = networkSystem.getMode().isAuthority();</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (save) {</span>
+<span class="nc" id="L121">            storageManager.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+        }
+
+<span class="nc" id="L124">        networkSystem.shutdown();</span>
+        // TODO: Shutdown background threads
+<span class="nc" id="L126">        eventSystem.process();</span>
+<span class="nc" id="L127">        GameThread.processWaitingProcesses();</span>
+<span class="nc" id="L128">        nuiManager.clear();</span>
+
+<span class="nc" id="L130">        context.get(AudioManager.class).stopAllSounds();</span>
+
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if (worldRenderer != null) {</span>
+<span class="nc" id="L133">            worldRenderer.dispose();</span>
+<span class="nc" id="L134">            worldRenderer = null;</span>
+        }
+<span class="nc" id="L136">        componentSystemManager.shutdown();</span>
+
+<span class="nc" id="L138">        context.get(PhysicsEngine.class).dispose();</span>
+
+<span class="nc" id="L140">        entityManager.clear();</span>
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if (storageManager != null) {</span>
+<span class="nc" id="L143">            storageManager.finishSavingAndShutdown();</span>
+        }
+
+<span class="nc" id="L146">        ModuleEnvironment oldEnvironment = context.get(ModuleManager.class).getEnvironment();</span>
+<span class="nc" id="L147">        context.get(ModuleManager.class).loadEnvironment(Collections.&lt;Module&gt;emptySet(), true);</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (!shuttingDown) {</span>
+<span class="nc" id="L149">            context.get(EnvironmentSwitchHandler.class).handleSwitchToEmptyEnvironment(context);</span>
+        }
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        if (oldEnvironment != null) {</span>
+<span class="nc" id="L152">            oldEnvironment.close();</span>
+        }
+<span class="nc" id="L154">        console.dispose();</span>
+<span class="nc" id="L155">        GameThread.clearWaitingProcesses();</span>
+
+        /*
+         * Clear the binding as otherwise the complete ingame state would be
+         * referenced.
+         */
+<span class="nc" id="L161">        nuiManager.getHUD().clearVisibleBinding();</span>
+<span class="nc" id="L162">    }</span>
+
+    @Override
+    public void update(float delta) {
+
+<span class="nc" id="L167">        eventSystem.process();</span>
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        for (UpdateSubscriberSystem system : componentSystemManager.iterateUpdateSubscribers()) {</span>
+<span class="nc" id="L170">            PerformanceMonitor.startActivity(system.getClass().getSimpleName());</span>
+<span class="nc" id="L171">            system.update(delta);</span>
+<span class="nc" id="L172">            PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L173">        }</span>
+
+<span class="nc bnc" id="L175" title="All 4 branches missed.">        if (worldRenderer != null &amp;&amp; shouldUpdateWorld()) {</span>
+<span class="nc" id="L176">            worldRenderer.update(delta);</span>
+        }
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if (storageManager != null) {</span>
+<span class="nc" id="L179">            storageManager.update();</span>
+        }
+
+
+<span class="nc" id="L183">        updateUserInterface(delta);</span>
+
+<span class="nc" id="L185">        storageServiceWorker.flushNotificationsToConsole(console);</span>
+<span class="nc" id="L186">    }</span>
+
+
+    @Override
+    public void handleInput(float delta) {
+<span class="nc" id="L191">        cameraTargetSystem.update(delta);</span>
+<span class="nc" id="L192">        inputSystem.update(delta);</span>
+<span class="nc" id="L193">    }</span>
+
+    private boolean shouldUpdateWorld() {
+<span class="nc bnc" id="L196" title="All 2 branches missed.">        return !pauseGame;</span>
+    }
+
+    @Override
+    public void render() {
+<span class="nc" id="L201">        DisplayDevice display = context.get(DisplayDevice.class);</span>
+<span class="nc" id="L202">        display.prepareToRender();</span>
+
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        if (worldRenderer != null) {</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">            if (!context.get(Config.class).getRendering().isVrSupport()) {</span>
+<span class="nc" id="L206">                worldRenderer.render(RenderingStage.MONO);</span>
+            } else {
+<span class="nc" id="L208">                worldRenderer.render(RenderingStage.LEFT_EYE);</span>
+<span class="nc" id="L209">                worldRenderer.render(RenderingStage.RIGHT_EYE);</span>
+            }
+        }
+
+        /* UI */
+<span class="nc" id="L214">        PerformanceMonitor.startActivity(&quot;Render and Update UI&quot;);</span>
+<span class="nc" id="L215">        renderUserInterface();</span>
+<span class="nc" id="L216">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L217">    }</span>
+
+    @Override
+    public boolean isHibernationAllowed() {
+<span class="nc bnc" id="L221" title="All 2 branches missed.">        return networkSystem.getMode() == NetworkMode.NONE;</span>
+    }
+
+    @Override
+    public String getLoggingPhase() {
+<span class="nc" id="L226">        return gameManifest.getTitle();</span>
+    }
+
+    private void renderUserInterface() {
+<span class="nc" id="L230">        PerformanceMonitor.startActivity(&quot;Rendering NUI&quot;);</span>
+<span class="nc" id="L231">        nuiManager.render();</span>
+<span class="nc" id="L232">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L233">    }</span>
+
+    private void updateUserInterface(float delta) {
+<span class="nc" id="L236">        nuiManager.update(delta);</span>
+<span class="nc" id="L237">    }</span>
+
+    public void pause() {
+<span class="nc" id="L240">        pauseGame = true;</span>
+<span class="nc" id="L241">    }</span>
+
+    private void unpause() {
+<span class="nc" id="L244">        pauseGame = false;</span>
+<span class="nc" id="L245">    }</span>
+
+    public void togglePauseGame() {
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        if (pauseGame) {</span>
+<span class="nc" id="L249">            unpause();</span>
+        } else {
+<span class="nc" id="L251">            pause();</span>
+        }
+<span class="nc" id="L253">    }</span>
+
+    public boolean isGamePaused() {
+<span class="nc" id="L256">        return pauseGame;</span>
+    }
+
+    public Context getContext() {
+<span class="nc" id="L260">        return context;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BulletSweepCallback.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.physics.bullet</a> &gt; <span class="el_source">BulletSweepCallback.java</span></div><h1>BulletSweepCallback.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.physics.bullet;
+
+import com.bulletphysics.collision.dispatch.CollisionObject;
+import com.bulletphysics.collision.dispatch.CollisionWorld;
+import com.bulletphysics.linearmath.Transform;
+
+import javax.vecmath.Matrix4f;
+import javax.vecmath.Quat4f;
+import javax.vecmath.Vector3f;
+import org.terasology.physics.engine.SweepCallback;
+
+/**
+ * The bullet implementation of SweepCallback, that holds the results of a collision sweep. (detect what
+ * collisions would occur if something moved from a to b)
+ *
+ */
+public class BulletSweepCallback extends CollisionWorld.ClosestConvexResultCallback implements SweepCallback {
+    protected CollisionObject me;
+    protected final Vector3f up;
+    protected float minSlopeDot;
+
+    public BulletSweepCallback(CollisionObject me, org.terasology.math.geom.Vector3f up, float minSlopeDot) {
+<span class="nc" id="L39">        super(new Vector3f(), new Vector3f());</span>
+<span class="nc" id="L40">        this.me = me;</span>
+<span class="nc" id="L41">        this.up = new Vector3f(up.x, up.y, up.z);</span>
+<span class="nc" id="L42">        this.minSlopeDot = minSlopeDot;</span>
+<span class="nc" id="L43">    }</span>
+
+    @Override
+    public float addSingleResult(CollisionWorld.LocalConvexResult convexResult, boolean normalInWorldSpace) {
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        if (convexResult.hitCollisionObject == me) {</span>
+<span class="nc" id="L48">            return 1.0f;</span>
+        }
+<span class="nc" id="L50">        return super.addSingleResult(convexResult, normalInWorldSpace);</span>
+    }
+
+    @Override
+    public float calculateAverageSlope(float originalSlope, float checkingOffset) {
+<span class="nc" id="L55">        Vector3f contactPoint = this.hitPointWorld;</span>
+<span class="nc" id="L56">        float slope = 1f;</span>
+<span class="nc" id="L57">        boolean foundSlope = false;</span>
+<span class="nc" id="L58">        Vector3f fromWorld = new Vector3f(contactPoint);</span>
+<span class="nc" id="L59">        fromWorld.y += 0.2f;</span>
+<span class="nc" id="L60">        Vector3f toWorld = new Vector3f(contactPoint);</span>
+<span class="nc" id="L61">        toWorld.y -= 0.2f;</span>
+<span class="nc" id="L62">        CollisionWorld.ClosestRayResultCallback rayResult = new CollisionWorld.ClosestRayResultCallback(fromWorld, toWorld);</span>
+<span class="nc" id="L63">        Transform from = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), fromWorld, 1.0f));</span>
+<span class="nc" id="L64">        Transform to = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), toWorld, 1.0f));</span>
+<span class="nc" id="L65">        Transform targetTransform = this.hitCollisionObject.getWorldTransform(new Transform());</span>
+<span class="nc" id="L66">        CollisionWorld.rayTestSingle(from, to, this.hitCollisionObject, this.hitCollisionObject.getCollisionShape(), targetTransform, rayResult);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (rayResult.hasHit()) {</span>
+<span class="nc" id="L68">            foundSlope = true;</span>
+<span class="nc" id="L69">            slope = Math.min(slope, rayResult.hitNormalWorld.dot(new Vector3f(0, 1, 0)));</span>
+        }
+<span class="nc" id="L71">        Vector3f secondTraceOffset = new Vector3f(this.hitNormalWorld);</span>
+<span class="nc" id="L72">        secondTraceOffset.y = 0;</span>
+<span class="nc" id="L73">        secondTraceOffset.normalize();</span>
+<span class="nc" id="L74">        secondTraceOffset.scale(checkingOffset);</span>
+<span class="nc" id="L75">        fromWorld.add(secondTraceOffset);</span>
+<span class="nc" id="L76">        toWorld.add(secondTraceOffset);</span>
+<span class="nc" id="L77">        rayResult = new CollisionWorld.ClosestRayResultCallback(fromWorld, toWorld);</span>
+<span class="nc" id="L78">        from = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), fromWorld, 1.0f));</span>
+<span class="nc" id="L79">        to = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), toWorld, 1.0f));</span>
+<span class="nc" id="L80">        targetTransform = this.hitCollisionObject.getWorldTransform(new Transform());</span>
+<span class="nc" id="L81">        CollisionWorld.rayTestSingle(from, to, this.hitCollisionObject, this.hitCollisionObject.getCollisionShape(), targetTransform, rayResult);</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        if (rayResult.hasHit()) {</span>
+<span class="nc" id="L83">            foundSlope = true;</span>
+<span class="nc" id="L84">            slope = Math.min(slope, rayResult.hitNormalWorld.dot(new Vector3f(0, 1, 0)));</span>
+        }
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (!foundSlope) {</span>
+<span class="nc" id="L87">            slope = originalSlope;</span>
+        }
+<span class="nc" id="L89">        return slope;</span>
+    }
+
+    @Override
+    public org.terasology.math.geom.Vector3f getHitNormalWorld() {
+<span class="nc" id="L94">        return new org.terasology.math.geom.Vector3f(hitNormalWorld.x, hitNormalWorld.y, hitNormalWorld.z);</span>
+    }
+
+    @Override
+    public org.terasology.math.geom.Vector3f getHitPointWorld() {
+<span class="nc" id="L99">        return new org.terasology.math.geom.Vector3f(hitPointWorld.x, hitPointWorld.y, hitPointWorld.z);</span>
+    }
+
+    @Override
+    public float getClosestHitFraction() {
+<span class="nc" id="L104">        return closestHitFraction;</span>
+    }
+
+    @Override
+    public boolean checkForStep(org.terasology.math.geom.Vector3f direction, float stepHeight, float slopeFactor, float checkForwardDistance) {
+        boolean moveUpStep;
+<span class="nc" id="L110">        boolean hitStep = false;</span>
+<span class="nc" id="L111">        float stepSlope = 1f;</span>
+<span class="nc" id="L112">        Vector3f lookAheadOffset = new Vector3f(direction.x, direction.y, direction.z);</span>
+<span class="nc" id="L113">        lookAheadOffset.y = 0;</span>
+<span class="nc" id="L114">        lookAheadOffset.normalize();</span>
+<span class="nc" id="L115">        lookAheadOffset.scale(checkForwardDistance);</span>
+<span class="nc" id="L116">        Vector3f fromWorld = new Vector3f(hitPointWorld);</span>
+<span class="nc" id="L117">        fromWorld.y += stepHeight + 0.05f;</span>
+<span class="nc" id="L118">        fromWorld.add(lookAheadOffset);</span>
+<span class="nc" id="L119">        Vector3f toWorld = new Vector3f(hitPointWorld);</span>
+<span class="nc" id="L120">        toWorld.y -= 0.05f;</span>
+<span class="nc" id="L121">        toWorld.add(lookAheadOffset);</span>
+<span class="nc" id="L122">        CollisionWorld.ClosestRayResultCallback rayResult = new CollisionWorld.ClosestRayResultCallback(fromWorld, toWorld);</span>
+<span class="nc" id="L123">        Transform transformFrom = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), fromWorld, 1.0f));</span>
+<span class="nc" id="L124">        Transform transformTo = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), toWorld, 1.0f));</span>
+<span class="nc" id="L125">        Transform targetTransform = this.hitCollisionObject.getWorldTransform(new Transform());</span>
+<span class="nc" id="L126">        CollisionWorld.rayTestSingle(transformFrom, transformTo, this.hitCollisionObject, this.hitCollisionObject.getCollisionShape(), targetTransform, rayResult);</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if (rayResult.hasHit()) {</span>
+<span class="nc" id="L128">            hitStep = true;</span>
+<span class="nc" id="L129">            stepSlope = rayResult.hitNormalWorld.dot(new Vector3f(0, 1, 0));</span>
+        }
+<span class="nc" id="L131">        fromWorld.add(lookAheadOffset);</span>
+<span class="nc" id="L132">        toWorld.add(lookAheadOffset);</span>
+<span class="nc" id="L133">        rayResult = new CollisionWorld.ClosestRayResultCallback(fromWorld, toWorld);</span>
+<span class="nc" id="L134">        transformFrom = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), fromWorld, 1.0f));</span>
+<span class="nc" id="L135">        transformTo = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), toWorld, 1.0f));</span>
+<span class="nc" id="L136">        targetTransform = this.hitCollisionObject.getWorldTransform(new Transform());</span>
+<span class="nc" id="L137">        CollisionWorld.rayTestSingle(transformFrom, transformTo, this.hitCollisionObject, this.hitCollisionObject.getCollisionShape(), targetTransform, rayResult);</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        if (rayResult.hasHit()) {</span>
+<span class="nc" id="L139">            hitStep = true;</span>
+<span class="nc" id="L140">            stepSlope = Math.min(stepSlope, rayResult.hitNormalWorld.dot(new Vector3f(0, 1, 0)));</span>
+        }
+<span class="nc bnc" id="L142" title="All 4 branches missed.">        moveUpStep = hitStep &amp;&amp; stepSlope &gt;= slopeFactor;</span>
+<span class="nc" id="L143">        return moveUpStep;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

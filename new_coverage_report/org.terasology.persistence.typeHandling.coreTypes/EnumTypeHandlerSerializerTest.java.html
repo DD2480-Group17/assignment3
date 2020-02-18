@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EnumTypeHandlerSerializerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.coreTypes</a> &gt; <span class="el_source">EnumTypeHandlerSerializerTest.java</span></div><h1>EnumTypeHandlerSerializerTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.coreTypes;
+
+import org.junit.jupiter.api.Test;
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.PersistedDataSerializer;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ */
+<span class="fc" id="L29">public class EnumTypeHandlerSerializerTest {</span>
+
+<span class="fc" id="L31">    enum TestEnum {</span>
+<span class="fc" id="L32">        NON_NULL</span>
+    }
+
+    @Test
+    public void testNullValue() throws Exception {
+<span class="fc" id="L37">        PersistedData nullData = mock(PersistedData.class);</span>
+<span class="fc" id="L38">        when(nullData.isNull()).thenReturn(true);</span>
+
+<span class="fc" id="L40">        PersistedDataSerializer persistedDataSerializer = mock(PersistedDataSerializer.class);</span>
+<span class="fc" id="L41">        when(persistedDataSerializer.serializeNull()).thenReturn(nullData);</span>
+<span class="fc" id="L42">        EnumTypeHandler&lt;TestEnum&gt; handler = new EnumTypeHandler&lt;&gt;(TestEnum.class);</span>
+<span class="fc" id="L43">        PersistedData serializedNull = handler.serialize(null, persistedDataSerializer);</span>
+<span class="fc" id="L44">        assertEquals(nullData, serializedNull);</span>
+
+<span class="fc" id="L46">        assertFalse(handler.deserialize(nullData).isPresent());</span>
+<span class="fc" id="L47">    }</span>
+
+    @Test
+    public void testNonNullValue() throws Exception {
+<span class="fc" id="L51">        PersistedData data = mock(PersistedData.class);</span>
+<span class="fc" id="L52">        when(data.getAsString()).thenReturn(TestEnum.NON_NULL.toString());</span>
+<span class="fc" id="L53">        when(data.isString()).thenReturn(true);</span>
+
+<span class="fc" id="L55">        PersistedDataSerializer persistedDataSerializer = mock(PersistedDataSerializer.class);</span>
+<span class="fc" id="L56">        when(persistedDataSerializer.serialize(TestEnum.NON_NULL.toString())).thenReturn(data);</span>
+<span class="fc" id="L57">        EnumTypeHandler&lt;TestEnum&gt; handler = new EnumTypeHandler&lt;&gt;(TestEnum.class);</span>
+<span class="fc" id="L58">        PersistedData serializedNonNull = handler.serialize(TestEnum.NON_NULL, persistedDataSerializer);</span>
+<span class="fc" id="L59">        assertEquals(data, serializedNonNull);</span>
+
+<span class="fc" id="L61">        TestEnum deserializedValue = handler.deserialize(data).get();</span>
+<span class="fc" id="L62">        assertEquals(TestEnum.NON_NULL, deserializedValue);</span>
+<span class="fc" id="L63">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

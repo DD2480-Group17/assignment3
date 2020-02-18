@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Benchmarks.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.benchmark</a> &gt; <span class="el_source">Benchmarks.java</span></div><h1>Benchmarks.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.benchmark;
+
+import com.google.common.base.Preconditions;
+
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Benchmarks contains methods to execute one or many benchmarks with support for a progress callback as well as
+ * a simple pretty printer for benchmark results.
+ *
+ */
+public final class Benchmarks {
+
+    private Benchmarks() {
+    }
+
+    public static BenchmarkResult execute(Benchmark benchmark, int benchmarkIndex, int benchmarkCount, BenchmarkCallback callback) {
+
+<span class="nc bnc" id="L37" title="All 2 branches missed.">        if (callback != null) {</span>
+<span class="nc" id="L38">            callback.begin(benchmark, benchmarkIndex, benchmarkCount);</span>
+        }
+
+<span class="nc" id="L41">        final BenchmarkResult result = new BasicBenchmarkResult(benchmark);</span>
+<span class="nc" id="L42">        final int[] repetitions = Preconditions.checkNotNull(benchmark.getRepetitions(), &quot;Benchmark::getRepetitions() must not return null&quot;);</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">        Preconditions.checkState(repetitions.length &gt; 0, &quot;Benchmark::getRepetitions() must return an array of size greater than zero&quot;);</span>
+
+        try {
+<span class="nc" id="L46">            benchmark.setup();</span>
+<span class="nc" id="L47">        } catch (Exception e) {</span>
+<span class="nc" id="L48">            result.addError(BenchmarkError.Type.Setup, e);</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">            if (callback != null) {</span>
+<span class="nc" id="L50">                callback.error(BenchmarkError.Type.Setup, e, result);</span>
+            }
+<span class="nc" id="L52">            return result;</span>
+<span class="nc" id="L53">        }</span>
+
+        try {
+<span class="nc bnc" id="L56" title="All 2 branches missed.">            if (callback != null) {</span>
+<span class="nc" id="L57">                callback.warmup(benchmark, false);</span>
+            }
+<span class="nc bnc" id="L59" title="All 2 branches missed.">            for (int i = 0; i &lt; benchmark.getWarmupRepetitions(); ++i) {</span>
+<span class="nc" id="L60">                benchmark.run();</span>
+            }
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            if (callback != null) {</span>
+<span class="nc" id="L63">                callback.warmup(benchmark, true);</span>
+            }
+<span class="nc" id="L65">        } catch (Exception e) {</span>
+<span class="nc" id="L66">            result.addError(BenchmarkError.Type.Warmup, e);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            if (callback != null) {</span>
+<span class="nc" id="L68">                callback.error(BenchmarkError.Type.Warmup, e, result);</span>
+            }
+<span class="nc" id="L70">            return result;</span>
+<span class="nc" id="L71">        }</span>
+
+<span class="nc" id="L73">        int repsTotal = 0;</span>
+<span class="nc" id="L74">        int repsSoFar = 0;</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        for (int reps : repetitions) {</span>
+<span class="nc" id="L76">            repsTotal += reps;</span>
+        }
+<span class="nc" id="L78">        int repsPart = repsTotal / 20;</span>
+
+<span class="nc" id="L80">        int repIndex = 0;</span>
+<span class="nc" id="L81">        boolean aborted = false;</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        for (int reps : repetitions) {</span>
+
+            try {
+<span class="nc" id="L85">                benchmark.prerun();</span>
+<span class="nc" id="L86">            } catch (Exception e) {</span>
+<span class="nc" id="L87">                aborted = true;</span>
+<span class="nc" id="L88">                result.addError(BenchmarkError.Type.PreRun, e);</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                if (callback != null) {</span>
+<span class="nc" id="L90">                    callback.error(BenchmarkError.Type.PreRun, e, result);</span>
+                }
+<span class="nc" id="L92">                break;</span>
+<span class="nc" id="L93">            }</span>
+
+<span class="nc" id="L95">            long start = time();</span>
+            long elapsed;
+            try {
+<span class="nc" id="L98">                result.setStartTime(repIndex, TimeUnit.MILLISECONDS.convert(start, TimeUnit.NANOSECONDS));</span>
+<span class="nc" id="L99">                int currentReps = reps;</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                while (currentReps &gt; repsPart) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                    for (int i = 0; i &lt; repsPart; ++i) {</span>
+<span class="nc" id="L102">                        benchmark.run();</span>
+                    }
+<span class="nc" id="L104">                    currentReps -= repsPart;</span>
+<span class="nc" id="L105">                    repsSoFar += repsPart;</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                    if (callback != null) {</span>
+<span class="nc" id="L107">                        callback.progress(benchmark, 100d / (double) repsTotal * (double) repsSoFar);</span>
+                    }
+                }
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                if (currentReps &lt;= repsPart) {</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                    for (int i = 0; i &lt; currentReps; ++i) {</span>
+<span class="nc" id="L112">                        benchmark.run();</span>
+                    }
+<span class="nc" id="L114">                    repsSoFar += currentReps;</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                    if (callback != null) {</span>
+<span class="nc" id="L116">                        callback.progress(benchmark, 100d / (double) repsTotal * (double) repsSoFar);</span>
+                    }
+                }
+<span class="nc" id="L119">                elapsed = elapsed(start, TimeUnit.NANOSECONDS);</span>
+<span class="nc" id="L120">                result.setRunTime(repIndex, TimeUnit.MILLISECONDS.convert(elapsed, TimeUnit.NANOSECONDS));</span>
+<span class="nc" id="L121">            } catch (Exception e) {</span>
+<span class="nc" id="L122">                aborted = true;</span>
+<span class="nc" id="L123">                result.addError(BenchmarkError.Type.Run, e);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">                if (callback != null) {</span>
+<span class="nc" id="L125">                    callback.error(BenchmarkError.Type.Run, e, result);</span>
+                }
+<span class="nc" id="L127">                break;</span>
+<span class="nc" id="L128">            }</span>
+
+            try {
+<span class="nc" id="L131">                benchmark.postrun();</span>
+<span class="nc" id="L132">            } catch (Exception e) {</span>
+<span class="nc" id="L133">                aborted = true;</span>
+<span class="nc" id="L134">                result.addError(BenchmarkError.Type.PostRun, e);</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                if (callback != null) {</span>
+<span class="nc" id="L136">                    callback.error(BenchmarkError.Type.PostRun, e, result);</span>
+                }
+<span class="nc" id="L138">                break;</span>
+<span class="nc" id="L139">            }</span>
+
+<span class="nc" id="L141">            ++repIndex;</span>
+        }
+
+        try {
+<span class="nc" id="L145">            benchmark.finish(aborted);</span>
+<span class="nc" id="L146">        } catch (Exception e) {</span>
+<span class="nc" id="L147">            result.addError(BenchmarkError.Type.Finish, e);</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">            if (callback != null) {</span>
+<span class="nc" id="L149">                callback.error(BenchmarkError.Type.Finish, e, result);</span>
+            }
+<span class="nc" id="L151">        }</span>
+
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        if (callback != null) {</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">            if (result.isAborted()) {</span>
+<span class="nc" id="L155">                callback.aborted(result);</span>
+            } else {
+<span class="nc" id="L157">                callback.success(result);</span>
+            }
+        }
+
+<span class="nc" id="L161">        return result;</span>
+    }
+
+    public static List&lt;BenchmarkResult&gt; execute(List&lt;Benchmark&gt; benchmarks, BenchmarkCallback callback) {
+<span class="nc" id="L165">        Preconditions.checkNotNull(benchmarks);</span>
+
+<span class="nc" id="L167">        final List&lt;BenchmarkResult&gt; results = new LinkedList&lt;&gt;();</span>
+<span class="nc" id="L168">        final int benchmarkCount = benchmarks.size();</span>
+
+        try {
+<span class="nc" id="L171">            int benchmarkIndex = 1;</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">            for (Benchmark benchmark : benchmarks) {</span>
+<span class="nc" id="L173">                Preconditions.checkNotNull(benchmark);</span>
+
+<span class="nc" id="L175">                BenchmarkResult result = execute(benchmark, benchmarkIndex, benchmarkCount, callback);</span>
+<span class="nc" id="L176">                results.add(result);</span>
+
+<span class="nc" id="L178">                benchmarkIndex++;</span>
+<span class="nc" id="L179">            }</span>
+<span class="nc" id="L180">        } catch (Exception e) {</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (callback != null) {</span>
+<span class="nc" id="L182">                callback.fatal(e);</span>
+            }
+<span class="nc" id="L184">        }</span>
+
+<span class="nc" id="L186">        return results;</span>
+    }
+
+    public static StringBuilder printResults(List&lt;BenchmarkResult&gt; results) {
+<span class="nc" id="L190">        return printResults(results, new StringBuilder());</span>
+    }
+
+
+    public static StringBuilder printResults(List&lt;BenchmarkResult&gt; results, StringBuilder b) {
+<span class="nc" id="L195">        Preconditions.checkNotNull(b);</span>
+<span class="nc" id="L196">        final int resultCount = results.size();</span>
+<span class="nc" id="L197">        int resultIndex = 1;</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        for (BenchmarkResult result : results) {</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            if (resultIndex &gt; 1) {</span>
+<span class="nc" id="L200">                b.append(&quot;\n&quot;);</span>
+            }
+<span class="nc" id="L202">            b.append(&quot;Benchmark &quot; + resultIndex + &quot; / &quot; + resultCount + &quot;: &quot; + result.getTitle() + &quot;\n&quot;);</span>
+<span class="nc" id="L203">            printResult(result, b);</span>
+<span class="nc" id="L204">            resultIndex++;</span>
+<span class="nc" id="L205">        }</span>
+<span class="nc" id="L206">        return b;</span>
+    }
+
+    public static StringBuilder printResult(BenchmarkResult result) {
+<span class="nc" id="L210">        return printResult(result, new StringBuilder());</span>
+    }
+
+    public static StringBuilder printResult(BenchmarkResult result, StringBuilder b) {
+<span class="nc" id="L214">        Preconditions.checkNotNull(b);</span>
+<span class="nc" id="L215">        BenchmarkResult.Column&lt;?&gt;[] columns = getColumns(result);</span>
+<span class="nc" id="L216">        printFieldTitles(result, columns, b);</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        for (int repIndex = 0; repIndex &lt; result.getRepetitions(); repIndex++) {</span>
+<span class="nc" id="L218">            printFieldValues(result, repIndex, columns, b);</span>
+        }
+<span class="nc" id="L220">        return b;</span>
+    }
+
+    private static BenchmarkResult.Column&lt;?&gt;[] getColumns(BenchmarkResult result) {
+<span class="nc" id="L224">        BenchmarkResult.Column&lt;?&gt;[] columns = new BenchmarkResult.Column&lt;?&gt;[result.getNumColumns()];</span>
+<span class="nc" id="L225">        Iterator&lt;BenchmarkResult.Column&lt;?&gt;&gt; it = result.getColumnsIterator();</span>
+<span class="nc" id="L226">        int i = 0;</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">        while (it.hasNext()) {</span>
+<span class="nc" id="L228">            columns[i++] = it.next();</span>
+        }
+<span class="nc" id="L230">        return columns;</span>
+    }
+
+    private static void printFieldTitles(BenchmarkResult result, BenchmarkResult.Column&lt;?&gt;[] columns, StringBuilder b) {
+<span class="nc" id="L234">        boolean first = true;</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">        for (BenchmarkResult.Column&lt;?&gt; col : columns) {</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">            if (first) {</span>
+<span class="nc" id="L237">                first = false;</span>
+            } else {
+<span class="nc" id="L239">                b.append(&quot; | &quot;);</span>
+            }
+<span class="nc" id="L241">            b.append(col.alignment.pad(col.name, col.computeMaxWidth()));</span>
+        }
+<span class="nc" id="L243">        b.append(&quot;\n&quot;);</span>
+<span class="nc" id="L244">    }</span>
+
+    private static void printFieldValues(BenchmarkResult result, int repIndex, BenchmarkResult.Column&lt;?&gt;[] columns, StringBuilder b) {
+<span class="nc" id="L247">        boolean first = true;</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        for (BenchmarkResult.Column&lt;?&gt; col : columns) {</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">            if (first) {</span>
+<span class="nc" id="L250">                first = false;</span>
+            } else {
+<span class="nc" id="L252">                b.append(&quot; | &quot;);</span>
+            }
+<span class="nc" id="L254">            b.append(col.alignment.pad(col.getValue(repIndex), col.computeMaxWidth()));</span>
+        }
+<span class="nc" id="L256">        b.append(&quot;\n&quot;);</span>
+<span class="nc" id="L257">    }</span>
+
+    private static long time() {
+<span class="nc" id="L260">        return System.nanoTime();</span>
+    }
+
+    private static long elapsed(long time, TimeUnit unit) {
+<span class="nc" id="L264">        Preconditions.checkNotNull(unit);</span>
+<span class="nc" id="L265">        long result = time() - time;</span>
+<span class="nc" id="L266">        return unit.convert(result, TimeUnit.NANOSECONDS);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

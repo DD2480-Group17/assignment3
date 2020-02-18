@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PojoEntityPoolTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem</a> &gt; <span class="el_source">PojoEntityPoolTest.java</span></div><h1>PojoEntityPoolTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem;
+
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.assets.AssetFactory;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.engine.bootstrap.EntitySystemSetupUtil;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.PojoEntityManager;
+import org.terasology.entitySystem.entity.internal.PojoEntityPool;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.prefab.PrefabData;
+import org.terasology.entitySystem.prefab.internal.PojoPrefab;
+import org.terasology.network.NetworkSystem;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.testUtil.ModuleManagerFactory;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+
+/**
+ */
+<span class="fc" id="L46">public class PojoEntityPoolTest {</span>
+
+    private PojoEntityPool pool;
+    private static Context context;
+    private PojoEntityManager entityManager;
+
+    @BeforeAll
+    public static void setupClass() throws Exception {
+<span class="fc" id="L54">        context = new ContextImpl();</span>
+<span class="fc" id="L55">        ModuleManager moduleManager = ModuleManagerFactory.create();</span>
+<span class="fc" id="L56">        context.put(ModuleManager.class, moduleManager);</span>
+<span class="fc" id="L57">        ModuleAwareAssetTypeManager assetTypeManager = new ModuleAwareAssetTypeManager();</span>
+<span class="fc" id="L58">        assetTypeManager.registerCoreAssetType(Prefab.class,</span>
+                (AssetFactory&lt;Prefab, PrefabData&gt;) PojoPrefab::new, &quot;prefabs&quot;);
+<span class="fc" id="L60">        assetTypeManager.switchEnvironment(moduleManager.getEnvironment());</span>
+<span class="fc" id="L61">        context.put(AssetManager.class, assetTypeManager.getAssetManager());</span>
+<span class="fc" id="L62">        context.put(RecordAndReplayCurrentStatus.class, new RecordAndReplayCurrentStatus());</span>
+<span class="fc" id="L63">        CoreRegistry.setContext(context);</span>
+<span class="fc" id="L64">    }</span>
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L68">        context.put(NetworkSystem.class, mock(NetworkSystem.class));</span>
+<span class="fc" id="L69">        EntitySystemSetupUtil.addReflectionBasedLibraries(context);</span>
+<span class="fc" id="L70">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="fc" id="L71">        entityManager = (PojoEntityManager) context.get(EntityManager.class);</span>
+
+<span class="fc" id="L73">        pool = new PojoEntityPool(entityManager);</span>
+<span class="fc" id="L74">    }</span>
+
+
+    @Test
+    public void testContains() {
+<span class="fc" id="L79">        assertFalse(pool.contains(PojoEntityManager.NULL_ID));</span>
+<span class="fc" id="L80">        assertFalse(pool.contains(1000000));</span>
+<span class="fc" id="L81">        EntityRef ref = entityManager.create();</span>
+<span class="fc" id="L82">        entityManager.moveToPool(ref.getId(), pool);</span>
+<span class="fc" id="L83">        assertTrue(pool.contains(ref.getId()));</span>
+<span class="fc" id="L84">    }</span>
+
+    @Test
+    public void testRemove() {
+<span class="fc" id="L88">        EntityRef ref = entityManager.create();</span>
+<span class="fc" id="L89">        entityManager.moveToPool(ref.getId(), pool);</span>
+<span class="fc" id="L90">        assertTrue(pool.contains(ref.getId()));</span>
+
+<span class="fc" id="L92">        pool.remove(ref.getId());</span>
+<span class="fc" id="L93">        assertFalse(pool.contains(ref.getId()));</span>
+<span class="fc" id="L94">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

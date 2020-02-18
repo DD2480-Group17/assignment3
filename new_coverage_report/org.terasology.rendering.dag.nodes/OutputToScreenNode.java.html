@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OutputToScreenNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">OutputToScreenNode.java</span></div><h1>OutputToScreenNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.lwjgl.opengl.Display;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.dag.ConditionDependentNode;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.SwappableFBO;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+
+import static org.lwjgl.opengl.GL11.glViewport;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.ColorTexture;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+import static org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs.FINAL_BUFFER;
+import static org.terasology.rendering.world.WorldRenderer.RenderingStage.LEFT_EYE;
+import static org.terasology.rendering.world.WorldRenderer.RenderingStage.MONO;
+
+public class OutputToScreenNode extends ConditionDependentNode {
+<span class="nc" id="L39">    private static final ResourceUrn DEFAULT_TEXTURED_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.defaultTextured&quot;);</span>
+
+    private DisplayResolutionDependentFBOs displayResolutionDependentFBOs;
+
+    private FBO lastUpdatedGBuffer;
+    private FBO staleGBuffer;
+
+    private StateChange bindFbo;
+
+    public OutputToScreenNode(String nodeUri, Context context) {
+<span class="nc" id="L49">        super(nodeUri, context);</span>
+
+<span class="nc" id="L51">        displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+
+<span class="nc bnc" id="L53" title="All 4 branches missed.">        requiresCondition(() -&gt; worldRenderer.getCurrentRenderStage() == MONO || worldRenderer.getCurrentRenderStage() == LEFT_EYE);</span>
+
+<span class="nc" id="L55">        addDesiredStateChange(new EnableMaterial(DEFAULT_TEXTURED_MATERIAL_URN));</span>
+
+<span class="nc" id="L57">        bindFbo = new SetInputTextureFromFbo(0, FINAL_BUFFER, ColorTexture, displayResolutionDependentFBOs, DEFAULT_TEXTURED_MATERIAL_URN, &quot;texture&quot;);</span>
+<span class="nc" id="L58">        addDesiredStateChange(bindFbo);</span>
+
+<span class="nc" id="L60">        SwappableFBO gBufferPair = displayResolutionDependentFBOs.getGBufferPair();</span>
+<span class="nc" id="L61">        lastUpdatedGBuffer = gBufferPair.getLastUpdatedFbo();</span>
+<span class="nc" id="L62">        staleGBuffer = gBufferPair.getStaleFbo();</span>
+<span class="nc" id="L63">    }</span>
+
+    @Override
+    public void process() {
+<span class="nc" id="L67">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+        // The way things are set-up right now, we can have FBOs that are not the same size as the display (if scale != 100%).
+        // However, when drawing the final image to the screen, we always want the viewport to match the size of display,
+        // and not that of some FBO. Hence, we are manually setting the viewport via glViewport over here.
+<span class="nc" id="L71">        glViewport(0, 0, Display.getWidth(), Display.getHeight());</span>
+<span class="nc" id="L72">        renderFullscreenQuad();</span>
+<span class="nc" id="L73">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L74">    }</span>
+
+    @Override
+    public void handleCommand(String command, String... arguments) {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        switch (command) {</span>
+            case &quot;setFbo&quot;:
+<span class="nc bnc" id="L80" title="All 2 branches missed.">                if (arguments.length != 1) {</span>
+<span class="nc" id="L81">                    throw new RuntimeException(&quot;Invalid number of arguments; expected 1, received &quot; + arguments.length + &quot;!&quot;);</span>
+                }
+
+                FBO fbo;
+<span class="nc bnc" id="L85" title="All 3 branches missed.">                switch (arguments[0]) {</span>
+                    case &quot;engine:fbo.gBuffer&quot;:
+                    case &quot;engine:fbo.lastUpdatedGBuffer&quot;:
+<span class="nc" id="L88">                        fbo = lastUpdatedGBuffer;</span>
+<span class="nc" id="L89">                        break;</span>
+                    case &quot;engine:fbo.staleGBuffer&quot;:
+<span class="nc" id="L91">                        fbo = staleGBuffer;</span>
+<span class="nc" id="L92">                        break;</span>
+                    default:
+<span class="nc" id="L94">                        fbo = displayResolutionDependentFBOs.get(new SimpleUri(arguments[0]));</span>
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                        if (fbo == null) {</span>
+<span class="nc" id="L97">                            throw new RuntimeException((&quot;No FBO is associated with URI '&quot; + arguments[0] + &quot;'&quot;));</span>
+                        }
+
+                        break;
+                }
+<span class="nc" id="L102">                setFbo(fbo);</span>
+
+<span class="nc" id="L104">                break;</span>
+            default:
+<span class="nc" id="L106">                throw new RuntimeException(&quot;Unrecognized command: '&quot; + command + &quot;'&quot;);</span>
+        }
+<span class="nc" id="L108">    }</span>
+
+    private void setFbo(FBO fbo) {
+<span class="nc" id="L111">        removeDesiredStateChange(bindFbo);</span>
+<span class="nc" id="L112">        bindFbo = new SetInputTextureFromFbo(0, fbo, ColorTexture, displayResolutionDependentFBOs, DEFAULT_TEXTURED_MATERIAL_URN, &quot;texture&quot;);</span>
+<span class="nc" id="L113">        addDesiredStateChange(bindFbo);</span>
+<span class="nc" id="L114">        worldRenderer.requestTaskListRefresh();</span>
+<span class="nc" id="L115">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

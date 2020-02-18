@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConsoleImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.console</a> &gt; <span class="el_source">ConsoleImpl.java</span></div><h1>ConsoleImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.logic.console;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.console.commandSystem.ConsoleCommand;
+import org.terasology.logic.console.commandSystem.exceptions.CommandExecutionException;
+import org.terasology.logic.permission.PermissionManager;
+import org.terasology.naming.Name;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.NetworkSystem;
+import org.terasology.rendering.FontColor;
+import org.terasology.rendering.FontUnderline;
+import org.terasology.utilities.collection.CircularBuffer;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * The console handles commands and messages.
+ *
+ */
+public class ConsoleImpl implements Console {
+    private static final String PARAM_SPLIT_REGEX = &quot; (?=([^\&quot;]*\&quot;[^\&quot;]*\&quot;)*[^\&quot;]*$)&quot;;
+    private static final int MAX_MESSAGE_HISTORY = 255;
+    private static final int MAX_COMMAND_HISTORY = 30;
+<span class="fc" id="L54">    private static final Logger logger = LoggerFactory.getLogger(ConsoleImpl.class);</span>
+
+<span class="fc" id="L56">    private final CircularBuffer&lt;Message&gt; messageHistory = CircularBuffer.create(MAX_MESSAGE_HISTORY);</span>
+<span class="fc" id="L57">    private final CircularBuffer&lt;String&gt; localCommandHistory = CircularBuffer.create(MAX_COMMAND_HISTORY);</span>
+<span class="fc" id="L58">    private final Map&lt;Name, ConsoleCommand&gt; commandRegistry = Maps.newHashMap();</span>
+<span class="fc" id="L59">    private final Set&lt;ConsoleSubscriber&gt; messageSubscribers = Sets.newHashSet();</span>
+
+    private NetworkSystem networkSystem;
+    private Context context;
+
+<span class="fc" id="L64">    public ConsoleImpl(Context context) {</span>
+<span class="fc" id="L65">        this.networkSystem = context.get(NetworkSystem.class);</span>
+<span class="fc" id="L66">        this.context = context;</span>
+<span class="fc" id="L67">    }</span>
+
+    /**
+     * Registers a {@link org.terasology.logic.console.commandSystem.ConsoleCommand}.
+     *
+     * @param command The command to be registered
+     */
+    @Override
+    public void registerCommand(ConsoleCommand command) {
+<span class="nc" id="L76">        Name commandName = command.getName();</span>
+
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        if (commandRegistry.containsKey(commandName)) {</span>
+<span class="nc" id="L79">            logger.warn(&quot;Command with name '{}' already registered by class '{}', skipping '{}'&quot;,</span>
+<span class="nc" id="L80">                    commandName, commandRegistry.get(commandName).getSource().getClass().getCanonicalName(),</span>
+<span class="nc" id="L81">                    command.getSource().getClass().getCanonicalName());</span>
+        } else {
+<span class="nc" id="L83">            commandRegistry.put(commandName, command);</span>
+<span class="nc" id="L84">            logger.debug(&quot;Command '{}' successfully registered for class '{}'.&quot;, commandName,</span>
+<span class="nc" id="L85">                    command.getSource().getClass().getCanonicalName());</span>
+        }
+<span class="nc" id="L87">    }</span>
+
+    @Override
+    public void dispose() {
+<span class="nc" id="L91">        commandRegistry.clear();</span>
+<span class="nc" id="L92">        messageHistory.clear();</span>
+<span class="nc" id="L93">    }</span>
+
+    /**
+     * Adds a message to the console (as a CoreMessageType.CONSOLE message)
+     *
+     * @param message The message content
+     */
+    @Override
+    public void addMessage(String message) {
+<span class="fc" id="L102">        addMessage(new Message(message));</span>
+<span class="fc" id="L103">    }</span>
+
+    /**
+     * Adds a message to the console
+     *
+     * @param message The content of the message
+     * @param type    The type of the message
+     */
+    @Override
+    public void addMessage(String message, MessageType type) {
+<span class="nc" id="L113">        addMessage(new Message(message, type));</span>
+<span class="nc" id="L114">    }</span>
+
+    private void addErrorMessage(String message) {
+<span class="nc" id="L117">        addMessage(new Message(message, CoreMessageType.ERROR));</span>
+<span class="nc" id="L118">    }</span>
+
+    /**
+     * Adds a message to the console
+     *
+     * @param message    The message to be added, as a string.
+     * @param newLine    A boolean: True causes a newline character to be appended at the end of the message. False doesn't.
+     */
+    @Override
+    public void addMessage(String message, boolean newLine) {
+<span class="fc" id="L128">        addMessage(new Message(message, newLine));</span>
+<span class="fc" id="L129">    }</span>
+
+    /**
+     * Adds a message to the console
+     *
+     * @param message    The message to be added, as a string.
+     * @param type       The type of the message
+     * @param newLine    A boolean: True causes a newline character to be appended at the end of the message. False doesn't.
+     */
+    @Override
+    public void addMessage(String message, MessageType type, boolean newLine) {
+<span class="nc" id="L140">        addMessage(new Message(message, type, newLine));</span>
+<span class="nc" id="L141">    }</span>
+
+    /**
+     * Adds a message to the console
+     *
+     * @param message The message to be added
+     */
+    @Override
+    public void addMessage(Message message) {
+<span class="fc" id="L150">        String uncoloredText = FontUnderline.strip(FontColor.stripColor(message.getMessage()));</span>
+<span class="fc" id="L151">        logger.info(&quot;[{}] {}&quot;, message.getType(), uncoloredText);</span>
+<span class="fc" id="L152">        messageHistory.add(message);</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        for (ConsoleSubscriber subscriber : messageSubscribers) {</span>
+<span class="nc" id="L154">            subscriber.onNewConsoleMessage(message);</span>
+<span class="nc" id="L155">        }</span>
+<span class="fc" id="L156">    }</span>
+
+    @Override
+    public void removeMessage(Message message) {
+<span class="nc" id="L160">        messageHistory.remove(message);</span>
+<span class="nc" id="L161">    }</span>
+
+    /**
+     * Clears the console of all previous messages.
+     */
+    @Override
+    public void clear() {
+<span class="fc" id="L168">        messageHistory.clear();</span>
+<span class="fc" id="L169">    }</span>
+
+    @Override
+    public void replaceMessage(Message oldMsg, Message newMsg) {
+<span class="nc" id="L173">        int idx = messageHistory.indexOf(oldMsg);</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">        if (idx &gt;= 0) {</span>
+<span class="nc" id="L175">            messageHistory.set(idx, newMsg);</span>
+        }
+<span class="nc" id="L177">    }</span>
+
+    /**
+     * @return An iterator over all messages in the console
+     */
+    @Override
+    public Iterable&lt;Message&gt; getMessages() {
+<span class="fc" id="L184">        return messageHistory;</span>
+    }
+
+    @Override
+    public Iterable&lt;Message&gt; getMessages(MessageType... types) {
+<span class="nc" id="L189">        final List&lt;MessageType&gt; allowedTypes = Arrays.asList(types);</span>
+
+<span class="nc" id="L191">        return Collections2.filter(messageHistory, input -&gt; allowedTypes.contains(input.getType()));</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getPreviousCommands() {
+<span class="nc" id="L196">        return ImmutableList.copyOf(localCommandHistory);</span>
+    }
+
+    /**
+     * Subscribe for notification of all messages added to the console
+     */
+    @Override
+    public void subscribe(ConsoleSubscriber subscriber) {
+<span class="nc" id="L204">        this.messageSubscribers.add(subscriber);</span>
+<span class="nc" id="L205">    }</span>
+
+    /**
+     * Unsubscribe from receiving notification of messages being added to the console
+     */
+    @Override
+    public void unsubscribe(ConsoleSubscriber subscriber) {
+<span class="nc" id="L212">        this.messageSubscribers.remove(subscriber);</span>
+<span class="nc" id="L213">    }</span>
+
+    @Override
+    public boolean execute(String rawCommand, EntityRef callingClient) {
+<span class="nc" id="L217">        String commandName = processCommandName(rawCommand);</span>
+<span class="nc" id="L218">        List&lt;String&gt; processedParameters = processParameters(rawCommand);</span>
+
+<span class="nc" id="L220">        ClientComponent cc = callingClient.getComponent(ClientComponent.class);</span>
+
+<span class="nc bnc" id="L222" title="All 2 branches missed.">        if (cc.local) {</span>
+<span class="nc bnc" id="L223" title="All 6 branches missed.">            if (!rawCommand.isEmpty() &amp;&amp; (localCommandHistory.isEmpty() || !localCommandHistory.getLast().equals(rawCommand))) {</span>
+<span class="nc" id="L224">                localCommandHistory.add(rawCommand);</span>
+            }
+        }
+
+<span class="nc" id="L228">        return execute(new Name(commandName), processedParameters, callingClient);</span>
+    }
+
+    @Override
+    public boolean execute(Name commandName, List&lt;String&gt; params, EntityRef callingClient) {
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        if (commandName.isEmpty()) {</span>
+<span class="nc" id="L234">            return false;</span>
+        }
+
+        //get the command
+<span class="nc" id="L238">        ConsoleCommand cmd = getCommand(commandName);</span>
+
+        //check if the command is loaded
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        if (cmd == null) {</span>
+<span class="nc" id="L242">            addErrorMessage(&quot;Unknown command '&quot; + commandName + &quot;'&quot;);</span>
+<span class="nc" id="L243">            return false;</span>
+        }
+
+<span class="nc" id="L246">        String requiredPermission = cmd.getRequiredPermission();</span>
+
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        if (!clientHasPermission(callingClient, requiredPermission)) {</span>
+<span class="nc" id="L249">            callingClient.send(new ErrorMessageEvent(&quot;You do not have enough permissions to execute this command (&quot; + requiredPermission + &quot;).&quot;));</span>
+<span class="nc" id="L250">            return false;</span>
+        }
+
+<span class="nc bnc" id="L253" title="All 2 branches missed.">        if (params.size() &lt; cmd.getRequiredParameterCount()) {</span>
+<span class="nc" id="L254">            callingClient.send(new ErrorMessageEvent(&quot;Please, provide required arguments marked by &lt;&gt;.&quot;));</span>
+<span class="nc" id="L255">            callingClient.send(new ConsoleMessageEvent(cmd.getUsage()));</span>
+<span class="nc" id="L256">            return false;</span>
+        }
+
+<span class="nc bnc" id="L259" title="All 4 branches missed.">        if (cmd.isRunOnServer() &amp;&amp; !networkSystem.getMode().isAuthority()) {</span>
+<span class="nc" id="L260">            callingClient.send(new CommandEvent(commandName, params));</span>
+<span class="nc" id="L261">            return true;</span>
+        } else {
+            try {
+<span class="nc" id="L264">                String result = cmd.execute(params, callingClient);</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">                if (!Strings.isNullOrEmpty(result)) {</span>
+<span class="nc" id="L266">                    callingClient.send(new ConsoleMessageEvent(result));</span>
+                }
+
+<span class="nc" id="L269">                return true;</span>
+<span class="nc" id="L270">            } catch (CommandExecutionException e) {</span>
+<span class="nc" id="L271">                Throwable cause = e.getCause();</span>
+                String causeMessage;
+<span class="nc bnc" id="L273" title="All 2 branches missed.">                if (cause != null) {</span>
+<span class="nc" id="L274">                    causeMessage = cause.getLocalizedMessage();</span>
+<span class="nc bnc" id="L275" title="All 2 branches missed.">                    if (Strings.isNullOrEmpty(causeMessage)) {</span>
+<span class="nc" id="L276">                        causeMessage = cause.toString();</span>
+                    }
+                } else {
+<span class="nc" id="L279">                    causeMessage = e.getLocalizedMessage();</span>
+                }
+
+<span class="nc" id="L282">                logger.error(&quot;An error occurred while executing a command&quot;, e);</span>
+
+<span class="nc bnc" id="L284" title="All 2 branches missed.">                if (!Strings.isNullOrEmpty(causeMessage)) {</span>
+<span class="nc" id="L285">                    callingClient.send(new ErrorMessageEvent(&quot;An error occurred while executing command '&quot;</span>
+<span class="nc" id="L286">                            + cmd.getName() + &quot;': &quot; + causeMessage));</span>
+                }
+<span class="nc" id="L288">                return false;</span>
+            }
+        }
+    }
+
+    private boolean clientHasPermission(EntityRef callingClient, String requiredPermission) {
+<span class="nc" id="L294">        Preconditions.checkNotNull(callingClient, &quot;The calling client must not be null!&quot;);</span>
+
+<span class="nc" id="L296">        PermissionManager permissionManager = context.get(PermissionManager.class);</span>
+<span class="nc" id="L297">        boolean hasPermission = true;</span>
+
+<span class="nc bnc" id="L299" title="All 4 branches missed.">        if (permissionManager != null &amp;&amp; requiredPermission != null</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">                &amp;&amp; !requiredPermission.equals(PermissionManager.NO_PERMISSION)) {</span>
+<span class="nc" id="L301">            hasPermission = false;</span>
+<span class="nc" id="L302">            ClientComponent clientComponent = callingClient.getComponent(ClientComponent.class);</span>
+
+<span class="nc bnc" id="L304" title="All 2 branches missed.">            if (permissionManager.hasPermission(clientComponent.clientInfo, requiredPermission)) {</span>
+<span class="nc" id="L305">                hasPermission = true;</span>
+            }
+        }
+
+<span class="nc" id="L309">        return hasPermission;</span>
+    }
+
+    private static String cleanCommand(String rawCommand) {
+        // trim and remove double spaces
+<span class="nc" id="L314">        return rawCommand.trim().replaceAll(&quot;\\s\\s+&quot;, &quot; &quot;);</span>
+    }
+
+    @Override
+    public String processCommandName(String rawCommand) {
+<span class="nc" id="L319">        String cleanedCommand = cleanCommand(rawCommand);</span>
+<span class="nc" id="L320">        int commandEndIndex = cleanedCommand.indexOf(&quot; &quot;);</span>
+
+<span class="nc bnc" id="L322" title="All 2 branches missed.">        if (commandEndIndex &gt;= 0) {</span>
+<span class="nc" id="L323">            return cleanedCommand.substring(0, commandEndIndex);</span>
+        } else {
+<span class="nc" id="L325">            return cleanedCommand;</span>
+        }
+    }
+
+    @Override
+    public List&lt;String&gt; processParameters(String rawCommand) {
+<span class="nc" id="L331">        String cleanedCommand = cleanCommand(rawCommand);</span>
+        //get the command name
+<span class="nc" id="L333">        int commandEndIndex = cleanedCommand.indexOf(&quot; &quot;);</span>
+
+<span class="nc bnc" id="L335" title="All 2 branches missed.">        if (commandEndIndex &lt; 0) {</span>
+<span class="nc" id="L336">            commandEndIndex = cleanedCommand.length();</span>
+        }
+
+        //remove command name from string
+<span class="nc" id="L340">        String parameterPart = cleanedCommand.substring(commandEndIndex).trim();</span>
+
+        //get the parameters
+<span class="nc" id="L343">        List&lt;String&gt; params = splitParameters(parameterPart);</span>
+
+<span class="nc" id="L345">        return params;</span>
+    }
+
+    private static List&lt;String&gt; splitParameters(String paramStr) {
+<span class="nc" id="L349">        String[] rawParams = paramStr.split(PARAM_SPLIT_REGEX);</span>
+<span class="nc" id="L350">        List&lt;String&gt; params = Lists.newArrayList();</span>
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        for (String s : rawParams) {</span>
+<span class="nc" id="L352">            String param = s;</span>
+
+<span class="nc bnc" id="L354" title="All 2 branches missed.">            if (param.trim().isEmpty()) {</span>
+<span class="nc" id="L355">                continue;</span>
+            }
+<span class="nc bnc" id="L357" title="All 6 branches missed.">            if (param.length() &gt; 1 &amp;&amp; param.startsWith(&quot;\&quot;&quot;) &amp;&amp; param.endsWith(&quot;\&quot;&quot;)) {</span>
+<span class="nc" id="L358">                param = param.substring(1, param.length() - 1);</span>
+            }
+<span class="nc" id="L360">            params.add(param);</span>
+        }
+<span class="nc" id="L362">        return params;</span>
+    }
+
+    /**
+     * Get a group of commands by their name. These will vary by the number of parameters they accept
+     *
+     * @param name The name of the command.
+     * @return An array of commands with given name
+     */
+    @Override
+    public ConsoleCommand getCommand(Name name) {
+<span class="nc" id="L373">        return commandRegistry.get(name);</span>
+    }
+
+    /**
+     * Get the list of all loaded commands.
+     *
+     * @return Returns the command list.
+     */
+    @Override
+    public Collection&lt;ConsoleCommand&gt; getCommands() {
+<span class="nc" id="L383">        return commandRegistry.values();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

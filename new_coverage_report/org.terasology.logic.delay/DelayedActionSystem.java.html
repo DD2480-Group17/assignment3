@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DelayedActionSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.delay</a> &gt; <span class="el_source">DelayedActionSystem.java</span></div><h1>DelayedActionSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.delay;
+
+import com.google.common.collect.Ordering;
+import com.google.common.collect.SortedSetMultimap;
+import com.google.common.collect.TreeMultimap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeDeactivateComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.registry.In;
+import org.terasology.registry.Share;
+
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * Provides support for scheduling events that will trigger at some point in the future.
+ */
+@RegisterSystem(RegisterMode.AUTHORITY)
+@Share(value = DelayManager.class)
+<span class="fc" id="L45">public class DelayedActionSystem extends BaseComponentSystem implements UpdateSubscriberSystem, DelayManager {</span>
+<span class="fc" id="L46">    private static final Logger logger = LoggerFactory.getLogger(DelayedActionSystem.class);</span>
+
+    @In
+    private Time time;
+
+<span class="fc" id="L51">    private SortedSetMultimap&lt;Long, EntityRef&gt; delayedOperationsSortedByTime = TreeMultimap.create(Ordering.natural(), Ordering.arbitrary());</span>
+<span class="fc" id="L52">    private SortedSetMultimap&lt;Long, EntityRef&gt; periodicOperationsSortedByTime = TreeMultimap.create(Ordering.natural(), Ordering.arbitrary());</span>
+
+    // ONLY use this for testing. DO NOT use this during regular usage.
+    void setTime(Time t) {
+<span class="fc" id="L56">        time = t;</span>
+<span class="fc" id="L57">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L61">        final long currentWorldTime = time.getGameTimeInMs();</span>
+<span class="nc" id="L62">        invokeDelayedOperations(currentWorldTime);</span>
+<span class="nc" id="L63">        invokePeriodicOperations(currentWorldTime);</span>
+<span class="nc" id="L64">    }</span>
+
+    private void invokeDelayedOperations(long currentWorldTime) {
+<span class="nc" id="L67">        List&lt;EntityRef&gt; operationsToInvoke = new LinkedList&lt;&gt;();</span>
+<span class="nc" id="L68">        Iterator&lt;Long&gt; scheduledOperationsIterator = delayedOperationsSortedByTime.keySet().iterator();</span>
+        long processedTime;
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        while (scheduledOperationsIterator.hasNext()) {</span>
+<span class="nc" id="L71">            processedTime = scheduledOperationsIterator.next();</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            if (processedTime &gt; currentWorldTime) {</span>
+<span class="nc" id="L73">                break;</span>
+            }
+<span class="nc" id="L75">            operationsToInvoke.addAll(delayedOperationsSortedByTime.get(processedTime));</span>
+<span class="nc" id="L76">            scheduledOperationsIterator.remove();</span>
+        }
+
+<span class="nc" id="L79">        operationsToInvoke.stream().filter(EntityRef::exists).forEach(delayedEntity -&gt; {</span>
+<span class="nc" id="L80">            final DelayedActionComponent delayedActions = delayedEntity.getComponent(DelayedActionComponent.class);</span>
+
+            // If there is a DelayedActionComponent, proceed. Else report an error to the log.
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            if (delayedActions != null) {</span>
+<span class="nc" id="L84">                final Set&lt;String&gt; actionIds = delayedActions.removeActionsUpTo(currentWorldTime);</span>
+<span class="nc" id="L85">                saveOrRemoveComponent(delayedEntity, delayedActions);</span>
+
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                if (!delayedActions.isEmpty()) {</span>
+<span class="nc" id="L88">                    delayedOperationsSortedByTime.put(delayedActions.getLowestWakeUp(), delayedEntity);</span>
+                }
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                for (String actionId : actionIds) {</span>
+<span class="nc" id="L92">                    delayedEntity.send(new DelayedActionTriggeredEvent(actionId));</span>
+<span class="nc" id="L93">                }</span>
+<span class="nc" id="L94">            } else {</span>
+<span class="nc" id="L95">                logger.error(&quot;ERROR: This entity is missing a DelayedActionComponent: {}. &quot; +</span>
+                        &quot;So skipping delayed actions for this entity.&quot;, delayedEntity);
+            }
+<span class="nc" id="L98">        });</span>
+<span class="nc" id="L99">    }</span>
+
+    private void invokePeriodicOperations(long currentWorldTime) {
+<span class="nc" id="L102">        List&lt;EntityRef&gt; operationsToInvoke = new LinkedList&lt;&gt;();</span>
+<span class="nc" id="L103">        Iterator&lt;Long&gt; scheduledOperationsIterator = periodicOperationsSortedByTime.keySet().iterator();</span>
+        long processedTime;
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        while (scheduledOperationsIterator.hasNext()) {</span>
+<span class="nc" id="L106">            processedTime = scheduledOperationsIterator.next();</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">            if (processedTime &gt; currentWorldTime) {</span>
+<span class="nc" id="L108">                break;</span>
+            }
+<span class="nc" id="L110">            operationsToInvoke.addAll(periodicOperationsSortedByTime.get(processedTime));</span>
+<span class="nc" id="L111">            scheduledOperationsIterator.remove();</span>
+        }
+
+<span class="nc" id="L114">        operationsToInvoke.stream().filter(EntityRef::exists).forEach(periodicEntity -&gt; {</span>
+<span class="nc" id="L115">            final PeriodicActionComponent periodicActionComponent = periodicEntity.getComponent(PeriodicActionComponent.class);</span>
+
+            // If there is a PeriodicActionComponent, proceed. Else report an error to the log.
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            if (periodicActionComponent != null) {</span>
+<span class="nc" id="L119">                final Set&lt;String&gt; actionIds = periodicActionComponent.getTriggeredActionsAndReschedule(currentWorldTime);</span>
+<span class="nc" id="L120">                saveOrRemoveComponent(periodicEntity, periodicActionComponent);</span>
+
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                if (!periodicActionComponent.isEmpty()) {</span>
+<span class="nc" id="L123">                    periodicOperationsSortedByTime.put(periodicActionComponent.getLowestWakeUp(), periodicEntity);</span>
+                }
+
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                for (String actionId : actionIds) {</span>
+<span class="nc" id="L127">                    periodicEntity.send(new PeriodicActionTriggeredEvent(actionId));</span>
+<span class="nc" id="L128">                }</span>
+<span class="nc" id="L129">            } else {</span>
+<span class="nc" id="L130">                logger.error(&quot;ERROR: This entity is missing a DelayedActionComponent: {}. &quot; +</span>
+                        &quot;So skipping delayed actions for this entity&quot;, periodicEntity);
+            }
+<span class="nc" id="L133">        });</span>
+<span class="nc" id="L134">    }</span>
+
+    @ReceiveEvent
+    public void delayedComponentActivated(OnActivatedComponent event, EntityRef entity, DelayedActionComponent delayedActionComponent) {
+<span class="nc" id="L138">        delayedOperationsSortedByTime.put(delayedActionComponent.getLowestWakeUp(), entity);</span>
+<span class="nc" id="L139">    }</span>
+
+    @ReceiveEvent
+    public void periodicComponentActivated(OnActivatedComponent event, EntityRef entity, PeriodicActionComponent periodicActionComponent) {
+<span class="nc" id="L143">        periodicOperationsSortedByTime.put(periodicActionComponent.getLowestWakeUp(), entity);</span>
+<span class="nc" id="L144">    }</span>
+
+    @ReceiveEvent
+    public void delayedComponentDeactivated(BeforeDeactivateComponent event, EntityRef entity, DelayedActionComponent delayedActionComponent) {
+<span class="nc" id="L148">        delayedOperationsSortedByTime.remove(delayedActionComponent.getLowestWakeUp(), entity);</span>
+<span class="nc" id="L149">    }</span>
+
+    @ReceiveEvent
+    public void periodicComponentDeactivated(BeforeDeactivateComponent event, EntityRef entity, PeriodicActionComponent periodicActionComponent) {
+<span class="nc" id="L153">        delayedOperationsSortedByTime.remove(periodicActionComponent.getLowestWakeUp(), entity);</span>
+<span class="nc" id="L154">    }</span>
+
+    @Override
+    public void addDelayedAction(EntityRef entity, String actionId, long delay) {
+<span class="fc" id="L158">        long scheduleTime = time.getGameTimeInMs() + delay;</span>
+
+<span class="fc" id="L160">        DelayedActionComponent delayedActionComponent = entity.getComponent(DelayedActionComponent.class);</span>
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">        if (delayedActionComponent != null) {</span>
+<span class="nc" id="L162">            final long oldWakeUp = delayedActionComponent.getLowestWakeUp();</span>
+<span class="nc" id="L163">            delayedActionComponent.addActionId(actionId, scheduleTime);</span>
+<span class="nc" id="L164">            entity.saveComponent(delayedActionComponent);</span>
+<span class="nc" id="L165">            final long newWakeUp = delayedActionComponent.getLowestWakeUp();</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">            if (oldWakeUp &lt; newWakeUp) {</span>
+<span class="nc" id="L167">                delayedOperationsSortedByTime.remove(oldWakeUp, entity);</span>
+<span class="nc" id="L168">                delayedOperationsSortedByTime.put(newWakeUp, entity);</span>
+            } else {
+                // Even if the oldWakeUp time is greater than or equal to the new one, the next action should still be added
+                // to the delayedOperationsSortedByTime mapping.
+<span class="nc" id="L172">                delayedOperationsSortedByTime.put(scheduleTime, entity);</span>
+            }
+<span class="nc" id="L174">        } else {</span>
+<span class="fc" id="L175">            delayedActionComponent = new DelayedActionComponent();</span>
+<span class="fc" id="L176">            delayedActionComponent.addActionId(actionId, scheduleTime);</span>
+<span class="fc" id="L177">            entity.addComponent(delayedActionComponent);</span>
+        }
+<span class="fc" id="L179">    }</span>
+
+    @Override
+    public void addPeriodicAction(EntityRef entity, String actionId, long initialDelay, long period) {
+<span class="nc" id="L183">        long scheduleTime = time.getGameTimeInMs() + initialDelay;</span>
+
+<span class="nc" id="L185">        PeriodicActionComponent periodicActionComponent = entity.getComponent(PeriodicActionComponent.class);</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        if (periodicActionComponent != null) {</span>
+<span class="nc" id="L187">            final long oldWakeUp = periodicActionComponent.getLowestWakeUp();</span>
+<span class="nc" id="L188">            periodicActionComponent.addScheduledActionId(actionId, scheduleTime, period);</span>
+<span class="nc" id="L189">            entity.saveComponent(periodicActionComponent);</span>
+<span class="nc" id="L190">            final long newWakeUp = periodicActionComponent.getLowestWakeUp();</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">            if (oldWakeUp &lt; newWakeUp) {</span>
+<span class="nc" id="L192">                periodicOperationsSortedByTime.remove(oldWakeUp, entity);</span>
+<span class="nc" id="L193">                periodicOperationsSortedByTime.put(newWakeUp, entity);</span>
+            } else {
+                // Even if the oldWakeUp time is greater than or equal to the new one, the next action should still be added
+                // to the delayedOperationsSortedByTime mapping.
+<span class="nc" id="L197">                periodicOperationsSortedByTime.put(scheduleTime, entity);</span>
+            }
+<span class="nc" id="L199">        } else {</span>
+<span class="nc" id="L200">            periodicActionComponent = new PeriodicActionComponent();</span>
+<span class="nc" id="L201">            periodicActionComponent.addScheduledActionId(actionId, scheduleTime, period);</span>
+<span class="nc" id="L202">            entity.addComponent(periodicActionComponent);</span>
+        }
+<span class="nc" id="L204">    }</span>
+
+    @Override
+    public void cancelDelayedAction(EntityRef entity, String actionId) {
+<span class="nc" id="L208">        DelayedActionComponent delayedComponent = entity.getComponent(DelayedActionComponent.class);</span>
+<span class="nc" id="L209">        long oldWakeUp = delayedComponent.getLowestWakeUp();</span>
+<span class="nc" id="L210">        delayedComponent.removeActionId(actionId);</span>
+<span class="nc" id="L211">        long newWakeUp = delayedComponent.getLowestWakeUp();</span>
+<span class="nc bnc" id="L212" title="All 4 branches missed.">        if (!delayedComponent.isEmpty() &amp;&amp; oldWakeUp &lt; newWakeUp) {</span>
+<span class="nc" id="L213">            delayedOperationsSortedByTime.remove(oldWakeUp, entity);</span>
+<span class="nc" id="L214">            delayedOperationsSortedByTime.put(newWakeUp, entity);</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        } else if (delayedComponent.isEmpty()) {</span>
+<span class="nc" id="L216">            delayedOperationsSortedByTime.remove(oldWakeUp, entity);</span>
+        }
+<span class="nc" id="L218">        saveOrRemoveComponent(entity, delayedComponent);</span>
+<span class="nc" id="L219">    }</span>
+
+    @Override
+    public void cancelPeriodicAction(EntityRef entity, String actionId) {
+<span class="nc" id="L223">        PeriodicActionComponent periodicActionComponent = entity.getComponent(PeriodicActionComponent.class);</span>
+<span class="nc" id="L224">        long oldWakeUp = periodicActionComponent.getLowestWakeUp();</span>
+<span class="nc" id="L225">        periodicActionComponent.removeScheduledActionId(actionId);</span>
+<span class="nc" id="L226">        long newWakeUp = periodicActionComponent.getLowestWakeUp();</span>
+<span class="nc bnc" id="L227" title="All 4 branches missed.">        if (!periodicActionComponent.isEmpty() &amp;&amp; oldWakeUp &lt; newWakeUp) {</span>
+<span class="nc" id="L228">            periodicOperationsSortedByTime.remove(oldWakeUp, entity);</span>
+<span class="nc" id="L229">            periodicOperationsSortedByTime.put(newWakeUp, entity);</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        } else if (periodicActionComponent.isEmpty()) {</span>
+<span class="nc" id="L231">            periodicOperationsSortedByTime.remove(oldWakeUp, entity);</span>
+        }
+<span class="nc" id="L233">        saveOrRemoveComponent(entity, periodicActionComponent);</span>
+<span class="nc" id="L234">    }</span>
+
+    @Override
+    public boolean hasDelayedAction(EntityRef entity, String actionId) {
+<span class="nc" id="L238">        DelayedActionComponent delayedComponent = entity.getComponent(DelayedActionComponent.class);</span>
+<span class="nc bnc" id="L239" title="All 4 branches missed.">        return delayedComponent != null &amp;&amp; delayedComponent.containsActionId(actionId);</span>
+    }
+
+    @Override
+    public boolean hasPeriodicAction(EntityRef entity, String actionId) {
+<span class="nc" id="L244">        PeriodicActionComponent periodicActionComponent = entity.getComponent(PeriodicActionComponent.class);</span>
+<span class="nc bnc" id="L245" title="All 4 branches missed.">        return periodicActionComponent != null &amp;&amp; periodicActionComponent.containsActionId(actionId);</span>
+    }
+
+    private void saveOrRemoveComponent(EntityRef delayedEntity, DelayedActionComponent delayedActionComponent) {
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        if (delayedActionComponent.isEmpty()) {</span>
+<span class="nc" id="L250">            delayedEntity.removeComponent(DelayedActionComponent.class);</span>
+        } else {
+<span class="nc" id="L252">            delayedEntity.saveComponent(delayedActionComponent);</span>
+        }
+<span class="nc" id="L254">    }</span>
+
+    private void saveOrRemoveComponent(EntityRef periodicEntity, PeriodicActionComponent periodicActionComponent) {
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if (periodicActionComponent.isEmpty()) {</span>
+<span class="nc" id="L258">            periodicEntity.removeComponent(PeriodicActionComponent.class);</span>
+        } else {
+<span class="nc" id="L260">            periodicEntity.saveComponent(periodicActionComponent);</span>
+        }
+<span class="nc" id="L262">    }</span>
+
+    // Deprecated methods
+    @ReceiveEvent(components = {DelayedActionComponent.class})
+    public void getDelayedAction(HasDelayedActionEvent event, EntityRef entity) {
+<span class="nc" id="L267">        event.setResult(hasDelayedAction(entity, event.getActionId()));</span>
+<span class="nc" id="L268">    }</span>
+
+    @ReceiveEvent(components = {DelayedActionComponent.class})
+    public void cancelDelayedAction(CancelDelayedActionEvent event, EntityRef entity) {
+<span class="nc" id="L272">        cancelDelayedAction(entity, event.getActionId());</span>
+<span class="nc" id="L273">    }</span>
+
+    @ReceiveEvent
+    public void addDelayedAction(AddDelayedActionEvent event, EntityRef entity) {
+<span class="nc" id="L277">        addDelayedAction(entity, event.getActionId(), event.getDelay());</span>
+<span class="nc" id="L278">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

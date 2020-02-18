@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CompressedChunkBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.internal</a> &gt; <span class="el_source">CompressedChunkBuilder.java</span></div><h1>CompressedChunkBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.internal;
+
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.protobuf.EntityData;
+import org.terasology.world.chunks.internal.ChunkImpl;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Set;
+import java.util.zip.GZIPOutputStream;
+
+/**
+ * Provides an easy to get a compressed version of a chunk. Either the chunk most have a snapshot of it's state
+ * or it must be an unloaded chunk which no longer changes.
+ *
+ */
+public class CompressedChunkBuilder {
+    private EntityData.EntityStore entityStore;
+    private ChunkImpl chunk;
+    private boolean viaSnapshot;
+    private byte[] result;
+    private Set&lt;EntityRef&gt; storedEntities;
+
+    /**
+     *
+     * @param entitiesToSave all persistent entities within the given chunk
+     * @param chunkUnloaded if true the chunk data will be used directly.  If deactivate is false then the chunk will be
+     *                      but in snapshot mode so that concurrent modifications (and possibly future unload) is
+     *                      possible.
+     */
+    public CompressedChunkBuilder(EngineEntityManager entityManager, ChunkImpl chunk,
+                                  Collection&lt;EntityRef&gt; entitiesToSave,
+<span class="fc" id="L50">                                  boolean chunkUnloaded) {</span>
+<span class="fc" id="L51">        EntityStorer storer = new EntityStorer(entityManager);</span>
+<span class="fc" id="L52">        entitiesToSave.stream().filter(EntityRef::isPersistent).forEach(storer::store);</span>
+<span class="fc" id="L53">        storedEntities = storer.getStoredEntities();</span>
+<span class="fc" id="L54">        this.entityStore = storer.finaliseStore();</span>
+
+<span class="fc" id="L56">        this.chunk = chunk;</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        this.viaSnapshot = !chunkUnloaded;</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        if (viaSnapshot) {</span>
+<span class="fc" id="L59">            this.chunk.createSnapshot();</span>
+        }
+<span class="fc" id="L61">    }</span>
+
+    /**
+     *
+     * @param entityStore encoded entities to be stored.
+     * @param chunk       chunk for which {@link ChunkImpl#createSnapshot()} has been called.
+     * @param viaSnapshot specifies if the previously taken snapshot will be encoded or if
+     */
+<span class="nc" id="L69">    public CompressedChunkBuilder(EntityData.EntityStore entityStore, ChunkImpl chunk, boolean viaSnapshot) {</span>
+<span class="nc" id="L70">        this.entityStore = entityStore;</span>
+<span class="nc" id="L71">        this.chunk = chunk;</span>
+<span class="nc" id="L72">        this.viaSnapshot = viaSnapshot;</span>
+<span class="nc" id="L73">    }</span>
+
+    public synchronized byte[] buildEncodedChunk() {
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">        if (result == null) {</span>
+
+            EntityData.ChunkStore.Builder encoded;
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">            if (viaSnapshot) {</span>
+<span class="fc" id="L80">                encoded = chunk.encodeAndReleaseSnapshot();</span>
+            } else {
+<span class="nc" id="L82">                encoded = chunk.encode();</span>
+            }
+<span class="fc" id="L84">            encoded.setStore(entityStore);</span>
+<span class="fc" id="L85">            EntityData.ChunkStore store = encoded.build();</span>
+<span class="fc" id="L86">            result = compressChunkStore(store);</span>
+        }
+<span class="fc" id="L88">        return result;</span>
+    }
+
+    private byte[] compressChunkStore(EntityData.ChunkStore store) {
+<span class="fc" id="L92">        ByteArrayOutputStream baos = new ByteArrayOutputStream();</span>
+<span class="fc" id="L93">        try (GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {</span>
+<span class="fc" id="L94">            store.writeTo(gzipOut);</span>
+<span class="nc" id="L95">        } catch (IOException e) {</span>
+            // as no real IO is involved this should not happen
+<span class="nc" id="L97">            throw new RuntimeException(e);</span>
+<span class="fc" id="L98">        }</span>
+<span class="fc" id="L99">        return baos.toByteArray();</span>
+    }
+
+    public Set&lt;EntityRef&gt; getStoredEntities() {
+<span class="fc" id="L103">        return storedEntities;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

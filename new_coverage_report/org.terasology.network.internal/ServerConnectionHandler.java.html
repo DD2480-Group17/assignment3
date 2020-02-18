@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerConnectionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.network.internal</a> &gt; <span class="el_source">ServerConnectionHandler.java</span></div><h1>ServerConnectionHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.network.internal;
+
+import com.google.common.io.ByteStreams;
+import com.google.protobuf.ByteString;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelStateEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.identity.PublicIdentityCertificate;
+import org.terasology.module.Module;
+import org.terasology.naming.Name;
+import org.terasology.protobuf.NetData;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
+
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+/**
+ */
+public class ServerConnectionHandler extends SimpleChannelUpstreamHandler {
+
+<span class="fc" id="L46">    private static final Logger logger = LoggerFactory.getLogger(ServerConnectionHandler.class);</span>
+
+    private NetworkSystemImpl networkSystem;
+    private ServerHandler serverHandler;
+    private ChannelHandlerContext channelHandlerContext;
+
+    private PublicIdentityCertificate identity;
+
+<span class="fc" id="L54">    private ModuleManager moduleManager = CoreRegistry.get(ModuleManager.class);</span>
+
+<span class="fc" id="L56">    public ServerConnectionHandler(NetworkSystemImpl networkSystem) {</span>
+<span class="fc" id="L57">        this.networkSystem = networkSystem;</span>
+<span class="fc" id="L58">    }</span>
+
+    @Override
+    public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
+<span class="fc" id="L62">        super.channelOpen(ctx, e);</span>
+<span class="fc" id="L63">        this.channelHandlerContext = ctx;</span>
+<span class="fc" id="L64">        serverHandler = ctx.getPipeline().get(ServerHandler.class);</span>
+<span class="fc" id="L65">    }</span>
+
+    public void channelAuthenticated(PublicIdentityCertificate id) {
+<span class="fc" id="L68">        this.identity = id;</span>
+<span class="fc" id="L69">    }</span>
+
+    @Override
+    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
+<span class="fc" id="L73">        NetData.NetMessage message = (NetData.NetMessage) e.getMessage();</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (message.hasServerInfoRequest()) {</span>
+<span class="nc" id="L75">            NetData.ServerInfoMessage serverInfo = networkSystem.getServerInfoMessage();</span>
+<span class="nc" id="L76">            ctx.getChannel().write(NetData.NetMessage.newBuilder().setServerInfo(serverInfo).setTime(serverInfo.getTime()).build());</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        } else if (message.hasJoin()) {</span>
+<span class="nc" id="L78">            receivedConnect(message.getJoin());</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        } else if (message.getModuleRequestCount() &gt; 0) {</span>
+<span class="nc" id="L80">            sendModules(message.getModuleRequestList());</span>
+        } else {
+<span class="nc" id="L82">            logger.error(&quot;Received unexpected message&quot;);</span>
+        }
+<span class="nc" id="L84">    }</span>
+
+    private void sendModules(List&lt;NetData.ModuleRequest&gt; moduleRequestList) {
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        for (NetData.ModuleRequest request : moduleRequestList) {</span>
+<span class="nc" id="L88">            NetData.ModuleDataHeader.Builder result = NetData.ModuleDataHeader.newBuilder();</span>
+<span class="nc" id="L89">            result.setId(request.getModuleId());</span>
+<span class="nc" id="L90">            Module module = moduleManager.getEnvironment().get(new Name(request.getModuleId()));</span>
+<span class="nc bnc" id="L91" title="All 6 branches missed.">            if (module.isOnClasspath() || module.getLocations().size() != 1 || !Files.isReadable(module.getLocations().get(0))) {</span>
+<span class="nc" id="L92">                result.setError(&quot;Module not available for download&quot;);</span>
+            } else {
+<span class="nc" id="L94">                Path location = module.getLocations().get(0);</span>
+                try {
+<span class="nc" id="L96">                    result.setVersion(module.getVersion().toString());</span>
+<span class="nc" id="L97">                    result.setSize(Files.size(location));</span>
+<span class="nc" id="L98">                    channelHandlerContext.getChannel().write(NetData.NetMessage.newBuilder().setModuleDataHeader(result).build());</span>
+<span class="nc" id="L99">                } catch (IOException e) {</span>
+<span class="nc" id="L100">                    logger.error(&quot;Error sending module data header&quot;, e);</span>
+<span class="nc" id="L101">                    channelHandlerContext.getChannel().close();</span>
+<span class="nc" id="L102">                    break;</span>
+<span class="nc" id="L103">                }</span>
+
+<span class="nc" id="L105">                try (InputStream stream = new BufferedInputStream(Files.newInputStream(location))) {</span>
+
+
+<span class="nc" id="L108">                    long remainingData = Files.size(location);</span>
+<span class="nc" id="L109">                    byte[] data = new byte[1024];</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                    while (remainingData &gt; 0) {</span>
+<span class="nc" id="L111">                        int nextBlock = (int) Math.min(remainingData, 1024);</span>
+<span class="nc" id="L112">                        ByteStreams.read(stream, data, 0, nextBlock);</span>
+<span class="nc" id="L113">                        channelHandlerContext.getChannel().write(</span>
+<span class="nc" id="L114">                                NetData.NetMessage.newBuilder().setModuleData(</span>
+<span class="nc" id="L115">                                        NetData.ModuleData.newBuilder().setModule(ByteString.copyFrom(data, 0, nextBlock))</span>
+<span class="nc" id="L116">                                ).build()</span>
+                        );
+<span class="nc" id="L118">                        remainingData -= nextBlock;</span>
+<span class="nc" id="L119">                    }</span>
+<span class="nc" id="L120">                } catch (IOException e) {</span>
+<span class="nc" id="L121">                    logger.error(&quot;Error sending module&quot;, e);</span>
+<span class="nc" id="L122">                    channelHandlerContext.getChannel().close();</span>
+<span class="nc" id="L123">                    break;</span>
+<span class="nc" id="L124">                }</span>
+            }
+<span class="nc" id="L126">        }</span>
+<span class="nc" id="L127">    }</span>
+
+    private void receivedConnect(NetData.JoinMessage message) {
+<span class="nc" id="L130">        logger.info(&quot;Received Start Join&quot;);</span>
+<span class="nc" id="L131">        NetClient client = new NetClient(channelHandlerContext.getChannel(), networkSystem, identity);</span>
+<span class="nc" id="L132">        client.setPreferredName(message.getName());</span>
+<span class="nc" id="L133">        client.setColor(new Color(message.getColor().getRgba()));</span>
+<span class="nc" id="L134">        client.setViewDistanceMode(ViewDistance.forIndex(message.getViewDistanceLevel()));</span>
+<span class="nc" id="L135">        channelHandlerContext.getPipeline().remove(this);</span>
+<span class="nc" id="L136">        serverHandler.connectionComplete(client);</span>
+<span class="nc" id="L137">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

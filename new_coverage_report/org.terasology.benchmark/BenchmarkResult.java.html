@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BenchmarkResult.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.benchmark</a> &gt; <span class="el_source">BenchmarkResult.java</span></div><h1>BenchmarkResult.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.benchmark;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+
+import java.util.Iterator;
+import java.util.List;
+
+/**
+ * BenchmarkResult records the results and the errors of the execution of one particular benchmark.
+ * It also maintains a list of columns which are very useful for pretty printing the results.
+ *
+ */
+public abstract class BenchmarkResult {
+
+<span class="nc" id="L31">    private final List&lt;Column&lt;?&gt;&gt; columns = Lists.newLinkedList();</span>
+
+    private final Class&lt;?&gt; benchmarkClass;
+    private final String title;
+    private final int[] repetitions;
+    private final long[] starttime;
+    private final long[] runtime;
+    private boolean aborted;
+<span class="nc" id="L39">    private final List&lt;BenchmarkError&gt; errors = Lists.newLinkedList();</span>
+
+<span class="nc" id="L41">    public enum Alignment {</span>
+<span class="nc" id="L42">        LEFT {</span>
+            @Override
+            public String pad(String value, int size) {
+<span class="nc" id="L45">                StringBuilder builder = new StringBuilder();</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">                builder.append(value == null ? &quot;&quot; : value);</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">                while (builder.length() &lt; size) {</span>
+<span class="nc" id="L48">                    builder.append(&quot; &quot;);</span>
+                }
+<span class="nc" id="L50">                return builder.toString();</span>
+            }
+        },
+
+<span class="nc" id="L54">        RIGHT {</span>
+            @Override
+            public String pad(String value, int size) {
+<span class="nc bnc" id="L57" title="All 2 branches missed.">                String result = (value == null ? &quot;&quot; : value);</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                while (result.length() &lt; size) {</span>
+<span class="nc" id="L59">                    result = &quot; &quot; + result;</span>
+                }
+<span class="nc" id="L61">                return result;</span>
+            }
+        };
+
+        public abstract String pad(String value, int size);
+    }
+
+<span class="nc" id="L68">    public BenchmarkResult(Benchmark benchmark) {</span>
+<span class="nc" id="L69">        Preconditions.checkNotNull(benchmark, &quot;Parameter 'benchmark' must not be null&quot;);</span>
+<span class="nc" id="L70">        this.benchmarkClass = benchmark.getClass();</span>
+<span class="nc" id="L71">        this.title = benchmark.getTitle();</span>
+<span class="nc" id="L72">        this.repetitions = Preconditions.checkNotNull(benchmark.getRepetitions());</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        Preconditions.checkArgument(repetitions.length &gt; 0, &quot;The length of the parameter 'repetitions' has to be greater than zero&quot;);</span>
+<span class="nc" id="L74">        int reps = repetitions.length;</span>
+<span class="nc" id="L75">        this.starttime = new long[reps];</span>
+<span class="nc" id="L76">        this.runtime = new long[reps];</span>
+<span class="nc" id="L77">    }</span>
+
+    public final Iterator&lt;Column&lt;?&gt;&gt; getColumnsIterator() {
+<span class="nc" id="L80">        return columns.iterator();</span>
+    }
+
+    public final void addColumn(Column&lt;?&gt; column) {
+<span class="nc" id="L84">        columns.add(Preconditions.checkNotNull(column));</span>
+<span class="nc" id="L85">    }</span>
+
+    public final int getNumColumns() {
+<span class="nc" id="L88">        return columns.size();</span>
+    }
+
+    public final Class&lt;?&gt; getBenchmarkClass() {
+<span class="nc" id="L92">        return benchmarkClass;</span>
+    }
+
+    public final String getTitle() {
+<span class="nc" id="L96">        return title;</span>
+    }
+
+    public final int getRepetitions() {
+<span class="nc" id="L100">        return repetitions.length;</span>
+    }
+
+    public final int getRepetitions(int rep) {
+<span class="nc" id="L104">        return repetitions[rep];</span>
+    }
+
+    public final long getStartTime(int rep) {
+<span class="nc" id="L108">        return starttime[rep];</span>
+    }
+
+    public final void setStartTime(int rep, long value) {
+<span class="nc" id="L112">        starttime[rep] = value;</span>
+<span class="nc" id="L113">    }</span>
+
+    public final long getRunTime(int rep) {
+<span class="nc" id="L116">        return runtime[rep];</span>
+    }
+
+    public final void setRunTime(int rep, long value) {
+<span class="nc" id="L120">        runtime[rep] = value;</span>
+<span class="nc" id="L121">    }</span>
+
+    public final boolean isAborted() {
+<span class="nc" id="L124">        return aborted;</span>
+    }
+
+    public final Iterator&lt;BenchmarkError&gt; getErrorsIterator() {
+<span class="nc" id="L128">        return errors.iterator();</span>
+    }
+
+    public final int getNumErrors() {
+<span class="nc" id="L132">        return errors.size();</span>
+    }
+
+    public final void addError(BenchmarkError.Type type, Exception error) {
+<span class="nc bnc" id="L136" title="All 4 branches missed.">        this.aborted = this.aborted || Preconditions.checkNotNull(type).abort;</span>
+<span class="nc" id="L137">        errors.add(new BenchmarkError(type, error));</span>
+<span class="nc" id="L138">    }</span>
+
+    public abstract static class Column&lt;T extends BenchmarkResult&gt; {
+
+        public final T owner;
+        public final Alignment alignment;
+        public final String name;
+
+        private final int reps;
+        private final String[] cache;
+        private boolean hasMaxWidth;
+        private int maxWidth;
+
+<span class="nc" id="L151">        public Column(T owner, Alignment alignment, String name) {</span>
+<span class="nc" id="L152">            this.owner = Preconditions.checkNotNull(owner);</span>
+<span class="nc" id="L153">            this.alignment = Preconditions.checkNotNull(alignment);</span>
+<span class="nc" id="L154">            this.name = Preconditions.checkNotNull(name);</span>
+<span class="nc" id="L155">            this.reps = owner.getRepetitions();</span>
+<span class="nc" id="L156">            this.cache = new String[reps];</span>
+<span class="nc" id="L157">        }</span>
+
+        protected abstract String getValueInternal(int rep);
+
+        public final String getValue(int rep) {
+<span class="nc" id="L162">            Preconditions.checkElementIndex(rep, reps, &quot;Parameter 'rep'&quot;);</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">            if (cache[rep] == null) {</span>
+<span class="nc" id="L164">                String v = Preconditions.checkNotNull(getValueInternal(rep), &quot;BenchmarkResult::Column::getValueInternal() must never return null (rep=&quot; + rep + &quot;)&quot;);</span>
+<span class="nc" id="L165">                cache[rep] = v;</span>
+<span class="nc" id="L166">                return v;</span>
+            }
+<span class="nc" id="L168">            return cache[rep];</span>
+        }
+
+        public final int computeMaxWidth() {
+<span class="nc bnc" id="L172" title="All 2 branches missed.">            if (!hasMaxWidth) {</span>
+<span class="nc" id="L173">                int max = name.length();</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                for (int i = 0; i &lt; reps; i++) {</span>
+<span class="nc" id="L175">                    String v = getValue(i);</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">                    if (v.length() &gt; max) {</span>
+<span class="nc" id="L177">                        max = v.length();</span>
+                    }
+                }
+<span class="nc" id="L180">                hasMaxWidth = true;</span>
+<span class="nc" id="L181">                maxWidth = max;</span>
+            }
+<span class="nc" id="L183">            return maxWidth;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TileFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.tiles</a> &gt; <span class="el_source">TileFormat.java</span></div><h1>TileFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.block.tiles;
+
+import com.google.common.math.IntMath;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+
+/**
+ * Loader for block tiles
+ *
+ */
+@RegisterAssetFileFormat
+public class TileFormat extends AbstractAssetFileFormat&lt;TileData&gt; {
+
+    public TileFormat() {
+<span class="fc" id="L39">        super(&quot;png&quot;);</span>
+<span class="fc" id="L40">    }</span>
+
+    @Override
+    public TileData load(ResourceUrn resourceUrn, List&lt;AssetDataFile&gt; list) throws IOException {
+<span class="nc" id="L44">        boolean auto = list.get(0).getPath().contains(&quot;auto&quot;);</span>
+<span class="nc" id="L45">        try (InputStream stream = list.get(0).openStream()) {</span>
+<span class="nc" id="L46">            BufferedImage image = ImageIO.read(stream);</span>
+<span class="nc bnc" id="L47" title="All 6 branches missed.">            if (!IntMath.isPowerOfTwo(image.getHeight()) || image.getWidth() % image.getHeight() != 0 || image.getWidth() == 0) {</span>
+<span class="nc" id="L48">                throw new IOException(&quot;Invalid tile - must be horizontal row of power-of-two sized squares&quot;);</span>
+            }
+<span class="nc" id="L50">            BufferedImage[] frames = new BufferedImage[image.getWidth()/image.getHeight()];</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">            for (int i=0; i&lt;frames.length; i++) {</span>
+<span class="nc" id="L52">                frames[i] = new BufferedImage(image.getHeight(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);</span>
+<span class="nc" id="L53">                frames[i].createGraphics().drawImage(image, -image.getHeight() * i, 0, null);</span>
+            }
+<span class="nc" id="L55">            return new TileData(frames, auto);</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

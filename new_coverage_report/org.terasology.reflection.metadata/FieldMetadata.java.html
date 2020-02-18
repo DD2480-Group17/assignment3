@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.reflection.metadata</a> &gt; <span class="el_source">FieldMetadata.java</span></div><h1>FieldMetadata.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.reflection.metadata;
+
+import com.google.common.base.Objects;
+import com.google.gson.annotations.SerializedName;
+import org.terasology.reflection.copy.CopyStrategy;
+import org.terasology.reflection.reflect.FieldAccessor;
+import org.terasology.reflection.reflect.InaccessibleFieldException;
+import org.terasology.reflection.reflect.ReflectFactory;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+
+/**
+ * Provides information on a field, and the ability to set and get that field.
+ *
+ * @param &lt;T&gt; The type of the object this field belongs to
+ * @param &lt;U&gt; The type of the field itself
+ */
+public class FieldMetadata&lt;T, U&gt; {
+
+    private final ClassMetadata&lt;T, ?&gt; owner;
+    private final Class&lt;U&gt; type;
+    private final Field field;
+    private final FieldAccessor&lt;T, U&gt; accessor;
+    private final CopyStrategy&lt;U&gt; copyStrategy;
+
+    private final String serializationName;
+
+    private byte id;
+
+    /**
+     * @param owner        The ClassMetadata that owns this field
+     * @param field        The field this metadata is for
+     * @param copyStrategy The CopyStrategy appropriate for the type of the field
+     * @param factory      The reflection provider
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+<span class="fc" id="L54">    public FieldMetadata(ClassMetadata&lt;T, ?&gt; owner, Field field, CopyStrategy&lt;U&gt; copyStrategy, ReflectFactory factory) throws InaccessibleFieldException {</span>
+<span class="fc" id="L55">        this.owner = owner;</span>
+<span class="fc" id="L56">        this.copyStrategy = copyStrategy;</span>
+<span class="fc" id="L57">        this.type = (Class&lt;U&gt;) determineType(field, owner.getType());</span>
+<span class="fc" id="L58">        this.accessor = factory.createFieldAccessor(owner.getType(), field, type);</span>
+<span class="fc" id="L59">        this.field = field;</span>
+<span class="fc" id="L60">        SerializedName name = field.getAnnotation(SerializedName.class);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (name != null) {</span>
+<span class="fc" id="L62">            serializationName = name.value();</span>
+        } else {
+<span class="fc" id="L64">            serializationName = field.getName();</span>
+        }
+
+<span class="fc" id="L67">    }</span>
+
+    private static Class&lt;?&gt; determineType(Field field, Class&lt;?&gt; ownerType) {
+<span class="fc" id="L70">        Method getter = ReflectionUtil.findGetter(field.getName(), ownerType);</span>
+<span class="pc bpc" id="L71" title="1 of 4 branches missed.">        if (getter != null &amp;&amp; getter.getReturnType() != null) {</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            if (ReflectionUtil.findSetter(field.getName(), ownerType, getter.getReturnType()) != null) {</span>
+<span class="fc" id="L73">                return getter.getReturnType();</span>
+            }
+        }
+<span class="fc" id="L76">        return field.getType();</span>
+    }
+
+    /**
+     * @return The class that owns this field
+     */
+    public ClassMetadata&lt;T, ?&gt; getOwner() {
+<span class="nc" id="L83">        return owner;</span>
+    }
+
+    /**
+     * @return The name of the field
+     */
+    public String getName() {
+<span class="fc" id="L90">        return field.getName();</span>
+    }
+
+    /**
+     * @return The serialization name of the field
+     */
+    public String getSerializationName() {
+<span class="nc" id="L97">        return serializationName;</span>
+    }
+
+    /**
+     * @return The underlying java field
+     */
+    public Field getField() {
+<span class="fc" id="L104">        return field;</span>
+    }
+
+    /**
+     * @return The type of the field
+     */
+    public Class&lt;U&gt; getType() {
+<span class="fc" id="L111">        return type;</span>
+    }
+
+    /**
+     * @return The assigned id for this field, if any
+     */
+    public byte getId() {
+<span class="nc" id="L118">        return id;</span>
+    }
+
+    /**
+     * @param id The id to assign for this field
+     */
+    public void setId(byte id) {
+<span class="fc" id="L125">        this.id = id;</span>
+<span class="fc" id="L126">        owner.setFieldId(this, id);</span>
+
+<span class="fc" id="L128">    }</span>
+
+    /**
+     * Obtains the value of the field from a object which is an instance of the owning type.
+     *
+     * @param from The object to obtain the value of this field from
+     * @return The value of the field
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public U getValue(Object from) {
+<span class="fc" id="L138">        return accessor.getValue((T) from);</span>
+    }
+
+    /**
+     * Obtains the value of the field from a object which is an instance of the owning type.
+     * This method is checked to conform to the generic parameters of the FieldMetadata
+     *
+     * @param from The object to obtain the value of this field from
+     * @return The value of the field
+     */
+    public U getValueChecked(T from) {
+<span class="nc" id="L149">        return getValue(from);</span>
+    }
+
+    /**
+     * For types that need to be copied (e.g. Vector3f) for safe usage, this method will create a new copy of a field from an object.
+     * Otherwise it behaves the same as getValue
+     *
+     * @param from The object to copy the field from
+     * @return A safe to use copy of the value of this field in the given object
+     */
+    public U getCopyOfValue(Object from) {
+<span class="fc" id="L160">        return copyStrategy.copy(getValue(from));</span>
+    }
+
+    /**
+     * For types that need to be copied (e.g. Vector3f) for safe usage, this method will create a new copy of a field from an object.
+     * Otherwise it behaves the same as getValue
+     * This method is checked to conform to the generic parameters of the FieldMetadata
+     *
+     * @param from The object to copy the field from
+     * @return A safe to use copy of the value of this field in the given object
+     */
+    public U getCopyOfValueChecked(T from) {
+<span class="nc" id="L172">        return getCopyOfValue(from);</span>
+    }
+
+    /**
+     * Sets the value of this field in a target object
+     *
+     * @param target The object to set the field of
+     * @param value  The value to set the field to
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public void setValue(Object target, Object value) {
+<span class="fc" id="L183">        accessor.setValue((T) target, (U) value);</span>
+<span class="fc" id="L184">    }</span>
+
+    /**
+     * Sets the value of this field in a target object
+     * This method is checked to conform to the generic parameters of the FieldMetadata
+     *
+     * @param target The object to set the field of
+     * @param value  The value to set the field to
+     */
+    public void setValueChecked(T target, U value) {
+<span class="nc" id="L194">        accessor.setValue(target, value);</span>
+<span class="nc" id="L195">    }</span>
+
+    @Override
+    public String toString() {
+<span class="nc" id="L199">        return field.getName();</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        if (this == obj) {</span>
+<span class="nc" id="L205">            return true;</span>
+        }
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (obj instanceof FieldMetadata) {</span>
+<span class="fc" id="L208">            FieldMetadata&lt;?, ?&gt; other = (FieldMetadata&lt;?, ?&gt;) obj;</span>
+<span class="fc" id="L209">            return Objects.equal(field, other.field);</span>
+        }
+<span class="nc" id="L211">        return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="fc" id="L216">        return Objects.hashCode(field);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

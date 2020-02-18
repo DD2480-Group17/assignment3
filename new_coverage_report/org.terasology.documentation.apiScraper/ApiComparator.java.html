@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiComparator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.documentation.apiScraper</a> &gt; <span class="el_source">ApiComparator.java</span></div><h1>ApiComparator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.documentation.apiScraper;
+
+
+import org.terasology.documentation.apiScraper.util.ApiMethod;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Detects API changes between two instances of a scanned code base.
+ */
+public final class ApiComparator {
+
+    private static final String ORIGINAL_API_FILE = &quot;API_file.txt&quot;;
+    private static final String NEW_API_FILE = &quot;New_API_file.txt&quot;;
+
+    private ApiComparator() {
+
+    }
+
+    /**
+     * Generates a NEW_API_FILE and compares it with the ORIGINAL_API_FILE to detect major and minor version increases.
+     * Major increases: Deletion of class, new public abstract method, new non-default interface method,
+     * public method deletion, existing public method's change of parameters types, exception types or return type.
+     * Minor increases: Creation of a new class, new non-abstract public methods.
+     */
+    public static void main(String[] args) throws Exception {
+
+<span class="nc" id="L52">        try (BufferedReader br = new BufferedReader(new FileReader(ORIGINAL_API_FILE))) {</span>
+
+            //Creating a map with the original api's data
+<span class="nc" id="L55">            Map&lt;String, Collection&lt;ApiMethod&gt;&gt; originalApi = getApi(br);</span>
+<span class="nc" id="L56">            br.close();</span>
+
+            //Generating &quot;New_API_file.txt&quot;
+<span class="nc" id="L59">            BufferedWriter writer = new BufferedWriter(new FileWriter(new File(NEW_API_FILE)));</span>
+<span class="nc" id="L60">            writer.write(CompleteApiScraper.getApi().toString());</span>
+<span class="nc" id="L61">            writer.flush();</span>
+<span class="nc" id="L62">            writer.close();</span>
+<span class="nc" id="L63">            BufferedReader br2 = new BufferedReader(new FileReader(NEW_API_FILE));</span>
+
+            //Creating a map with the new api's data
+<span class="nc" id="L66">            Map&lt;String, Collection&lt;ApiMethod&gt;&gt; newApi = getApi(br2);</span>
+<span class="nc" id="L67">            br2.close();</span>
+
+            //Begins comparison and increases report
+<span class="nc" id="L70">            System.out.println(&quot;=================================================================&quot;);</span>
+<span class="nc" id="L71">            checkClassAdditionAndDeletion(originalApi, newApi);</span>
+<span class="nc" id="L72">            checkMethodChanges(originalApi, newApi);</span>
+<span class="nc" id="L73">            System.out.println(&quot;REPORT FINISHED&quot;);</span>
+        }
+<span class="nc" id="L75">    }</span>
+
+    /**
+     * Reads an api file and puts its information in a map to be used in the api comparison.
+     * @param br BufferedReader containing an api file content
+     * @return Map of api classes and interfaces as keys corresponding to lists of ApiMethods as values
+     * @throws Exception if the readLine fails.
+     */
+    private static Map&lt;String, Collection&lt;ApiMethod&gt;&gt; getApi(BufferedReader br) throws Exception {
+<span class="nc" id="L84">        String line = br.readLine();</span>
+<span class="nc" id="L85">        Map&lt;String, Collection&lt;ApiMethod&gt;&gt; api = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        while (line != null) {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            if (line.startsWith(&quot;*&quot;)) {</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                if (line.endsWith(&quot;(PACKAGE)&quot;)) {</span>
+<span class="nc" id="L89">                    line = br.readLine();</span>
+<span class="nc" id="L90">                    continue;</span>
+                }
+<span class="nc" id="L92">                String className = line;</span>
+                String aux;
+<span class="nc" id="L94">                api.put(className, new ArrayList&lt;&gt;());</span>
+                ApiMethod method;
+<span class="nc" id="L96">                aux = br.readLine();</span>
+<span class="nc bnc" id="L97" title="All 4 branches missed.">                while ((aux != null &amp;&amp; (aux.endsWith(&quot;(METHOD)&quot;)</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                        || aux.endsWith(&quot;(CONSTRUCTOR)&quot;)</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">                        || aux.endsWith(&quot;(ABSTRACT METHOD)&quot;)</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                        || aux.endsWith(&quot;(DEFAULT METHOD)&quot;)))) {</span>
+
+                    //Checks if its a method or constructor
+<span class="nc bnc" id="L103" title="All 6 branches missed.">                    if (aux.endsWith(&quot;(METHOD)&quot;) || aux.endsWith(&quot;(ABSTRACT METHOD)&quot;) || aux.endsWith(&quot;(DEFAULT METHOD)&quot;)) {</span>
+<span class="nc" id="L104">                        String returnType = br.readLine();</span>
+<span class="nc" id="L105">                        String parameters = br.readLine();</span>
+<span class="nc" id="L106">                        String exceptionType = br.readLine();</span>
+<span class="nc" id="L107">                        method = new ApiMethod(className, aux, returnType, exceptionType, parameters);</span>
+<span class="nc" id="L108">                    } else {</span>
+<span class="nc" id="L109">                        String returnType = &quot;&quot;;</span>
+<span class="nc" id="L110">                        String parameters = br.readLine();</span>
+<span class="nc" id="L111">                        String exceptionType = &quot;&quot;;</span>
+<span class="nc" id="L112">                        method = new ApiMethod(className, aux, returnType, exceptionType, parameters);</span>
+                    }
+
+
+<span class="nc" id="L116">                    api.get(className).add(method);</span>
+<span class="nc" id="L117">                    aux = br.readLine();</span>
+                }
+<span class="nc" id="L119">                line = aux;</span>
+
+<span class="nc" id="L121">            } else {</span>
+<span class="nc" id="L122">                line = br.readLine();</span>
+            }
+        }
+<span class="nc" id="L125">        return api;</span>
+    }
+
+    private static void checkClassAdditionAndDeletion(Map&lt;String, Collection&lt;ApiMethod&gt;&gt; originalApi, Map&lt;String, Collection&lt;ApiMethod&gt;&gt; newApi) {
+<span class="nc" id="L129">        System.out.println(&quot;Checking Class Addition and Deletion&quot;);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        for (String className : originalApi.keySet()) {</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">            if (!newApi.containsKey(className)) {</span>
+<span class="nc" id="L132">                System.out.println(&quot;MAJOR INCREASE, DELETION OF &quot; + className);</span>
+            }
+<span class="nc" id="L134">        }</span>
+
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        for (String className : newApi.keySet()) {</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            if (!originalApi.containsKey(className)) {</span>
+<span class="nc" id="L138">                System.out.println(&quot;MINOR INCREASE, ADDITION OF &quot; + className);</span>
+            }
+<span class="nc" id="L140">        }</span>
+<span class="nc" id="L141">    }</span>
+
+    /**
+     * Checks creation and deletion of methods, as well as existing method changes.
+     * @param originalApi the original api generated from ORIGINAL_API_FILE
+     * @param newApi the new apí generated from NEW_API_FILE
+     */
+    private static void checkMethodChanges(Map&lt;String, Collection&lt;ApiMethod&gt;&gt; originalApi,
+                                           Map&lt;String, Collection&lt;ApiMethod&gt;&gt; newApi) {
+<span class="nc" id="L150">        System.out.println(&quot;Checking Method Changes&quot;);</span>
+        Collection&lt;ApiMethod&gt; originalMethods;
+        Collection&lt;ApiMethod&gt; newMethods;
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        for (String className : originalApi.keySet()) {</span>
+
+<span class="nc" id="L155">            originalMethods = originalApi.get(className);</span>
+<span class="nc" id="L156">            newMethods = newApi.get(className);</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">            if (newMethods == null) {</span>
+<span class="nc" id="L158">                continue;</span>
+            }
+<span class="nc" id="L160">            checkMethodDeletion(originalMethods, newMethods);</span>
+
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            for (ApiMethod method2 : newMethods) {</span>
+
+<span class="nc" id="L164">                boolean found = false; // if found, the method is an existing one or a new overloaded method</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                for (ApiMethod method1 : originalMethods) {</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                    if (method1.getName().equals(method2.getName())) {</span>
+
+<span class="nc" id="L168">                        ApiMethod auxMethod = getMethodWithSameNameAndParameters(method2, originalMethods);</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                        if (auxMethod.getName().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L170">                            ApiMethod auxMethod2 = getMethodWithSameNameAndParameters(method1, newMethods);</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">                            if (auxMethod2.getName().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L172">                                checkMethodIncrease(method1, method2);</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">                            } else if (isInterfaceOrAbstract(method2.getClassName())) {</span>
+<span class="nc" id="L174">                                System.out.println(&quot;MINOR INCREASE, NEW OVERLOADED METHOD &quot; + method2.getName() +</span>
+<span class="nc" id="L175">                                        &quot; ON &quot; + method2.getClassName() + &quot;\nNEW PARAMETERS: &quot; + method2.getParametersType());</span>
+<span class="nc" id="L176">                                System.out.println(&quot;=================================================================&quot;);</span>
+                            }
+
+<span class="nc" id="L179">                        } else {</span>
+<span class="nc" id="L180">                            checkMethodIncrease(auxMethod, method2);</span>
+
+                        }
+<span class="nc" id="L183">                        found = true;</span>
+                    }
+<span class="nc" id="L185">                }</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                if (!found) {</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                    if (isInterfaceOrAbstract(method2.getClassName())) {</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">                        if (method2.getName().endsWith(&quot;(ABSTRACT METHOD)&quot;)) {</span>
+<span class="nc" id="L189">                            System.out.println(&quot;MAJOR INCREASE, NEW ABSTRACT METHOD &quot; + method2.getName() + &quot; ON &quot; + method2.getClassName());</span>
+                        } else {
+                            String minorOrMajor;
+<span class="nc bnc" id="L192" title="All 2 branches missed.">                            if (method2.getClassName().endsWith(&quot;(INTERFACE)&quot;)) {</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">                                if (method2.getName().endsWith(&quot;(DEFAULT METHOD)&quot;)) {</span>
+<span class="nc" id="L194">                                    minorOrMajor = &quot;MINOR&quot;;</span>
+                                } else {
+<span class="nc" id="L196">                                    minorOrMajor = &quot;MAJOR&quot;;</span>
+                                }
+                            } else {
+<span class="nc" id="L199">                                minorOrMajor = &quot;MINOR&quot;;</span>
+                            }
+<span class="nc" id="L201">                            System.out.println(minorOrMajor + &quot; INCREASE, NEW METHOD &quot; + method2.getName() + &quot; ON &quot; + method2.getClassName());</span>
+<span class="nc" id="L202">                        }</span>
+                    } else {
+<span class="nc" id="L204">                        System.out.println(&quot;MINOR INCREASE, NEW METHOD &quot; + method2.getName() + &quot; ON &quot; + method2.getClassName());</span>
+                    }
+<span class="nc" id="L206">                    System.out.println(&quot;=================================================================&quot;);</span>
+                }
+<span class="nc" id="L208">            }</span>
+<span class="nc" id="L209">        }</span>
+<span class="nc" id="L210">    }</span>
+
+    private static void checkMethodDeletion(Collection&lt;ApiMethod&gt; originalMethods, Collection&lt;ApiMethod&gt; newMethods) {
+<span class="nc" id="L213">        List&lt;String&gt; checkedMethods = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        for (ApiMethod method1 : originalMethods) {</span>
+
+<span class="nc" id="L216">            boolean found = false;</span>
+<span class="nc" id="L217">            List&lt;ApiMethod&gt; newMethodsWithSameName = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L218">            List&lt;ApiMethod&gt; originalMethodsWithSameName = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">            for (ApiMethod method2 : newMethods) {</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">                if (method1.getName().equals(method2.getName())) {</span>
+<span class="nc" id="L221">                    found = true;</span>
+<span class="nc" id="L222">                    newMethodsWithSameName.add(method2);</span>
+                }
+<span class="nc" id="L224">            }</span>
+
+            //this checks the deletion of an overloaded method
+<span class="nc bnc" id="L227" title="All 4 branches missed.">            if (found &amp;&amp; !checkedMethods.contains(method1.getName())) {</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">                for (ApiMethod oMethod : originalMethods) {</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">                    if (oMethod.getName().equals(method1.getName())) {</span>
+<span class="nc" id="L230">                        originalMethodsWithSameName.add(oMethod);</span>
+                    }
+<span class="nc" id="L232">                }</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                if ((originalMethodsWithSameName.size() - newMethodsWithSameName.size()) &gt; 0) {</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">                    for (ApiMethod method : originalMethodsWithSameName) {</span>
+<span class="nc" id="L235">                        ApiMethod result = getMethodWithSameNameAndParameters(method, newMethodsWithSameName);</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">                        if (result.getName().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L237">                            checkedMethods.add(method.getName());</span>
+<span class="nc" id="L238">                            System.out.println(&quot;MAJOR INCREASE, OVERLOADED METHOD DELETION:  &quot; + method.getName()</span>
+<span class="nc" id="L239">                                    + &quot; ON &quot; + method.getClassName() + &quot;\nPARAMETERS: &quot; + method.getParametersType());</span>
+
+                        }
+<span class="nc" id="L242">                    }</span>
+                }
+            }
+<span class="nc bnc" id="L245" title="All 2 branches missed.">            if (!found) {</span>
+<span class="nc" id="L246">                System.out.println(&quot;MAJOR INCREASE, METHOD DELETION:  &quot; + method1.getName() + &quot; ON &quot; + method1.getClassName());</span>
+            }
+<span class="nc" id="L248">        }</span>
+<span class="nc" id="L249">    }</span>
+
+    private static boolean isInterfaceOrAbstract(String className) {
+<span class="nc bnc" id="L252" title="All 4 branches missed.">        return (className.endsWith(&quot;(ABSTRACT CLASS)&quot;) || className.endsWith(&quot;(INTERFACE)&quot;));</span>
+    }
+
+    /**
+     * Compares a not overloaded method in the newApi and originalApi to notify parameter type, return type or
+     * exception type changes.
+     * @param method1 a not overloaded method from the originalApi, with the same name as method2
+     * @param method2 a not overloaded method from the newApi, with the same name as method1
+     */
+    private static void checkMethodIncrease(ApiMethod method1, ApiMethod method2) {
+<span class="nc" id="L262">        check(method1.getReturnType(), method2.getReturnType(), method1.getName(), method1.getClassName());</span>
+<span class="nc" id="L263">        check(method1.getParametersType(), method2.getParametersType(), method1.getName(), method1.getClassName());</span>
+<span class="nc" id="L264">        check(method1.getExceptionType(), method2.getExceptionType(), method1.getName(), method1.getClassName());</span>
+<span class="nc" id="L265">    }</span>
+
+    /**
+     * Compares a method's field in the newApi and originalApi. This field can be, return, parameter or exception type.
+     * @param s1 field to be compared from a method in the originalApi
+     * @param s2 field to be compared from a method in the newApi
+     * @param methodName name of the method to have it's field being compared
+     * @param className the name of the class the have the method
+     */
+    private static void check(String s1, String s2, String methodName, String className) {
+<span class="nc bnc" id="L275" title="All 2 branches missed.">        if (!s1.equals(s2)) {</span>
+<span class="nc" id="L276">            System.out.println(&quot;MAJOR INCREASE ON : &quot; + methodName + &quot; &quot; + className);</span>
+<span class="nc" id="L277">            System.out.println(&quot;ORIGINAL: &quot; + s1);</span>
+<span class="nc" id="L278">            System.out.println(&quot;NEW: &quot; + s2);</span>
+<span class="nc" id="L279">            System.out.println(&quot;=================================================================&quot;);</span>
+        }
+<span class="nc" id="L281">    }</span>
+
+    /**
+     * Tries to find a method with the same name and parameter type as 'method' in a collection of methods.
+     * @param method the method used in the search
+     * @param methods the collection of methods
+     * @return method with same name and parameter type if 'method' exists, otherwise a new ApiMethod with empty attributes
+     */
+    private static ApiMethod getMethodWithSameNameAndParameters(ApiMethod method, Collection&lt;ApiMethod&gt; methods) {
+<span class="nc bnc" id="L290" title="All 2 branches missed.">        for (ApiMethod m : methods) {</span>
+<span class="nc bnc" id="L291" title="All 4 branches missed.">            if (m.getName().equals(method.getName()) &amp;&amp; m.getParametersType().equals(method.getParametersType())) {</span>
+<span class="nc" id="L292">                return m;</span>
+            }
+<span class="nc" id="L294">        }</span>
+<span class="nc" id="L295">        return new ApiMethod(&quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

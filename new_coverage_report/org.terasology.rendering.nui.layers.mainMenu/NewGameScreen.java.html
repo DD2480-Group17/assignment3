@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NewGameScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">NewGameScreen.java</span></div><h1>NewGameScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.ModuleConfig;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.modes.StateLoading;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.module.StandardModuleExtension;
+import org.terasology.game.GameManifest;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.input.Keyboard;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.naming.Name;
+import org.terasology.network.NetworkMode;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.itemRendering.StringTextRenderer;
+import org.terasology.rendering.nui.layers.mainMenu.advancedGameSetupScreen.AdvancedGameSetupScreen;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameProvider;
+import org.terasology.rendering.nui.widgets.UIDropdown;
+import org.terasology.rendering.nui.widgets.UIDropdownScrollable;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIText;
+import org.terasology.world.generator.internal.WorldGeneratorInfo;
+import org.terasology.world.generator.internal.WorldGeneratorManager;
+
+import java.util.Comparator;
+import java.util.List;
+
+<span class="nc" id="L58">public class NewGameScreen extends CoreScreenLayer {</span>
+
+<span class="nc" id="L60">    private static final Logger logger = LoggerFactory.getLogger(NewGameScreen.class);</span>
+
+<span class="nc" id="L62">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:newGameScreen&quot;);</span>
+    private static final String DEFAULT_GAME_TEMPLATE_NAME = &quot;JoshariasSurvival&quot;;
+
+    @In
+    private ModuleManager moduleManager;
+
+    @In
+    private Config config;
+
+    @In
+    private WorldGeneratorManager worldGeneratorManager;
+
+    @In
+    private GameEngine gameEngine;
+
+    @In
+    private TranslationSystem translationSystem;
+
+    private UniverseWrapper universeWrapper;
+
+    @Override
+    public void initialise() {
+
+<span class="nc" id="L85">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L87">        UILabel gameTypeTitle = find(&quot;gameTypeTitle&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (gameTypeTitle != null) {</span>
+<span class="nc" id="L89">            gameTypeTitle.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                    if (isLoadingAsServer()) {</span>
+<span class="nc" id="L93">                        return translationSystem.translate(&quot;${engine:menu#select-multiplayer-game-sub-title}&quot;);</span>
+                    } else {
+<span class="nc" id="L95">                        return translationSystem.translate(&quot;${engine:menu#select-singleplayer-game-sub-title}&quot;);</span>
+                    }
+                }
+            });
+        }
+<span class="nc" id="L100">        final UIText gameName = find(&quot;gameName&quot;, UIText.class);</span>
+<span class="nc" id="L101">        setGameName(gameName);</span>
+
+<span class="nc" id="L103">        final UIDropdownScrollable&lt;Module&gt; gameplay = find(&quot;gameplay&quot;, UIDropdownScrollable.class);</span>
+<span class="nc" id="L104">        gameplay.setOptions(getGameplayModules());</span>
+<span class="nc" id="L105">        gameplay.setVisibleOptions(5);</span>
+<span class="nc" id="L106">        gameplay.bindSelection(new Binding&lt;Module&gt;() {</span>
+            Module selected;
+
+            @Override
+            public Module get() {
+<span class="nc" id="L111">                return selected;</span>
+            }
+
+            @Override
+            public void set(Module value) {
+<span class="nc" id="L116">                setSelectedGameplayModule(value);</span>
+<span class="nc" id="L117">                selected = value;</span>
+<span class="nc" id="L118">            }</span>
+        });
+<span class="nc" id="L120">        gameplay.setOptionRenderer(new StringTextRenderer&lt;Module&gt;() {</span>
+            @Override
+            public String getString(Module value) {
+<span class="nc" id="L123">                return value.getMetadata().getDisplayName().value();</span>
+            }
+
+            @Override
+            public void draw(Module value, Canvas canvas) {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                canvas.getCurrentStyle().setTextColor(validateModuleDependencies(value.getId()) ? Color.WHITE : Color.RED);</span>
+<span class="nc" id="L129">                super.draw(value, canvas);</span>
+<span class="nc" id="L130">                canvas.getCurrentStyle().setTextColor(Color.WHITE);</span>
+<span class="nc" id="L131">            }</span>
+        });
+
+<span class="nc" id="L134">        UILabel gameplayDescription = find(&quot;gameplayDescription&quot;, UILabel.class);</span>
+<span class="nc" id="L135">        gameplayDescription.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc" id="L138">                Module selectedModule = gameplay.getSelection();</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                if (selectedModule != null) {</span>
+<span class="nc" id="L140">                    return selectedModule.getMetadata().getDescription().value();</span>
+                } else {
+<span class="nc" id="L142">                    return &quot;&quot;;</span>
+                }
+            }
+        });
+
+<span class="nc" id="L147">        AdvancedGameSetupScreen advancedSetupGameScreen = getManager().createScreen(AdvancedGameSetupScreen.ASSET_URI, AdvancedGameSetupScreen.class);</span>
+<span class="nc" id="L148">        WidgetUtil.trySubscribe(this, &quot;advancedSetup&quot;, button -&gt; {</span>
+<span class="nc" id="L149">            universeWrapper.setGameName(gameName.getText());</span>
+<span class="nc" id="L150">            advancedSetupGameScreen.setUniverseWrapper(universeWrapper);</span>
+<span class="nc" id="L151">            triggerForwardAnimation(advancedSetupGameScreen);</span>
+<span class="nc" id="L152">        });</span>
+
+<span class="nc" id="L154">        WidgetUtil.trySubscribe(this, &quot;play&quot;, button -&gt; {</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            if (gameName.getText().isEmpty()) {</span>
+<span class="nc" id="L156">                universeWrapper.setGameName(GameProvider.getNextGameName());</span>
+            }
+<span class="nc" id="L158">            universeWrapper.setGameName(gameName.getText());</span>
+<span class="nc" id="L159">            GameManifest gameManifest = GameManifestProvider.createGameManifest(universeWrapper, moduleManager, config);</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">            if (gameManifest != null) {</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">                gameEngine.changeState(new StateLoading(gameManifest, (isLoadingAsServer()) ? NetworkMode.DEDICATED_SERVER : NetworkMode.NONE));</span>
+            } else {
+<span class="nc" id="L163">                MessagePopup errorPopup = getManager().createScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L164">                errorPopup.setMessage(&quot;Error&quot;, &quot;Can't create new game!&quot;);</span>
+            }
+<span class="nc" id="L166">        });</span>
+
+<span class="nc" id="L168">        WidgetUtil.trySubscribe(this, &quot;close&quot;, button -&gt; {</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (GameProvider.isSavesFolderEmpty()) {</span>
+                // skip selectGameScreen and get back directly to main screen
+<span class="nc" id="L171">                getManager().pushScreen(&quot;engine:mainMenuScreen&quot;);</span>
+            } else {
+<span class="nc" id="L173">                triggerBackAnimation();</span>
+            }
+<span class="nc" id="L175">        });</span>
+
+<span class="nc" id="L177">        WidgetUtil.trySubscribe(this, &quot;mainMenu&quot;, button -&gt; {</span>
+<span class="nc" id="L178">            getManager().pushScreen(&quot;engine:mainMenuScreen&quot;);</span>
+<span class="nc" id="L179">        });</span>
+<span class="nc" id="L180">    }</span>
+
+    /**
+     * Sets the game names based on the game number of the last saved game
+     * @param gameName The {@link UIText} in which the name will be displayed.
+     */
+    private void setGameName(UIText gameName) {
+<span class="nc bnc" id="L187" title="All 2 branches missed.">        if (gameName != null) {</span>
+<span class="nc" id="L188">            gameName.setText(GameProvider.getNextGameName());</span>
+        }
+<span class="nc" id="L190">    }</span>
+
+    private List&lt;Module&gt; getGameplayModules() {
+<span class="nc" id="L193">        List&lt;Module&gt; gameplayModules = Lists.newArrayList();</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        for (Name moduleId : moduleManager.getRegistry().getModuleIds()) {</span>
+<span class="nc" id="L195">            Module latestVersion = moduleManager.getRegistry().getLatestModuleVersion(moduleId);</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">            if (!latestVersion.isOnClasspath()) {</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                if (StandardModuleExtension.isGameplayModule(latestVersion)) {</span>
+<span class="nc" id="L198">                    gameplayModules.add(latestVersion);</span>
+                }
+            }
+<span class="nc" id="L201">        }</span>
+<span class="nc" id="L202">        gameplayModules.sort(Comparator.comparing(o -&gt; o.getMetadata().getDisplayName().value()));</span>
+
+<span class="nc" id="L204">        return gameplayModules;</span>
+    }
+
+    private boolean validateModuleDependencies(Name moduleName) {
+<span class="nc" id="L208">        DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());</span>
+<span class="nc" id="L209">        return resolver.resolve(moduleName).isSuccess();</span>
+    }
+
+    private void setSelectedGameplayModule(Module module) {
+<span class="nc" id="L213">        ModuleConfig moduleConfig = config.getDefaultModSelection();</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        if (moduleConfig.getDefaultGameplayModuleName().equals(module.getId().toString())) {</span>
+            // same as before -&gt; we're done
+<span class="nc" id="L216">            return;</span>
+        }
+
+<span class="nc" id="L219">        moduleConfig.setDefaultGameplayModuleName(module.getId().toString());</span>
+<span class="nc" id="L220">        moduleConfig.clear();</span>
+<span class="nc" id="L221">        moduleConfig.addModule(module.getId());</span>
+
+        // Set the default generator of the selected gameplay module
+<span class="nc" id="L224">        setDefaultGeneratorOfGameplayModule(module);</span>
+
+<span class="nc" id="L226">        config.save();</span>
+<span class="nc" id="L227">    }</span>
+
+    // Sets the default generator of the passed in gameplay module. Make sure it's already selected.
+    private void setDefaultGeneratorOfGameplayModule(Module module) {
+        // Set the default generator of the selected gameplay module
+<span class="nc" id="L232">        SimpleUri defaultWorldGenerator = StandardModuleExtension.getDefaultWorldGenerator(module);</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        if (defaultWorldGenerator != null) {</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">            for (WorldGeneratorInfo worldGenInfo : worldGeneratorManager.getWorldGenerators()) {</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">                if (worldGenInfo.getUri().equals(defaultWorldGenerator)) {</span>
+<span class="nc" id="L236">                    config.getWorldGeneration().setDefaultGenerator(worldGenInfo.getUri());</span>
+                }
+<span class="nc" id="L238">            }</span>
+        }
+
+<span class="nc" id="L241">        config.save();</span>
+<span class="nc" id="L242">    }</span>
+
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L247">        super.onOpened();</span>
+
+<span class="nc" id="L249">        final UIText gameName = find(&quot;gameName&quot;, UIText.class);</span>
+<span class="nc" id="L250">        setGameName(gameName);</span>
+
+<span class="nc" id="L252">        final UIDropdown&lt;Module&gt; gameplay = find(&quot;gameplay&quot;, UIDropdown.class);</span>
+
+<span class="nc" id="L254">        String configDefaultModuleName = config.getDefaultModSelection().getDefaultGameplayModuleName();</span>
+<span class="nc" id="L255">        String useThisModuleName = &quot;&quot;;</span>
+
+        // Get the default gameplay module from the config if it exists. This is likely to have a user triggered selection.
+        // Otherwise, default to DEFAULT_GAME_TEMPLATE_NAME.
+<span class="nc bnc" id="L259" title="All 4 branches missed.">        if (&quot;&quot;.equalsIgnoreCase(configDefaultModuleName) || DEFAULT_GAME_TEMPLATE_NAME.equalsIgnoreCase(configDefaultModuleName)) {</span>
+<span class="nc" id="L260">            useThisModuleName = DEFAULT_GAME_TEMPLATE_NAME;</span>
+        } else {
+<span class="nc" id="L262">            useThisModuleName = configDefaultModuleName;</span>
+        }
+
+<span class="nc" id="L265">        Name defaultGameplayModuleName = new Name(useThisModuleName);</span>
+<span class="nc" id="L266">        Module defaultGameplayModule = moduleManager.getRegistry().getLatestModuleVersion(defaultGameplayModuleName);</span>
+
+<span class="nc bnc" id="L268" title="All 2 branches missed.">        if (defaultGameplayModule != null) {</span>
+<span class="nc" id="L269">            gameplay.setSelection(defaultGameplayModule);</span>
+
+<span class="nc bnc" id="L271" title="All 2 branches missed.">            if (configDefaultModuleName.equalsIgnoreCase(DEFAULT_GAME_TEMPLATE_NAME)) {</span>
+<span class="nc" id="L272">                setDefaultGeneratorOfGameplayModule(defaultGameplayModule);</span>
+            }
+        } else {
+            // Find the first gameplay module that is available.
+<span class="nc bnc" id="L276" title="All 2 branches missed.">            for (Module module : moduleManager.getRegistry()) {</span>
+                // Module is null if it is no longer present.
+<span class="nc bnc" id="L278" title="All 4 branches missed.">                if (module != null &amp;&amp; StandardModuleExtension.isGameplayModule(module)) {</span>
+<span class="nc" id="L279">                    gameplay.setSelection(module);</span>
+<span class="nc" id="L280">                    break;</span>
+                }
+<span class="nc" id="L282">            }</span>
+        }
+<span class="nc" id="L284">    }</span>
+
+    public boolean isLoadingAsServer() {
+<span class="nc" id="L287">        return universeWrapper.getLoadingAsServer();</span>
+    }
+
+    public void setUniverseWrapper(UniverseWrapper wrapper) {
+<span class="nc" id="L291">        this.universeWrapper = wrapper;</span>
+<span class="nc" id="L292">    }</span>
+
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc bnc" id="L296" title="All 4 branches missed.">        if (event.isDown() &amp;&amp; event.getKey() == Keyboard.Key.ESCAPE) {</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">            if (GameProvider.isSavesFolderEmpty()) {</span>
+                // skip selectGameScreen and get back directly to main screen
+<span class="nc" id="L299">                getManager().pushScreen(&quot;engine:mainMenuScreen&quot;);</span>
+<span class="nc" id="L300">                return true;</span>
+            }
+        }
+<span class="nc" id="L303">        return super.onKeyEvent(event);</span>
+    }
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L308">        return false;</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

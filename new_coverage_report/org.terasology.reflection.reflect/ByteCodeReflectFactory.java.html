@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ByteCodeReflectFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.reflection.reflect</a> &gt; <span class="el_source">ByteCodeReflectFactory.java</span></div><h1>ByteCodeReflectFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.reflection.reflect;
+
+import com.esotericsoftware.reflectasm.FieldAccess;
+import com.esotericsoftware.reflectasm.MethodAccess;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.CtMethod;
+import javassist.CtNewMethod;
+import javassist.NotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+
+/**
+ */
+public class ByteCodeReflectFactory implements ReflectFactory {
+<span class="fc" id="L38">    private static final Logger logger = LoggerFactory.getLogger(ByteCodeReflectFactory.class);</span>
+
+    private ClassPool pool;
+    private CtClass objectConstructorInterface;
+
+<span class="fc" id="L43">    private ReflectFactory backupFactory = new ReflectionReflectFactory();</span>
+
+<span class="fc" id="L45">    public ByteCodeReflectFactory() {</span>
+        try {
+<span class="fc" id="L47">            ClassPool.doPruning = true;</span>
+<span class="fc" id="L48">            pool = ClassPool.getDefault();</span>
+<span class="fc" id="L49">            objectConstructorInterface = pool.get(ObjectConstructor.class.getName());</span>
+<span class="nc" id="L50">        } catch (NotFoundException e) {</span>
+<span class="nc" id="L51">            throw new RuntimeException(&quot;Error establishing reflection factory&quot;, e);</span>
+<span class="fc" id="L52">        }</span>
+<span class="fc" id="L53">    }</span>
+
+    @Override
+    public &lt;T&gt; ObjectConstructor&lt;T&gt; createConstructor(Class&lt;T&gt; type) throws NoSuchMethodException {
+<span class="fc" id="L57">        String constructorClassName = type.getName() + &quot;_ReflectConstructor&quot;;</span>
+        try {
+<span class="nc" id="L59">            return (ObjectConstructor&lt;T&gt;) type.getClassLoader().loadClass(constructorClassName).getConstructor().newInstance();</span>
+<span class="fc" id="L60">        } catch (ClassNotFoundException ignored) {</span>
+            try {
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">                if (Modifier.isPrivate(type.getDeclaredConstructor().getModifiers())) {</span>
+<span class="nc" id="L63">                    logger.warn(&quot;Constructor for '{}' exists but is private, falling back on reflection&quot;, type);</span>
+<span class="nc" id="L64">                    return backupFactory.createConstructor(type);</span>
+                }
+
+<span class="fc" id="L67">                CtClass constructorClass = pool.makeClass(type.getName() + &quot;_ReflectConstructor&quot;);</span>
+<span class="fc" id="L68">                constructorClass.setInterfaces(new CtClass[]{objectConstructorInterface});</span>
+
+<span class="fc" id="L70">                CtMethod method = CtNewMethod.make(&quot;public Object construct() { return new &quot; + type.getName() + &quot;();}&quot;, constructorClass);</span>
+<span class="fc" id="L71">                constructorClass.addMethod(method);</span>
+<span class="fc" id="L72">                return (ObjectConstructor&lt;T&gt;) (constructorClass.toClass(type.getClassLoader(), type.getProtectionDomain()).getConstructor().newInstance());</span>
+<span class="nc" id="L73">            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | CannotCompileException e) {</span>
+<span class="nc" id="L74">                logger.error(&quot;Error instantiating constructor object for '{}', falling back on reflection&quot;, type, e);</span>
+<span class="nc" id="L75">                return backupFactory.createConstructor(type);</span>
+<span class="nc" id="L76">            } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L77">                return null;</span>
+            }
+<span class="nc" id="L79">        } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L80">            logger.error(&quot;Error instantiating constructor object for '{}', falling back on reflection&quot;, type, e);</span>
+<span class="nc" id="L81">            return backupFactory.createConstructor(type);</span>
+        }
+
+    }
+
+    @Override
+    public &lt;T&gt; FieldAccessor&lt;T, ?&gt; createFieldAccessor(Class&lt;T&gt; ownerType, Field field) throws InaccessibleFieldException {
+<span class="fc" id="L88">        return createFieldAccessor(ownerType, field, field.getType());</span>
+    }
+
+    @Override
+    public &lt;T, U&gt; FieldAccessor&lt;T, U&gt; createFieldAccessor(Class&lt;T&gt; ownerType, Field field, Class&lt;U&gt; fieldType) throws InaccessibleFieldException {
+        try {
+<span class="fc" id="L94">            return new ReflectASMFieldAccessor&lt;&gt;(ownerType, field, fieldType);</span>
+<span class="nc" id="L95">        } catch (IllegalArgumentException | InaccessibleFieldException e) {</span>
+<span class="nc" id="L96">            logger.warn(&quot;Failed to create accessor for field '{}' of type '{}', falling back on reflection&quot;, field.getName(), ownerType.getName());</span>
+<span class="nc" id="L97">            return backupFactory.createFieldAccessor(ownerType, field, fieldType);</span>
+        }
+    }
+
+    public void setClassPool(ClassPool classPool) {
+<span class="nc" id="L102">        pool = classPool;</span>
+<span class="nc" id="L103">    }</span>
+
+    private static class ReflectASMFieldAccessor&lt;T, U&gt; implements FieldAccessor&lt;T, U&gt; {
+
+        private static final int NO_METHOD = -1;
+
+        private MethodAccess methodAccess;
+<span class="fc" id="L110">        private int getterIndex = NO_METHOD;</span>
+<span class="fc" id="L111">        private int setterIndex = NO_METHOD;</span>
+        private FieldAccess fieldAccess;
+        private int fieldIndex;
+
+<span class="fc" id="L115">        ReflectASMFieldAccessor(Class&lt;T&gt; ownerType, Field field, Class&lt;U&gt; fieldType) throws InaccessibleFieldException {</span>
+<span class="fc" id="L116">            methodAccess = MethodAccess.get(ownerType);</span>
+<span class="fc" id="L117">            Method getter = ReflectionUtil.findGetter(field);</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">            if (getter != null) {</span>
+<span class="fc" id="L119">                getterIndex = methodAccess.getIndex(getter.getName());</span>
+            }
+<span class="fc" id="L121">            Method setter = ReflectionUtil.findSetter(field);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">            if (setter != null) {</span>
+<span class="fc" id="L123">                setterIndex = methodAccess.getIndex(setter.getName());</span>
+            }
+
+<span class="pc bpc" id="L126" title="1 of 4 branches missed.">            if (getterIndex == NO_METHOD || setterIndex == NO_METHOD) {</span>
+<span class="fc" id="L127">                fieldAccess = FieldAccess.get(ownerType);</span>
+                try {
+<span class="fc" id="L129">                    fieldIndex = fieldAccess.getIndex(field.getName());</span>
+<span class="nc" id="L130">                } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L131">                    throw new InaccessibleFieldException(&quot;Failed to create accessor for field '&quot; + field.getName() + &quot;' of type '&quot; + ownerType.getName() + &quot;'&quot;, e);</span>
+<span class="fc" id="L132">                }</span>
+            }
+<span class="fc" id="L134">        }</span>
+
+        @Override
+        @SuppressWarnings(&quot;unchecked&quot;)
+        public U getValue(T target) {
+<span class="fc bfc" id="L139" title="All 2 branches covered.">            if (getterIndex != NO_METHOD) {</span>
+<span class="fc" id="L140">                return (U) methodAccess.invoke(target, getterIndex);</span>
+            } else {
+<span class="fc" id="L142">                return (U) fieldAccess.get(target, fieldIndex);</span>
+            }
+        }
+
+        @Override
+        public void setValue(T target, U value) {
+<span class="fc bfc" id="L148" title="All 2 branches covered.">            if (setterIndex != NO_METHOD) {</span>
+<span class="fc" id="L149">                methodAccess.invoke(target, setterIndex, value);</span>
+            } else {
+<span class="fc" id="L151">                fieldAccess.set(target, fieldIndex, value);</span>
+            }
+<span class="fc" id="L153">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

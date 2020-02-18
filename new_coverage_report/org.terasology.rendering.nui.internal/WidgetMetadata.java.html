@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.internal</a> &gt; <span class="el_source">WidgetMetadata.java</span></div><h1>WidgetMetadata.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.internal;
+
+import com.google.common.base.Predicate;
+import org.terasology.engine.SimpleUri;
+import org.terasology.reflection.copy.CopyStrategy;
+import org.terasology.reflection.copy.CopyStrategyLibrary;
+import org.terasology.reflection.metadata.ClassMetadata;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.reflection.reflect.InaccessibleFieldException;
+import org.terasology.reflection.reflect.ReflectFactory;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.UIWidget;
+
+import java.lang.reflect.Field;
+
+/**
+ */
+public class WidgetMetadata&lt;T extends UIWidget&gt; extends ClassMetadata&lt;T, FieldMetadata&lt;T, ?&gt;&gt; {
+
+    /**
+     * Creates a class metatdata
+     *
+     * @param uri                 The uri that identifies this type
+     * @param type                The type to create the metadata for
+     * @param factory             A reflection library to provide class construction and field get/set functionality
+     * @param copyStrategyLibrary A copy strategy library
+     * @throws NoSuchMethodException If the class has no default constructor
+     */
+    public WidgetMetadata(SimpleUri uri, Class&lt;T&gt; type, ReflectFactory factory, CopyStrategyLibrary copyStrategyLibrary) throws NoSuchMethodException {
+<span class="fc" id="L45">        super(uri, type, factory, copyStrategyLibrary, IsConfigField.INSTANCE);</span>
+<span class="fc" id="L46">    }</span>
+
+    @Override
+    protected &lt;V&gt; FieldMetadata&lt;T, ?&gt; createField(Field field, CopyStrategy&lt;V&gt; copyStrategy, ReflectFactory factory) throws InaccessibleFieldException {
+<span class="fc" id="L50">        return new FieldMetadata&lt;&gt;(this, field, copyStrategy, factory);</span>
+    }
+
+    private static class IsConfigField implements Predicate&lt;Field&gt; {
+
+<span class="fc" id="L55">        private static final IsConfigField INSTANCE = new IsConfigField();</span>
+
+        @Override
+        public boolean apply(Field input) {
+<span class="fc bfc" id="L59" title="All 2 branches covered.">            return input.getAnnotation(LayoutConfig.class) != null;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

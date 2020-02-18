@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIList.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIList.java</span></div><h1>UIList.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import com.google.common.collect.Lists;
+import org.terasology.input.Keyboard;
+import org.terasology.input.MouseInput;
+import org.terasology.math.Border;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.ActivatableWidget;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDoubleClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseOverEvent;
+import org.terasology.rendering.nui.itemRendering.ItemRenderer;
+import org.terasology.rendering.nui.itemRendering.ToStringTextRenderer;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * A list widget.
+ *
+ * @param &lt;T&gt; the list element type
+ */
+public class UIList&lt;T&gt; extends ActivatableWidget {
+
+<span class="nc" id="L47">    private final List&lt;ItemActivateEventListener&lt;T&gt;&gt; activateListeners = Lists.newArrayList();</span>
+<span class="nc" id="L48">    private final List&lt;ItemSelectEventListener&lt;T&gt;&gt; selectionListeners = Lists.newArrayList();</span>
+<span class="nc" id="L49">    private Binding&lt;Boolean&gt; interactive = new DefaultBinding&lt;&gt;(true);</span>
+<span class="nc" id="L50">    private Binding&lt;Boolean&gt; selectable = new DefaultBinding&lt;&gt;(true);</span>
+<span class="nc" id="L51">    private Binding&lt;T&gt; selection = new DefaultBinding&lt;&gt;();</span>
+<span class="nc" id="L52">    private Binding&lt;List&lt;T&gt;&gt; list = new DefaultBinding&lt;&gt;(new ArrayList&lt;&gt;());</span>
+<span class="nc" id="L53">    private ItemRenderer&lt;T&gt; itemRenderer = new ToStringTextRenderer&lt;&gt;();</span>
+<span class="nc" id="L54">    private Binding&lt;Boolean&gt; canBeFocus = new DefaultBinding&lt;&gt;(true);</span>
+    private int itemSize;
+    private int canvasSize;
+
+<span class="nc" id="L58">    private List&lt;ItemInteractionListener&gt; optionListeners = Lists.newArrayList();</span>
+
+
+<span class="nc" id="L61">    public UIList() {</span>
+
+<span class="nc" id="L63">    }</span>
+
+    public UIList(String id) {
+<span class="nc" id="L66">        super(id);</span>
+<span class="nc" id="L67">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L71">        updateItemListeners();</span>
+<span class="nc" id="L72">        canvas.setPart(&quot;item&quot;);</span>
+
+<span class="nc" id="L74">        boolean enabled = isEnabled();</span>
+<span class="nc" id="L75">        Border margin = canvas.getCurrentStyle().getMargin();</span>
+
+<span class="nc" id="L77">        double yOffset = 1 / (double) optionListeners.size();</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        for (int i = 0; i &lt; list.get().size(); ++i) {</span>
+<span class="nc" id="L79">            T item = list.get().get(i);</span>
+<span class="nc" id="L80">            Vector2i preferredSize = margin.grow(itemRenderer.getPreferredSize(item, canvas));</span>
+
+<span class="nc" id="L82">            Rect2i itemRegion = Rect2i.createFromMinAndSize(0, (int) yOffset, canvas.size().x, preferredSize.y);</span>
+<span class="nc" id="L83">            ItemInteractionListener listener = optionListeners.get(i);</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            if (enabled) {</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                if (Objects.equals(item, selection.get())) {</span>
+<span class="nc" id="L86">                    canvas.setMode(ACTIVE_MODE);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                } else if (listener.isMouseOver()) {</span>
+<span class="nc" id="L88">                    canvas.setMode(HOVER_MODE);</span>
+                } else {
+<span class="nc" id="L90">                    canvas.setMode(DEFAULT_MODE);</span>
+                }
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                if (isInteractive()) {</span>
+<span class="nc" id="L93">                    canvas.addInteractionRegion(listener, itemRenderer.getTooltip(item), itemRegion);</span>
+                }
+            } else {
+<span class="nc" id="L96">                canvas.setMode(DISABLED_MODE);</span>
+            }
+<span class="nc" id="L98">            canvas.drawBackground(itemRegion);</span>
+<span class="nc" id="L99">            itemRenderer.draw(item, canvas, margin.shrink(itemRegion));</span>
+
+<span class="nc" id="L101">            yOffset += preferredSize.y - 1 / (double) optionListeners.size();</span>
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            if (i == list.get().size() - 1) {</span>
+<span class="nc" id="L104">                itemSize = preferredSize.getY();</span>
+<span class="nc" id="L105">                canvasSize = canvas.size().y;</span>
+            }
+        }
+<span class="nc" id="L108">    }</span>
+
+    private void updateItemListeners() {
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        while (optionListeners.size() &gt; list.get().size()) {</span>
+<span class="nc" id="L112">            optionListeners.remove(optionListeners.size() - 1);</span>
+        }
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        while (optionListeners.size() &lt; list.get().size()) {</span>
+<span class="nc" id="L115">            optionListeners.add(new ItemInteractionListener(optionListeners.size()));</span>
+        }
+<span class="nc" id="L117">    }</span>
+
+
+    @Override
+    public boolean canBeFocus() {
+<span class="nc" id="L122">        return canBeFocus.get();</span>
+    }
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i areaHint) {
+<span class="nc" id="L127">        canvas.setPart(&quot;item&quot;);</span>
+<span class="nc" id="L128">        Vector2i result = new Vector2i();</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        for (T item : list.get()) {</span>
+<span class="nc" id="L130">            Vector2i preferredSize = canvas.getCurrentStyle().getMargin().grow(itemRenderer.getPreferredSize(item, canvas));</span>
+<span class="nc" id="L131">            result.x = Math.max(result.x, preferredSize.x);</span>
+<span class="nc" id="L132">            result.y += preferredSize.y;</span>
+<span class="nc" id="L133">        }</span>
+<span class="nc" id="L134">        return result;</span>
+    }
+
+    public void bindList(Binding&lt;List&lt;T&gt;&gt; binding) {
+<span class="nc" id="L138">        this.list = binding;</span>
+<span class="nc" id="L139">    }</span>
+
+    /**
+     * @return The list of options.
+     */
+    public List&lt;T&gt; getList() {
+<span class="nc" id="L145">        return list.get();</span>
+    }
+
+    /**
+     * @param list The list to display on the buttons.
+     */
+    public void setList(List&lt;T&gt; list) {
+<span class="nc" id="L152">        this.list.set(list);</span>
+<span class="nc" id="L153">    }</span>
+
+    public void bindSelectable(Binding&lt;Boolean&gt; binding) {
+<span class="nc" id="L156">        selectable = binding;</span>
+<span class="nc" id="L157">    }</span>
+
+    /**
+     * @return True if the list is interactive.
+     */
+    public boolean isInteractive() {
+<span class="nc" id="L163">        return interactive.get();</span>
+    }
+
+    /**
+     * @return True if the list is selectable.
+     */
+    public boolean isSelectable() {
+<span class="nc" id="L170">        return selectable.get();</span>
+    }
+
+    /**
+     * @param value A Boolean indicating the interactivity to set.
+     */
+    public void setInteractive(boolean value) {
+<span class="nc" id="L177">        interactive.set(value);</span>
+<span class="nc" id="L178">    }</span>
+
+
+    /**
+     * @param value A Boolean indicating how selectable the list should be.
+     */
+    public void setSelectable(boolean value) {
+<span class="nc" id="L185">        selectable.set(value);</span>
+<span class="nc" id="L186">    }</span>
+
+
+    /**
+     * @param value A Boolean indicating if it should be focusable.
+     */
+    public void setCanBeFocus(boolean value) {
+<span class="nc" id="L193">        canBeFocus.set(value);</span>
+<span class="nc" id="L194">    }</span>
+
+    public void bindSelection(Binding&lt;T&gt; binding) {
+<span class="nc" id="L197">        selection = binding;</span>
+<span class="nc" id="L198">    }</span>
+
+    /**
+     * @return The value of the selected button.
+     */
+    public T getSelection() {
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        if (!isSelectable()) {</span>
+<span class="nc" id="L205">            return null;</span>
+        }
+<span class="nc" id="L207">        return selection.get();</span>
+    }
+
+    /**
+     * @param item The item to be selected
+     */
+    public void setSelection(T item) {
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        if (isSelectable()) {</span>
+<span class="nc" id="L215">            selection.set(item);</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">            for (ItemSelectEventListener&lt;T&gt; listener : selectionListeners) {</span>
+<span class="nc" id="L217">                listener.onItemSelected(this, item);</span>
+<span class="nc" id="L218">            }</span>
+        }
+<span class="nc" id="L220">    }</span>
+
+    /**
+     * Subscribe an event listener to be called upon the list being activated.
+     *
+     * @param eventListener The event listener to call.
+     */
+    public void subscribe(ItemActivateEventListener&lt;T&gt; eventListener) {
+<span class="nc" id="L228">        activateListeners.add(eventListener);</span>
+<span class="nc" id="L229">    }</span>
+
+    /**
+     * Remove an event listener from being called when the list being activated.
+     *
+     * @param eventListener The event listener to remove.
+     */
+    public void unsubscribe(ItemActivateEventListener&lt;T&gt; eventListener) {
+<span class="nc" id="L237">        activateListeners.remove(eventListener);</span>
+<span class="nc" id="L238">    }</span>
+
+    /**
+     * Subscribe an event listener to be called then an item is selected.
+     *
+     * @param eventListener The event listener to add.
+     */
+    public void subscribeSelection(ItemSelectEventListener&lt;T&gt; eventListener) {
+<span class="nc" id="L246">        selectionListeners.add(eventListener);</span>
+<span class="nc" id="L247">    }</span>
+
+    /**
+     * Remove an event listener from being called when a selection is made.
+     *
+     * @param eventListener The event listener to remove.
+     */
+    public void unsubscribeSelection(ItemSelectEventListener&lt;T&gt; eventListener) {
+<span class="nc" id="L255">        selectionListeners.remove(eventListener);</span>
+<span class="nc" id="L256">    }</span>
+
+    /**
+     * Select an item from the list via index.
+     *
+     * @param index The index of the item to select.
+     */
+    public void select(int index) {
+<span class="nc bnc" id="L264" title="All 6 branches missed.">        if (index &gt;= 0 &amp;&amp; index &lt; list.get().size() &amp;&amp; isSelectable()) {</span>
+<span class="nc" id="L265">            T item = list.get().get(index);</span>
+<span class="nc" id="L266">            setSelection(item);</span>
+        }
+<span class="nc" id="L268">    }</span>
+
+    /**
+     * Activate an item from the list via index.
+     *
+     * @param index The index of the item to select.
+     */
+    private void activate(int index) {
+<span class="nc bnc" id="L276" title="All 2 branches missed.">        if (index &lt; list.get().size()) {</span>
+<span class="nc" id="L277">            T item = list.get().get(index);</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">            for (ItemActivateEventListener&lt;T&gt; listener : activateListeners) {</span>
+<span class="nc" id="L279">                listener.onItemActivated(this, item);</span>
+<span class="nc" id="L280">            }</span>
+        }
+<span class="nc" id="L282">    }</span>
+
+    /**
+     * @return The item renderer used in the list.
+     */
+    public ItemRenderer&lt;T&gt; getItemRenderer() {
+<span class="nc" id="L288">        return itemRenderer;</span>
+    }
+
+    /**
+     * @param itemRenderer The renderer to use.
+     */
+    public void setItemRenderer(ItemRenderer&lt;T&gt; itemRenderer) {
+<span class="nc" id="L295">        this.itemRenderer = itemRenderer;</span>
+<span class="nc" id="L296">    }</span>
+
+    private class ItemInteractionListener extends BaseInteractionListener {
+        private int index;
+
+<span class="nc" id="L301">        ItemInteractionListener(int index) {</span>
+<span class="nc" id="L302">            this.index = index;</span>
+<span class="nc" id="L303">        }</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L307" title="All 4 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT &amp;&amp; isSelectable()) {</span>
+<span class="nc" id="L308">                select(index);</span>
+<span class="nc" id="L309">                return true;</span>
+            }
+<span class="nc" id="L311">            return false;</span>
+        }
+
+        @Override
+        public boolean onMouseDoubleClick(NUIMouseDoubleClickEvent event) {
+<span class="nc bnc" id="L316" title="All 4 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT &amp;&amp; isSelectable()) {</span>
+<span class="nc" id="L317">                activate(index);</span>
+<span class="nc" id="L318">                return true;</span>
+            }
+<span class="nc" id="L320">            return false;</span>
+        }
+
+        @Override
+        public void onMouseOver(NUIMouseOverEvent event) {
+<span class="nc" id="L325">            super.onMouseOver(event);</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">            if (isMouseOver()) {</span>
+<span class="nc" id="L327">                focusManager.setFocus(UIList.this);</span>
+            }
+<span class="nc" id="L329">        }</span>
+    }
+
+    private int getCurrentIndex() {
+<span class="nc" id="L333">        return list.get().indexOf(selection.get());</span>
+    }
+
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc bnc" id="L338" title="All 2 branches missed.">        if (event.isDown()) {</span>
+<span class="nc" id="L339">            int keyId = event.getKey().getId();</span>
+<span class="nc" id="L340">            int currentIndex = getCurrentIndex();</span>
+
+<span class="nc bnc" id="L342" title="All 2 branches missed.">            if (currentIndex != -1) {</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">                if (keyId == Keyboard.KeyId.UP) {</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">                    if (getParent() != null) {</span>
+<span class="nc" id="L345">                        getParent().setPosition((currentIndex - 1) / ((double) optionListeners.size() - 1));</span>
+                    }
+
+<span class="nc" id="L348">                    select(currentIndex - 1);</span>
+<span class="nc" id="L349">                    return true;</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">                } else if (keyId == Keyboard.KeyId.DOWN) {</span>
+<span class="nc bnc" id="L351" title="All 2 branches missed.">                    if (getParent() != null) {</span>
+<span class="nc" id="L352">                        getParent().setPosition((currentIndex + 1) / ((double) optionListeners.size() - 1));</span>
+                    }
+
+<span class="nc" id="L355">                    select(currentIndex + 1);</span>
+<span class="nc" id="L356">                    return true;</span>
+<span class="nc bnc" id="L357" title="All 4 branches missed.">                } else if (keyId == Keyboard.KeyId.ENTER || keyId == Keyboard.KeyId.SPACE) {</span>
+<span class="nc" id="L358">                    activate(currentIndex);</span>
+<span class="nc" id="L359">                    return true;</span>
+                }
+            } else {
+<span class="nc" id="L362">                select(0);</span>
+            }
+        }
+<span class="nc" id="L365">        return super.onKeyEvent(event);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChunkTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world</a> &gt; <span class="el_source">ChunkTest.java</span></div><h1>ChunkTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.BlockUri;
+import org.terasology.world.block.family.SymmetricFamily;
+import org.terasology.world.block.internal.BlockManagerImpl;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.loader.BlockFamilyDefinitionData;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.tiles.NullWorldAtlas;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+import org.terasology.world.chunks.internal.ChunkImpl;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+<span class="fc" id="L42">public class ChunkTest extends TerasologyTestingEnvironment {</span>
+
+    private Chunk chunk;
+    private BlockManagerImpl blockManager;
+    private Block solid;
+
+    @BeforeEach
+    public void setup() throws Exception {
+<span class="fc" id="L50">        super.setup();</span>
+<span class="fc" id="L51">        AssetManager assetManager = CoreRegistry.get(AssetManager.class);</span>
+<span class="fc" id="L52">        blockManager = new BlockManagerImpl(new NullWorldAtlas(), assetManager);</span>
+<span class="fc" id="L53">        CoreRegistry.put(BlockManager.class, blockManager);</span>
+
+<span class="fc" id="L55">        ExtraBlockDataManager extraDataManager = new ExtraBlockDataManager();</span>
+
+<span class="fc" id="L57">        chunk = new ChunkImpl(new Vector3i(0, 0, 0), blockManager, extraDataManager);</span>
+
+<span class="fc" id="L59">        BlockFamilyDefinitionData solidData = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L60">        solidData.getBaseSection().setDisplayName(&quot;Stone&quot;);</span>
+<span class="fc" id="L61">        solidData.getBaseSection().setShape(assetManager.getAsset(&quot;engine:cube&quot;, BlockShape.class).get());</span>
+<span class="fc" id="L62">        solidData.getBaseSection().setTranslucent(false);</span>
+<span class="fc" id="L63">        solidData.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L64">        assetManager.loadAsset(new ResourceUrn(&quot;engine:stone&quot;), solidData, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L65">        solid = blockManager.getBlock(new BlockUri(new ResourceUrn(&quot;engine:stone&quot;)));</span>
+<span class="fc" id="L66">    }</span>
+
+    @Test
+    public void testChangeBlock() {
+<span class="fc" id="L70">        chunk.setBlock(new Vector3i(1, 2, 3), solid);</span>
+<span class="fc" id="L71">        assertEquals(solid, chunk.getBlock(new Vector3i(1, 2, 3)));</span>
+<span class="fc" id="L72">    }</span>
+
+    @Test
+    public void testGetAabb() {
+<span class="fc" id="L76">        assertEquals(new Vector3f(0, 0, 0), chunk.getAABB().getMin());</span>
+<span class="fc" id="L77">        assertEquals(new Vector3f(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z), chunk.getAABB().getMax());</span>
+<span class="fc" id="L78">    }</span>
+
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FinalPostProcessingNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">FinalPostProcessingNode.java</span></div><h1>FinalPostProcessingNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.input.cameraTarget.CameraTargetSystem;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.texture.TextureUtil;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture2D;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture3D;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.dag.stateChanges.SetViewportToSizeOf;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.ScreenGrabber;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.utilities.random.Random;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+
+import static org.terasology.rendering.dag.nodes.LateBlurNode.SECOND_LATE_BLUR_FBO_URI;
+import static org.terasology.rendering.dag.nodes.ToneMappingNode.TONE_MAPPING_FBO_URI;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.ColorTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.DepthStencilTexture;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+import static org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs.FINAL_BUFFER;
+
+/**
+ * An instance of this class adds depth of field blur, motion blur and film grain to the rendering
+ * of the scene obtained so far. Furthermore, depending if a screenshot has been requested,
+ * it instructs the ScreenGrabber to save it to a file.
+ *
+ * If RenderingDebugConfig.isEnabled() returns true, this node is instead responsible for displaying
+ * the content of a number of technical buffers rather than the final, post-processed rendering
+ * of the scene.
+ */
+public class FinalPostProcessingNode extends AbstractNode implements PropertyChangeListener {
+<span class="nc" id="L63">    private static final ResourceUrn POST_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.post&quot;);</span>
+
+    private WorldRenderer worldRenderer;
+    private RenderingConfig renderingConfig;
+    private ScreenGrabber screenGrabber;
+
+    private Material postMaterial;
+
+<span class="nc" id="L71">    private Random randomGenerator = new FastRandom();</span>
+
+    private CameraTargetSystem cameraTargetSystem;
+    private Camera activeCamera;
+
+<span class="nc" id="L76">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 1.0f)
+    private float filmGrainIntensity = 0.05f;
+
+    private FBO lastUpdatedGBuffer;
+
+    private boolean isFilmGrainEnabled;
+    private boolean isMotionBlurEnabled;
+
+    private StateChange setBlurTexture;
+    private StateChange setNoiseTexture;
+
+<span class="nc" id="L88">    private final int noiseTextureSize = 1024;</span>
+
+    public FinalPostProcessingNode(String nodeUri, Context context) {
+<span class="nc" id="L91">        super(nodeUri, context);</span>
+
+<span class="nc" id="L93">        worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L94">        activeCamera = worldRenderer.getActiveCamera();</span>
+<span class="nc" id="L95">        screenGrabber = context.get(ScreenGrabber.class);</span>
+<span class="nc" id="L96">        cameraTargetSystem = context.get(CameraTargetSystem.class);</span>
+
+<span class="nc" id="L98">        postMaterial = getMaterial(POST_MATERIAL_URN);</span>
+
+<span class="nc" id="L100">        addDesiredStateChange(new EnableMaterial(POST_MATERIAL_URN));</span>
+
+<span class="nc" id="L102">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L103">        FBO finalBuffer = displayResolutionDependentFBOs.get(FINAL_BUFFER);</span>
+<span class="nc" id="L104">        addDesiredStateChange(new BindFbo(finalBuffer));</span>
+<span class="nc" id="L105">        addDesiredStateChange(new SetViewportToSizeOf(finalBuffer));</span>
+
+<span class="nc" id="L107">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L108">        isFilmGrainEnabled = renderingConfig.isFilmGrain();</span>
+<span class="nc" id="L109">        renderingConfig.subscribe(RenderingConfig.FILM_GRAIN, this);</span>
+<span class="nc" id="L110">        isMotionBlurEnabled = renderingConfig.isMotionBlur();</span>
+<span class="nc" id="L111">        renderingConfig.subscribe(RenderingConfig.MOTION_BLUR, this);</span>
+<span class="nc" id="L112">        renderingConfig.subscribe(RenderingConfig.BLUR_INTENSITY, this);</span>
+
+<span class="nc" id="L114">        lastUpdatedGBuffer = displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo();</span>
+
+<span class="nc" id="L116">        int texId = 0;</span>
+<span class="nc" id="L117">        addDesiredStateChange(new SetInputTextureFromFbo(texId++, TONE_MAPPING_FBO_URI, ColorTexture, displayResolutionDependentFBOs, POST_MATERIAL_URN, &quot;texScene&quot;));</span>
+<span class="nc" id="L118">        addDesiredStateChange(new SetInputTextureFromFbo(texId++, lastUpdatedGBuffer, DepthStencilTexture, displayResolutionDependentFBOs, POST_MATERIAL_URN, &quot;texDepth&quot;));</span>
+<span class="nc" id="L119">        setBlurTexture = new SetInputTextureFromFbo(texId++, SECOND_LATE_BLUR_FBO_URI, ColorTexture, displayResolutionDependentFBOs, POST_MATERIAL_URN, &quot;texBlur&quot;);</span>
+<span class="nc" id="L120">        addDesiredStateChange(new SetInputTexture3D(texId++, &quot;engine:colorGradingLut1&quot;, POST_MATERIAL_URN, &quot;texColorGradingLut&quot;));</span>
+        // TODO: evaluate the possibility to use GPU-based noise algorithms instead of CPU-generated textures.
+<span class="nc" id="L122">        setNoiseTexture = new SetInputTexture2D(texId, TextureUtil.getTextureUriForWhiteNoise(noiseTextureSize, 0x1234, 0, 512).toString(), POST_MATERIAL_URN, &quot;texNoise&quot;);</span>
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (renderingConfig.getBlurIntensity() != 0) {</span>
+<span class="nc" id="L125">            addDesiredStateChange(setBlurTexture);</span>
+        }
+
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if (isFilmGrainEnabled) {</span>
+<span class="nc" id="L129">            addDesiredStateChange(setNoiseTexture);</span>
+        }
+<span class="nc" id="L131">    }</span>
+
+    /**
+     * Execute the final post processing on the rendering of the scene obtained so far.
+     *
+     * It uses the data stored in multiple FBOs as input and the FINAL FBO to store its output, rendering everything to a quad.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L140">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+<span class="nc" id="L142">        postMaterial.setFloat(&quot;focalDistance&quot;, cameraTargetSystem.getFocalDistance(), true); //for use in DOF effect</span>
+
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (isFilmGrainEnabled) {</span>
+<span class="nc" id="L145">            postMaterial.setFloat(&quot;grainIntensity&quot;, filmGrainIntensity, true);</span>
+<span class="nc" id="L146">            postMaterial.setFloat(&quot;noiseOffset&quot;, randomGenerator.nextFloat(), true);</span>
+
+<span class="nc" id="L148">            postMaterial.setFloat2(&quot;noiseSize&quot;, noiseTextureSize, noiseTextureSize, true);</span>
+<span class="nc" id="L149">            postMaterial.setFloat2(&quot;renderTargetSize&quot;, lastUpdatedGBuffer.width(), lastUpdatedGBuffer.height(), true);</span>
+        }
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (isMotionBlurEnabled) {</span>
+<span class="nc" id="L153">            postMaterial.setMatrix4(&quot;invViewProjMatrix&quot;, activeCamera.getInverseViewProjectionMatrix(), true);</span>
+<span class="nc" id="L154">            postMaterial.setMatrix4(&quot;prevViewProjMatrix&quot;, activeCamera.getPrevViewProjectionMatrix(), true);</span>
+        }
+
+<span class="nc" id="L157">        renderFullscreenQuad();</span>
+
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        if (screenGrabber.isTakingScreenshot()) {</span>
+<span class="nc" id="L160">            screenGrabber.saveScreenshot();</span>
+        }
+
+<span class="nc" id="L163">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L164">    }</span>
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+<span class="nc" id="L168">        String propertyName = event.getPropertyName();</span>
+
+<span class="nc bnc" id="L170" title="All 4 branches missed.">        switch (propertyName) {</span>
+            case RenderingConfig.FILM_GRAIN:
+<span class="nc" id="L172">                isFilmGrainEnabled = renderingConfig.isFilmGrain();</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">                if (isFilmGrainEnabled) {</span>
+<span class="nc" id="L174">                    addDesiredStateChange(setNoiseTexture);</span>
+                } else {
+<span class="nc" id="L176">                    removeDesiredStateChange(setNoiseTexture);</span>
+                }
+<span class="nc" id="L178">                break;</span>
+
+            case RenderingConfig.MOTION_BLUR:
+<span class="nc" id="L181">                isMotionBlurEnabled = renderingConfig.isMotionBlur();</span>
+<span class="nc" id="L182">                break;</span>
+
+            case RenderingConfig.BLUR_INTENSITY:
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                if (renderingConfig.getBlurIntensity() != 0) {</span>
+<span class="nc" id="L186">                    addDesiredStateChange(setBlurTexture);</span>
+                } else {
+<span class="nc" id="L188">                    removeDesiredStateChange(setBlurTexture);</span>
+                }
+                break;
+        }
+
+<span class="nc" id="L193">        worldRenderer.requestTaskListRefresh();</span>
+<span class="nc" id="L194">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

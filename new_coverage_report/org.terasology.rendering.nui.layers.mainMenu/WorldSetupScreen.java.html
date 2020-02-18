@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldSetupScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">WorldSetupScreen.java</span></div><h1>WorldSetupScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.naming.Name;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.layouts.PropertyLayout;
+import org.terasology.rendering.nui.properties.Property;
+import org.terasology.rendering.nui.properties.PropertyOrdering;
+import org.terasology.rendering.nui.properties.PropertyProvider;
+import org.terasology.rendering.nui.widgets.UIDropdownScrollable;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIText;
+import org.terasology.rendering.world.WorldSetupWrapper;
+import org.terasology.world.generator.UnresolvedWorldGeneratorException;
+import org.terasology.world.generator.WorldConfigurator;
+import org.terasology.world.generator.WorldGenerator;
+import org.terasology.world.generator.internal.WorldGeneratorManager;
+import org.terasology.world.generator.plugin.TempWorldGeneratorPluginLibrary;
+import org.terasology.world.generator.plugin.WorldGeneratorPluginLibrary;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * Allows configuration of a single world.
+ */
+<span class="nc" id="L55">public class WorldSetupScreen extends CoreScreenLayer {</span>
+
+<span class="nc" id="L57">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:worldSetupScreen&quot;);</span>
+
+    @In
+    private WorldGeneratorManager worldGeneratorManager;
+
+    @In
+    private Config config;
+
+    @In
+    private TranslationSystem translationSystem;
+
+    private WorldGenerator worldGenerator;
+    private WorldSetupWrapper world;
+    private ModuleEnvironment environment;
+    private Context context;
+    private WorldConfigurator oldWorldConfig;
+    private Name newWorldName;
+    private UIDropdownScrollable worldsDropdown;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L78">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L80">        WidgetUtil.trySubscribe(this, &quot;close&quot;, button -&gt; {</span>
+<span class="nc" id="L81">            final UniverseSetupScreen universeSetupScreen = getManager().createScreen(UniverseSetupScreen.ASSET_URI, UniverseSetupScreen.class);</span>
+<span class="nc" id="L82">            final WorldPreGenerationScreen worldPreGenerationScreen = getManager().createScreen(WorldPreGenerationScreen.ASSET_URI, WorldPreGenerationScreen.class);</span>
+<span class="nc" id="L83">            UIText customWorldName = find(&quot;customisedWorldName&quot;, UIText.class);</span>
+
+<span class="nc" id="L85">            boolean goBack = false;</span>
+
+            //sanity checks on world name
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if (customWorldName.getText().isEmpty()) {</span>
+                //name empty: display a popup, stay on the same screen
+<span class="nc" id="L90">                getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Name Cannot Be Empty!&quot;, &quot;Please add a name for the world&quot;);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">            } else if (customWorldName.getText().equalsIgnoreCase(world.getWorldName().toString())) {</span>
+                //same name as before: go back to universe setup
+<span class="nc" id="L93">                goBack = true;</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            } else if (universeSetupScreen.worldNameMatchesAnother(customWorldName.getText())) {</span>
+                //if same name is already used, inform user with a  popup
+<span class="nc" id="L96">                getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Name Already Used!&quot;, &quot;Please use a different name for this world&quot;);</span>
+            } else {
+                //no match found: go back to universe setup
+<span class="nc" id="L99">                goBack = true;</span>
+            }
+
+<span class="nc bnc" id="L102" title="All 2 branches missed.">            if (goBack) {</span>
+<span class="nc" id="L103">                newWorldName = new Name(customWorldName.getText());</span>
+<span class="nc" id="L104">                world.setWorldName(newWorldName);</span>
+<span class="nc" id="L105">                universeSetupScreen.refreshWorldDropdown(worldsDropdown);</span>
+<span class="nc" id="L106">                worldPreGenerationScreen.setName(newWorldName);</span>
+<span class="nc" id="L107">                triggerBackAnimation();</span>
+            }
+<span class="nc" id="L109">        });</span>
+<span class="nc" id="L110">    }</span>
+
+    /**
+     * This method sets the world name in title as well as in UITextBox
+     *
+     * @param customWorldName
+     */
+    private void setCustomWorldName(UIText customWorldName) {
+<span class="nc" id="L118">        customWorldName.setText(world.getWorldName().toString());</span>
+<span class="nc" id="L119">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L123">        super.onOpened();</span>
+
+<span class="nc" id="L125">        UILabel subitle = find(&quot;subtitle&quot;, UILabel.class);</span>
+<span class="nc" id="L126">        subitle.setText(translationSystem.translate(&quot;${engine:menu#world-setup}&quot;) + &quot; for &quot; + world.getWorldName().toString());</span>
+<span class="nc" id="L127">        UIText customWorldName = find(&quot;customisedWorldName&quot;, UIText.class);</span>
+<span class="nc" id="L128">        setCustomWorldName(customWorldName);</span>
+<span class="nc" id="L129">    }</span>
+
+    /**
+     * This method sets the world whose properties are to be changed. This function is called before the screen comes
+     * to the forefront.
+     *
+     * @param subContext    the new environment created in {@link UniverseSetupScreen}
+     * @param worldSelected the world whose configurations are to be changed.
+     * @throws UnresolvedWorldGeneratorException
+     */
+    public void setWorld(Context subContext, WorldSetupWrapper worldSelected, UIDropdownScrollable dropDown) throws UnresolvedWorldGeneratorException {
+<span class="nc" id="L140">        world = worldSelected;</span>
+<span class="nc" id="L141">        context = subContext;</span>
+<span class="nc" id="L142">        worldsDropdown = dropDown;</span>
+<span class="nc" id="L143">        SimpleUri worldGenUri = worldSelected.getWorldGeneratorInfo().getUri();</span>
+<span class="nc" id="L144">        environment = context.get(ModuleEnvironment.class);</span>
+<span class="nc" id="L145">        context.put(WorldGeneratorPluginLibrary.class, new TempWorldGeneratorPluginLibrary(environment, context));</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        if (world.getWorldGenerator() == null) {</span>
+<span class="nc" id="L147">            worldGenerator = WorldGeneratorManager.createWorldGenerator(worldGenUri, context, environment);</span>
+<span class="nc" id="L148">            world.setWorldGenerator(worldGenerator);</span>
+        } else {
+<span class="nc" id="L150">            worldGenerator = world.getWorldGenerator();</span>
+        }
+<span class="nc" id="L152">        configureProperties();</span>
+<span class="nc" id="L153">    }</span>
+
+    /**
+     * Assigns a {@link WorldConfigurator} for every world if it doesn't exist. Using
+     * the WorldConfigurator it gets the properties associated with that world.
+     */
+    private void configureProperties() {
+
+<span class="nc" id="L161">        PropertyLayout propLayout = find(&quot;properties&quot;, PropertyLayout.class);</span>
+<span class="nc" id="L162">        propLayout.setOrdering(PropertyOrdering.byLabel());</span>
+<span class="nc" id="L163">        propLayout.clear();</span>
+        WorldConfigurator worldConfig;
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (world.getWorldConfigurator() != null) {</span>
+<span class="nc" id="L166">            worldConfig = world.getWorldConfigurator();</span>
+        } else {
+<span class="nc" id="L168">            worldConfig = worldGenerator.getConfigurator();</span>
+<span class="nc" id="L169">            world.setWorldConfigurator(worldConfig);</span>
+        }
+<span class="nc" id="L171">        oldWorldConfig = worldConfig;</span>
+
+<span class="nc" id="L173">        Map&lt;String, Component&gt; params = worldConfig.getProperties();</span>
+
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        for (String key : params.keySet()) {</span>
+<span class="nc" id="L176">            Class&lt;? extends Component&gt; clazz = params.get(key).getClass();</span>
+<span class="nc" id="L177">            Component comp = config.getModuleConfig(worldGenerator.getUri(), key, clazz);</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">            if (comp != null) {</span>
+                // use the data from the config instead of defaults
+<span class="nc" id="L180">                worldConfig.setProperty(key, comp);</span>
+            }
+<span class="nc" id="L182">        }</span>
+
+<span class="nc" id="L184">        ComponentLibrary compLib = context.get(ComponentLibrary.class);</span>
+
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        for (String label : params.keySet()) {</span>
+
+<span class="nc" id="L188">            PropertyProvider provider = new PropertyProvider() {</span>
+                @Override
+                protected &lt;T&gt; Binding&lt;T&gt; createTextBinding(Object target, FieldMetadata&lt;Object, T&gt; fieldMetadata) {
+<span class="nc" id="L191">                    return new WorldSetupScreen.WorldConfigBinding&lt;&gt;(worldConfig, label, compLib, fieldMetadata);</span>
+                }
+
+                @Override
+                protected Binding&lt;Float&gt; createFloatBinding(Object target, FieldMetadata&lt;Object, ?&gt; fieldMetadata) {
+<span class="nc" id="L196">                    return new WorldSetupScreen.WorldConfigNumberBinding(worldConfig, label, compLib, fieldMetadata);</span>
+                }
+            };
+
+<span class="nc" id="L200">            Component target = params.get(label);</span>
+<span class="nc" id="L201">            List&lt;Property&lt;?, ?&gt;&gt; properties = provider.createProperties(target);</span>
+<span class="nc" id="L202">            propLayout.addProperties(label, properties);</span>
+<span class="nc" id="L203">        }</span>
+<span class="nc" id="L204">    }</span>
+
+    /**
+     * Updates a world configurator through setProperty() whenever Binding#set() is called.
+     */
+    private static class WorldConfigBinding&lt;T&gt; implements Binding&lt;T&gt; {
+        private final String label;
+        private final WorldConfigurator worldConfig;
+        private final FieldMetadata&lt;Object, T&gt; fieldMetadata;
+        private final ComponentLibrary compLib;
+
+<span class="nc" id="L215">        protected WorldConfigBinding(WorldConfigurator config, String label, ComponentLibrary compLib, FieldMetadata&lt;Object, T&gt; fieldMetadata) {</span>
+<span class="nc" id="L216">            this.worldConfig = config;</span>
+<span class="nc" id="L217">            this.label = label;</span>
+<span class="nc" id="L218">            this.compLib = compLib;</span>
+<span class="nc" id="L219">            this.fieldMetadata = fieldMetadata;</span>
+<span class="nc" id="L220">        }</span>
+
+        @Override
+        public T get() {
+<span class="nc" id="L224">            Component comp = worldConfig.getProperties().get(label);</span>
+<span class="nc" id="L225">            return fieldMetadata.getValue(comp);</span>
+        }
+
+        @Override
+        public void set(T value) {
+<span class="nc" id="L230">            T old = get();</span>
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            if (!Objects.equals(old, value)) {</span>
+<span class="nc" id="L233">                cloneAndSet(label, value);</span>
+            }
+<span class="nc" id="L235">        }</span>
+
+        private void cloneAndSet(String group, Object value) {
+<span class="nc" id="L238">            Component comp = worldConfig.getProperties().get(group);</span>
+<span class="nc" id="L239">            Component clone = compLib.copy(comp);</span>
+<span class="nc" id="L240">            fieldMetadata.setValue(clone, value);</span>
+
+            // notify the world generator about the new component
+<span class="nc" id="L243">            worldConfig.setProperty(label, clone);</span>
+<span class="nc" id="L244">        }</span>
+    }
+
+    private static class WorldConfigNumberBinding implements Binding&lt;Float&gt; {
+
+        private WorldSetupScreen.WorldConfigBinding&lt;? extends Number&gt; binding;
+
+        @SuppressWarnings(&quot;unchecked&quot;)
+<span class="nc" id="L252">        protected WorldConfigNumberBinding(WorldConfigurator config, String label, ComponentLibrary compLib, FieldMetadata&lt;Object, ?&gt; field) {</span>
+<span class="nc" id="L253">            Class&lt;?&gt; type = field.getType();</span>
+<span class="nc bnc" id="L254" title="All 4 branches missed.">            if (type == Integer.TYPE || type == Integer.class) {</span>
+<span class="nc" id="L255">                this.binding = new WorldSetupScreen.WorldConfigBinding&lt;&gt;(config, label, compLib, (FieldMetadata&lt;Object, Integer&gt;) field);</span>
+<span class="nc bnc" id="L256" title="All 4 branches missed.">            } else if (type == Float.TYPE || type == Float.class) {</span>
+<span class="nc" id="L257">                this.binding = new WorldSetupScreen.WorldConfigBinding&lt;&gt;(config, label, compLib, (FieldMetadata&lt;Object, Float&gt;) field);</span>
+            }
+<span class="nc" id="L259">        }</span>
+
+        @Override
+        public Float get() {
+<span class="nc" id="L263">            Number val = binding.get();</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">            if (val instanceof Float) {</span>
+                // use boxed instance directly
+<span class="nc" id="L266">                return (Float) val;</span>
+            }
+            // create a boxed instance otherwise
+<span class="nc" id="L269">            return val.floatValue();</span>
+        }
+
+        @Override
+        @SuppressWarnings(&quot;unchecked&quot;)
+        public void set(Float value) {
+<span class="nc" id="L275">            Class&lt;? extends Number&gt; type = binding.fieldMetadata.getType();</span>
+<span class="nc bnc" id="L276" title="All 4 branches missed.">            if (type == Integer.TYPE || type == Integer.class) {</span>
+<span class="nc" id="L277">                ((Binding&lt;Integer&gt;) binding).set(value.intValue());</span>
+<span class="nc bnc" id="L278" title="All 4 branches missed.">            } else if (type == Float.TYPE || type == Float.class) {</span>
+<span class="nc" id="L279">                ((Binding&lt;Float&gt;) binding).set(value);</span>
+            }
+<span class="nc" id="L281">        }</span>
+    }
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L286">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

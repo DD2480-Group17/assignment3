@@ -1,0 +1,906 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIText.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIText.java</span></div><h1>UIText.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.input.Keyboard;
+import org.terasology.input.Keyboard.KeyId;
+import org.terasology.input.MouseInput;
+import org.terasology.input.device.KeyboardDevice;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.FontColor;
+import org.terasology.rendering.FontUnderline;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.SubRegion;
+import org.terasology.rendering.nui.TextLineBuilder;
+import org.terasology.rendering.nui.WidgetWithOrder;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
+import org.terasology.utilities.Assets;
+
+import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * This class describes a generic text-box widget.
+ */
+public class UIText extends WidgetWithOrder {
+
+<span class="nc" id="L64">    private static final Logger logger = LoggerFactory.getLogger(UIText.class);</span>
+
+    private static final float BLINK_RATE = 0.25f;
+
+    /** Whether the content needs to be displayed on multiple lines. */
+    @LayoutConfig
+    protected boolean multiline;
+
+    /** Whether the text box is read-only. */
+    @LayoutConfig
+    protected boolean readOnly;
+
+    /** The position of the cursor in the text box. */
+    protected int cursorPosition;
+
+    /** The index in the text where the selection starts. */
+    protected int selectionStart;
+
+    /** The last assigned width of the text box. */
+    protected int lastWidth;
+
+    /** The font in which text was drawn the last time before the current update. */
+    protected Font lastFont;
+
+    /** A list of all activation event listeners (handle what to do when the text box is activated) of the text box. */
+<span class="nc" id="L89">    protected List&lt;ActivateEventListener&gt; activationListeners = Lists.newArrayList();</span>
+
+    /** A list of all cursor update event listeners (handle what to do when the cursor is moved) of the text box. */
+<span class="nc" id="L92">    protected List&lt;CursorUpdateEventListener&gt; cursorUpdateListeners = Lists.newArrayList();</span>
+
+    /** A list of text change event listeners (handle what to do when the text in the widget is changed) of the text box. */
+<span class="nc" id="L95">    protected List&lt;TextChangeEventListener&gt; textChangeListeners = Lists.newArrayList();</span>
+
+    /** The number of characters between the start of the text in the widget and the current position of the cursor. */
+    protected int offset;
+
+    /** The text contained by the text box. */
+<span class="nc" id="L101">    @LayoutConfig</span>
+    protected Binding&lt;String&gt; text = new DefaultBinding&lt;&gt;(&quot;&quot;);
+
+    /**
+     * The interaction listener of the widget. This handles how the widget reacts to different stimuli from the user.
+     */
+<span class="nc" id="L107">    protected InteractionListener interactionListener = new BaseInteractionListener() {</span>
+        boolean dragging;
+
+        /**
+         * Defines what to do when the user clicks a mouse button while pointing at the widget. More specifically, it
+         * moves the cursor and sets &quot;dragging&quot; to true.
+         *
+         * @param event The event corresponding to the mouse click
+         * @return      Whether a left mouse click was successfully detected and handled.
+         */
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L119" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+<span class="nc" id="L120">                moveCursor(event.getRelativeMousePosition(), false, event.getKeyboard());</span>
+<span class="nc" id="L121">                dragging = true;</span>
+<span class="nc" id="L122">                return true;</span>
+            }
+<span class="nc" id="L124">            return false;</span>
+        }
+
+        /**
+         * Defines what to do when the user drags the mouse in the widget. Specifically, it moves the cursor if the
+         * &quot;dragging&quot; variable is set to true (that is, the user is dragging with the left mouse button pressed)
+         *
+         * @param event The event corresponding to the mouse drag.
+         */
+        @Override
+        public void onMouseDrag(NUIMouseDragEvent event) {
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            if (dragging) {</span>
+<span class="nc" id="L136">                moveCursor(event.getRelativeMousePosition(), true, event.getKeyboard());</span>
+            }
+<span class="nc" id="L138">        }</span>
+
+        /**
+         * Defines what to do when a mouse button is released. Specifically, it sets &quot;dragging&quot; to false if the button
+         * that was released is the left mouse button.
+         *
+         * @param event The event corresponding to the releasing of the mouse button.
+         */
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc bnc" id="L148" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+<span class="nc" id="L149">                dragging = false;</span>
+            }
+<span class="nc" id="L151">        }</span>
+    };
+
+    /* The placeholder hint text. */
+<span class="nc" id="L155">    @LayoutConfig</span>
+    private String hintText = &quot;&quot;;
+
+    /* Whether the box is currently showing the hint text. */
+<span class="nc" id="L159">    private boolean isShowingHintText = true;</span>
+
+    @LayoutConfig
+    private boolean passwordMode;
+
+    private float blinkCounter;
+
+    private TextureRegion cursorTexture;
+
+    /**
+     * Default constructor.
+     */
+<span class="nc" id="L171">    public UIText() {</span>
+<span class="nc" id="L172">        cursorTexture = Assets.getTexture(&quot;engine:white&quot;).get();</span>
+<span class="nc" id="L173">    }</span>
+
+    /**
+     * Parametrized constructor.
+     *
+     * @param id The ID to assign to the widget
+     */
+    public UIText(String id) {
+<span class="nc" id="L181">        super(id);</span>
+<span class="nc" id="L182">        cursorTexture = Assets.getTexture(&quot;engine:white&quot;).get();</span>
+<span class="nc" id="L183">    }</span>
+
+    private String buildPasswordString() {
+<span class="nc" id="L186">        char[] arr = new char[text.get().length()];</span>
+<span class="nc" id="L187">        Arrays.fill(arr, '*');</span>
+<span class="nc" id="L188">        return String.valueOf(arr);</span>
+    }
+
+    /**
+     * Handles how the widget is drawn.
+     *
+     * @param canvas The canvas on which the widget resides.
+     */
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L198">        lastWidth = canvas.size().x;</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        if (isEnabled()) {</span>
+<span class="nc" id="L200">            canvas.addInteractionRegion(interactionListener, canvas.getRegion());</span>
+        }
+<span class="nc" id="L202">        drawAll(canvas, canvas.size().x);</span>
+<span class="nc" id="L203">    }</span>
+
+    protected void drawAll(Canvas canvas, int multilineWidth) {
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        if (text.get() == null) {</span>
+<span class="nc" id="L207">            text.set(&quot;&quot;);</span>
+        }
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        if (text.get().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L210">            text.set(hintText);</span>
+<span class="nc" id="L211">            isShowingHintText = true;</span>
+        }
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        if (isShowingHintText) {</span>
+<span class="nc" id="L214">            setCursorPosition(0);</span>
+<span class="nc bnc" id="L215" title="All 4 branches missed.">            if (!text.get().equals(hintText) &amp;&amp; text.get().endsWith(hintText)) {</span>
+<span class="nc" id="L216">                text.set(text.get().substring(0, text.get().length() - hintText.length()));</span>
+<span class="nc" id="L217">                setCursorPosition(text.get().length());</span>
+<span class="nc" id="L218">                isShowingHintText = false;</span>
+            }
+        }
+<span class="nc" id="L221">        lastFont = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L222">        correctCursor();</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        String textToDraw = passwordMode ? buildPasswordString() : text.get();</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        int widthForDraw = (multiline) ? multilineWidth : lastFont.getWidth(textToDraw);</span>
+<span class="nc" id="L225">        try (SubRegion ignored = canvas.subRegion(canvas.getRegion(), true);</span>
+<span class="nc" id="L226">             SubRegion ignored2 = canvas.subRegion(Rect2i.createFromMinAndSize(-offset, 0, widthForDraw + 1, Integer.MAX_VALUE), false)) {</span>
+<span class="nc bnc" id="L227" title="All 4 branches missed.">            if (isShowingHintText &amp;&amp; !readOnly) {</span>
+<span class="nc" id="L228">                canvas.drawTextRaw(textToDraw, lastFont, canvas.getCurrentStyle().getHintTextColor(), canvas.getRegion());</span>
+            } else {
+<span class="nc" id="L230">                canvas.drawText(textToDraw, canvas.getRegion());</span>
+            }
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            if (isFocused()) {</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                if (hasSelection()) {</span>
+<span class="nc" id="L234">                    drawSelection(canvas);</span>
+                } else {
+<span class="nc" id="L236">                    drawCursor(canvas);</span>
+                }
+            }
+        }
+<span class="nc" id="L240">    }</span>
+
+    /**
+     * Draws the selection indication which indicates that a certain part of the text is selected.
+     *
+     * @param canvas The canvas on which the widget resides
+     */
+    protected void drawSelection(Canvas canvas) {
+<span class="nc" id="L248">        Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L249">        String currentText = getText();</span>
+
+<span class="nc" id="L251">        int start = Math.min(getCursorPosition(), selectionStart);</span>
+<span class="nc" id="L252">        int end = Math.max(getCursorPosition(), selectionStart);</span>
+
+<span class="nc" id="L254">        Color textColor = canvas.getCurrentStyle().getTextColor();</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        int canvasWidth = (multiline) ? canvas.size().x : Integer.MAX_VALUE;</span>
+
+        // TODO: Support different text alignments
+<span class="nc" id="L258">        List&lt;String&gt; rawLinesAfterCursor = TextLineBuilder.getLines(font, currentText, Integer.MAX_VALUE);</span>
+<span class="nc" id="L259">        int currentChar = 0;</span>
+<span class="nc" id="L260">        int lineOffset = 0;</span>
+<span class="nc bnc" id="L261" title="All 4 branches missed.">        for (int lineIndex = 0; lineIndex &lt; rawLinesAfterCursor.size() &amp;&amp; currentChar &lt;= end; ++lineIndex) {</span>
+<span class="nc" id="L262">            String line = rawLinesAfterCursor.get(lineIndex);</span>
+<span class="nc" id="L263">            List&lt;String&gt; innerLines = TextLineBuilder.getLines(font, line, canvasWidth);</span>
+
+<span class="nc bnc" id="L265" title="All 4 branches missed.">            for (int innerLineIndex = 0; innerLineIndex &lt; innerLines.size() &amp;&amp; currentChar &lt;= end; ++innerLineIndex) {</span>
+<span class="nc" id="L266">                String innerLine = innerLines.get(innerLineIndex);</span>
+                String selectionString;
+<span class="nc" id="L268">                int offsetX = 0;</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">                if (currentChar + innerLine.length() &lt; start) {</span>
+<span class="nc" id="L270">                    selectionString = &quot;&quot;;</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">                } else if (currentChar &lt; start) {</span>
+<span class="nc" id="L272">                    offsetX = font.getWidth(innerLine.substring(0, start - currentChar));</span>
+<span class="nc" id="L273">                    selectionString = innerLine.substring(start - currentChar, Math.min(end - currentChar, innerLine.length()));</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                } else if (currentChar + innerLine.length() &gt;= end) {</span>
+<span class="nc" id="L275">                    selectionString = innerLine.substring(0, end - currentChar);</span>
+                } else {
+<span class="nc" id="L277">                    selectionString = innerLine;</span>
+                }
+<span class="nc bnc" id="L279" title="All 2 branches missed.">                if (!selectionString.isEmpty()) {</span>
+<span class="nc" id="L280">                    int selectionWidth = font.getWidth(selectionString);</span>
+<span class="nc" id="L281">                    Vector2i selectionTopLeft = new Vector2i(offsetX, (lineOffset) * font.getLineHeight());</span>
+<span class="nc" id="L282">                    Rect2i region = Rect2i.createFromMinAndSize(selectionTopLeft.x, selectionTopLeft.y, selectionWidth, font.getLineHeight());</span>
+
+<span class="nc" id="L284">                    canvas.drawTexture(cursorTexture, region, textColor);</span>
+<span class="nc" id="L285">                    canvas.drawTextRaw(FontUnderline.strip(FontColor.stripColor(selectionString)), font, textColor.inverse(), region);</span>
+                }
+<span class="nc" id="L287">                currentChar += innerLine.length();</span>
+<span class="nc" id="L288">                lineOffset++;</span>
+            }
+<span class="nc" id="L290">            currentChar++;</span>
+        }
+<span class="nc" id="L292">    }</span>
+
+    /**
+     * Draws the cursor in the text field.
+     *
+     * @param canvas The canvas on which the widget resides
+     */
+    protected void drawCursor(Canvas canvas) {
+<span class="nc bnc" id="L300" title="All 2 branches missed.">        if (blinkCounter &lt; BLINK_RATE) {</span>
+<span class="nc" id="L301">            Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc" id="L302">            String beforeCursor = text.get();</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">            if (getCursorPosition() &lt; text.get().length()) {</span>
+<span class="nc" id="L304">                beforeCursor = beforeCursor.substring(0, getCursorPosition());</span>
+            }
+<span class="nc" id="L306">            List&lt;String&gt; lines = TextLineBuilder.getLines(font, beforeCursor, canvas.size().x);</span>
+
+            // TODO: Support different alignments
+
+<span class="nc" id="L310">            int lastLineWidth = font.getWidth(lines.get(lines.size() - 1));</span>
+<span class="nc" id="L311">            Rect2i region = Rect2i.createFromMinAndSize(lastLineWidth, (lines.size() - 1) * font.getLineHeight(),</span>
+<span class="nc" id="L312">                    1, font.getLineHeight());</span>
+<span class="nc" id="L313">            canvas.drawTexture(cursorTexture, region, canvas.getCurrentStyle().getTextColor());</span>
+        }
+<span class="nc" id="L315">    }</span>
+
+    /**
+     * Get the preferred content size of the widget.
+     *
+     * @param canvas   The canvas on which the widget resides
+     * @param areaHint A suggestion for the preferred size of the widget
+     * @return         The preferred content size of the widget
+     */
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i areaHint) {
+<span class="nc" id="L326">        Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">        if (isMultiline()) {</span>
+<span class="nc" id="L328">            List&lt;String&gt; lines = TextLineBuilder.getLines(font, text.get(), areaHint.x);</span>
+<span class="nc" id="L329">            return font.getSize(lines);</span>
+        } else {
+<span class="nc" id="L331">            return new Vector2i(font.getWidth(getText()), font.getLineHeight());</span>
+        }
+    }
+
+    /**
+     * Get the maximum content size of the widget.
+     *
+     * @param canvas The canvas on which the widget resides
+     * @return       The maximum content size of the widget
+     */
+    @Override
+    public Vector2i getMaxContentSize(Canvas canvas) {
+<span class="nc" id="L343">        Font font = canvas.getCurrentStyle().getFont();</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">        if (isMultiline()) {</span>
+<span class="nc" id="L345">            return new Vector2i(Integer.MAX_VALUE, Integer.MAX_VALUE);</span>
+        } else {
+<span class="nc" id="L347">            return new Vector2i(Integer.MAX_VALUE, font.getLineHeight());</span>
+        }
+    }
+
+    /**
+     * Handles what to do when a key is pressed while the text box is active.
+     *
+     * @param event The event corresponding to the key being pressed
+     * @return      Whether the event was handled successfully or not.
+     */
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc" id="L359">        correctCursor();</span>
+<span class="nc" id="L360">        boolean eventHandled = false;</span>
+<span class="nc bnc" id="L361" title="All 6 branches missed.">        if (isEnabled() &amp;&amp; event.isDown() &amp;&amp; lastFont != null) {</span>
+<span class="nc bnc" id="L362" title="All 4 branches missed.">            if (isShowingHintText &amp;&amp; !readOnly) {</span>
+<span class="nc bnc" id="L363" title="All 2 branches missed.">                if (event.getKeyboard().isKeyDown(Keyboard.KeyId.LEFT_CTRL)</span>
+<span class="nc bnc" id="L364" title="All 2 branches missed.">                        || event.getKeyboard().isKeyDown(Keyboard.KeyId.RIGHT_CTRL)) {</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">                    if (event.getKey() == Keyboard.Key.V) {</span>
+<span class="nc" id="L366">                        removeSelection();</span>
+<span class="nc" id="L367">                        paste();</span>
+<span class="nc" id="L368">                        eventHandled = true;</span>
+                    }
+                }
+<span class="nc bnc" id="L371" title="All 4 branches missed.">                if (event.getKey() == Keyboard.Key.ENTER || event.getKey() == Keyboard.Key.NUMPAD_ENTER) {</span>
+<span class="nc bnc" id="L372" title="All 2 branches missed.">                    for (ActivateEventListener listener : activationListeners) {</span>
+<span class="nc" id="L373">                        listener.onActivated(this);</span>
+<span class="nc" id="L374">                    }</span>
+<span class="nc" id="L375">                    eventHandled = true;</span>
+<span class="nc bnc" id="L376" title="All 4 branches missed.">                } else if (event.getKeyCharacter() != 0 &amp;&amp; lastFont.hasCharacter(event.getKeyCharacter())) {</span>
+<span class="nc" id="L377">                    String fullText = text.get();</span>
+<span class="nc" id="L378">                    String before = fullText.substring(0, Math.min(getCursorPosition(), selectionStart));</span>
+<span class="nc" id="L379">                    String after = fullText.substring(Math.max(getCursorPosition(), selectionStart));</span>
+<span class="nc" id="L380">                    setText(before + event.getKeyCharacter() + after);</span>
+<span class="nc" id="L381">                    setCursorPosition(Math.min(getCursorPosition(), selectionStart) + 1);</span>
+<span class="nc" id="L382">                    eventHandled = true;</span>
+<span class="nc" id="L383">                }</span>
+            } else {
+<span class="nc" id="L385">                String fullText = text.get();</span>
+
+<span class="nc bnc" id="L387" title="All 5 branches missed.">                switch (event.getKey().getId()) {</span>
+                    case KeyId.LEFT: {
+<span class="nc bnc" id="L389" title="All 4 branches missed.">                        if (hasSelection() &amp;&amp; !isSelectionModifierActive(event.getKeyboard())) {</span>
+<span class="nc" id="L390">                            setCursorPosition(Math.min(getCursorPosition(), selectionStart));</span>
+<span class="nc bnc" id="L391" title="All 2 branches missed.">                        } else if (getCursorPosition() &gt; 0) {</span>
+<span class="nc bnc" id="L392" title="All 2 branches missed.">                            decreaseCursorPosition(1, !isSelectionModifierActive(event.getKeyboard()));</span>
+                        }
+<span class="nc" id="L394">                        eventHandled = true;</span>
+<span class="nc" id="L395">                        break;</span>
+                    }
+                    case KeyId.RIGHT: {
+<span class="nc bnc" id="L398" title="All 4 branches missed.">                        if (hasSelection() &amp;&amp; !isSelectionModifierActive(event.getKeyboard())) {</span>
+<span class="nc" id="L399">                            setCursorPosition(Math.max(getCursorPosition(), selectionStart));</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">                        } else if (getCursorPosition() &lt; fullText.length()) {</span>
+<span class="nc bnc" id="L401" title="All 2 branches missed.">                            increaseCursorPosition(1, !isSelectionModifierActive(event.getKeyboard()));</span>
+                        }
+<span class="nc" id="L403">                        eventHandled = true;</span>
+<span class="nc" id="L404">                        break;</span>
+                    }
+                    case KeyId.HOME: {
+<span class="nc bnc" id="L407" title="All 2 branches missed.">                        setCursorPosition(0, !isSelectionModifierActive(event.getKeyboard()));</span>
+<span class="nc" id="L408">                        offset = 0;</span>
+<span class="nc" id="L409">                        eventHandled = true;</span>
+<span class="nc" id="L410">                        break;</span>
+                    }
+                    case KeyId.END: {
+<span class="nc bnc" id="L413" title="All 2 branches missed.">                        setCursorPosition(fullText.length(), !isSelectionModifierActive(event.getKeyboard()));</span>
+<span class="nc" id="L414">                        eventHandled = true;</span>
+<span class="nc" id="L415">                        break;</span>
+                    }
+                    default: {
+<span class="nc bnc" id="L418" title="All 2 branches missed.">                        if (event.getKeyboard().isKeyDown(KeyId.LEFT_CTRL)</span>
+<span class="nc bnc" id="L419" title="All 2 branches missed.">                                || event.getKeyboard().isKeyDown(KeyId.RIGHT_CTRL)) {</span>
+<span class="nc bnc" id="L420" title="All 2 branches missed.">                            if (event.getKey() == Keyboard.Key.C) {</span>
+<span class="nc" id="L421">                                copySelection();</span>
+<span class="nc" id="L422">                                eventHandled = true;</span>
+                                break;
+                            }
+                        }
+                    }
+                }
+
+<span class="nc bnc" id="L429" title="All 2 branches missed.">                if (!readOnly) {</span>
+<span class="nc bnc" id="L430" title="All 4 branches missed.">                    switch (event.getKey().getId()) {</span>
+                        case KeyId.BACKSPACE: {
+<span class="nc bnc" id="L432" title="All 2 branches missed.">                            if (hasSelection()) {</span>
+<span class="nc" id="L433">                                removeSelection();</span>
+<span class="nc bnc" id="L434" title="All 2 branches missed.">                            } else if (getCursorPosition() &gt; 0) {</span>
+<span class="nc" id="L435">                                String before = fullText.substring(0, getCursorPosition() - 1);</span>
+<span class="nc" id="L436">                                String after = fullText.substring(getCursorPosition());</span>
+
+<span class="nc bnc" id="L438" title="All 2 branches missed.">                                if (getCursorPosition() &lt; fullText.length()) {</span>
+<span class="nc" id="L439">                                    decreaseCursorPosition(1);</span>
+                                }
+
+<span class="nc" id="L442">                                setText(before + after);</span>
+                            }
+<span class="nc" id="L444">                            eventHandled = true;</span>
+<span class="nc" id="L445">                            break;</span>
+                        }
+                        case KeyId.DELETE: {
+<span class="nc bnc" id="L448" title="All 2 branches missed.">                            if (hasSelection()) {</span>
+<span class="nc" id="L449">                                removeSelection();</span>
+<span class="nc bnc" id="L450" title="All 2 branches missed.">                            } else if (getCursorPosition() &lt; fullText.length()) {</span>
+<span class="nc" id="L451">                                String before = fullText.substring(0, getCursorPosition());</span>
+<span class="nc" id="L452">                                String after = fullText.substring(getCursorPosition() + 1);</span>
+<span class="nc" id="L453">                                setText(before + after);</span>
+                            }
+<span class="nc" id="L455">                            eventHandled = true;</span>
+<span class="nc" id="L456">                            break;</span>
+                        }
+                        case KeyId.ENTER:
+                        case KeyId.NUMPAD_ENTER: {
+<span class="nc bnc" id="L460" title="All 2 branches missed.">                            if (event.getKeyboard().isKeyDown(Keyboard.Key.LEFT_SHIFT.getId())</span>
+<span class="nc bnc" id="L461" title="All 2 branches missed.">                                    || event.getKeyboard().isKeyDown(Keyboard.Key.RIGHT_SHIFT.getId())) {</span>
+<span class="nc bnc" id="L462" title="All 2 branches missed.">                                if (multiline) {</span>
+<span class="nc" id="L463">                                    setText(fullText + &quot;\n&quot;);</span>
+<span class="nc" id="L464">                                    increaseCursorPosition(1);</span>
+                                }
+                            }
+<span class="nc bnc" id="L467" title="All 2 branches missed.">                            for (ActivateEventListener listener : activationListeners) {</span>
+<span class="nc" id="L468">                                listener.onActivated(this);</span>
+<span class="nc" id="L469">                            }</span>
+<span class="nc" id="L470">                            eventHandled = true;</span>
+<span class="nc" id="L471">                            break;</span>
+                        }
+                        default: {
+<span class="nc bnc" id="L474" title="All 2 branches missed.">                            if (event.getKeyboard().isKeyDown(KeyId.LEFT_CTRL)</span>
+<span class="nc bnc" id="L475" title="All 2 branches missed.">                                    || event.getKeyboard().isKeyDown(KeyId.RIGHT_CTRL)) {</span>
+<span class="nc bnc" id="L476" title="All 2 branches missed.">                                if (event.getKey() == Keyboard.Key.V) {</span>
+<span class="nc" id="L477">                                    removeSelection();</span>
+<span class="nc" id="L478">                                    paste();</span>
+<span class="nc" id="L479">                                    eventHandled = true;</span>
+<span class="nc" id="L480">                                    break;</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">                                } else if (event.getKey() == Keyboard.Key.X) {</span>
+<span class="nc" id="L482">                                    copySelection();</span>
+<span class="nc" id="L483">                                    removeSelection();</span>
+<span class="nc" id="L484">                                    eventHandled = true;</span>
+<span class="nc" id="L485">                                    break;</span>
+                                }
+                            }
+<span class="nc bnc" id="L488" title="All 4 branches missed.">                            if (event.getKeyCharacter() != 0 &amp;&amp; lastFont.hasCharacter(event.getKeyCharacter())) {</span>
+<span class="nc" id="L489">                                String before = fullText.substring(0, Math.min(getCursorPosition(), selectionStart));</span>
+<span class="nc" id="L490">                                String after = fullText.substring(Math.max(getCursorPosition(), selectionStart));</span>
+<span class="nc" id="L491">                                setText(before + event.getKeyCharacter() + after);</span>
+<span class="nc" id="L492">                                setCursorPosition(Math.min(getCursorPosition(), selectionStart) + 1);</span>
+<span class="nc" id="L493">                                eventHandled = true;</span>
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+<span class="nc" id="L501">        updateOffset();</span>
+<span class="nc" id="L502">        return eventHandled;</span>
+    }
+
+    /**
+     * Updates the cursor offset.
+     */
+    protected void updateOffset() {
+<span class="nc bnc" id="L509" title="All 4 branches missed.">        if (lastFont != null &amp;&amp; !multiline) {</span>
+<span class="nc" id="L510">            String before = getText().substring(0, getCursorPosition());</span>
+<span class="nc" id="L511">            int cursorDist = lastFont.getWidth(before);</span>
+<span class="nc bnc" id="L512" title="All 2 branches missed.">            if (cursorDist &lt; offset) {</span>
+<span class="nc" id="L513">                offset = cursorDist;</span>
+            }
+<span class="nc bnc" id="L515" title="All 2 branches missed.">            if (cursorDist &gt; offset + lastWidth) {</span>
+<span class="nc" id="L516">                offset = cursorDist - lastWidth + 1;</span>
+            }
+        }
+<span class="nc" id="L519">    }</span>
+
+    /**
+     * Checks whether the keyboard modifier for text selection (Shift) is being used.
+     *
+     * @param keyboard A reference to the active keyboard device
+     * @return         Whether the keyboard modifier for selection is active
+     */
+    protected boolean isSelectionModifierActive(KeyboardDevice keyboard) {
+<span class="nc bnc" id="L528" title="All 4 branches missed.">        return keyboard.isKeyDown(KeyId.LEFT_SHIFT) || keyboard.isKeyDown(KeyId.RIGHT_SHIFT);</span>
+    }
+
+    /**
+     * Check whether any part of the text in the text box is currently selected.
+     *
+     * @return Whether any part of the text is currently selected
+     */
+    protected boolean hasSelection() {
+<span class="nc bnc" id="L537" title="All 2 branches missed.">        return getCursorPosition() != selectionStart;</span>
+    }
+
+    /**
+     * Removes the selected text from the text field.
+     */
+    protected void removeSelection() {
+<span class="nc bnc" id="L544" title="All 2 branches missed.">        if (hasSelection()) {</span>
+<span class="nc" id="L545">            String before = getText().substring(0, Math.min(getCursorPosition(), selectionStart));</span>
+<span class="nc" id="L546">            String after = getText().substring(Math.max(getCursorPosition(), selectionStart));</span>
+<span class="nc" id="L547">            setText(before + after);</span>
+<span class="nc" id="L548">            setCursorPosition(Math.min(getCursorPosition(), selectionStart));</span>
+        }
+<span class="nc" id="L550">    }</span>
+
+    /**
+     * Copies the selected text to the clipboard.
+     */
+    protected void copySelection() {
+<span class="nc bnc" id="L556" title="All 2 branches missed.">        if (hasSelection()) {</span>
+<span class="nc" id="L557">            String fullText = getText();</span>
+<span class="nc" id="L558">            String selection = fullText.substring(Math.min(selectionStart, getCursorPosition()), Math.max(selectionStart, getCursorPosition()));</span>
+<span class="nc" id="L559">            setClipboardContents(FontUnderline.strip(FontColor.stripColor(selection)));</span>
+        }
+<span class="nc" id="L561">    }</span>
+
+    /**
+     * Pastes the text currently in the clipboard.
+     */
+    protected void paste() {
+<span class="nc" id="L567">        String fullText = getText();</span>
+<span class="nc" id="L568">        String before = fullText.substring(0, getCursorPosition());</span>
+<span class="nc" id="L569">        String after = fullText.substring(getCursorPosition());</span>
+<span class="nc" id="L570">        String pasted = getClipboardContents();</span>
+<span class="nc" id="L571">        setText(before + pasted + after);</span>
+<span class="nc" id="L572">        increaseCursorPosition(pasted.length());</span>
+<span class="nc" id="L573">    }</span>
+
+    /**
+     * Get the current clipboard contents.
+     *
+     * @return The string currently in the clipboard
+     */
+    protected String getClipboardContents() {
+<span class="nc" id="L581">        Transferable t = Toolkit.getDefaultToolkit().getSystemClipboard().getContents(null);</span>
+
+        try {
+<span class="nc bnc" id="L584" title="All 4 branches missed.">            if (t != null &amp;&amp; t.isDataFlavorSupported(DataFlavor.stringFlavor)) {</span>
+<span class="nc" id="L585">                return (String) t.getTransferData(DataFlavor.stringFlavor);</span>
+            }
+<span class="nc" id="L587">        } catch (UnsupportedFlavorException | IOException e) {</span>
+<span class="nc" id="L588">            logger.warn(&quot;Failed to get data from clipboard&quot;, e);</span>
+<span class="nc" id="L589">        }</span>
+
+<span class="nc" id="L591">        return &quot;&quot;;</span>
+    }
+
+    /**
+     * Set the contents of the clipboard to a given value.
+     *
+     * @param str The new value of the clipboard contents
+     */
+    protected void setClipboardContents(String str) {
+<span class="nc" id="L600">        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(str), null);</span>
+<span class="nc" id="L601">    }</span>
+
+    /**
+     * Moves the cursor to a given position.
+     *
+     * @param pos       The final position of the cursor
+     * @param selecting Whether the user is selecting text as he moves the cursor
+     * @param keyboard  The keyboard device that is currently active
+     */
+    protected void moveCursor(Vector2i pos, boolean selecting, KeyboardDevice keyboard) {
+<span class="nc bnc" id="L611" title="All 2 branches missed.">        if (lastFont != null) {</span>
+<span class="nc" id="L612">            pos.x += offset;</span>
+<span class="nc" id="L613">            String rawText = getText();</span>
+<span class="nc" id="L614">            List&lt;String&gt; lines = TextLineBuilder.getLines(lastFont, rawText, Integer.MAX_VALUE);</span>
+<span class="nc" id="L615">            int targetLineIndex = pos.y / lastFont.getLineHeight();</span>
+<span class="nc" id="L616">            int passedLines = 0;</span>
+<span class="nc" id="L617">            int newCursorPos = 0;</span>
+<span class="nc bnc" id="L618" title="All 4 branches missed.">            for (int lineIndex = 0; lineIndex &lt; lines.size() &amp;&amp; passedLines &lt;= targetLineIndex; lineIndex++) {</span>
+                List&lt;String&gt; subLines;
+<span class="nc bnc" id="L620" title="All 2 branches missed.">                if (multiline) {</span>
+<span class="nc" id="L621">                    subLines = TextLineBuilder.getLines(lastFont, lines.get(lineIndex), lastWidth);</span>
+                } else {
+<span class="nc" id="L623">                    subLines = Arrays.asList(lines.get(lineIndex));</span>
+                }
+<span class="nc bnc" id="L625" title="All 2 branches missed.">                if (subLines.size() + passedLines &gt; targetLineIndex) {</span>
+<span class="nc bnc" id="L626" title="All 2 branches missed.">                    for (String subLine : subLines) {</span>
+<span class="nc bnc" id="L627" title="All 2 branches missed.">                        if (passedLines == targetLineIndex) {</span>
+<span class="nc" id="L628">                            int totalWidth = 0;</span>
+<span class="nc bnc" id="L629" title="All 2 branches missed.">                            for (char c : subLine.toCharArray()) {</span>
+<span class="nc" id="L630">                                int charWidth = lastFont.getWidth(c);</span>
+<span class="nc bnc" id="L631" title="All 2 branches missed.">                                if (totalWidth + charWidth / 2 &gt;= pos.x) {</span>
+<span class="nc" id="L632">                                    break;</span>
+                                }
+<span class="nc" id="L634">                                newCursorPos++;</span>
+<span class="nc" id="L635">                                totalWidth += charWidth;</span>
+                            }
+<span class="nc" id="L637">                            passedLines++;</span>
+<span class="nc" id="L638">                            break;</span>
+                        } else {
+<span class="nc" id="L640">                            newCursorPos += subLine.length();</span>
+<span class="nc" id="L641">                            passedLines++;</span>
+                        }
+<span class="nc" id="L643">                    }</span>
+                } else {
+<span class="nc" id="L645">                    passedLines += subLines.size();</span>
+<span class="nc" id="L646">                    newCursorPos += lines.get(lineIndex).length() + 1;</span>
+                }
+            }
+
+<span class="nc bnc" id="L650" title="All 4 branches missed.">            setCursorPosition(Math.min(newCursorPos, rawText.length()), !isSelectionModifierActive(keyboard) &amp;&amp; !selecting);</span>
+<span class="nc" id="L651">            updateOffset();</span>
+        }
+<span class="nc" id="L653">    }</span>
+
+    /**
+     * Change the binding associated with the text in the widget.
+     *
+     * @param binding The new binding to associate with the text in the widget
+     */
+    public void bindText(Binding&lt;String&gt; binding) {
+<span class="nc" id="L661">        text = binding;</span>
+<span class="nc" id="L662">    }</span>
+
+    /**
+     * Get the text contained by the text box.
+     *
+     * @return The text contained by the text box
+     */
+    public String getText() {
+<span class="nc" id="L670">        return text.get();</span>
+    }
+
+    /**
+     * Set the text in the text box to a given value.
+     *
+     * @param val The new value of the text in the widget
+     */
+    public void setText(String val) {
+<span class="nc" id="L679">        String prevText = getText();</span>
+<span class="nc bnc" id="L680" title="All 2 branches missed.">        boolean callEvent = !prevText.equals(val);</span>
+
+<span class="nc bnc" id="L682" title="All 2 branches missed.">        text.set(val != null ? val : &quot;&quot;);</span>
+<span class="nc" id="L683">        correctCursor();</span>
+
+<span class="nc bnc" id="L685" title="All 2 branches missed.">        if (callEvent) {</span>
+<span class="nc bnc" id="L686" title="All 2 branches missed.">            for (TextChangeEventListener listener : textChangeListeners) {</span>
+<span class="nc" id="L687">                listener.onTextChange(prevText, val);</span>
+<span class="nc" id="L688">            }</span>
+        }
+<span class="nc" id="L690">    }</span>
+
+    /**
+     * Get the mode (default or disabled) of the text box.
+     *
+     * @return The String ID associated with the mode in which the text box currently is
+     */
+    @Override
+    public String getMode() {
+<span class="nc bnc" id="L699" title="All 2 branches missed.">        if (!isEnabled()) {</span>
+<span class="nc" id="L700">            return DISABLED_MODE;</span>
+        }
+<span class="nc" id="L702">        return DEFAULT_MODE;</span>
+    }
+
+    /**
+     * @return Whether the text in the text box is multiline
+     */
+    public boolean isMultiline() {
+<span class="nc" id="L709">        return multiline;</span>
+    }
+
+    /**
+     * @param multiline Whether the text in the text box should be multiline
+     */
+    public void setMultiline(boolean multiline) {
+<span class="nc" id="L716">        this.multiline = multiline;</span>
+<span class="nc" id="L717">    }</span>
+
+    /**
+     * @return Whether the text box is read-only
+     */
+    public boolean isReadOnly() {
+<span class="nc" id="L723">        return readOnly;</span>
+    }
+
+    /**
+     * @param readOnly Whether the text box should be read-only
+     */
+    public void setReadOnly(boolean readOnly) {
+<span class="nc" id="L730">        this.readOnly = readOnly;</span>
+<span class="nc" id="L731">    }</span>
+
+    /**
+     * Add a new activate event listener to the widget.
+     *
+     * @param listener The activate event listener to add to the widget.
+     */
+    public void subscribe(ActivateEventListener listener) {
+<span class="nc" id="L739">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L740">        activationListeners.add(listener);</span>
+<span class="nc" id="L741">    }</span>
+
+    /**
+     * Remove a new activate event listener from the widget.
+     *
+     * @param listener The activate event listener to remove from the widget.
+     */
+    public void unsubscribe(ActivateEventListener listener) {
+<span class="nc" id="L749">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L750">        activationListeners.remove(listener);</span>
+<span class="nc" id="L751">    }</span>
+
+    /**
+     * Add a new cursor update event listener to the widget.
+     *
+     * @param listener The cursor update event listener to add to the widget.
+     */
+    public void subscribe(CursorUpdateEventListener listener) {
+<span class="nc" id="L759">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L760">        cursorUpdateListeners.add(listener);</span>
+<span class="nc" id="L761">    }</span>
+
+    /**
+     * Remove a new cursor update event listener from the widget.
+     *
+     * @param listener The cursor update event listener to remove from the widget.
+     */
+    public void unsubscribe(CursorUpdateEventListener listener) {
+<span class="nc" id="L769">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L770">        cursorUpdateListeners.remove(listener);</span>
+<span class="nc" id="L771">    }</span>
+
+    /**
+     * Add a new text change event listener to the widget.
+     *
+     * @param listener The text change event listener to add to the widget.
+     */
+    public void subscribe(TextChangeEventListener listener) {
+<span class="nc" id="L779">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L780">        textChangeListeners.add(listener);</span>
+<span class="nc" id="L781">    }</span>
+
+    /**
+     * Remove a new text change event listener from the widget.
+     *
+     * @param listener The text change event listener to remove from the widget.
+     */
+    public void unsubscribe(TextChangeEventListener listener) {
+<span class="nc" id="L789">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L790">        textChangeListeners.remove(listener);</span>
+<span class="nc" id="L791">    }</span>
+
+    /**
+     * Defines what to do at every engine update. Specifically, this updates the text and makes the cursor blink.
+     *
+     * @param delta
+     */
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L800">        super.update(delta);</span>
+
+<span class="nc" id="L802">        blinkCounter += delta;</span>
+<span class="nc bnc" id="L803" title="All 2 branches missed.">        while (blinkCounter &gt; 2 * BLINK_RATE) {</span>
+<span class="nc" id="L804">            blinkCounter -= 2 * BLINK_RATE;</span>
+        }
+<span class="nc" id="L806">    }</span>
+
+    /**
+     * Increase the cursor position.
+     *
+     * @param delta              The amount by which the cursor position is to be increased
+     * @param moveSelectionStart Whether the start of the selected text should be moved with the cursor
+     * @return                   The new position of the cursor
+     */
+    public int increaseCursorPosition(int delta, boolean moveSelectionStart) {
+<span class="nc" id="L816">        int newPosition = getCursorPosition() + delta;</span>
+
+<span class="nc" id="L818">        setCursorPosition(newPosition, moveSelectionStart);</span>
+
+<span class="nc" id="L820">        return newPosition;</span>
+    }
+
+    /**
+     * Increase the cursor position. This method moves the start of the selected text along with the cursor.
+     *
+     * @param delta The amount by which the cursor position is to be increased
+     * @return      The new position of the cursor
+     */
+    public int increaseCursorPosition(int delta) {
+<span class="nc" id="L830">        return increaseCursorPosition(delta, true);</span>
+    }
+
+    /**
+     * Decrease the cursor position.
+     *
+     * @param delta              The amount by which the cursor position is to be decreased
+     * @param moveSelectionStart Whether the start of the selected text should be moved with the cursor
+     * @return                   The new position of the cursor
+     */
+    public int decreaseCursorPosition(int delta, boolean moveSelectionStart) {
+<span class="nc" id="L841">        return increaseCursorPosition(-delta, moveSelectionStart);</span>
+    }
+
+    /**
+     * Decrease the cursor position. This method moves the start of the selected text along with the cursor.
+     *
+     * @param delta The amount by which the cursor position is to be decreased
+     * @return      The new position of the cursor
+     */
+    public int decreaseCursorPosition(int delta) {
+<span class="nc" id="L851">        return decreaseCursorPosition(delta, true);</span>
+    }
+
+    /**
+     * @return The current cursor position
+     */
+    public int getCursorPosition() {
+<span class="nc" id="L858">        return cursorPosition;</span>
+    }
+
+    /**
+     * @param position The new cursor position
+     */
+    public void setCursorPosition(int position) {
+<span class="nc" id="L865">        setCursorPosition(position, true, true);</span>
+<span class="nc" id="L866">    }</span>
+
+    /**
+     * @param position           The new cursor position
+     * @param moveSelectionStart Whether the start of the selected text should be moved with the cursor
+     * @param callEvent          Whether this action should be reported as an event
+     */
+    public void setCursorPosition(int position, boolean moveSelectionStart, boolean callEvent) {
+<span class="nc" id="L874">        int previousPosition = cursorPosition;</span>
+<span class="nc" id="L875">        cursorPosition = position;</span>
+
+<span class="nc bnc" id="L877" title="All 2 branches missed.">        if (moveSelectionStart) {</span>
+<span class="nc" id="L878">            selectionStart = position;</span>
+        }
+
+<span class="nc" id="L881">        correctCursor();</span>
+
+<span class="nc bnc" id="L883" title="All 2 branches missed.">        if (callEvent) {</span>
+<span class="nc bnc" id="L884" title="All 2 branches missed.">            for (CursorUpdateEventListener listener : cursorUpdateListeners) {</span>
+<span class="nc" id="L885">                listener.onCursorUpdated(previousPosition, cursorPosition);</span>
+<span class="nc" id="L886">            }</span>
+        }
+<span class="nc" id="L888">    }</span>
+
+    /**
+     * @param position           The new cursor position
+     * @param moveSelectionStart Whether the start of the selected text should be moved with the cursor
+     */
+    public void setCursorPosition(int position, boolean moveSelectionStart) {
+<span class="nc" id="L895">        setCursorPosition(position, moveSelectionStart, true);</span>
+<span class="nc" id="L896">    }</span>
+
+    /**
+     * Make sure that the cursor position lies within 0 and the length of the text in the widget.
+     */
+    protected void correctCursor() {
+<span class="nc" id="L902">        cursorPosition = TeraMath.clamp(cursorPosition, 0, getText().length());</span>
+<span class="nc" id="L903">        selectionStart = TeraMath.clamp(selectionStart, 0, getText().length());</span>
+<span class="nc" id="L904">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

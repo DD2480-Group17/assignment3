@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SettingImplTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config.flexible.internal</a> &gt; <span class="el_source">SettingImplTest.java</span></div><h1>SettingImplTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.config.flexible.internal;
+
+import com.google.common.collect.Lists;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.terasology.config.flexible.Setting;
+import org.terasology.config.flexible.SettingChangeListener;
+import org.terasology.config.flexible.constraints.NumberRangeConstraint;
+import org.terasology.engine.SimpleUri;
+import org.terasology.reflection.TypeInfo;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.utilities.random.Random;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+<span class="fc" id="L36">public class SettingImplTest {</span>
+<span class="fc" id="L37">    private static final SimpleUri SETTING_ID = new SimpleUri(&quot;engine-tests:TestSetting&quot;);</span>
+
+    @Nested
+<span class="fc" id="L40">    public class SetValue {</span>
+        private Setting&lt;Integer&gt; setting;
+
+        private int eventResult;
+
+        @BeforeEach
+        public void setUp() {
+<span class="fc" id="L47">            setting = new SettingImpl&lt;&gt;(</span>
+<span class="fc" id="L48">                TypeInfo.of(Integer.class), 50,</span>
+<span class="fc" id="L49">                    new NumberRangeConstraint&lt;&gt;(0, 100, false, false),</span>
+                    &quot;&quot;, &quot;&quot;);
+
+<span class="fc" id="L52">            eventResult = -1;</span>
+
+<span class="fc" id="L54">            setting.subscribe((setting1, oldValue) -&gt; eventResult = setting1.get());</span>
+<span class="fc" id="L55">        }</span>
+
+        @Test
+        public void testSetsValue() {
+<span class="fc" id="L59">            assertTrue(setting.set(25));</span>
+
+<span class="fc" id="L61">            assertEquals(25, eventResult);</span>
+<span class="fc" id="L62">        }</span>
+
+        @Test
+        public void testDoesNotSetValue() {
+<span class="fc" id="L66">            assertFalse(setting.set(101));</span>
+
+<span class="fc" id="L68">            assertEquals(-1, eventResult);</span>
+<span class="fc" id="L69">        }</span>
+    }
+
+    @Nested
+<span class="fc" id="L73">    public class Subscribers {</span>
+        private Setting&lt;Integer&gt; setting;
+
+        private SettingChangeListener&lt;Integer&gt; listener;
+
+        private int eventCallCount;
+
+        @BeforeEach
+        public void setUp() {
+<span class="fc" id="L82">            setting = new SettingImpl&lt;&gt;(</span>
+<span class="fc" id="L83">                TypeInfo.of(Integer.class), 50,</span>
+<span class="fc" id="L84">                    new NumberRangeConstraint&lt;&gt;(0, 100, false, false),</span>
+                    &quot;&quot;, &quot;&quot;);
+
+<span class="fc" id="L87">            eventCallCount = 0;</span>
+
+<span class="fc" id="L89">            listener = (setting, oldValue) -&gt; eventCallCount++;</span>
+<span class="fc" id="L90">        }</span>
+
+        @Test
+        public void testHasSubscribers() {
+<span class="fc" id="L94">            setting.subscribe(listener);</span>
+
+<span class="fc" id="L96">            assertTrue(setting.hasSubscribers());</span>
+
+<span class="fc" id="L98">            setting.unsubscribe(listener);</span>
+
+<span class="fc" id="L100">            assertFalse(setting.hasSubscribers());</span>
+<span class="fc" id="L101">        }</span>
+
+        @Test
+        public void testSetEventCall() {
+<span class="fc" id="L105">            setting.subscribe(listener);</span>
+
+<span class="fc" id="L107">            Random random = new FastRandom();</span>
+
+<span class="fc" id="L109">            final int maxSetValueCount = 50;</span>
+<span class="fc" id="L110">            int expectedEventCallCount = 0;</span>
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            for (int i = 0; i &lt; maxSetValueCount; i++) {</span>
+<span class="fc" id="L113">                int randomInt = random.nextInt(-50, 150);</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">                expectedEventCallCount += setting.set(randomInt) ? 1 : 0;</span>
+            }
+
+<span class="fc" id="L117">            assertEquals(expectedEventCallCount, eventCallCount);</span>
+<span class="fc" id="L118">        }</span>
+
+        @Test
+        public void testSubscribe() {
+<span class="fc" id="L122">            final int subscriberCount = 10;</span>
+
+<span class="fc bfc" id="L124" title="All 2 branches covered.">            for (int i = 0; i &lt; subscriberCount; i++) {</span>
+<span class="fc" id="L125">                setting.subscribe((setting1, oldValue) -&gt; eventCallCount++);</span>
+            }
+
+<span class="fc" id="L128">            setting.set(30);</span>
+
+<span class="fc" id="L130">            assertEquals(subscriberCount, eventCallCount);</span>
+<span class="fc" id="L131">        }</span>
+
+        @Test
+        public void testUnsubscribe() {
+<span class="fc" id="L135">            int subscriberCount = 10;</span>
+
+<span class="fc" id="L137">            List&lt;SettingChangeListener&lt;Integer&gt;&gt; listeners = Lists.newArrayListWithCapacity(subscriberCount);</span>
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">            for (int i = 0; i &lt; subscriberCount; i++) {</span>
+<span class="fc" id="L140">                SettingChangeListener&lt;Integer&gt; listener = (setting1, oldValue) -&gt; eventCallCount++;</span>
+<span class="fc" id="L141">                listeners.add(listener);</span>
+<span class="fc" id="L142">                setting.subscribe(listener);</span>
+            }
+
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">            for (int i = 0; i &lt; new FastRandom().nextInt(subscriberCount / 2); i++) {</span>
+<span class="nc" id="L146">                setting.unsubscribe(listeners.get(i));</span>
+<span class="nc" id="L147">                subscriberCount--;</span>
+            }
+
+<span class="fc" id="L150">            setting.set(30);</span>
+
+<span class="fc" id="L152">            assertEquals(subscriberCount, eventCallCount);</span>
+<span class="fc" id="L153">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

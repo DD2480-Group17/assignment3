@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CirclePickerClosest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.viewer.picker</a> &gt; <span class="el_source">CirclePickerClosest.java</span></div><h1>CirclePickerClosest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;){ }
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.viewer.picker;
+
+import java.util.Collections;
+import java.util.Set;
+import java.util.function.Function;
+
+import org.terasology.math.geom.BaseVector2f;
+import org.terasology.math.geom.ImmutableVector2f;
+
+/**
+ * Retrieves the closest (circular) object from a collection of tested elements.
+ * @param &lt;T&gt; the object type
+ */
+public class CirclePickerClosest&lt;T&gt; implements CirclePicker&lt;T&gt; {
+
+    private final BaseVector2f cursor;
+    private final Function&lt;? super T, ? extends Number&gt; radiusFunc;
+
+<span class="nc" id="L35">    private double minDistSq = Double.POSITIVE_INFINITY;</span>
+    private T closest;
+
+    /**
+     * No minimum distance to the target is required
+     * @param target the target location
+     */
+    public CirclePickerClosest(BaseVector2f target) {
+<span class="nc" id="L43">        this(target, ignored -&gt; Double.POSITIVE_INFINITY);</span>
+<span class="nc" id="L44">    }</span>
+
+    /**
+     * Matches all elements that lie within a given radius
+     * @param target the target location
+     * @param radiusFunc the radius function for each of the tested elements
+     */
+<span class="nc" id="L51">    public CirclePickerClosest(BaseVector2f target, Function&lt;? super T, ? extends Number&gt; radiusFunc) {</span>
+<span class="nc" id="L52">        this.cursor = ImmutableVector2f.createOrUse(target);</span>
+<span class="nc" id="L53">        this.radiusFunc = radiusFunc;</span>
+<span class="nc" id="L54">    }</span>
+
+    @Override
+    public void offer(float locX, float locY, T object) {
+<span class="nc" id="L58">        float dx = cursor.getX() - locX;</span>
+<span class="nc" id="L59">        float dy = cursor.getY() - locY;</span>
+<span class="nc" id="L60">        float distSq = dx * dx + dy * dy;</span>
+<span class="nc" id="L61">        float rad = radiusFunc.apply(object).floatValue();</span>
+
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        if (distSq &lt; rad * rad) {</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            if (distSq &lt; minDistSq) {</span>
+<span class="nc" id="L65">                minDistSq = distSq;</span>
+<span class="nc" id="L66">                closest = object;</span>
+            }
+        }
+<span class="nc" id="L69">    }</span>
+
+    /**
+     * @return the closest element, or &lt;code&gt;null&lt;/code&gt;.
+     */
+    public T getClosest() {
+<span class="nc" id="L75">        return closest;</span>
+    }
+
+    @Override
+    public Set&lt;T&gt; getAll() {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (closest != null) {</span>
+<span class="nc" id="L81">            return Collections.singleton(closest);</span>
+        } else {
+<span class="nc" id="L83">            return Collections.emptySet();</span>
+        }
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

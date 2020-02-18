@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CameraClientSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.players</a> &gt; <span class="el_source">CameraClientSystem.java</span></div><h1>CameraClientSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.players;
+
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnChangedComponent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.logic.characters.GazeAuthoritySystem;
+import org.terasology.logic.console.commandSystem.annotations.Command;
+import org.terasology.logic.location.Location;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.permission.PermissionManager;
+import org.terasology.logic.players.event.OnPlayerSpawnedEvent;
+import org.terasology.logic.players.event.ResetCameraEvent;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.network.ClientComponent;
+import org.terasology.registry.In;
+
+/**
+ * This is a system that creates and maintains a client side entity for the camera.
+ * &lt;p&gt;
+ * Entity Creation Flow:
+ * - ClientComponent for the local player added or changed
+ * - If Camera does not exist, create &quot;engine:camera&quot; entity
+ * - Save the ClientComponent with the new camera attached
+ * &lt;p&gt;
+ * Reset Camera Event Flow:
+ * - ResetCameraEvent
+ * - Camera entity on the ClientComponent is destroyed and set to EntityRef.NULL
+ * - ClientComponent is saved
+ * &lt;p&gt;
+ * Auto Mount Camera Flow:
+ * - ClientComponent or AutoMountCameraComponent for the local player added or changed
+ * - The local player's camera entity (created from above steps) is location linked to the Gaze Entity
+ */
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L57">public class CameraClientSystem extends BaseComponentSystem {</span>
+    @In
+    LocalPlayer localPlayer;
+    @In
+    EntityManager entityManager;
+
+    @ReceiveEvent
+    public void ensureCameraEntityCreatedOnChangedClientComponent(OnChangedComponent event, EntityRef client, ClientComponent clientComponent) {
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (localPlayer.getClientEntity().equals(client)) {</span>
+<span class="nc" id="L66">            ensureCameraEntityCreated();</span>
+        }
+<span class="nc" id="L68">    }</span>
+
+    @ReceiveEvent
+    public void ensureCameraEntityCreatedOnActivateClientComponent(OnActivatedComponent event, EntityRef client, ClientComponent clientComponent) {
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        if (localPlayer.getClientEntity().equals(client)) {</span>
+<span class="nc" id="L73">            ensureCameraEntityCreated();</span>
+        }
+<span class="nc" id="L75">    }</span>
+
+    private void ensureCameraEntityCreated() {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        if (!localPlayer.getCameraEntity().exists()) {</span>
+<span class="nc" id="L79">            ClientComponent clientComponent = localPlayer.getClientEntity().getComponent(ClientComponent.class);</span>
+            // create the camera from the prefab
+<span class="nc" id="L81">            EntityBuilder builder = entityManager.newBuilder(&quot;engine:camera&quot;);</span>
+<span class="nc" id="L82">            builder.setPersistent(false);</span>
+<span class="nc" id="L83">            clientComponent.camera = builder.build();</span>
+<span class="nc" id="L84">            localPlayer.getClientEntity().saveComponent(clientComponent);</span>
+        }
+<span class="nc" id="L86">    }</span>
+
+    @ReceiveEvent
+    public void resetCameraOnCharacterSpawn(OnPlayerSpawnedEvent event, EntityRef character) {
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if (localPlayer.getCharacterEntity().equals(character)) {</span>
+<span class="nc" id="L91">            resetCamera();</span>
+        }
+<span class="nc" id="L93">    }</span>
+
+    @Command(shortDescription = &quot;Reset the camera position&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public void resetCamera() {
+<span class="nc" id="L97">        localPlayer.getClientEntity().send(new ResetCameraEvent());</span>
+<span class="nc" id="L98">    }</span>
+
+    @ReceiveEvent
+    public void resetCameraForClient(ResetCameraEvent resetCameraEvent, EntityRef entityRef, ClientComponent clientComponent) {
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (localPlayer.getClientEntity().equals(entityRef)) {</span>
+<span class="nc" id="L103">            clientComponent.camera.destroy();</span>
+<span class="nc" id="L104">            clientComponent.camera = EntityRef.NULL;</span>
+            // this will trigger a ClientComponent change which will in turn trigger recreation of the camera entity
+<span class="nc" id="L106">            localPlayer.getClientEntity().saveComponent(clientComponent);</span>
+        }
+<span class="nc" id="L108">    }</span>
+
+    @ReceiveEvent
+    public void mountCameraOnActivate(OnActivatedComponent event, EntityRef entityRef, AutoMountCameraComponent autoMountCameraComponent, ClientComponent clientComponent) {
+<span class="nc bnc" id="L112" title="All 4 branches missed.">        if (localPlayer.getClientEntity().equals(entityRef) &amp;&amp; clientComponent.camera.exists()) {</span>
+<span class="nc" id="L113">            mountCamera();</span>
+        }
+<span class="nc" id="L115">    }</span>
+
+    @ReceiveEvent
+    public void mountCameraOnChange(OnChangedComponent event, EntityRef entityRef, AutoMountCameraComponent autoMountCameraComponent, ClientComponent clientComponent) {
+<span class="nc bnc" id="L119" title="All 4 branches missed.">        if (localPlayer.getClientEntity().equals(entityRef) &amp;&amp; clientComponent.camera.exists()) {</span>
+<span class="nc" id="L120">            mountCamera();</span>
+        }
+<span class="nc" id="L122">    }</span>
+
+    private void mountCamera() {
+<span class="nc" id="L125">        ClientComponent clientComponent = localPlayer.getClientEntity().getComponent(ClientComponent.class);</span>
+<span class="nc" id="L126">        EntityRef targetEntityForCamera = GazeAuthoritySystem.getGazeEntityForCharacter(clientComponent.character);</span>
+<span class="nc" id="L127">        LocationComponent cameraLocation = clientComponent.camera.getComponent(LocationComponent.class);</span>
+        // if the camera already has a location,  use that as the relative position of the camera
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        if (cameraLocation != null) {</span>
+<span class="nc" id="L130">            Location.attachChild(targetEntityForCamera, clientComponent.camera, cameraLocation.getLocalPosition(), new Quat4f(Quat4f.IDENTITY));</span>
+        } else {
+<span class="nc" id="L132">            Location.attachChild(targetEntityForCamera, clientComponent.camera, Vector3f.zero(), new Quat4f(Quat4f.IDENTITY));</span>
+        }
+<span class="nc" id="L134">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

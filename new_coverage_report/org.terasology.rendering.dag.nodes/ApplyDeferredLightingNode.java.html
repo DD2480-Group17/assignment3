@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApplyDeferredLightingNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">ApplyDeferredLightingNode.java</span></div><h1>ApplyDeferredLightingNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.context.Context;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.dag.stateChanges.SwapGBuffers;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.SwappableFBO;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.ColorTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.DepthStencilTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.LightAccumulationTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.NormalsTexture;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+
+/**
+ * The ApplyDeferredLightingNode takes advantage of the information stored by previous nodes
+ * in various buffers, especially the light accumulation buffer and lights up the otherwise
+ * flatly-lit 3d scene.
+ *
+ * This node is integral to the deferred lighting technique.
+ */
+public class ApplyDeferredLightingNode extends AbstractNode {
+<span class="nc" id="L44">    private static final ResourceUrn DEFERRED_LIGHTING_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.lightBufferPass&quot;);</span>
+
+    public ApplyDeferredLightingNode(String nodeUri, Context context) {
+<span class="nc" id="L47">        super(nodeUri, context);</span>
+
+<span class="nc" id="L49">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L50">        SwappableFBO gBufferPair = displayResolutionDependentFBOs.getGBufferPair();</span>
+
+<span class="nc" id="L52">        addDesiredStateChange(new BindFbo(gBufferPair.getStaleFbo()));</span>
+
+<span class="nc" id="L54">        addDesiredStateChange(new EnableMaterial(DEFERRED_LIGHTING_MATERIAL_URN));</span>
+
+<span class="nc" id="L56">        FBO lastUpdatedGBuffer = displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo();</span>
+
+<span class="nc" id="L58">        int textureSlot = 0;</span>
+<span class="nc" id="L59">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, ColorTexture,</span>
+            displayResolutionDependentFBOs, DEFERRED_LIGHTING_MATERIAL_URN, &quot;texSceneOpaque&quot;));
+<span class="nc" id="L61">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, DepthStencilTexture,</span>
+            displayResolutionDependentFBOs, DEFERRED_LIGHTING_MATERIAL_URN, &quot;texSceneOpaqueDepth&quot;));
+<span class="nc" id="L63">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, NormalsTexture,</span>
+            displayResolutionDependentFBOs, DEFERRED_LIGHTING_MATERIAL_URN, &quot;texSceneOpaqueNormals&quot;));
+<span class="nc" id="L65">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot,   lastUpdatedGBuffer, LightAccumulationTexture,</span>
+            displayResolutionDependentFBOs, DEFERRED_LIGHTING_MATERIAL_URN, &quot;texSceneOpaqueLightBuffer&quot;));
+
+<span class="nc" id="L68">        addDesiredStateChange(new SwapGBuffers(gBufferPair));</span>
+<span class="nc" id="L69">    }</span>
+
+    /**
+     * Part of the deferred lighting technique, this method applies lighting through screen-space
+     * calculations to the previously flat-lit world rendering, stored in the lastUpdatedGBuffer.
+     * &lt;p&gt;
+     * See http://en.wikipedia.org/wiki/Deferred_shading for more information on the general subject.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L79">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+        // Actual Node Processing
+
+<span class="nc" id="L83">        renderFullscreenQuad();</span>
+
+<span class="nc" id="L85">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L86">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

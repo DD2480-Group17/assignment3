@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CaseInsensitiveEnumTypeAdapterFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.gson</a> &gt; <span class="el_source">CaseInsensitiveEnumTypeAdapterFactory.java</span></div><h1>CaseInsensitiveEnumTypeAdapterFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.utilities.gson;
+
+import com.google.common.collect.Maps;
+import com.google.gson.Gson;
+import com.google.gson.TypeAdapter;
+import com.google.gson.TypeAdapterFactory;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
+
+import java.io.IOException;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * A Gson Adapter factory for supporting enums in a case-insensitive manner
+ *
+ */
+<span class="fc" id="L35">public class CaseInsensitiveEnumTypeAdapterFactory implements TypeAdapterFactory {</span>
+
+    @Override
+    public &lt;T&gt; TypeAdapter&lt;T&gt; create(Gson gson, TypeToken&lt;T&gt; type) {
+<span class="fc" id="L39">        Class&lt;T&gt; rawType = (Class&lt;T&gt;) type.getRawType();</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        if (!rawType.isEnum()) {</span>
+<span class="fc" id="L41">            return null;</span>
+        }
+
+<span class="fc" id="L44">        final Map&lt;String, T&gt; lowercaseToConstant = Maps.newHashMap();</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        for (T constant : rawType.getEnumConstants()) {</span>
+<span class="fc" id="L46">            String norm = normalize(constant.toString());</span>
+<span class="fc" id="L47">            lowercaseToConstant.put(norm, constant);</span>
+        }
+
+<span class="fc" id="L50">        return new TypeAdapter&lt;T&gt;() {</span>
+            @Override
+            public void write(JsonWriter out, T value) throws IOException {
+<span class="fc bfc" id="L53" title="All 2 branches covered.">                if (value == null) {</span>
+<span class="fc" id="L54">                    out.nullValue();</span>
+                } else {
+<span class="fc" id="L56">                    out.value(normalize(value.toString()));</span>
+                }
+<span class="fc" id="L58">            }</span>
+
+            @Override
+            public T read(JsonReader reader) throws IOException {
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">                if (reader.peek() == JsonToken.NULL) {</span>
+<span class="nc" id="L63">                    reader.nextNull();</span>
+<span class="nc" id="L64">                    return null;</span>
+                } else {
+<span class="fc" id="L66">                    String value = reader.nextString();</span>
+<span class="fc" id="L67">                    return lowercaseToConstant.get(normalize(value));</span>
+                }
+            }
+        };
+    }
+
+    private String normalize(String name) {
+<span class="fc" id="L74">        return name.toLowerCase(Locale.ENGLISH);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

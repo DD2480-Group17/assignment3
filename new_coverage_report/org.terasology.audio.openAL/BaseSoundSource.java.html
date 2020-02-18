@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseSoundSource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.audio.openAL</a> &gt; <span class="el_source">BaseSoundSource.java</span></div><h1>BaseSoundSource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.audio.openAL;
+
+import org.lwjgl.openal.AL10;
+import org.terasology.audio.AudioManager;
+import org.terasology.audio.Sound;
+import org.terasology.math.geom.Vector3f;
+
+import static org.lwjgl.openal.AL10.AL_FALSE;
+import static org.lwjgl.openal.AL10.AL_GAIN;
+import static org.lwjgl.openal.AL10.AL_MAX_DISTANCE;
+import static org.lwjgl.openal.AL10.AL_PLAYING;
+import static org.lwjgl.openal.AL10.AL_REFERENCE_DISTANCE;
+import static org.lwjgl.openal.AL10.AL_ROLLOFF_FACTOR;
+import static org.lwjgl.openal.AL10.AL_SOURCE_RELATIVE;
+import static org.lwjgl.openal.AL10.AL_SOURCE_STATE;
+import static org.lwjgl.openal.AL10.AL_TRUE;
+import static org.lwjgl.openal.AL10.alGenSources;
+import static org.lwjgl.openal.AL10.alGetSourcei;
+import static org.lwjgl.openal.AL10.alSource3f;
+import static org.lwjgl.openal.AL10.alSourceRewind;
+import static org.lwjgl.openal.AL10.alSourceStop;
+import static org.lwjgl.openal.AL10.alSourcef;
+
+public abstract class BaseSoundSource&lt;T extends Sound&lt;?&gt;&gt; implements SoundSource&lt;T&gt; {
+
+    private int sourceId;
+
+<span class="nc" id="L43">    private float srcGain = 1.0f;</span>
+<span class="nc" id="L44">    private float targetGain = 1.0f;</span>
+    private boolean fade;
+
+<span class="nc" id="L47">    private Vector3f position = new Vector3f();</span>
+<span class="nc" id="L48">    private Vector3f velocity = new Vector3f();</span>
+<span class="nc" id="L49">    private Vector3f direction = new Vector3f();</span>
+
+    private boolean absolutePosition;
+
+    private SoundPool&lt;T, ? extends SoundSource&lt;T&gt;&gt; owningPool;
+
+<span class="nc" id="L55">    public BaseSoundSource(SoundPool&lt;T, ? extends SoundSource&lt;T&gt;&gt; pool) {</span>
+<span class="nc" id="L56">        this.owningPool = pool;</span>
+<span class="nc" id="L57">        sourceId = alGenSources();</span>
+<span class="nc" id="L58">        OpenALException.checkState(&quot;Creating sound source&quot;);</span>
+
+<span class="nc" id="L60">        reset();</span>
+<span class="nc" id="L61">    }</span>
+
+    @Override
+    public SoundSource&lt;T&gt; play() {
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (!isPlaying()) {</span>
+<span class="nc" id="L66">            AL10.alSourcePlay(getSourceId());</span>
+        }
+
+<span class="nc" id="L69">        return this;</span>
+    }
+
+    @Override
+    public SoundSource&lt;T&gt; stop() {
+<span class="nc" id="L74">        alSourceStop(getSourceId());</span>
+<span class="nc" id="L75">        OpenALException.checkState(&quot;Stop playback&quot;);</span>
+
+<span class="nc" id="L77">        alSourceRewind(getSourceId());</span>
+<span class="nc" id="L78">        OpenALException.checkState(&quot;Rewind&quot;);</span>
+
+<span class="nc" id="L80">        return this;</span>
+    }
+
+    @Override
+    public SoundSource&lt;T&gt; pause() {
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (isPlaying()) {</span>
+<span class="nc" id="L86">            AL10.alSourcePause(getSourceId());</span>
+
+<span class="nc" id="L88">            OpenALException.checkState(&quot;Pause playback&quot;);</span>
+        }
+
+<span class="nc" id="L91">        return this;</span>
+    }
+
+    @Override
+    public boolean isPlaying() {
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        return alGetSourcei(sourceId, AL_SOURCE_STATE) == AL_PLAYING;</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L101">        updateFade(delta);</span>
+<span class="nc" id="L102">        updateState();</span>
+<span class="nc" id="L103">    }</span>
+
+    protected void updateState() {
+<span class="nc" id="L106">    }</span>
+
+    @Override
+    public SoundSource&lt;T&gt; reset() {
+<span class="nc" id="L110">        setPitch(1.0f);</span>
+<span class="nc" id="L111">        setLooping(false);</span>
+<span class="nc" id="L112">        setGain(1.0f);</span>
+<span class="nc" id="L113">        setAbsolute(true);</span>
+
+<span class="nc" id="L115">        Vector3f zeroVector = new Vector3f();</span>
+<span class="nc" id="L116">        setPosition(zeroVector);</span>
+<span class="nc" id="L117">        setVelocity(zeroVector);</span>
+<span class="nc" id="L118">        setDirection(zeroVector);</span>
+
+        // some additional settings
+<span class="nc" id="L121">        alSourcef(getSourceId(), AL_MAX_DISTANCE, AudioManager.MAX_DISTANCE);</span>
+<span class="nc" id="L122">        alSourcef(getSourceId(), AL_REFERENCE_DISTANCE, 1f);</span>
+<span class="nc" id="L123">        AL10.alSourcei(getSourceId(), AL_SOURCE_RELATIVE, AL_FALSE);</span>
+<span class="nc" id="L124">        AL10.alSourcef(getSourceId(), AL_ROLLOFF_FACTOR, 0.25f);</span>
+
+<span class="nc" id="L126">        fade = false;</span>
+<span class="nc" id="L127">        srcGain = 1.0f;</span>
+<span class="nc" id="L128">        targetGain = 1.0f;</span>
+
+<span class="nc" id="L130">        return this;</span>
+    }
+
+
+    @Override
+    public SoundSource&lt;T&gt; setAbsolute(boolean absolute) {
+<span class="nc" id="L136">        absolutePosition = absolute;</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        AL10.alSourcei(getSourceId(), AL_SOURCE_RELATIVE, (absolute) ? AL_FALSE : AL_TRUE);</span>
+
+<span class="nc" id="L139">        return this;</span>
+    }
+
+    @Override
+    public boolean isAbsolute() {
+<span class="nc" id="L144">        return absolutePosition;</span>
+    }
+
+    @Override
+    public Vector3f getVelocity() {
+<span class="nc" id="L149">        return velocity;</span>
+    }
+
+    @Override
+    public SoundSource&lt;T&gt; setVelocity(Vector3f value) {
+<span class="nc bnc" id="L154" title="All 4 branches missed.">        if (value == null || this.velocity.equals(value)) {</span>
+<span class="nc" id="L155">            return this;</span>
+        }
+
+<span class="nc" id="L158">        this.velocity.set(value);</span>
+
+<span class="nc" id="L160">        AL10.alSource3f(getSourceId(), AL10.AL_VELOCITY, value.x, value.y, value.z);</span>
+
+<span class="nc" id="L162">        OpenALException.checkState(&quot;Setting sound source velocity&quot;);</span>
+
+<span class="nc" id="L164">        return this;</span>
+    }
+
+    @Override
+    public Vector3f getPosition() {
+<span class="nc" id="L169">        return position;</span>
+    }
+
+    @Override
+    public SoundSource&lt;T&gt; setPosition(Vector3f value) {
+<span class="nc bnc" id="L174" title="All 4 branches missed.">        if (value == null || this.position.equals(value)) {</span>
+<span class="nc" id="L175">            return this;</span>
+        }
+
+<span class="nc" id="L178">        this.position.set(value);</span>
+<span class="nc" id="L179">        alSource3f(getSourceId(), AL10.AL_POSITION, value.x, value.y, value.z);</span>
+
+<span class="nc" id="L181">        OpenALException.checkState(&quot;Changing sound position&quot;);</span>
+
+<span class="nc" id="L183">        return this;</span>
+    }
+
+    @Override
+    public SoundSource&lt;T&gt; setDirection(Vector3f value) {
+<span class="nc bnc" id="L188" title="All 4 branches missed.">        if (value == null || this.direction.equals(value)) {</span>
+<span class="nc" id="L189">            return this;</span>
+        }
+
+<span class="nc" id="L192">        AL10.alSource3f(getSourceId(), AL10.AL_DIRECTION, value.x, value.y, value.z);</span>
+
+<span class="nc" id="L194">        OpenALException.checkState(&quot;Setting sound source direction&quot;);</span>
+
+<span class="nc" id="L196">        this.direction.set(value);</span>
+
+<span class="nc" id="L198">        return this;</span>
+    }
+
+    @Override
+    public Vector3f getDirection() {
+<span class="nc" id="L203">        return direction;</span>
+    }
+
+    @Override
+    public float getPitch() {
+<span class="nc" id="L208">        return AL10.alGetSourcef(getSourceId(), AL10.AL_PITCH);</span>
+    }
+
+    @Override
+    public SoundSource&lt;T&gt; setPitch(float pitch) {
+<span class="nc" id="L213">        AL10.alSourcef(getSourceId(), AL10.AL_PITCH, pitch);</span>
+
+<span class="nc" id="L215">        OpenALException.checkState(&quot;Setting sound pitch&quot;);</span>
+
+<span class="nc" id="L217">        return this;</span>
+    }
+
+    @Override
+    public float getGain() {
+<span class="nc" id="L222">        return srcGain;</span>
+    }
+
+    @Override
+    public void updateGain() {
+<span class="nc" id="L227">        alSourcef(getSourceId(), AL_GAIN, srcGain * owningPool.getVolume());</span>
+
+<span class="nc" id="L229">        OpenALException.checkState(&quot;Setting sound gain&quot;);</span>
+<span class="nc" id="L230">    }</span>
+
+    @Override
+    public SoundSource&lt;T&gt; setGain(float gain) {
+<span class="nc" id="L234">        srcGain = gain;</span>
+<span class="nc" id="L235">        alSourcef(getSourceId(), AL_GAIN, gain * owningPool.getVolume());</span>
+
+<span class="nc" id="L237">        OpenALException.checkState(&quot;Setting sound gain&quot;);</span>
+
+<span class="nc" id="L239">        return this;</span>
+    }
+
+    @Override
+    public SoundSource&lt;T&gt; fade(float value) {
+<span class="nc" id="L244">        this.targetGain = value;</span>
+<span class="nc" id="L245">        fade = true;</span>
+
+<span class="nc" id="L247">        return this;</span>
+    }
+
+    protected int getSourceId() {
+<span class="nc" id="L251">        return sourceId;</span>
+    }
+
+    private void updateFade(float delta) {
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        if (!fade) {</span>
+<span class="nc" id="L256">            return;</span>
+        }
+
+<span class="nc" id="L259">        float newGain = Math.max(targetGain, srcGain - delta);</span>
+<span class="nc bnc" id="L260" title="All 2 branches missed.">        if (newGain == 0.0f) {</span>
+<span class="nc" id="L261">            stop();</span>
+        } else {
+<span class="nc" id="L263">            setGain(newGain);</span>
+        }
+<span class="nc bnc" id="L265" title="All 2 branches missed.">        if (targetGain == newGain) {</span>
+<span class="nc" id="L266">            fade = false;</span>
+        }
+<span class="nc" id="L268">    }</span>
+
+    public void dispose() {
+<span class="nc bnc" id="L271" title="All 2 branches missed.">        if (sourceId != 0) {</span>
+<span class="nc" id="L272">            AL10.alDeleteSources(sourceId);</span>
+        }
+<span class="nc" id="L274">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

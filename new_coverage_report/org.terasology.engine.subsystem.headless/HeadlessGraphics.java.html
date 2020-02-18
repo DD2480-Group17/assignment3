@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HeadlessGraphics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.subsystem.headless</a> &gt; <span class="el_source">HeadlessGraphics.java</span></div><h1>HeadlessGraphics.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.subsystem.headless;
+
+import org.terasology.assets.AssetFactory;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
+import org.terasology.context.Context;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.engine.subsystem.EngineSubsystem;
+import org.terasology.engine.subsystem.RenderingSubsystemFactory;
+import org.terasology.engine.subsystem.headless.assets.HeadlessMaterial;
+import org.terasology.engine.subsystem.headless.assets.HeadlessMesh;
+import org.terasology.engine.subsystem.headless.assets.HeadlessShader;
+import org.terasology.engine.subsystem.headless.assets.HeadlessSkeletalMesh;
+import org.terasology.engine.subsystem.headless.assets.HeadlessTexture;
+import org.terasology.engine.subsystem.headless.device.HeadlessDisplayDevice;
+import org.terasology.engine.subsystem.headless.renderer.HeadlessCanvasRenderer;
+import org.terasology.engine.subsystem.headless.renderer.HeadlessRenderingSubsystemFactory;
+import org.terasology.engine.subsystem.headless.renderer.ShaderManagerHeadless;
+import org.terasology.rendering.ShaderManager;
+import org.terasology.rendering.assets.animation.MeshAnimation;
+import org.terasology.rendering.assets.animation.MeshAnimationData;
+import org.terasology.rendering.assets.animation.MeshAnimationImpl;
+import org.terasology.rendering.assets.atlas.Atlas;
+import org.terasology.rendering.assets.atlas.AtlasData;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.font.FontData;
+import org.terasology.rendering.assets.font.FontImpl;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.material.MaterialData;
+import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.rendering.assets.mesh.MeshData;
+import org.terasology.rendering.assets.shader.Shader;
+import org.terasology.rendering.assets.shader.ShaderData;
+import org.terasology.rendering.assets.skeletalmesh.SkeletalMesh;
+import org.terasology.rendering.assets.skeletalmesh.SkeletalMeshData;
+import org.terasology.rendering.assets.texture.PNGTextureFormat;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureData;
+import org.terasology.rendering.assets.texture.subtexture.Subtexture;
+import org.terasology.rendering.assets.texture.subtexture.SubtextureData;
+import org.terasology.rendering.nui.internal.CanvasRenderer;
+
+<span class="nc" id="L57">public class HeadlessGraphics implements EngineSubsystem {</span>
+
+    @Override
+    public String getName() {
+<span class="nc" id="L61">        return &quot;Graphics&quot;;</span>
+    }
+
+    @Override
+    public void registerCoreAssetTypes(ModuleAwareAssetTypeManager assetTypeManager) {
+<span class="nc" id="L66">        assetTypeManager.registerCoreAssetType(Font.class, (AssetFactory&lt;Font, FontData&gt;) FontImpl::new, &quot;fonts&quot;);</span>
+<span class="nc" id="L67">        assetTypeManager.registerCoreAssetType(Texture.class, (AssetFactory&lt;Texture, TextureData&gt;) HeadlessTexture::new, &quot;textures&quot;, &quot;fonts&quot;);</span>
+<span class="nc" id="L68">        assetTypeManager.registerCoreFormat(Texture.class, new PNGTextureFormat(Texture.FilterMode.NEAREST, path -&gt; path.getName(2).toString().equals(&quot;textures&quot;)));</span>
+<span class="nc" id="L69">        assetTypeManager.registerCoreFormat(Texture.class, new PNGTextureFormat(Texture.FilterMode.LINEAR, path -&gt; path.getName(2).toString().equals(&quot;fonts&quot;)));</span>
+<span class="nc" id="L70">        assetTypeManager.registerCoreAssetType(Shader.class, (AssetFactory&lt;Shader, ShaderData&gt;) HeadlessShader::new, &quot;shaders&quot;);</span>
+<span class="nc" id="L71">        assetTypeManager.registerCoreAssetType(Material.class, (AssetFactory&lt;Material, MaterialData&gt;) HeadlessMaterial::new, &quot;materials&quot;);</span>
+<span class="nc" id="L72">        assetTypeManager.registerCoreAssetType(Mesh.class, (AssetFactory&lt;Mesh, MeshData&gt;) HeadlessMesh::new, &quot;mesh&quot;);</span>
+<span class="nc" id="L73">        assetTypeManager.registerCoreAssetType(SkeletalMesh.class, (AssetFactory&lt;SkeletalMesh, SkeletalMeshData&gt;) HeadlessSkeletalMesh::new, &quot;skeletalMesh&quot;);</span>
+<span class="nc" id="L74">        assetTypeManager.registerCoreAssetType(MeshAnimation.class, (AssetFactory&lt;MeshAnimation, MeshAnimationData&gt;) MeshAnimationImpl::new, &quot;animations&quot;);</span>
+<span class="nc" id="L75">        assetTypeManager.registerCoreAssetType(Atlas.class, (AssetFactory&lt;Atlas, AtlasData&gt;) Atlas::new, &quot;atlas&quot;);</span>
+<span class="nc" id="L76">        assetTypeManager.registerCoreAssetType(Subtexture.class, (AssetFactory&lt;Subtexture, SubtextureData&gt;) Subtexture::new);</span>
+<span class="nc" id="L77">    }</span>
+
+    @Override
+    public void postInitialise(Context context) {
+<span class="nc" id="L81">        context.put(RenderingSubsystemFactory.class, new HeadlessRenderingSubsystemFactory());</span>
+
+<span class="nc" id="L83">        HeadlessDisplayDevice headlessDisplay = new HeadlessDisplayDevice();</span>
+<span class="nc" id="L84">        context.put(DisplayDevice.class, headlessDisplay);</span>
+<span class="nc" id="L85">        initHeadless(context);</span>
+
+<span class="nc" id="L87">        context.put(CanvasRenderer.class, new HeadlessCanvasRenderer());</span>
+<span class="nc" id="L88">    }</span>
+
+    private void initHeadless(Context context) {
+<span class="nc" id="L91">        context.put(ShaderManager.class, new ShaderManagerHeadless());</span>
+<span class="nc" id="L92">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

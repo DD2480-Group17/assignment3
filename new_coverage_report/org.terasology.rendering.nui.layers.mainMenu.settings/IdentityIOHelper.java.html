@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IdentityIOHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu.settings</a> &gt; <span class="el_source">IdentityIOHelper.java</span></div><h1>IdentityIOHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu.settings;
+
+import com.google.common.reflect.TypeToken;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonIOException;
+import com.google.gson.JsonSyntaxException;
+import org.terasology.config.Config;
+import org.terasology.config.SecurityConfig;
+import org.terasology.context.Context;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.identity.ClientIdentity;
+import org.terasology.identity.PublicIdentityCertificate;
+import org.terasology.identity.storageServiceClient.BigIntegerBase64Serializer;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.layers.mainMenu.ConfirmPopup;
+import org.terasology.rendering.nui.layers.mainMenu.FilePickerPopup;
+import org.terasology.rendering.nui.layers.mainMenu.MessagePopup;
+import org.terasology.rendering.nui.layers.mainMenu.ThreeButtonPopup;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.util.Iterator;
+import java.util.Map;
+
+public final class IdentityIOHelper {
+
+<span class="nc" id="L48">    private static final Gson GSON = new GsonBuilder()</span>
+<span class="nc" id="L49">            .registerTypeAdapter(BigInteger.class, BigIntegerBase64Serializer.getInstance())</span>
+<span class="nc" id="L50">            .enableComplexMapKeySerialization()</span>
+<span class="nc" id="L51">            .disableHtmlEscaping()</span>
+<span class="nc" id="L52">            .create();</span>
+<span class="nc" id="L53">    private static final Type MAP_TYPE = new TypeToken&lt;Map&lt;PublicIdentityCertificate, ClientIdentity&gt;&gt;() { }.getType();</span>
+
+    private final SecurityConfig securityConfig;
+    private final NUIManager nuiManager;
+    private final TranslationSystem translationSystem;
+    private final String importPopupTitle;
+    private final String exportPopupTitle;
+
+<span class="nc" id="L61">    public IdentityIOHelper(Context context) {</span>
+<span class="nc" id="L62">        securityConfig = context.get(Config.class).getSecurity();</span>
+<span class="nc" id="L63">        nuiManager = context.get(NUIManager.class);</span>
+<span class="nc" id="L64">        translationSystem = context.get(TranslationSystem.class);</span>
+<span class="nc" id="L65">        importPopupTitle = translationSystem.translate(&quot;${engine:menu#identity-import}&quot;);</span>
+<span class="nc" id="L66">        exportPopupTitle = translationSystem.translate(&quot;${engine:menu#identity-export}&quot;);</span>
+<span class="nc" id="L67">    }</span>
+
+    public void importIdentities() {
+<span class="nc" id="L70">        FilePickerPopup filePicker = nuiManager.pushScreen(FilePickerPopup.ASSET_URI, FilePickerPopup.class);</span>
+<span class="nc" id="L71">        filePicker.setTitle(importPopupTitle);</span>
+<span class="nc" id="L72">        filePicker.setOkHandler(path -&gt; {</span>
+            Map&lt;PublicIdentityCertificate, ClientIdentity&gt; newIdentities;
+<span class="nc" id="L74">            try (BufferedReader reader = Files.newBufferedReader(path)) {</span>
+<span class="nc" id="L75">                newIdentities = GSON.fromJson(reader, MAP_TYPE);</span>
+<span class="nc" id="L76">            } catch (IOException | JsonIOException | JsonSyntaxException ex) {</span>
+<span class="nc" id="L77">                nuiManager.pushScreen(MessagePopup.ASSET_URI, MessagePopup.class)</span>
+<span class="nc" id="L78">                        .setMessage(translationSystem.translate(&quot;${engine:menu#identity-import-failed}&quot;), ex.toString());</span>
+<span class="nc" id="L79">                return;</span>
+<span class="nc" id="L80">            }</span>
+<span class="nc" id="L81">            checkNextConflict(newIdentities.entrySet().iterator(), () -&gt; {</span>
+<span class="nc" id="L82">                newIdentities.forEach(securityConfig::addIdentity);</span>
+<span class="nc" id="L83">                nuiManager.pushScreen(MessagePopup.ASSET_URI, MessagePopup.class)</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">                        .setMessage(importPopupTitle, newIdentities.isEmpty()</span>
+<span class="nc" id="L85">                                ? translationSystem.translate(&quot;${engine:menu#identity-import-no-new}&quot;)</span>
+<span class="nc" id="L86">                                : String.format(translationSystem.translate(&quot;${engine:menu#identity-import-ok}&quot;), newIdentities.size()));</span>
+<span class="nc" id="L87">            });</span>
+<span class="nc" id="L88">        });</span>
+<span class="nc" id="L89">    }</span>
+
+    private void checkNextConflict(Iterator&lt;Map.Entry&lt;PublicIdentityCertificate, ClientIdentity&gt;&gt; newIdentities, Runnable onCompletion) {
+<span class="nc" id="L92">        Runnable next = () -&gt; checkNextConflict(newIdentities, onCompletion);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (newIdentities.hasNext()) {</span>
+<span class="nc" id="L94">            Map.Entry&lt;PublicIdentityCertificate, ClientIdentity&gt; entry = newIdentities.next();</span>
+<span class="nc" id="L95">            PublicIdentityCertificate server = entry.getKey();</span>
+<span class="nc" id="L96">            ClientIdentity newClient = entry.getValue();</span>
+<span class="nc" id="L97">            ClientIdentity oldClient = securityConfig.getIdentity(server);</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">            if (oldClient != null) {</span>
+<span class="nc" id="L99">                Runnable skip = () -&gt; {</span>
+<span class="nc" id="L100">                    newIdentities.remove();</span>
+<span class="nc" id="L101">                    next.run();</span>
+<span class="nc" id="L102">                };</span>
+
+<span class="nc bnc" id="L104" title="All 2 branches missed.">                if (newClient.getPlayerPublicCertificate().equals(oldClient.getPlayerPublicCertificate())) {</span>
+<span class="nc" id="L105">                    skip.run();</span>
+                } else {
+<span class="nc" id="L107">                    ThreeButtonPopup popup = nuiManager.pushScreen(ThreeButtonPopup.ASSET_URI, ThreeButtonPopup.class);</span>
+<span class="nc" id="L108">                    popup.setMessage(importPopupTitle, String.format(translationSystem.translate(&quot;${engine:menu#identity-import-conflict}&quot;),</span>
+<span class="nc" id="L109">                            server.getId(), oldClient.getPlayerPublicCertificate().getId(), newClient.getPlayerPublicCertificate().getId()));</span>
+
+<span class="nc" id="L111">                    popup.setLeftButton(translationSystem.translate(&quot;${engine:menu#identity-import-overwrite}&quot;), next);</span>
+<span class="nc" id="L112">                    popup.setCenterButton(translationSystem.translate(&quot;${engine:menu#identity-import-skip}&quot;), skip);</span>
+<span class="nc" id="L113">                    popup.setRightButton(translationSystem.translate(&quot;${engine:menu#identity-import-cancel}&quot;),</span>
+<span class="nc" id="L114">                            () -&gt; nuiManager.pushScreen(MessagePopup.ASSET_URI, MessagePopup.class)</span>
+<span class="nc" id="L115">                                    .setMessage(importPopupTitle, translationSystem.translate(&quot;${engine:menu#identity-import-cancelled}&quot;)));</span>
+                }
+<span class="nc" id="L117">            } else {</span>
+<span class="nc" id="L118">                next.run();</span>
+            }
+<span class="nc" id="L120">        } else {</span>
+<span class="nc" id="L121">            onCompletion.run();</span>
+        }
+<span class="nc" id="L123">    }</span>
+
+    public void exportIdentities() {
+<span class="nc" id="L126">        FilePickerPopup filePicker = nuiManager.pushScreen(FilePickerPopup.ASSET_URI, FilePickerPopup.class);</span>
+<span class="nc" id="L127">        filePicker.setTitle(exportPopupTitle);</span>
+<span class="nc" id="L128">        filePicker.setOkHandler(path -&gt; {</span>
+<span class="nc" id="L129">            Runnable action = () -&gt; {</span>
+<span class="nc" id="L130">                Map&lt;PublicIdentityCertificate, ClientIdentity&gt; identities = securityConfig.getAllIdentities();</span>
+<span class="nc" id="L131">                try (BufferedWriter writer = Files.newBufferedWriter(path, StandardOpenOption.CREATE)) {</span>
+<span class="nc" id="L132">                    GSON.toJson(identities, MAP_TYPE, writer);</span>
+<span class="nc" id="L133">                    nuiManager.pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(exportPopupTitle,</span>
+<span class="nc" id="L134">                            String.format(translationSystem.translate(&quot;${engine:menu#identity-export-ok}&quot;), identities.size(), path.toString()));</span>
+<span class="nc" id="L135">                } catch (IOException | JsonIOException ex) {</span>
+<span class="nc" id="L136">                    nuiManager.pushScreen(MessagePopup.ASSET_URI, MessagePopup.class)</span>
+<span class="nc" id="L137">                            .setMessage(translationSystem.translate(&quot;${engine:menu#identity-export-fail}&quot;), ex.toString());</span>
+<span class="nc" id="L138">                }</span>
+<span class="nc" id="L139">            };</span>
+
+<span class="nc bnc" id="L141" title="All 2 branches missed.">            if (Files.exists(path)) {</span>
+<span class="nc" id="L142">                ConfirmPopup confirm = nuiManager.pushScreen(ConfirmPopup.ASSET_URI, ConfirmPopup.class);</span>
+<span class="nc" id="L143">                confirm.setMessage(exportPopupTitle, String.format(translationSystem.translate(&quot;${engine:menu#existing-file-warning}&quot;), path.toString()));</span>
+<span class="nc" id="L144">                confirm.setOkHandler(action);</span>
+<span class="nc" id="L145">            } else {</span>
+<span class="nc" id="L146">                action.run();</span>
+            }
+<span class="nc" id="L148">        });</span>
+<span class="nc" id="L149">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

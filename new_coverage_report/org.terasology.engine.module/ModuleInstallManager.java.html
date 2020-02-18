@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModuleInstallManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.module</a> &gt; <span class="el_source">ModuleInstallManager.java</span></div><h1>ModuleInstallManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.module;
+
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleRegistry;
+import org.terasology.naming.Name;
+import org.terasology.utilities.download.MultiFileTransferProgressListener;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.Callable;
+
+public class ModuleInstallManager {
+
+    private ModuleManager moduleManager;
+    private ModuleRegistry remoteRegistry;
+    private ModuleListDownloader remoteRegistryUpdater;
+    private ModuleDownloadListGenerator downloadListGenerator;
+
+<span class="fc" id="L36">    ModuleInstallManager(ModuleManager moduleManager, String remoteMasterServerAddress) {</span>
+<span class="fc" id="L37">        this.moduleManager = moduleManager;</span>
+<span class="fc" id="L38">        this.remoteRegistryUpdater = new ModuleListDownloader(remoteMasterServerAddress);</span>
+<span class="fc" id="L39">    }</span>
+
+    public Callable&lt;Void&gt; updateRemoteRegistry() {
+<span class="nc" id="L42">        return (() -&gt; {</span>
+<span class="nc" id="L43">            remoteRegistry = remoteRegistryUpdater.call();</span>
+<span class="nc" id="L44">            downloadListGenerator = new ModuleDownloadListGenerator(moduleManager.getRegistry(), new DependencyResolver(remoteRegistry));</span>
+<span class="nc" id="L45">            return null;</span>
+        });
+    }
+
+    public Collection&lt;Module&gt; getRemoteRegistry() {
+<span class="nc" id="L50">        return Collections.unmodifiableCollection(remoteRegistry);</span>
+    }
+
+    public Set&lt;Module&gt; getAllModulesToDownloadFor(Name... modulesToInstall) throws DependencyResolutionFailedException {
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (downloadListGenerator == null) {</span>
+<span class="nc" id="L55">            throw new DependencyResolutionFailedException(&quot;The online module list hasn't been downloaded.&quot;);</span>
+        }
+<span class="nc" id="L57">        return downloadListGenerator.getAllModulesToDownloadFor(modulesToInstall);</span>
+    }
+
+    public ModuleInstaller createInstaller(Iterable&lt;Module&gt; modules, MultiFileTransferProgressListener progressListener) {
+<span class="nc" id="L61">        return new ModuleInstaller(moduleManager,  modules, progressListener);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChunkMesh.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.primitives</a> &gt; <span class="el_source">ChunkMesh.java</span></div><h1>ChunkMesh.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.primitives;
+
+import com.google.common.collect.Maps;
+import gnu.trove.list.TFloatList;
+import gnu.trove.list.TIntList;
+import gnu.trove.list.array.TFloatArrayList;
+import gnu.trove.list.array.TIntArrayList;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL15;
+import org.terasology.engine.subsystem.lwjgl.GLBufferPool;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.module.sandbox.API;
+import org.terasology.rendering.VertexBufferObjectUtil;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.world.chunks.ChunkConstants;
+
+import java.nio.IntBuffer;
+import java.util.Map;
+import java.util.concurrent.locks.ReentrantLock;
+
+import static org.lwjgl.opengl.GL11.GL_COLOR_ARRAY;
+import static org.lwjgl.opengl.GL11.GL_NORMAL_ARRAY;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_COORD_ARRAY;
+import static org.lwjgl.opengl.GL11.GL_VERTEX_ARRAY;
+import static org.lwjgl.opengl.GL11.glColorPointer;
+import static org.lwjgl.opengl.GL11.glDisableClientState;
+import static org.lwjgl.opengl.GL11.glEnableClientState;
+import static org.lwjgl.opengl.GL11.glNormalPointer;
+import static org.lwjgl.opengl.GL11.glTexCoordPointer;
+import static org.lwjgl.opengl.GL11.glVertexPointer;
+
+/**
+ * Chunk meshes store, manipulate and render the vertex data of tessellated chunks.
+ */
+@SuppressWarnings(&quot;PointlessArithmeticExpression&quot;)
+public class ChunkMesh {
+
+    /**
+     * Possible rendering types.
+     */
+<span class="nc" id="L57">    @API</span>
+    public enum RenderType {
+<span class="nc" id="L59">        OPAQUE(0),</span>
+<span class="nc" id="L60">        TRANSLUCENT(1),</span>
+<span class="nc" id="L61">        BILLBOARD(2),</span>
+<span class="nc" id="L62">        WATER_AND_ICE(3);</span>
+
+        private int meshIndex;
+
+<span class="nc" id="L66">        RenderType(int index) {</span>
+<span class="nc" id="L67">            meshIndex = index;</span>
+<span class="nc" id="L68">        }</span>
+
+        public int getIndex() {
+<span class="nc" id="L71">            return meshIndex;</span>
+        }
+    }
+
+<span class="nc" id="L75">    public enum RenderPhase {</span>
+<span class="nc" id="L76">        OPAQUE,</span>
+<span class="nc" id="L77">        ALPHA_REJECT,</span>
+<span class="nc" id="L78">        REFRACTIVE,</span>
+<span class="nc" id="L79">        Z_PRE_PASS</span>
+    }
+
+    // some constants
+    private static final int SIZE_VERTEX = 3;   // vertices have 3 positional components, x,y,z
+    private static final int SIZE_TEX0 = 4;     // the first texture has 4 components, u,v, flags, animation frame count
+    private static final int SIZE_TEX1 = 3;     // the second texture stores lighting, with components: light, block light, ambient occlusion
+    private static final int SIZE_COLOR = 1;    // the color field's 4 components are packed into 1 float-sized field.
+    private static final int SIZE_NORMAL = 3;   // normals are 3-dimensional vectors with u,v,t components
+
+    // offset to the beginning of each data field, from the start of the data regarding an individual vertex
+    private static final int OFFSET_VERTEX = 0;
+    private static final int OFFSET_TEX_0 = OFFSET_VERTEX + SIZE_VERTEX * 4;
+    private static final int OFFSET_TEX_1 = OFFSET_TEX_0 + SIZE_TEX0 * 4;
+    private static final int OFFSET_COLOR = OFFSET_TEX_1 + SIZE_TEX1 * 4;
+    private static final int OFFSET_NORMAL = OFFSET_COLOR + SIZE_COLOR * 4;
+    private static final int STRIDE = OFFSET_NORMAL + SIZE_NORMAL * 4;
+    // the STRIDE, above, is the gap between the beginnings of the data regarding two consecutive vertices
+
+    /* VERTEX DATA */
+<span class="nc" id="L99">    private final int[] vertexBuffers = new int[4];</span>
+<span class="nc" id="L100">    private final int[] idxBuffers = new int[4];</span>
+<span class="nc" id="L101">    private final int[] vertexCount = new int[4];</span>
+
+    /* STATS */
+<span class="nc" id="L104">    private int triangleCount = -1;</span>
+
+    /* TEMPORARY DATA */
+<span class="nc" id="L107">    private Map&lt;RenderType, VertexElements&gt; vertexElements = Maps.newEnumMap(RenderType.class);</span>
+
+    private boolean disposed;
+
+    /* CONCURRENCY */
+<span class="nc" id="L112">    private ReentrantLock lock = new ReentrantLock();</span>
+
+    /* MEASUREMENTS */
+    private int timeToGenerateBlockVertices;
+    private int timeToGenerateOptimizedBuffers;
+
+    private GLBufferPool bufferPool;
+
+<span class="nc" id="L120">    public ChunkMesh(GLBufferPool bufferPool) {</span>
+<span class="nc" id="L121">        this.bufferPool = bufferPool;</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        for (RenderType type : RenderType.values()) {</span>
+<span class="nc" id="L123">            vertexElements.put(type, new VertexElements());</span>
+        }
+<span class="nc" id="L125">    }</span>
+
+    public VertexElements getVertexElements(RenderType renderType) {
+<span class="nc" id="L128">        return vertexElements.get(renderType);</span>
+    }
+
+    public boolean isGenerated() {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        return vertexElements == null;</span>
+    }
+
+    /**
+     * Generates the VBOs from the pre calculated arrays.
+     *
+     * @return True if something was generated
+     */
+    public boolean generateVBOs() {
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if (lock.tryLock()) {</span>
+            try {
+                // IMPORTANT: A mesh can only be generated once.
+<span class="nc bnc" id="L144" title="All 4 branches missed.">                if (vertexElements == null || disposed) {</span>
+<span class="nc" id="L145">                    return false;</span>
+                }
+
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                for (RenderType type : RenderType.values()) {</span>
+<span class="nc" id="L149">                    generateVBO(type);</span>
+                }
+
+                // Free unused space on the heap
+<span class="nc" id="L153">                vertexElements = null;</span>
+                // Calculate the final amount of triangles
+<span class="nc" id="L155">                triangleCount = (vertexCount[0] + vertexCount[1] + vertexCount[2] + vertexCount[3]) / 3;</span>
+            } finally {
+<span class="nc" id="L157">                lock.unlock();</span>
+            }
+
+<span class="nc" id="L160">            return true;</span>
+        }
+
+<span class="nc" id="L163">        return false;</span>
+    }
+
+    private void generateVBO(RenderType type) {
+<span class="nc" id="L167">        VertexElements elements = vertexElements.get(type);</span>
+<span class="nc" id="L168">        int id = type.getIndex();</span>
+<span class="nc bnc" id="L169" title="All 6 branches missed.">        if (!disposed &amp;&amp; elements.finalIndices.limit() &gt; 0 &amp;&amp; elements.finalVertices.limit() &gt; 0) {</span>
+<span class="nc" id="L170">            vertexBuffers[id] = bufferPool.get(&quot;chunkMesh&quot;);</span>
+<span class="nc" id="L171">            idxBuffers[id] = bufferPool.get(&quot;chunkMesh&quot;);</span>
+<span class="nc" id="L172">            vertexCount[id] = elements.finalIndices.limit();</span>
+
+<span class="nc" id="L174">            VertexBufferObjectUtil.bufferVboElementData(idxBuffers[id], elements.finalIndices, GL15.GL_STATIC_DRAW);</span>
+<span class="nc" id="L175">            VertexBufferObjectUtil.bufferVboData(vertexBuffers[id], elements.finalVertices, GL15.GL_STATIC_DRAW);</span>
+        } else {
+<span class="nc" id="L177">            vertexBuffers[id] = 0;</span>
+<span class="nc" id="L178">            idxBuffers[id] = 0;</span>
+<span class="nc" id="L179">            vertexCount[id] = 0;</span>
+        }
+
+<span class="nc" id="L182">    }</span>
+
+    private void renderVbo(int id) {
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        if (lock.tryLock()) {</span>
+            try {
+<span class="nc bnc" id="L187" title="All 4 branches missed.">                if (vertexBuffers[id] &lt;= 0 || disposed) {</span>
+<span class="nc" id="L188">                    return;</span>
+                }
+
+<span class="nc" id="L191">                glEnableClientState(GL_VERTEX_ARRAY);</span>
+<span class="nc" id="L192">                glEnableClientState(GL_TEXTURE_COORD_ARRAY);</span>
+<span class="nc" id="L193">                glEnableClientState(GL_COLOR_ARRAY);</span>
+<span class="nc" id="L194">                glEnableClientState(GL_NORMAL_ARRAY);</span>
+
+<span class="nc" id="L196">                GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, idxBuffers[id]);</span>
+<span class="nc" id="L197">                GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vertexBuffers[id]);</span>
+
+<span class="nc" id="L199">                glVertexPointer(SIZE_VERTEX, GL11.GL_FLOAT, STRIDE, OFFSET_VERTEX);</span>
+
+<span class="nc" id="L201">                GL13.glClientActiveTexture(GL13.GL_TEXTURE0);</span>
+<span class="nc" id="L202">                glTexCoordPointer(SIZE_TEX0, GL11.GL_FLOAT, STRIDE, OFFSET_TEX_0);</span>
+
+<span class="nc" id="L204">                GL13.glClientActiveTexture(GL13.GL_TEXTURE1);</span>
+<span class="nc" id="L205">                glTexCoordPointer(SIZE_TEX1, GL11.GL_FLOAT, STRIDE, OFFSET_TEX_1);</span>
+
+<span class="nc" id="L207">                glColorPointer(SIZE_COLOR * 4, GL11.GL_UNSIGNED_BYTE, STRIDE, OFFSET_COLOR);</span>
+
+<span class="nc" id="L209">                glNormalPointer(GL11.GL_FLOAT, STRIDE, OFFSET_NORMAL);</span>
+
+<span class="nc" id="L211">                GL11.glDrawElements(GL11.GL_TRIANGLES, vertexCount[id], GL11.GL_UNSIGNED_INT, 0);</span>
+
+
+<span class="nc" id="L214">                GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);</span>
+<span class="nc" id="L215">                GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);</span>
+
+<span class="nc" id="L217">                glDisableClientState(GL_NORMAL_ARRAY);</span>
+<span class="nc" id="L218">                glDisableClientState(GL_COLOR_ARRAY);</span>
+<span class="nc" id="L219">                glDisableClientState(GL_TEXTURE_COORD_ARRAY);</span>
+<span class="nc" id="L220">                glDisableClientState(GL_VERTEX_ARRAY);</span>
+
+            } finally {
+<span class="nc" id="L223">                lock.unlock();</span>
+            }
+        }
+<span class="nc" id="L226">    }</span>
+
+    /**
+     * Updates a given material with information such as the World position of a chunk and whether it is animated.
+     *
+     * @param chunkMaterial a Material instance to be updated
+     * @param chunkPosition a Vector3f instance holding the world coordinates of a chunk
+     * @param chunkIsAnimated a boolean: true if the chunk is animated, false otherwise
+     */
+    public void updateMaterial(Material chunkMaterial, Vector3f chunkPosition, boolean chunkIsAnimated) {
+<span class="nc" id="L236">        chunkMaterial.setFloat3(&quot;chunkPositionWorld&quot;,</span>
+                chunkPosition.x * ChunkConstants.SIZE_X,
+                chunkPosition.y * ChunkConstants.SIZE_Y,
+                chunkPosition.z * ChunkConstants.SIZE_Z,
+                true);
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        chunkMaterial.setFloat(&quot;animated&quot;, chunkIsAnimated ? 1.0f : 0.0f, true);</span>
+<span class="nc" id="L242">    }</span>
+
+    /**
+     * Renders the phase-appropriate mesh of the chunk. I.e. if the RenderPhase is OPAQUE only the opaque mesh
+     * is rendered: other meshes stored in an instance of this class are rendered in separate rendering steps.
+     *
+     * @param phase a RenderPhase value
+     * @param chunkPosition a Vector3f storing the world position of the chunk.
+     * @param cameraPosition a Vector3f storing the world position of the point of view from which the chunk is rendered.
+     * @return Returns an integer representing the number of triangles rendered.
+     */
+    public int render(ChunkMesh.RenderPhase phase, Vector3f chunkPosition, Vector3f cameraPosition) {
+<span class="nc" id="L254">        GL11.glPushMatrix();</span>
+
+        // chunkPositionRelativeToCamera = chunkCoordinates * chunkDimensions - cameraCoordinate
+<span class="nc" id="L257">        final Vector3f chunkPositionRelativeToCamera =</span>
+                new Vector3f(chunkPosition.x * ChunkConstants.SIZE_X - cameraPosition.x,
+                        chunkPosition.y * ChunkConstants.SIZE_Y - cameraPosition.y,
+                        chunkPosition.z * ChunkConstants.SIZE_Z - cameraPosition.z);
+<span class="nc" id="L261">        GL11.glTranslatef(chunkPositionRelativeToCamera.x, chunkPositionRelativeToCamera.y, chunkPositionRelativeToCamera.z);</span>
+
+<span class="nc" id="L263">        render(phase);  // this is where the chunk is actually rendered</span>
+
+<span class="nc" id="L265">        GL11.glPopMatrix();</span>
+
+<span class="nc" id="L267">        return triangleCount();</span>
+    }
+
+    private void render(RenderPhase type) {
+<span class="nc bnc" id="L271" title="All 4 branches missed.">        switch (type) {</span>
+            case OPAQUE:
+<span class="nc" id="L273">                renderVbo(0);</span>
+<span class="nc" id="L274">                break;</span>
+            case ALPHA_REJECT:
+<span class="nc" id="L276">                renderVbo(1);</span>
+<span class="nc" id="L277">                renderVbo(2);</span>
+<span class="nc" id="L278">                break;</span>
+            case REFRACTIVE:
+<span class="nc" id="L280">                renderVbo(3);</span>
+<span class="nc" id="L281">                break;</span>
+            default:
+                break;
+        }
+<span class="nc" id="L285">    }</span>
+
+    /**
+     * Disposes of all the data stored in an instance of this class and
+     * the associated data stored in the GLBufferPool instance provided on construction.
+     *
+     * ChunkMesh instances cannot be un-disposed.
+     */
+    public void dispose() {
+<span class="nc" id="L294">        lock.lock();</span>
+        try {
+<span class="nc bnc" id="L296" title="All 2 branches missed.">            if (!disposed) {</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">                for (int i = 0; i &lt; vertexBuffers.length; i++) {</span>
+<span class="nc" id="L298">                    int id = vertexBuffers[i];</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">                    if (id != 0) {</span>
+<span class="nc" id="L300">                        bufferPool.dispose(id);</span>
+<span class="nc" id="L301">                        vertexBuffers[i] = 0;</span>
+                    }
+
+<span class="nc" id="L304">                    id = idxBuffers[i];</span>
+<span class="nc bnc" id="L305" title="All 2 branches missed.">                    if (id != 0) {</span>
+<span class="nc" id="L306">                        bufferPool.dispose(id);</span>
+<span class="nc" id="L307">                        idxBuffers[i] = 0;</span>
+                    }
+                }
+
+<span class="nc" id="L311">                disposed = true;</span>
+<span class="nc" id="L312">                vertexElements = null;</span>
+            }
+        } finally {
+<span class="nc" id="L315">            lock.unlock();</span>
+        }
+<span class="nc" id="L317">    }</span>
+
+    public boolean isDisposed() {
+<span class="nc" id="L320">        return disposed;</span>
+    }
+
+    public int triangleCount(RenderPhase phase) {
+<span class="nc bnc" id="L324" title="All 2 branches missed.">        if (phase == RenderPhase.OPAQUE) {</span>
+<span class="nc" id="L325">            return vertexCount[0] / 3;</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">        } else if (phase == RenderPhase.ALPHA_REJECT) {</span>
+<span class="nc" id="L327">            return (vertexCount[1] + vertexCount[2]) / 3;</span>
+        } else {
+<span class="nc" id="L329">            return vertexCount[3] / 3;</span>
+        }
+    }
+
+    private int triangleCount() {
+<span class="nc" id="L334">        return triangleCount;</span>
+    }
+
+    /**
+     * Returns true if an instance of this class stores no triangles.
+     *
+     * @return True if no triangles are stored in the instance, false otherwise.
+     */
+    public boolean isEmpty() {
+<span class="nc bnc" id="L343" title="All 2 branches missed.">        return triangleCount == 0;</span>
+    }
+
+    void setTimeToGenerateBlockVertices(int timeToGenerateBlockVertices) {
+<span class="nc" id="L347">        this.timeToGenerateBlockVertices = timeToGenerateBlockVertices;</span>
+<span class="nc" id="L348">    }</span>
+
+    public int getTimeToGenerateBlockVertices() {
+<span class="nc" id="L351">        return timeToGenerateBlockVertices;</span>
+    }
+
+    void setTimeToGenerateOptimizedBuffers(int timeToGenerateOptimizedBuffers) {
+<span class="nc" id="L355">        this.timeToGenerateOptimizedBuffers = timeToGenerateOptimizedBuffers;</span>
+<span class="nc" id="L356">    }</span>
+
+    public int getTimeToGenerateOptimizedBuffers() {
+<span class="nc" id="L359">        return timeToGenerateOptimizedBuffers;</span>
+    }
+
+    /**
+     * Data structure for storing vertex data. Abused like a &quot;struct&quot; in C/C++. Just sad.
+     */
+    public static class VertexElements {
+
+        public final TFloatList normals;
+        public final TFloatList vertices;
+        public final TFloatList tex;
+        public final TFloatList color;
+        public final TIntList indices;
+        public final TIntList flags;
+        public final TIntList frames;
+        public int vertexCount;
+
+        public IntBuffer finalVertices;
+        public IntBuffer finalIndices;
+
+<span class="nc" id="L379">        VertexElements() {</span>
+<span class="nc" id="L380">            vertexCount = 0;</span>
+<span class="nc" id="L381">            normals = new TFloatArrayList();</span>
+<span class="nc" id="L382">            vertices = new TFloatArrayList();</span>
+<span class="nc" id="L383">            tex = new TFloatArrayList();</span>
+<span class="nc" id="L384">            color = new TFloatArrayList();</span>
+<span class="nc" id="L385">            indices = new TIntArrayList();</span>
+<span class="nc" id="L386">            flags = new TIntArrayList();</span>
+<span class="nc" id="L387">            frames = new TIntArrayList();</span>
+<span class="nc" id="L388">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

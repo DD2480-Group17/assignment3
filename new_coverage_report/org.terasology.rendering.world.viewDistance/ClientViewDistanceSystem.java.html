@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClientViewDistanceSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.world.viewDistance</a> &gt; <span class="el_source">ClientViewDistanceSystem.java</span></div><h1>ClientViewDistanceSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.world.viewDistance;
+
+import java.util.Arrays;
+import java.util.List;
+
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.i18n.TranslationSystemImpl;
+import org.terasology.logic.notifications.NotificationMessageEvent;
+import org.terasology.logic.players.DecreaseViewDistanceButton;
+import org.terasology.logic.players.IncreaseViewDistanceButton;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.network.ClientComponent;
+import org.terasology.registry.In;
+import org.terasology.rendering.world.WorldRenderer;
+
+import java.beans.PropertyChangeListener;
+
+/**
+ * Handles view distance changes on the client.
+ */
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L45">public class ClientViewDistanceSystem extends BaseComponentSystem {</span>
+
+    @In
+    private Config config;
+
+    @In
+    private Context context;
+
+    @In
+    private WorldRenderer worldRenderer;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    private PropertyChangeListener propertyChangeListener;
+
+    private TranslationSystem translationSystem;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L65">        propertyChangeListener = evt -&gt; {</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (evt.getPropertyName().equals(RenderingConfig.VIEW_DISTANCE)) {</span>
+<span class="nc" id="L67">                onChangeViewDistanceChange();</span>
+            }
+<span class="nc" id="L69">        };</span>
+<span class="nc" id="L70">        config.getRendering().subscribe(propertyChangeListener);</span>
+
+<span class="nc" id="L72">        translationSystem = new TranslationSystemImpl(context);</span>
+<span class="nc" id="L73">    }</span>
+
+    public void onChangeViewDistanceChange() {
+<span class="nc" id="L76">        ViewDistance viewDistance = config.getRendering().getViewDistance();</span>
+
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        if (worldRenderer != null) {</span>
+<span class="nc" id="L79">            worldRenderer.setViewDistance(viewDistance);</span>
+        }
+
+<span class="nc" id="L82">        EntityRef clientEntity = localPlayer.getClientEntity();</span>
+<span class="nc" id="L83">        clientEntity.send(new ViewDistanceChangedEvent(viewDistance));</span>
+<span class="nc" id="L84">    }</span>
+
+    @Override
+    public void shutdown() {
+<span class="nc" id="L88">        config.getRendering().unsubscribe(propertyChangeListener);</span>
+<span class="nc" id="L89">    }</span>
+
+    /**
+     * Increases view distance upon receiving an increase view distance event.
+     * @param button The button or key pressed to increase view distance.
+     * @param entity The player entity that triggered the view distance increase.
+     */
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onIncreaseViewDistance(IncreaseViewDistanceButton button, EntityRef entity) {
+<span class="nc" id="L98">        int viewDistance = config.getRendering().getViewDistance().getIndex();</span>
+<span class="nc" id="L99">        int maxViewDistance = ViewDistance.values().length - 1;</span>
+
+        //Ensuring that the view distance does not exceed its maximum value.
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (viewDistance != maxViewDistance) {</span>
+<span class="nc" id="L103">            ViewDistance greaterViewDistance = ViewDistance.forIndex(viewDistance + 1);</span>
+<span class="nc" id="L104">            String greaterViewDistanceStr = translationSystem.translate(greaterViewDistance.toString());</span>
+<span class="nc" id="L105">            fireChangeEvent(&quot;Increasing view distance to &quot; + greaterViewDistanceStr + &quot;.&quot;, Arrays.asList(entity));</span>
+            //Presenting user with a warning if the view distance is set higher than recommended.
+<span class="nc bnc" id="L107" title="All 4 branches missed.">            if (greaterViewDistance == ViewDistance.MEGA || greaterViewDistance == ViewDistance.EXTREME) {</span>
+<span class="nc" id="L108">                fireChangeEvent(&quot;Warning: Increasing view distance to &quot; + greaterViewDistanceStr</span>
+<span class="nc" id="L109">                        + &quot; may result in performance issues.&quot;, Arrays.asList(entity));</span>
+            }
+<span class="nc" id="L111">            config.getRendering().setViewDistance(greaterViewDistance);</span>
+        }
+<span class="nc" id="L113">        button.consume();</span>
+<span class="nc" id="L114">    }</span>
+
+    /**
+     * Decreases view distance upon receiving a decrease view distance event.
+     * @param button The button or key pressed to decrease view distance.
+     * @param entity The player entity that triggered the view distance decrease.
+     */
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onDecreaseViewDistance(DecreaseViewDistanceButton button, EntityRef entity) {
+<span class="nc" id="L123">        int viewDistance = config.getRendering().getViewDistance().getIndex();</span>
+<span class="nc" id="L124">        int minViewDistance = 0;</span>
+
+        //Ensuring that the view distance does not fall below its minimum value.
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if (viewDistance != minViewDistance) {</span>
+<span class="nc" id="L128">            ViewDistance lesserViewDistance = ViewDistance.forIndex(viewDistance - 1);</span>
+<span class="nc" id="L129">            String lesserViewDistanceStr = translationSystem.translate(lesserViewDistance.toString());</span>
+<span class="nc" id="L130">            fireChangeEvent(&quot;Decreasing view distance to &quot; + lesserViewDistanceStr + &quot;.&quot;, Arrays.asList(entity));</span>
+<span class="nc" id="L131">            config.getRendering().setViewDistance(lesserViewDistance);</span>
+        }
+<span class="nc" id="L133">        button.consume();</span>
+<span class="nc" id="L134">    }</span>
+
+    /**
+     * Fires notification events upon changes to debug parameters.
+     * @param message Notification event message.
+     * @param entities Entities which will receive the notification event.
+     */
+    private void fireChangeEvent(String message, List&lt;EntityRef&gt; entities) {
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        for (EntityRef client : entities) {</span>
+<span class="nc" id="L143">            client.send(new NotificationMessageEvent(message, client));</span>
+<span class="nc" id="L144">        }</span>
+<span class="nc" id="L145">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

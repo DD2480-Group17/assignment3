@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExtraBlockDataManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.blockdata</a> &gt; <span class="el_source">ExtraBlockDataManager.java</span></div><h1>ExtraBlockDataManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.chunks.blockdata;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.sandbox.API;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockManager;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Keeps track of the extra per-block storage fields which may be registered by mods for
+ * their own use. If multiple fields of the same size are registered for disjoint sets
+ * of blocks, they may be made aliases of the same field, to save space.
+ *
+ * To register extra data fields, annotate a class with @ExtraDataSystem, and include a
+ * public static method annotated with @RegisterExtraData which determines, for each block,
+ * whether the field is applicable for that block. For example:
+ *
+ * {@code
+ * @ExtraDataSystem
+ * public class ExampleExtraDataSystem {
+ *     @RegisterExtraData(name=&quot;exampleModule.grassNutrients&quot;, bitSize=8)
+ *     public static boolean shouldHaveNutrients(Block block) {
+ *         return block.isGrass();
+ *     }
+ *  }
+ *  }
+ */
+@API
+public class ExtraBlockDataManager {
+<span class="fc" id="L60">    private static final Logger logger = LoggerFactory.getLogger(ExtraBlockDataManager.class);</span>
+<span class="fc" id="L61">    private static final Map&lt;Integer, TeraArray.Factory&lt;? extends TeraArray&gt;&gt; TERA_ARRAY_FACTORIES = new HashMap&lt;&gt;();</span>
+    static {
+<span class="fc" id="L63">        TERA_ARRAY_FACTORIES.put(4,  new TeraSparseArray4Bit.Factory());</span>
+<span class="fc" id="L64">        TERA_ARRAY_FACTORIES.put(8,  new TeraSparseArray8Bit.Factory());</span>
+<span class="fc" id="L65">        TERA_ARRAY_FACTORIES.put(16, new TeraSparseArray16Bit.Factory());</span>
+<span class="fc" id="L66">    }</span>
+    
+    private Map&lt;String, Integer&gt; slots;
+    private TeraArray.Factory&lt;? extends TeraArray&gt;[] slotFactories;
+    
+    /**
+     * Construct a trivial instance for testing purposes: don't add any data-fields.
+     */
+<span class="fc" id="L74">    public ExtraBlockDataManager() {</span>
+<span class="fc" id="L75">        slots = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L76">        slotFactories = new TeraArray.Factory[0];</span>
+<span class="fc" id="L77">    }</span>
+    
+    /**
+     * Set extra-data fields based on the modules available through the context.
+     */
+<span class="fc" id="L82">    public ExtraBlockDataManager(Context context) {</span>
+<span class="fc" id="L83">        Map&lt;Integer, Map&lt;String, Set&lt;Block&gt;&gt;&gt; fieldss = getFieldsFromAnnotations(context);</span>
+        
+        // Work out which fields don't overlap and can be aliased together.
+<span class="fc" id="L86">        slots = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L87">        ArrayList&lt;TeraArray.Factory&lt;?&gt;&gt; tempSlotTypes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L88">        fieldss.forEach((size, fields) -&gt; {</span>
+<span class="fc" id="L89">            Graph disjointnessGraph = getDisjointnessGraph(fields);</span>
+<span class="fc" id="L90">            ArrayList&lt;ArrayList&lt;String&gt;&gt; cliques = findCliqueCover(disjointnessGraph);</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">            for (ArrayList&lt;String&gt; clique : cliques) {</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                for (String label : clique) {</span>
+<span class="nc" id="L93">                    slots.put(label, tempSlotTypes.size());</span>
+<span class="nc" id="L94">                }</span>
+<span class="nc" id="L95">                tempSlotTypes.add(TERA_ARRAY_FACTORIES.get(size));</span>
+<span class="nc" id="L96">            }</span>
+<span class="fc" id="L97">        });</span>
+<span class="fc" id="L98">        slotFactories = tempSlotTypes.toArray(new TeraArray.Factory&lt;?&gt;[0]);</span>
+        
+<span class="fc" id="L100">        String loggingOutput = &quot;Extra data slots registered:&quot;;</span>
+<span class="fc" id="L101">        boolean first = true;</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        for (Map.Entry&lt;String, Integer&gt; entry : slots.entrySet()) {</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            loggingOutput += (first ? &quot; &quot; : &quot;, &quot;) + entry.getKey() + &quot; -&gt; &quot; + entry.getValue();</span>
+<span class="nc" id="L104">            first = false;</span>
+<span class="nc" id="L105">        }</span>
+<span class="fc" id="L106">        logger.info(loggingOutput);</span>
+<span class="fc" id="L107">    }</span>
+    
+    // Find requests for extensions and which blocks they apply to.
+    private Map&lt;Integer, Map&lt;String, Set&lt;Block&gt;&gt;&gt; getFieldsFromAnnotations(Context context) {
+<span class="fc" id="L111">        ModuleEnvironment environment = context.get(ModuleManager.class).getEnvironment();</span>
+<span class="fc" id="L112">        Collection&lt;Block&gt; blocks = context.get(BlockManager.class).listRegisteredBlocks();</span>
+        
+<span class="fc" id="L114">        Map&lt;Integer, Map&lt;String, Set&lt;Block&gt;&gt;&gt; fieldss = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L115">        TERA_ARRAY_FACTORIES.forEach((size, fac) -&gt; fieldss.put(size, new HashMap&lt;&gt;()));</span>
+        
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">        for (Class&lt;?&gt; type : environment.getTypesAnnotatedWith(ExtraDataSystem.class)) {</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            for (Method method : type.getMethods()) {</span>
+<span class="nc" id="L119">                RegisterExtraData registerAnnotation = method.getAnnotation(RegisterExtraData.class);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                if (registerAnnotation != null) {</span>
+<span class="nc" id="L121">                    String errorType = validRegistrationMethod(method, registerAnnotation);</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                    if (errorType != null) {</span>
+<span class="nc" id="L123">                        logger.error(&quot;Unable to register extra block data: &quot; + errorType +</span>
+                            &quot; for {}.{}: should be \&quot;public static boolean {}(Block block)\&quot;, and bitSize should be 4, 8 or 16.&quot;,
+<span class="nc" id="L125">                            type.getName(), method.getName(), method.getName());</span>
+<span class="nc" id="L126">                        continue;</span>
+                    }
+<span class="nc" id="L128">                    method.setAccessible(true);</span>
+<span class="nc" id="L129">                    Set&lt;Block&gt; includedBlocks = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                    for (Block block : blocks) {</span>
+                        try {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                            if ((boolean) method.invoke(null, block)) {</span>
+<span class="nc" id="L133">                                includedBlocks.add(block);</span>
+                            }
+<span class="nc" id="L135">                        } catch (IllegalAccessException e) {</span>
+                            // This should not get to this point.
+<span class="nc" id="L137">                            throw new RuntimeException(&quot;Incorrect access modifier on register extra data method&quot;, e);</span>
+<span class="nc" id="L138">                        } catch (InvocationTargetException e) {</span>
+<span class="nc" id="L139">                            throw new RuntimeException(e);</span>
+<span class="nc" id="L140">                        }</span>
+<span class="nc" id="L141">                    }</span>
+<span class="nc" id="L142">                    fieldss.get(registerAnnotation.bitSize()).put(registerAnnotation.name(), includedBlocks);</span>
+                }
+            }
+<span class="nc" id="L145">        }</span>
+<span class="fc" id="L146">        return fieldss;</span>
+    }
+    
+    private static String validRegistrationMethod(Method method, RegisterExtraData annotation) {
+<span class="nc" id="L150">        Class&lt;?&gt;[] argumentTypes = method.getParameterTypes();</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        return method.getReturnType() != boolean.class ? &quot;incorrect return type&quot;</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">               : !TERA_ARRAY_FACTORIES.containsKey(annotation.bitSize()) ? &quot;invalid bitSize&quot;</span>
+<span class="nc bnc" id="L153" title="All 6 branches missed.">               : !Modifier.isStatic(method.getModifiers()) ? &quot;method not static&quot;</span>
+               : argumentTypes.length != 1 ? &quot;arguments list has wrong length&quot;
+               : argumentTypes[0] != Block.class ? &quot;incorrect argument type&quot;
+               : null;
+    }
+    
+    private static Graph getDisjointnessGraph(Map&lt;String, Set&lt;Block&gt;&gt; fields) {
+<span class="fc" id="L160">        Graph graph = new Graph(fields.keySet().toArray(new String[0]));</span>
+<span class="fc" id="L161">        fields.forEach((name0, blockSet0) -&gt;</span>
+<span class="nc" id="L162">            fields.forEach((name1, blockSet1) -&gt; {</span>
+<span class="nc bnc" id="L163" title="All 4 branches missed.">                if (name0.compareTo(name1) &lt; 0 &amp;&amp; Collections.disjoint(blockSet0, blockSet1)) {</span>
+<span class="nc" id="L164">                    graph.addEdge(name0, name1);</span>
+                }
+<span class="nc" id="L166">            })</span>
+        );
+<span class="fc" id="L168">        return graph;</span>
+    }
+    
+    //This is exponential time, but the problem is known to be NP-hard in general and large cases are unlikely to come up.
+    /**
+     * Find the smallest-possible number of cliques that contain all of the vertices of the graph.
+     * Used to determine how to most efficiently assign aliases of requested extra-data fields.
+     */
+    private static ArrayList&lt;ArrayList&lt;String&gt;&gt; findCliqueCover(Graph graph) {
+<span class="fc" id="L177">        return findCliqueCover(graph, Integer.MAX_VALUE, &quot;&quot;);</span>
+    }
+    
+    private static ArrayList&lt;ArrayList&lt;String&gt;&gt; findCliqueCover(Graph graph, int bestSize, String tabs) {
+<span class="fc" id="L181">        verboseLog(tabs + &quot;findCliqueCover up to &quot; + bestSize + &quot;, &quot; + graph.toString());</span>
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">        for (int i = 0; i &lt; graph.size(); i++) {</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            if (i &gt;= bestSize - 1) {</span>
+<span class="nc" id="L184">                verboseLog(tabs + &quot;giving up&quot;);</span>
+<span class="nc" id="L185">                return null;</span>
+            }
+<span class="nc" id="L187">            String v0 = graph.getVert(i);</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            if (!graph.getEdges(v0).isEmpty()) {</span>
+<span class="nc" id="L189">                verboseLog(tabs + &quot;Selected vertex &quot; + v0);</span>
+<span class="nc" id="L190">                String v1 = graph.getEdges(v0).iterator().next();</span>
+<span class="nc" id="L191">                ArrayList&lt;ArrayList&lt;String&gt;&gt; bestCover0 = findCliqueCover(graph.ntract(v0, v1), bestSize, tabs + &quot;----&quot;);</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">                int bestSize0 = bestCover0 == null ? bestSize : bestCover0.size();</span>
+<span class="nc" id="L193">                graph.removeEdge(v0, v1);</span>
+<span class="nc" id="L194">                ArrayList&lt;ArrayList&lt;String&gt;&gt; bestCover1 = findCliqueCover(graph, bestSize0, tabs + &quot;    &quot;);</span>
+<span class="nc" id="L195">                graph.addEdge(v0, v1);</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                if (bestCover1 != null) {</span>
+<span class="nc" id="L197">                    return bestCover1;</span>
+                } else {
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                    if (bestCover0 != null) {</span>
+<span class="nc" id="L200">                        bestCover0.get(i).add(v1);</span>
+                    }
+<span class="nc" id="L202">                    return bestCover0;</span>
+                }
+            }
+        }
+<span class="fc" id="L206">        verboseLog(tabs + &quot;done, &quot; + graph.size());</span>
+<span class="fc" id="L207">        ArrayList&lt;ArrayList&lt;String&gt;&gt; bestCover = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">        for (int i = 0; i &lt; graph.size(); i++) {</span>
+<span class="nc" id="L209">            ArrayList&lt;String&gt; singleton = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L210">            singleton.add(graph.getVert(i));</span>
+<span class="nc" id="L211">            bestCover.add(singleton);</span>
+        }
+<span class="fc" id="L213">        return bestCover;</span>
+    }
+    
+    // Log something, but only when this class is being tested.
+    private static void verboseLog(String string) {
+        //logger.info(string);
+<span class="fc" id="L219">    }</span>
+    
+    /**
+     * Get the numerical index associated with the extra data field name.
+     * This numerical index is needed for most extra-data access methods.
+     */
+    public int getSlotNumber(String name) {
+<span class="nc" id="L226">        Integer index = slots.get(name);</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">        if (index == null) {</span>
+<span class="nc" id="L228">            throw new IllegalArgumentException(&quot;Extra-data name not registered: &quot; + name);</span>
+        }
+<span class="nc" id="L230">        return index;</span>
+    }
+    
+    public TeraArray[] makeDataArrays(int sizeX, int sizeY, int sizeZ) {
+<span class="fc" id="L234">        TeraArray[] extraData = new TeraArray[slotFactories.length];</span>
+<span class="pc bpc" id="L235" title="1 of 2 branches missed.">        for (int i = 0; i &lt; extraData.length; i++) {</span>
+<span class="nc" id="L236">            extraData[i] = slotFactories[i].create(sizeX, sizeY, sizeZ);</span>
+        }
+<span class="fc" id="L238">        return extraData;</span>
+    }
+    
+    /**
+     * Undirected graphs with string-labelled vertices.
+     * Used to represent the overlaps between requested extra-data fields.
+     */
+    private static class Graph {
+        private String[] verts;
+        private Map&lt;String, Set&lt;String&gt;&gt; edges;
+        
+<span class="nc" id="L249">        private Graph(String[] verts, Map&lt;String, Set&lt;String&gt;&gt; edges) {</span>
+<span class="nc" id="L250">            this.verts = verts;</span>
+<span class="nc" id="L251">            this.edges = edges;</span>
+<span class="nc" id="L252">        }</span>
+        
+<span class="fc" id="L254">        Graph(String[] verts) {</span>
+<span class="fc" id="L255">            this.verts = verts.clone();</span>
+<span class="fc" id="L256">            this.edges = new HashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">            for (String vert : verts) {</span>
+<span class="nc" id="L258">                edges.put(vert, new HashSet());</span>
+            }
+<span class="fc" id="L260">        }</span>
+        
+        public int size() {
+<span class="fc" id="L263">            return verts.length;</span>
+        }
+        
+        public String getVert(int i) {
+<span class="nc" id="L267">            return verts[i];</span>
+        }
+        
+        public Set&lt;String&gt; getEdges(String v) {
+<span class="nc" id="L271">            return Collections.unmodifiableSet(edges.get(v));</span>
+        }
+        
+        public Graph addEdge(String s0, String s1) {
+<span class="nc" id="L275">            edges.get(s0).add(s1);</span>
+<span class="nc" id="L276">            edges.get(s1).add(s0);</span>
+<span class="nc" id="L277">            return this;</span>
+        }
+        
+        public Graph removeEdge(String s0, String s1) {
+<span class="nc" id="L281">            edges.get(s0).remove(s1);</span>
+<span class="nc" id="L282">            edges.get(s1).remove(s0);</span>
+<span class="nc" id="L283">            return this;</span>
+        }
+        
+        // Creates a new graph containing the complement of the contraction of the complement.
+        public Graph ntract(String s0, String s1) {
+<span class="nc" id="L288">            int v0 = -1;</span>
+<span class="nc" id="L289">            int v1 = -1;</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">            for (int i = 0; i &lt; verts.length; i++) {</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">                if (verts[i].equals(s0)) {</span>
+<span class="nc" id="L292">                    v0 = i;</span>
+                }
+<span class="nc bnc" id="L294" title="All 2 branches missed.">                if (verts[i].equals(s1)) {</span>
+<span class="nc" id="L295">                    v1 = i;</span>
+                }
+            }
+<span class="nc" id="L298">            String[] newVerts = new String[verts.length - 1];</span>
+<span class="nc" id="L299">            System.arraycopy(verts, 0, newVerts, 0, v1);</span>
+<span class="nc" id="L300">            System.arraycopy(verts, v1 + 1, newVerts, v1, verts.length - v1 - 1);</span>
+<span class="nc" id="L301">            Map&lt;String, Set&lt;String&gt;&gt; newEdges = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">            for (String s : verts) {</span>
+<span class="nc" id="L303">                newEdges.put(s, new HashSet&lt;&gt;(edges.get(s)));</span>
+            }
+<span class="nc" id="L305">            newEdges.remove(s1);</span>
+<span class="nc" id="L306">            Set&lt;String&gt; e0 = newEdges.get(s0);</span>
+<span class="nc" id="L307">            Set&lt;String&gt; e1 = edges.get(s1);</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            for (String s2 : verts) {</span>
+<span class="nc bnc" id="L309" title="All 4 branches missed.">                if (e0.contains(s2) &amp;&amp; !e1.contains(s2)) {</span>
+<span class="nc" id="L310">                    e0.remove(s2);</span>
+<span class="nc" id="L311">                    newEdges.get(s2).remove(s0);</span>
+                }
+<span class="nc bnc" id="L313" title="All 2 branches missed.">                if (e1.contains(s2)) {</span>
+<span class="nc" id="L314">                    newEdges.get(s2).remove(s1);</span>
+                }
+            }
+<span class="nc" id="L317">            return new Graph(newVerts, newEdges);</span>
+        }
+        
+        public String toString() {
+<span class="fc" id="L321">            String result = &quot;Graph:&quot;;</span>
+<span class="pc bpc" id="L322" title="1 of 2 branches missed.">            for (int i = 0; i &lt; verts.length; i++) {</span>
+<span class="nc" id="L323">                result += &quot; (&quot; + verts[i] + &quot; -&gt;&quot;;</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                for (String v : edges.get(verts[i])) {</span>
+<span class="nc" id="L325">                    result += &quot; &quot; + v;</span>
+<span class="nc" id="L326">                }</span>
+<span class="nc" id="L327">                result += &quot;)&quot;;</span>
+            }
+<span class="fc" id="L329">            return result;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

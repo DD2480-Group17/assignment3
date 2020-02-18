@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CamelCaseMatcherTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities</a> &gt; <span class="el_source">CamelCaseMatcherTest.java</span></div><h1>CamelCaseMatcherTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities;
+
+import com.google.common.collect.ImmutableList;
+import org.junit.jupiter.api.Test;
+
+import java.util.Collection;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Tests {@link CamelCaseMatcher}
+ */
+<span class="fc" id="L31">public class CamelCaseMatcherTest {</span>
+
+    @Test
+    public void testDefault() {
+<span class="fc" id="L35">        List&lt;String&gt; commands = ImmutableList.of(&quot;MyPossibleResultString&quot;);</span>
+<span class="fc" id="L36">        List&lt;String&gt; queries = ImmutableList.of(&quot;MyPossibleResultString&quot;, &quot;MPRS&quot;,</span>
+                &quot;MPRString&quot;, &quot;MyPosResStr&quot;, &quot;M&quot;, &quot;MyP*RString&quot;, &quot;*PosResString&quot;, &quot;My*String&quot;);
+
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        for (String query : queries) {</span>
+<span class="fc" id="L40">            Collection&lt;String&gt; matches = CamelCaseMatcher.getMatches(query, commands, true);</span>
+<span class="fc" id="L41">            assertEquals(1, matches.size(), &quot;The query did not match the command&quot;);</span>
+<span class="fc" id="L42">        }</span>
+<span class="fc" id="L43">    }</span>
+
+    @Test
+    public void testTeraCommands() {
+<span class="fc" id="L47">        List&lt;String&gt; commands = ImmutableList.of(&quot;azerty&quot;, &quot;bindKey&quot;, &quot;clearChunkCache&quot;, &quot;countAI&quot;,</span>
+                &quot;damage&quot;, &quot;debugTarget&quot;, &quot;destroyAI&quot;, &quot;destroyEntitiesUsingPrefab&quot;, &quot;dumpEntities&quot;,
+                &quot;exit&quot;, &quot;fullscreen&quot;, &quot;generateNameList&quot;, &quot;generateNameList&quot;, &quot;ghost&quot;, &quot;giveBlock&quot;,
+                &quot;giveBlock&quot;, &quot;giveItem&quot;, &quot;health&quot;, &quot;help&quot;, &quot;hjump&quot;, &quot;hspeed&quot;, &quot;initNameGenerator&quot;,
+                &quot;kill&quot;, &quot;listBlocks&quot;, &quot;listBlocksByCategory&quot;, &quot;listFreeShapeBlocks&quot;, &quot;listItems&quot;,
+                &quot;listShapes&quot;, &quot;mute&quot;, &quot;neo&quot;, &quot;nextName&quot;, &quot;placeBlock&quot;, &quot;playTestSound&quot;, &quot;purgeWorld&quot;,
+                &quot;restoreSpeed&quot;, &quot;say&quot;, &quot;setGroundFriction&quot;, &quot;setJumpSpeed&quot;, &quot;setMaxGhostSpeed&quot;,
+                &quot;setMaxGroundSpeed&quot;, &quot;setMaxHealth&quot;, &quot;setRegenRaterate&quot;, &quot;showHealth&quot;, &quot;showMovement&quot;,
+                &quot;sleigh&quot;, &quot;spawnBlock&quot;, &quot;spawnPrefab&quot;, &quot;stepHeight&quot;, &quot;teleport&quot;);
+
+<span class="fc" id="L57">        List&lt;String&gt; noHitQueries = ImmutableList.of(&quot;asdfd&quot;, &quot;AvDS&quot;, &quot;MPRString&quot;);</span>
+
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        for (String query : noHitQueries) {</span>
+<span class="fc" id="L60">            Collection&lt;String&gt; matches = CamelCaseMatcher.getMatches(query, commands, true);</span>
+<span class="pc" id="L61">            assertEquals(0, matches.size(), () -&gt; &quot;The query '&quot; + query + &quot;' should not match any command&quot;);</span>
+<span class="fc" id="L62">        }</span>
+
+<span class="fc" id="L64">        List&lt;String&gt; oneHitQueries = ImmutableList.of(&quot;liFSB&quot;, &quot;puW&quot;, &quot;liI&quot;);</span>
+
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        for (String query : oneHitQueries) {</span>
+<span class="fc" id="L67">            Collection&lt;String&gt; matches = CamelCaseMatcher.getMatches(query, commands, true);</span>
+<span class="pc" id="L68">            assertEquals(1, matches.size(), () -&gt; &quot;The query '&quot; + query + &quot;' should match exactly 1 command, not &quot; + matches.size());</span>
+<span class="fc" id="L69">        }</span>
+
+<span class="fc" id="L71">        List&lt;String&gt; multiHitQueries = ImmutableList.of(&quot;liB&quot;, &quot;spa&quot;, &quot;seMaGSpe&quot;);</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        for (String query : multiHitQueries) {</span>
+<span class="fc" id="L74">            Collection&lt;String&gt; matches = CamelCaseMatcher.getMatches(query, commands, true);</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">            assertTrue(matches.size() &gt; 1, &quot;The query '&quot; + query + &quot;' should match multiple commands, not &quot; + matches.size());</span>
+<span class="fc" id="L76">        }</span>
+<span class="fc" id="L77">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

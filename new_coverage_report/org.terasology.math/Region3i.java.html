@@ -1,0 +1,417 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Region3i.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.math</a> &gt; <span class="el_source">Region3i.java</span></div><h1>Region3i.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.math;
+
+import org.terasology.math.geom.BaseVector3f;
+import org.terasology.math.geom.BaseVector3i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+
+import java.util.Iterator;
+
+/**
+ * Describes an axis-aligned bounded space in 3D integer.
+ *
+ */
+public final class Region3i implements Iterable&lt;Vector3i&gt; {
+
+    /**
+     * @deprecated As of 24 sep 2018, because it is error prone.
+     * Everyone can change this instance and destroy the invariant properties.
+     * Some methods used to return this instance silently on special cases.
+     */
+    @Deprecated
+<span class="fc" id="L38">    public static final Region3i EMPTY = Region3i.empty();</span>
+
+<span class="fc" id="L40">    private final Vector3i min = new Vector3i();</span>
+<span class="fc" id="L41">    private final Vector3i size = new Vector3i();</span>
+
+    /**
+     * Constructs an empty Region with size (0,0,0).
+     */
+<span class="fc" id="L46">    private Region3i() {</span>
+<span class="fc" id="L47">    }</span>
+
+<span class="fc" id="L49">    private Region3i(BaseVector3i min, BaseVector3i size) {</span>
+<span class="fc" id="L50">        this.min.set(min);</span>
+<span class="fc" id="L51">        this.size.set(size);</span>
+<span class="fc" id="L52">    }</span>
+
+    /**
+     * An empty Region with size (0,0,0).
+     * @return An empty Region3i
+     */
+    public static Region3i empty() {
+<span class="fc" id="L59">        return new Region3i();</span>
+    }
+
+    /**
+     * @param min the min point of the region
+     * @param size the size of the region
+     * @return a new region base on the min point and region size, empty if the size is negative
+     */
+    public static Region3i createFromMinAndSize(BaseVector3i min, BaseVector3i size) {
+<span class="pc bpc" id="L68" title="1 of 6 branches missed.">        if (size.x() &lt;= 0 || size.y() &lt;= 0 || size.z() &lt;= 0) {</span>
+<span class="fc" id="L69">            return empty();</span>
+        }
+<span class="fc" id="L71">        return new Region3i(min, size);</span>
+    }
+
+    /**
+     * Create a region with center point and x,y,z coordinate extents size
+     * @param center the center point of region
+     * @param extents the extents size of each side of region
+     * @return a new region base on the center point and extents size
+     */
+    public static Region3i createFromCenterExtents(BaseVector3f center, BaseVector3f extents) {
+<span class="nc" id="L81">        Vector3f min = new Vector3f(center.x() - extents.x(), center.y() - extents.y(), center.z() - extents.z());</span>
+<span class="nc" id="L82">        Vector3f max = new Vector3f(center.x() + extents.x(), center.y() + extents.y(), center.z() + extents.z());</span>
+<span class="nc" id="L83">        max.x = max.x - Math.ulp(max.x);</span>
+<span class="nc" id="L84">        max.y = max.y - Math.ulp(max.y);</span>
+<span class="nc" id="L85">        max.z = max.z - Math.ulp(max.z);</span>
+<span class="nc" id="L86">        return createFromMinMax(new Vector3i(min), new Vector3i(max));</span>
+    }
+
+    /**
+     * Create a region with center point and x,y,z coordinate extents size
+     * @param center the center point of region
+     * @param extents the extents size of each side of region
+     * @return a new region base on the center point and extents size
+     */
+    public static Region3i createFromCenterExtents(BaseVector3i center, BaseVector3i extents) {
+<span class="fc" id="L96">        Vector3i min = new Vector3i(center.x() - extents.x(), center.y() - extents.y(), center.z() - extents.z());</span>
+<span class="fc" id="L97">        Vector3i max = new Vector3i(center.x() + extents.x(), center.y() + extents.y(), center.z() + extents.z());</span>
+<span class="fc" id="L98">        return createFromMinMax(min, max);</span>
+    }
+
+    /**
+     * Create a region with center point and extents size
+     * @param center the center point of region
+     * @param extent the extents size of region
+     * @return a new region base on the center point and extents size
+     */
+    public static Region3i createFromCenterExtents(BaseVector3i center, int extent) {
+<span class="fc" id="L108">        Vector3i min = new Vector3i(center.x() - extent, center.y() - extent, center.z() - extent);</span>
+<span class="fc" id="L109">        Vector3i max = new Vector3i(center.x() + extent, center.y() + extent, center.z() + extent);</span>
+<span class="fc" id="L110">        return createFromMinMax(min, max);</span>
+    }
+
+    /**
+     * Create a region by two point
+     * @param a vertex a
+     * @param b the diagonal vertex of a
+     * @return a new region base on vertex a and b
+     */
+    public static Region3i createBounded(BaseVector3i a, BaseVector3i b) {
+<span class="fc" id="L120">        Vector3i min = new Vector3i(a);</span>
+<span class="fc" id="L121">        min.min(b);</span>
+<span class="fc" id="L122">        Vector3i max = new Vector3i(a);</span>
+<span class="fc" id="L123">        max.max(b);</span>
+<span class="fc" id="L124">        return createFromMinMax(min, max);</span>
+    }
+
+    /**
+     * Create a region by two point
+     * @param min the min point of the region
+     * @param max the max point of the region
+     * @return a new region base on min and max point
+     */
+    public static Region3i createFromMinMax(BaseVector3i min, BaseVector3i max) {
+<span class="fc" id="L134">        Vector3i size = new Vector3i(max.x() - min.x() + 1, max.y() - min.y() + 1, max.z() - min.z() + 1);</span>
+<span class="pc bpc" id="L135" title="2 of 6 branches missed.">        if (size.x &lt;= 0 || size.y &lt;= 0 || size.z &lt;= 0) {</span>
+<span class="fc" id="L136">            return empty();</span>
+        }
+<span class="fc" id="L138">        return new Region3i(min, size);</span>
+    }
+
+    public static Region3i createEncompassing(Region3i a, Region3i b) {
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if (a.isEmpty()) {</span>
+<span class="nc" id="L143">            return b;</span>
+        }
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        if (b.isEmpty()) {</span>
+<span class="nc" id="L146">            return a;</span>
+        }
+<span class="nc" id="L148">        Vector3i min = a.min();</span>
+<span class="nc" id="L149">        min.min(b.min());</span>
+<span class="nc" id="L150">        Vector3i max = a.max();</span>
+<span class="nc" id="L151">        max.max(b.max());</span>
+<span class="nc" id="L152">        return createFromMinMax(min, max);</span>
+    }
+
+    public boolean isEmpty() {
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        return size.x + size.y + size().z == 0;</span>
+    }
+
+    /**
+     * @return The smallest vector in the region
+     */
+    public Vector3i min() {
+<span class="fc" id="L163">        return new Vector3i(min);</span>
+    }
+
+    public int minX() {
+<span class="fc" id="L167">        return min.x;</span>
+    }
+
+    public int minY() {
+<span class="fc" id="L171">        return min.y;</span>
+    }
+
+    public int minZ() {
+<span class="fc" id="L175">        return min.z;</span>
+    }
+
+    /**
+     * @return The size of the region
+     */
+    public Vector3i size() {
+<span class="fc" id="L182">        return new Vector3i(size);</span>
+    }
+
+    public int sizeX() {
+<span class="fc" id="L186">        return size.x;</span>
+    }
+
+    public int sizeY() {
+<span class="fc" id="L190">        return size.y;</span>
+    }
+
+    public int sizeZ() {
+<span class="nc" id="L194">        return size.z;</span>
+    }
+
+    /**
+     * @return The largest vector in the region
+     */
+    public Vector3i max() {
+<span class="fc" id="L201">        Vector3i max = new Vector3i(min);</span>
+<span class="fc" id="L202">        max.add(size);</span>
+<span class="fc" id="L203">        max.sub(1, 1, 1);</span>
+<span class="fc" id="L204">        return max;</span>
+    }
+
+    public int maxX() {
+<span class="fc" id="L208">        return min.x + size.x - 1;</span>
+    }
+
+    public int maxY() {
+<span class="fc" id="L212">        return min.y + size.y - 1;</span>
+    }
+
+    public int maxZ() {
+<span class="fc" id="L216">        return min.z + size.z - 1;</span>
+    }
+
+    /**
+     * @param other
+     * @return The region that is encompassed by both this and other. If they
+     * do not overlap then the empty region is returned
+     */
+    public Region3i intersect(Region3i other) {
+<span class="fc" id="L225">        Vector3i intersectMin = min();</span>
+<span class="fc" id="L226">        intersectMin.max(other.min());</span>
+<span class="fc" id="L227">        Vector3i intersectMax = max();</span>
+<span class="fc" id="L228">        intersectMax.min(other.max());</span>
+
+<span class="fc" id="L230">        return createFromMinMax(intersectMin, intersectMax);</span>
+    }
+
+    /**
+     * @param other
+     * @return An iterator over the positions in this region that aren't in other
+     */
+    public Iterator&lt;Vector3i&gt; subtract(Region3i other) {
+<span class="nc" id="L238">        return new SubtractiveIterator(other);</span>
+    }
+
+    /**
+     * Creates a new region that is the same as this region but expanded in all directions by the given amount
+     *
+     * @param amount
+     * @return A new region
+     */
+    public Region3i expand(int amount) {
+<span class="nc" id="L248">        Vector3i expandedMin = min();</span>
+<span class="nc" id="L249">        expandedMin.sub(amount, amount, amount);</span>
+<span class="nc" id="L250">        Vector3i expandedMax = max();</span>
+<span class="nc" id="L251">        expandedMax.add(amount, amount, amount);</span>
+<span class="nc" id="L252">        return createFromMinMax(expandedMin, expandedMax);</span>
+    }
+
+    public Region3i expand(BaseVector3i amount) {
+<span class="nc" id="L256">        Vector3i expandedMin = min();</span>
+<span class="nc" id="L257">        expandedMin.sub(amount);</span>
+<span class="nc" id="L258">        Vector3i expandedMax = max();</span>
+<span class="nc" id="L259">        expandedMax.add(amount);</span>
+<span class="nc" id="L260">        return createFromMinMax(expandedMin, expandedMax);</span>
+    }
+
+    public Region3i expandToContain(BaseVector3i adjPos) {
+<span class="nc" id="L264">        Vector3i expandedMin = min();</span>
+<span class="nc" id="L265">        expandedMin.min(adjPos);</span>
+<span class="nc" id="L266">        Vector3i expandedMax = max();</span>
+<span class="nc" id="L267">        expandedMax.max(adjPos);</span>
+<span class="nc" id="L268">        return createFromMinMax(expandedMin, expandedMax);</span>
+    }
+
+    /**
+     * @return The position at the center of the region
+     */
+    public Vector3f center() {
+<span class="nc" id="L275">        Vector3f result = min.toVector3f();</span>
+<span class="nc" id="L276">        Vector3f halfSize = size.toVector3f();</span>
+<span class="nc" id="L277">        halfSize.scale(0.5f);</span>
+<span class="nc" id="L278">        result.add(halfSize);</span>
+<span class="nc" id="L279">        return result;</span>
+    }
+
+    /**
+     * @param offset
+     * @return A copy of the region offset by the given value
+     */
+    public Region3i move(BaseVector3i offset) {
+<span class="nc" id="L287">        Vector3i newMin = min();</span>
+<span class="nc" id="L288">        newMin.add(offset);</span>
+<span class="nc" id="L289">        return Region3i.createFromMinAndSize(newMin, size);</span>
+    }
+
+    /**
+     * @param pos
+     * @return Whether this region includes pos
+     */
+    public boolean encompasses(BaseVector3i pos) {
+<span class="fc" id="L297">        return encompasses(pos.getX(), pos.getY(), pos.getZ());</span>
+    }
+
+    public boolean encompasses(int x, int y, int z) {
+<span class="fc bfc" id="L301" title="All 12 branches covered.">        return (x &gt;= min.x) &amp;&amp; (y &gt;= min.y) &amp;&amp; (z &gt;= min.z) &amp;&amp; (x &lt; min.x + size.x) &amp;&amp; (y &lt; min.y + size.y) &amp;&amp; (z &lt; min.z + size.z);</span>
+    }
+
+    /**
+     * @param pos
+     * @return The nearest position within the region to the given pos.
+     */
+    public Vector3i getNearestPointTo(BaseVector3i pos) {
+<span class="fc" id="L309">        Vector3i result = new Vector3i(pos);</span>
+<span class="fc" id="L310">        result.min(max());</span>
+<span class="fc" id="L311">        result.max(min);</span>
+<span class="fc" id="L312">        return result;</span>
+    }
+
+    @Override
+    public Iterator&lt;Vector3i&gt; iterator() {
+<span class="fc" id="L317">        return new Region3iIterator();</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc" id="L322">        return &quot;(Min: &quot; + min + &quot;, Size: &quot; + size + &quot;)&quot;;</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">        if (obj == this) {</span>
+<span class="nc" id="L328">            return true;</span>
+        }
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">        if (obj instanceof Region3i) {</span>
+<span class="fc" id="L331">            Region3i other = (Region3i) obj;</span>
+<span class="pc bpc" id="L332" title="2 of 4 branches missed.">            return min.equals(other.min) &amp;&amp; size.equals(other.size);</span>
+        }
+<span class="nc" id="L334">        return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L339">        int hash = 37;</span>
+<span class="nc" id="L340">        hash += 37 * hash + min.hashCode();</span>
+<span class="nc" id="L341">        hash += 37 * hash + size.hashCode();</span>
+<span class="nc" id="L342">        return hash;</span>
+    }
+
+    private class Region3iIterator implements Iterator&lt;Vector3i&gt; {
+        Vector3i pos;
+
+<span class="fc" id="L348">         Region3iIterator() {</span>
+<span class="fc" id="L349">            this.pos = new Vector3i();</span>
+<span class="fc" id="L350">        }</span>
+
+        @Override
+        public boolean hasNext() {
+<span class="fc bfc" id="L354" title="All 2 branches covered.">            return pos.x &lt; size.x;</span>
+        }
+
+        @Override
+        public Vector3i next() {
+<span class="fc" id="L359">            Vector3i result = new Vector3i(pos.x + min.x, pos.y + min.y, pos.z + min.z);</span>
+<span class="fc" id="L360">            pos.z++;</span>
+<span class="fc bfc" id="L361" title="All 2 branches covered.">            if (pos.z &gt;= size.z) {</span>
+<span class="fc" id="L362">                pos.z = 0;</span>
+<span class="fc" id="L363">                pos.y++;</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">                if (pos.y &gt;= size.y) {</span>
+<span class="fc" id="L365">                    pos.y = 0;</span>
+<span class="fc" id="L366">                    pos.x++;</span>
+                }
+            }
+<span class="fc" id="L369">            return result;</span>
+        }
+
+        @Override
+        public void remove() {
+<span class="nc" id="L374">            throw new UnsupportedOperationException(&quot;Not supported.&quot;);</span>
+        }
+    }
+
+    private class SubtractiveIterator implements Iterator&lt;Vector3i&gt; {
+        private Iterator&lt;Vector3i&gt; innerIterator;
+        private Vector3i next;
+        private Region3i other;
+
+<span class="nc" id="L383">         SubtractiveIterator(Region3i other) {</span>
+<span class="nc" id="L384">            this.other = other;</span>
+<span class="nc" id="L385">            innerIterator = iterator();</span>
+<span class="nc" id="L386">            updateNext();</span>
+<span class="nc" id="L387">        }</span>
+
+        private void updateNext() {
+<span class="nc bnc" id="L390" title="All 2 branches missed.">            while (innerIterator.hasNext()) {</span>
+<span class="nc" id="L391">                next = innerIterator.next();</span>
+<span class="nc bnc" id="L392" title="All 2 branches missed.">                if (!other.encompasses(next)) {</span>
+<span class="nc" id="L393">                    return;</span>
+                }
+            }
+<span class="nc" id="L396">            next = null;</span>
+<span class="nc" id="L397">        }</span>
+
+        @Override
+        public boolean hasNext() {
+<span class="nc bnc" id="L401" title="All 2 branches missed.">            return next != null;</span>
+        }
+
+        @Override
+        public Vector3i next() {
+<span class="nc" id="L406">            Vector3i result = new Vector3i(next);</span>
+<span class="nc" id="L407">            updateNext();</span>
+<span class="nc" id="L408">            return result;</span>
+        }
+
+        @Override
+        public void remove() {
+<span class="nc" id="L413">            throw new UnsupportedOperationException();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

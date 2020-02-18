@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NeighbourBlockFamilyUpdateSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.entity.neighbourUpdate</a> &gt; <span class="el_source">NeighbourBlockFamilyUpdateSystem.java</span></div><h1>NeighbourBlockFamilyUpdateSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.entity.neighbourUpdate;
+
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.math.Side;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.In;
+import org.terasology.world.BlockEntityRegistry;
+import org.terasology.world.OnChangedBlock;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockComponent;
+import org.terasology.world.block.family.BlockFamily;
+import org.terasology.world.block.family.UpdatesWithNeighboursFamily;
+import org.terasology.world.block.items.OnBlockItemPlaced;
+
+import java.util.Set;
+
+@RegisterSystem(RegisterMode.AUTHORITY)
+<span class="nc" id="L42">public class NeighbourBlockFamilyUpdateSystem extends BaseComponentSystem implements UpdateSubscriberSystem {</span>
+<span class="nc" id="L43">    private static final Logger logger = LoggerFactory.getLogger(NeighbourBlockFamilyUpdateSystem.class);</span>
+
+    @In
+    private WorldProvider worldProvider;
+    @In
+    private BlockEntityRegistry blockEntityRegistry;
+
+    private int largeBlockUpdateCount;
+<span class="nc" id="L51">    private Set&lt;Vector3i&gt; blocksUpdatedInLargeBlockUpdate = Sets.newHashSet();</span>
+
+    @ReceiveEvent
+    public void largeBlockUpdateStarting(LargeBlockUpdateStarting event, EntityRef entity) {
+<span class="nc" id="L55">        largeBlockUpdateCount++;</span>
+<span class="nc" id="L56">    }</span>
+
+    @ReceiveEvent
+    public void largeBlockUpdateFinished(LargeBlockUpdateFinished event, EntityRef entity) {
+<span class="nc" id="L60">        largeBlockUpdateCount--;</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        if (largeBlockUpdateCount &lt; 0) {</span>
+<span class="nc" id="L62">            largeBlockUpdateCount = 0;</span>
+<span class="nc" id="L63">            throw new IllegalStateException(&quot;LargeBlockUpdateFinished invoked too many times&quot;);</span>
+        }
+
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        if (largeBlockUpdateCount == 0) {</span>
+<span class="nc" id="L67">            notifyNeighboursOfChangedBlocks();</span>
+        }
+<span class="nc" id="L69">    }</span>
+
+    /**
+     * Notifies the adjacent block families when a block is placed next to them.
+     * @param event
+     * @param entity
+     */
+    @ReceiveEvent
+    public void onBlockPlaced(OnBlockItemPlaced event, EntityRef entity) {
+<span class="nc" id="L78">        BlockComponent blockComponent = event.getPlacedBlock().getComponent(BlockComponent.class);</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if (blockComponent == null) {</span>
+<span class="nc" id="L80">            return;</span>
+        }
+
+<span class="nc" id="L83">        processUpdateForBlockLocation(blockComponent.position);</span>
+<span class="nc" id="L84">    }</span>
+
+    private void notifyNeighboursOfChangedBlocks() {
+        // Invoke the updates in another large block change for this class only
+<span class="nc" id="L88">        largeBlockUpdateCount++;</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        while (!blocksUpdatedInLargeBlockUpdate.isEmpty()) {</span>
+<span class="nc" id="L90">            Set&lt;Vector3i&gt; blocksToUpdate = blocksUpdatedInLargeBlockUpdate;</span>
+
+            // Setup new collection for blocks changed in this pass
+<span class="nc" id="L93">            blocksUpdatedInLargeBlockUpdate = Sets.newHashSet();</span>
+
+<span class="nc" id="L95">            blocksToUpdate.forEach(this::processUpdateForBlockLocation);</span>
+<span class="nc" id="L96">        }</span>
+<span class="nc" id="L97">        largeBlockUpdateCount--;</span>
+<span class="nc" id="L98">    }</span>
+
+    @ReceiveEvent(components = {BlockComponent.class})
+    public void blockUpdate(OnChangedBlock event, EntityRef blockEntity) {
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (largeBlockUpdateCount &gt; 0) {</span>
+<span class="nc" id="L103">            blocksUpdatedInLargeBlockUpdate.add(event.getBlockPosition());</span>
+        } else {
+<span class="nc" id="L105">            Vector3i blockLocation = event.getBlockPosition();</span>
+<span class="nc" id="L106">            processUpdateForBlockLocation(blockLocation);</span>
+        }
+<span class="nc" id="L108">    }</span>
+
+    private void processUpdateForBlockLocation(Vector3i blockLocation) {
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        for (Side side : Side.getAllSides()) {</span>
+<span class="nc" id="L112">            Vector3i neighborLocation = new Vector3i(blockLocation);</span>
+<span class="nc" id="L113">            neighborLocation.add(side.getVector3i());</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">            if (worldProvider.isBlockRelevant(neighborLocation)) {</span>
+<span class="nc" id="L115">                Block neighborBlock = worldProvider.getBlock(neighborLocation);</span>
+<span class="nc" id="L116">                final BlockFamily blockFamily = neighborBlock.getBlockFamily();</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">                if (blockFamily instanceof UpdatesWithNeighboursFamily) {</span>
+<span class="nc" id="L118">                    UpdatesWithNeighboursFamily neighboursFamily = (UpdatesWithNeighboursFamily) blockFamily;</span>
+<span class="nc" id="L119">                    Block neighborBlockAfterUpdate = neighboursFamily.getBlockForNeighborUpdate(neighborLocation, neighborBlock);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                    if (neighborBlock != neighborBlockAfterUpdate) {</span>
+<span class="nc" id="L121">                        worldProvider.setBlock(neighborLocation, neighborBlockAfterUpdate);</span>
+                    }
+                }
+            }
+<span class="nc" id="L125">        }</span>
+<span class="nc" id="L126">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        if (largeBlockUpdateCount &gt; 0) {</span>
+<span class="nc" id="L131">            logger.error(&quot;Unmatched LargeBlockUpdateStarted - LargeBlockUpdateFinished not invoked enough times&quot;);</span>
+        }
+<span class="nc" id="L133">        largeBlockUpdateCount = 0;</span>
+<span class="nc" id="L134">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

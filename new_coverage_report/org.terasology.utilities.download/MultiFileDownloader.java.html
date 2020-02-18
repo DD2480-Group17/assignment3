@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MultiFileDownloader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.download</a> &gt; <span class="el_source">MultiFileDownloader.java</span></div><h1>MultiFileDownloader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.utilities.download;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+
+/**
+ * Downloads multiple files.
+ */
+
+public class MultiFileDownloader implements Callable&lt;List&lt;Path&gt;&gt; {
+    private Map&lt;URI, Path&gt; uriToTargetMap;
+    private MultiFileTransferProgressListener progressListener;
+
+    /**
+     * @param uriToTargetMap
+     * @param progressListener a progress listener. Will be called with 0 repeatedly if size cannot be determined.
+     */
+<span class="nc" id="L42">    public MultiFileDownloader(Map&lt;URI, Path&gt; uriToTargetMap, MultiFileTransferProgressListener progressListener) {</span>
+<span class="nc" id="L43">        this.uriToTargetMap = uriToTargetMap;</span>
+<span class="nc" id="L44">        this.progressListener = progressListener;</span>
+<span class="nc" id="L45">    }</span>
+
+    @Override
+    public List&lt;Path&gt; call() throws IOException {
+
+        // Obtain the size of each file
+<span class="nc" id="L51">        final int numFiles = uriToTargetMap.size();</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        if (numFiles &lt; 1) { // avoid reporting progress like &quot;Retrieving file size 1 of 0&quot;</span>
+<span class="nc" id="L53">            return Collections.emptyList();</span>
+        }
+<span class="nc" id="L55">        final Map&lt;URI, Long&gt; fileSizes = getSizes();</span>
+<span class="nc" id="L56">        final long totalBytes = sum(fileSizes.values());</span>
+
+<span class="nc" id="L58">        List&lt;Path&gt; downloadedFiles = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L59">        int index = 0;</span>
+<span class="nc" id="L60">        long completedFilesBytes = 0;</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        for (Map.Entry&lt;URI, Path&gt; entry : uriToTargetMap.entrySet()) {</span>
+<span class="nc" id="L62">            final int downloadedFileCount = index + 1;</span>
+<span class="nc" id="L63">            final long previousFilesBytes = completedFilesBytes;</span>
+<span class="nc" id="L64">            SingleFileTransferProgressListener singleDownloadListener = (fileDownloadedBytes, fileTotalBytes) -&gt;</span>
+<span class="nc" id="L65">                    progressListener.onDownloadProgress(previousFilesBytes + fileDownloadedBytes, totalBytes, downloadedFileCount, numFiles);</span>
+
+            // Converting URI to URL in order to pass it SingleFileDownloader's constructor
+<span class="nc" id="L68">            URL url = entry.getKey().toURL();</span>
+<span class="nc" id="L69">            SingleFileDownloader fileDownloader = new SingleFileDownloader(url, entry.getValue(),</span>
+                    singleDownloadListener);
+<span class="nc" id="L71">            downloadedFiles.add(fileDownloader.call());</span>
+<span class="nc" id="L72">            completedFilesBytes += fileSizes.get(entry.getKey());</span>
+<span class="nc" id="L73">            index++;</span>
+<span class="nc" id="L74">        }</span>
+<span class="nc" id="L75">        return downloadedFiles;</span>
+    }
+    /**
+     * This method returns a Hash Map with the the uri as a kay and the size as a value.
+     * @return HashMap&lt;&gt;.
+     */
+    private Map&lt;URI, Long&gt; getSizes() throws IOException {
+<span class="nc" id="L82">        Map&lt;URI, Long&gt; result = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L83">        int current = 1;</span>
+<span class="nc" id="L84">        int total = uriToTargetMap.size();</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        for (URI uri: uriToTargetMap.keySet()) {</span>
+<span class="nc" id="L86">            progressListener.onSizeMetadataProgress(current, total);</span>
+<span class="nc" id="L87">            URLConnection connection = uri.toURL().openConnection();</span>
+<span class="nc" id="L88">            result.put(uri, connection.getContentLengthLong());</span>
+<span class="nc" id="L89">            current++;</span>
+<span class="nc" id="L90">        }</span>
+<span class="nc" id="L91">        return result;</span>
+    }
+
+    /**
+     * @param values
+     * This method iterates through the Iterable&lt;Long&gt; parameter and sums the values of it.
+     * @return long.
+     */
+    private long sum(Iterable&lt;Long&gt; values) {
+<span class="nc" id="L100">        long result = 0;</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        for (Long value: values) {</span>
+<span class="nc" id="L102">            result += value;</span>
+<span class="nc" id="L103">        }</span>
+<span class="nc" id="L104">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

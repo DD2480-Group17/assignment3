@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlayerSettingsScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu.settings</a> &gt; <span class="el_source">PlayerSettingsScreen.java</span></div><h1>PlayerSettingsScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu.settings;
+
+import com.google.common.base.Function;
+import com.google.common.base.Functions;
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
+import com.google.common.math.DoubleMath;
+import org.terasology.context.Context;
+import org.terasology.engine.subsystem.rpc.DiscordRPCSubSystem;
+import org.terasology.identity.storageServiceClient.StorageServiceWorker;
+import org.terasology.identity.storageServiceClient.StorageServiceWorkerStatus;
+import org.terasology.rendering.nui.layers.mainMenu.StorageServiceLoginPopup;
+import org.terasology.rendering.nui.layers.mainMenu.ThreeButtonPopup;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UICheckbox;
+import org.terasology.rendering.nui.widgets.UIDropdownScrollable;
+import org.terasology.rendering.nui.widgets.UIImage;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UISlider;
+import org.terasology.rendering.nui.widgets.UIText;
+import org.terasology.utilities.Assets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.engine.SimpleUri;
+import org.terasology.i18n.TranslationProject;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.registry.In;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureUtil;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Collections;
+
+import static org.terasology.identity.storageServiceClient.StatusMessageTranslator.getLocalizedButtonMessage;
+import static org.terasology.identity.storageServiceClient.StatusMessageTranslator.getLocalizedStatusMessage;
+
+<span class="nc" id="L61">public class PlayerSettingsScreen extends CoreScreenLayer {</span>
+
+<span class="nc" id="L63">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:PlayerMenuScreen&quot;);</span>
+
+    @In
+    private Context context;
+    @In
+    private Config config;
+    @In
+    private TranslationSystem translationSystem;
+    @In
+    private StorageServiceWorker storageService;
+
+<span class="nc" id="L74">    private final List&lt;Color&gt; colors = CieCamColors.L65C65;</span>
+
+    /**
+     * Remove language x from this languagesExcluded table when it is ready for testing
+     */
+<span class="nc" id="L79">    private final Locale[] languagesExcluded =</span>
+<span class="nc" id="L80">            {Locale.forLanguageTag(&quot;zh&quot;), // TODO: Chinese symbols not yet available</span>
+<span class="nc" id="L81">            Locale.forLanguageTag(&quot;hi&quot;), // TODO: Hindi (Indian) symbols not yet available</span>
+<span class="nc" id="L82">            Locale.forLanguageTag(&quot;ar&quot;), // TODO: Arabic symbols not yet available, no translated entries yet</span>
+<span class="nc" id="L83">            Locale.forLanguageTag(&quot;ko&quot;), // TODO: Korean symbols not yet available</span>
+<span class="nc" id="L84">            Locale.forLanguageTag(&quot;fa&quot;)}; // TODO: Farsi (Persian) symbols not yet available</span>
+
+    private UIText nametext;
+    private UISlider slider;
+    private UILabel storageServiceStatus;
+    private UIButton storageServiceAction;
+    private UISlider heightSlider;
+    private UISlider eyeHeightSlider;
+    private UIImage img;
+    private UICheckbox discordPresence;
+    private UIDropdownScrollable&lt;Locale&gt; language;
+
+    private StorageServiceWorkerStatus storageServiceWorkerStatus;
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L100">        super.onOpened();</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (nametext != null) {</span>
+<span class="nc" id="L102">            nametext.setText(config.getPlayer().getName());</span>
+        }
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        if (slider != null) {</span>
+<span class="nc" id="L105">            Color color = config.getPlayer().getColor();</span>
+<span class="nc" id="L106">            slider.bindValue(new NotifyingBinding(findClosestIndex(color)));</span>
+        }
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (heightSlider != null) {</span>
+<span class="nc" id="L109">            heightSlider.bindValue(new NotifyingBinding(config.getPlayer().getHeight()));</span>
+        }
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (eyeHeightSlider != null) {</span>
+<span class="nc" id="L112">            eyeHeightSlider.bindValue(new NotifyingBinding(config.getPlayer().getEyeHeight()));</span>
+        }
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (discordPresence != null) {</span>
+<span class="nc" id="L115">            discordPresence.setChecked(config.getPlayer().isDiscordPresence());</span>
+        }
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (language != null) {</span>
+<span class="nc" id="L118">            language.setSelection(config.getSystem().getLocale());</span>
+        }
+<span class="nc" id="L120">        updateImage();</span>
+<span class="nc" id="L121">    }</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L125">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L127">        storageServiceStatus = find(&quot;storageServiceStatus&quot;, UILabel.class);</span>
+<span class="nc" id="L128">        storageServiceAction = find(&quot;storageServiceAction&quot;, UIButton.class);</span>
+<span class="nc" id="L129">        updateStorageServiceStatus();</span>
+
+<span class="nc" id="L131">        nametext = find(&quot;playername&quot;, UIText.class);</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if (nametext != null) {</span>
+<span class="nc" id="L133">            nametext.setTooltipDelay(0);</span>
+<span class="nc" id="L134">            nametext.bindTooltipString(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L137">                    return validateScreen();</span>
+                }
+            });
+        }
+<span class="nc" id="L141">        img = find(&quot;image&quot;, UIImage.class);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if (img != null) {</span>
+<span class="nc" id="L143">            ResourceUrn uri = TextureUtil.getTextureUriForColor(Color.WHITE);</span>
+<span class="nc" id="L144">            Texture tex = Assets.get(uri, Texture.class).get();</span>
+<span class="nc" id="L145">            img.setImage(tex);</span>
+        }
+
+<span class="nc" id="L148">        slider = find(&quot;tone&quot;, UISlider.class);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        if (slider != null) {</span>
+<span class="nc" id="L150">            slider.setIncrement(0.01f);</span>
+<span class="nc" id="L151">            Function&lt;Object, String&gt; constant = Functions.constant(&quot;  &quot;);   // ensure a certain width</span>
+<span class="nc" id="L152">            slider.setLabelFunction(constant);</span>
+        }
+
+<span class="nc" id="L155">        heightSlider = find(&quot;height&quot;, UISlider.class);</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        if (heightSlider != null) {</span>
+<span class="nc" id="L157">            heightSlider.setMinimum(1.5f);</span>
+<span class="nc" id="L158">            heightSlider.setIncrement(0.1f);</span>
+<span class="nc" id="L159">            heightSlider.setRange(0.5f);</span>
+<span class="nc" id="L160">            heightSlider.setPrecision(1);</span>
+        }
+
+<span class="nc" id="L163">        eyeHeightSlider = find(&quot;eye-height&quot;, UISlider.class);</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        if (eyeHeightSlider != null) {</span>
+<span class="nc" id="L165">            eyeHeightSlider.setMinimum(0.5f);</span>
+<span class="nc" id="L166">            eyeHeightSlider.setIncrement(0.1f);</span>
+<span class="nc" id="L167">            eyeHeightSlider.setRange(1f);</span>
+<span class="nc" id="L168">            eyeHeightSlider.setPrecision(1);</span>
+        }
+
+<span class="nc" id="L171">        discordPresence = find(&quot;discord-presence&quot;, UICheckbox.class);</span>
+
+<span class="nc" id="L173">        language = find(&quot;language&quot;, UIDropdownScrollable.class);</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">        if (language != null) {</span>
+<span class="nc" id="L175">            SimpleUri menuUri = new SimpleUri(&quot;engine:menu&quot;);</span>
+<span class="nc" id="L176">            TranslationProject menuProject = translationSystem.getProject(menuUri);</span>
+<span class="nc" id="L177">            List&lt;Locale&gt; locales = new ArrayList&lt;&gt;(menuProject.getAvailableLocales());</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">            for (Locale languageExcluded : languagesExcluded) {</span>
+<span class="nc" id="L179">                locales.remove(languageExcluded);</span>
+            }
+<span class="nc" id="L181">            Collections.sort(locales, ((Object o1, Object o2) -&gt; (o1.toString().compareTo(o2.toString()))));</span>
+<span class="nc" id="L182">            language.setOptions(Lists.newArrayList(locales));</span>
+<span class="nc" id="L183">            language.setVisibleOptions(5); // Set maximum number of options visible for scrolling</span>
+<span class="nc" id="L184">            language.setOptionRenderer(new LocaleRenderer(translationSystem));</span>
+        }
+
+<span class="nc" id="L187">        WidgetUtil.trySubscribe(this, &quot;close&quot;, button -&gt; triggerBackAnimation());</span>
+
+<span class="nc" id="L189">        IdentityIOHelper identityIOHelper = new IdentityIOHelper(context);</span>
+<span class="nc" id="L190">        WidgetUtil.trySubscribe(this, &quot;importIdentities&quot;, button -&gt; identityIOHelper.importIdentities());</span>
+<span class="nc" id="L191">        WidgetUtil.trySubscribe(this, &quot;exportIdentities&quot;, button -&gt; identityIOHelper.exportIdentities());</span>
+
+<span class="nc" id="L193">        WidgetUtil.trySubscribe(this, &quot;storageServiceAction&quot;, widget -&gt; {</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            if (storageService.getStatus() == StorageServiceWorkerStatus.LOGGED_IN) {</span>
+<span class="nc" id="L195">                ThreeButtonPopup logoutPopup = getManager().pushScreen(ThreeButtonPopup.ASSET_URI, ThreeButtonPopup.class);</span>
+<span class="nc" id="L196">                logoutPopup.setMessage(translationSystem.translate(&quot;${engine:menu#storage-service-log-out}&quot;),</span>
+<span class="nc" id="L197">                        translationSystem.translate(&quot;${engine:menu#storage-service-log-out-popup}&quot;));</span>
+<span class="nc" id="L198">                logoutPopup.setLeftButton(translationSystem.translate(&quot;${engine:menu#dialog-yes}&quot;), () -&gt; storageService.logout(true));</span>
+<span class="nc" id="L199">                logoutPopup.setCenterButton(translationSystem.translate(&quot;${engine:menu#dialog-no}&quot;), () -&gt; storageService.logout(false));</span>
+<span class="nc" id="L200">                logoutPopup.setRightButton(translationSystem.translate(&quot;${engine:menu#dialog-cancel}&quot;), () -&gt; { });</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            } else if (storageService.getStatus() == StorageServiceWorkerStatus.LOGGED_OUT) {</span>
+<span class="nc" id="L202">                getManager().pushScreen(StorageServiceLoginPopup.ASSET_URI, StorageServiceLoginPopup.class);</span>
+            }
+<span class="nc" id="L204">        });</span>
+
+<span class="nc" id="L206">        UIButton okButton = find(&quot;ok&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (okButton != null) {</span>
+<span class="nc" id="L208">            okButton.subscribe(button -&gt; {</span>
+<span class="nc" id="L209">                savePlayerSettings();</span>
+<span class="nc" id="L210">                triggerBackAnimation();</span>
+<span class="nc" id="L211">            });</span>
+<span class="nc" id="L212">            okButton.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+                @Override
+                public Boolean get() {
+<span class="nc" id="L215">                    return Strings.isNullOrEmpty(validateScreen());</span>
+                }
+            });
+<span class="nc" id="L218">            okButton.setTooltipDelay(0);</span>
+<span class="nc" id="L219">            okButton.bindTooltipString(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L222">                    return validateScreen();</span>
+                }
+            });
+        }
+<span class="nc" id="L226">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L230">        super.update(delta);</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">        if (storageService.getStatus() != storageServiceWorkerStatus) {</span>
+<span class="nc" id="L232">            updateStorageServiceStatus();</span>
+        }
+<span class="nc" id="L234">    }</span>
+
+    private void updateStorageServiceStatus() {
+<span class="nc" id="L237">        StorageServiceWorkerStatus stat = storageService.getStatus();</span>
+<span class="nc" id="L238">        storageServiceStatus.setText(getLocalizedStatusMessage(stat, translationSystem, storageService.getLoginName()));</span>
+<span class="nc" id="L239">        storageServiceAction.setText(getLocalizedButtonMessage(stat, translationSystem));</span>
+<span class="nc" id="L240">        storageServiceAction.setVisible(stat.isButtonEnabled());</span>
+<span class="nc" id="L241">        storageServiceWorkerStatus = stat;</span>
+<span class="nc" id="L242">    }</span>
+
+    private String validateScreen() {
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        if (nametext != null) {</span>
+<span class="nc bnc" id="L246" title="All 4 branches missed.">            if (Strings.isNullOrEmpty(nametext.getText()) || nametext.getText().trim().length() == 0) {</span>
+<span class="nc" id="L247">                return translationSystem.translate(&quot;${engine:menu#missing-name-message}&quot;);</span>
+            }
+<span class="nc bnc" id="L249" title="All 2 branches missed.">            if (nametext.getText().trim().length() &gt; 100) {</span>
+<span class="nc" id="L250">                return translationSystem.translate(&quot;${engine:menu#validation-username-max-length}&quot;);</span>
+            }
+        }
+<span class="nc" id="L253">        return null;</span>
+    }
+
+    private float findClosestIndex(Color color) {
+<span class="nc" id="L257">        int best = 0;</span>
+<span class="nc" id="L258">        float minDist = Float.MAX_VALUE;</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        for (int i = 0; i &lt; colors.size(); i++) {</span>
+<span class="nc" id="L260">            Color other = colors.get(i);</span>
+<span class="nc" id="L261">            float dr = other.rf() - color.rf();</span>
+<span class="nc" id="L262">            float dg = other.gf() - color.gf();</span>
+<span class="nc" id="L263">            float db = other.bf() - color.bf();</span>
+
+            // there are certainly smarter ways to measure color distance,
+            // but Euclidean distance is good enough for the purpose
+<span class="nc" id="L267">            float dist = dr * dr + dg * dg + db * db;</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">            if (dist &lt; minDist) {</span>
+<span class="nc" id="L269">                minDist = dist;</span>
+<span class="nc" id="L270">                best = i;</span>
+            }
+        }
+
+<span class="nc" id="L274">        float max = colors.size() - 1;</span>
+<span class="nc" id="L275">        return best / max;</span>
+    }
+
+    private Color findClosestColor(float findex) {
+<span class="nc" id="L279">        int index = DoubleMath.roundToInt(findex * (double) (colors.size() - 1), RoundingMode.HALF_UP);</span>
+<span class="nc" id="L280">        Color color = colors.get(index);</span>
+<span class="nc" id="L281">        return color;</span>
+    }
+
+    private void updateImage() {
+<span class="nc" id="L285">        Color color = getColor();</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">        if (img != null) {</span>
+<span class="nc" id="L287">            img.setTint(color);</span>
+        }
+<span class="nc" id="L289">    }</span>
+
+    private Color getColor() {
+<span class="nc bnc" id="L292" title="All 2 branches missed.">        if (slider != null) {</span>
+<span class="nc" id="L293">            float index = slider.getValue();</span>
+<span class="nc" id="L294">            return findClosestColor(index);</span>
+        } else {
+<span class="nc" id="L296">            return config.getPlayer().getColor();</span>
+        }
+    }
+
+    private Float getHeight() {
+<span class="nc bnc" id="L301" title="All 2 branches missed.">        if (heightSlider != null) {</span>
+<span class="nc" id="L302">            float index = heightSlider.getValue();</span>
+<span class="nc" id="L303">            return index;</span>
+        } else {
+<span class="nc" id="L305">            return config.getPlayer().getHeight();</span>
+        }
+    }
+
+    private Float getEyeHeight() {
+<span class="nc bnc" id="L310" title="All 2 branches missed.">        if (eyeHeightSlider != null) {</span>
+<span class="nc" id="L311">            float index = eyeHeightSlider.getValue();</span>
+<span class="nc" id="L312">            return index;</span>
+        } else {
+<span class="nc" id="L314">            return config.getPlayer().getEyeHeight();</span>
+        }
+    }
+
+    private void savePlayerSettings() {
+<span class="nc" id="L319">        Color color = getColor();</span>
+<span class="nc" id="L320">        config.getPlayer().setColor(color);</span>
+<span class="nc" id="L321">        Float height = getHeight();</span>
+<span class="nc" id="L322">        config.getPlayer().setHeight(height);</span>
+<span class="nc" id="L323">        Float eyeHeight = getEyeHeight();</span>
+<span class="nc" id="L324">        config.getPlayer().setEyeHeight(eyeHeight);</span>
+<span class="nc" id="L325">        config.getPlayer().setDiscordPresence(discordPresence.isChecked());</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">        if (nametext != null) {</span>
+<span class="nc" id="L327">            config.getPlayer().setName(nametext.getText().trim());</span>
+<span class="nc" id="L328">            config.getPlayer().setHasEnteredUsername(true);</span>
+<span class="nc" id="L329">            DiscordRPCSubSystem.updateState();</span>
+        }
+<span class="nc bnc" id="L331" title="All 2 branches missed.">        if (!config.getSystem().getLocale().equals(language.getSelection())) {</span>
+<span class="nc" id="L332">            config.getSystem().setLocale(language.getSelection());</span>
+<span class="nc" id="L333">            getManager().invalidate();</span>
+        }
+<span class="nc" id="L335">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L339">        return false;</span>
+    }
+
+    /**
+     * Calls update() in parent class when the slider value changes
+     */
+    private final class NotifyingBinding extends DefaultBinding&lt;Float&gt; {
+
+<span class="nc" id="L347">        private NotifyingBinding(Float value) {</span>
+<span class="nc" id="L348">            super(value);</span>
+<span class="nc" id="L349">        }</span>
+
+        @Override
+        public void set(Float v) {
+<span class="nc" id="L353">            super.set(v);</span>
+
+<span class="nc" id="L355">            updateImage();</span>
+<span class="nc" id="L356">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

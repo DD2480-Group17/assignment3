@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BulkLightPropagationTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.propagation</a> &gt; <span class="el_source">BulkLightPropagationTest.java</span></div><h1>BulkLightPropagationTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.propagation;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.math.Diamond3iIterator;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.BlockUri;
+import org.terasology.world.block.family.SymmetricFamily;
+import org.terasology.world.block.internal.BlockManagerImpl;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.loader.BlockFamilyDefinitionData;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.tiles.NullWorldAtlas;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.propagation.light.LightPropagationRules;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+<span class="fc" id="L41">public class BulkLightPropagationTest extends TerasologyTestingEnvironment {</span>
+
+    private BlockManagerImpl blockManager;
+    private Block air;
+    private Block fullLight;
+    private Block weakLight;
+    private Block mediumLight;
+    private Block solid;
+    private Block solidMediumLight;
+    private LightPropagationRules lightRules;
+
+<span class="fc" id="L52">    private Region3i testingRegion = Region3i.createFromMinMax(new Vector3i(-ChunkConstants.SIZE_X, -ChunkConstants.SIZE_Y, -ChunkConstants.SIZE_Z),</span>
+            new Vector3i(2 * ChunkConstants.SIZE_X, 2 * ChunkConstants.SIZE_Y, 2 * ChunkConstants.SIZE_Z));
+
+    @BeforeEach
+    public void setup() throws Exception {
+<span class="fc" id="L57">        super.setup();</span>
+<span class="fc" id="L58">        lightRules = new LightPropagationRules();</span>
+<span class="fc" id="L59">        AssetManager assetManager = CoreRegistry.get(AssetManager.class);</span>
+<span class="fc" id="L60">        blockManager = new BlockManagerImpl(new NullWorldAtlas(), assetManager, true);</span>
+<span class="fc" id="L61">        CoreRegistry.put(BlockManager.class, blockManager);</span>
+<span class="fc" id="L62">        BlockFamilyDefinitionData fullLightData = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L63">        fullLightData.getBaseSection().setDisplayName(&quot;Torch&quot;);</span>
+<span class="fc" id="L64">        fullLightData.getBaseSection().setShape(assetManager.getAsset(&quot;engine:cube&quot;, BlockShape.class).get());</span>
+<span class="fc" id="L65">        fullLightData.getBaseSection().setLuminance(ChunkConstants.MAX_LIGHT);</span>
+<span class="fc" id="L66">        fullLightData.getBaseSection().setTranslucent(true);</span>
+<span class="fc" id="L67">        fullLightData.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L68">        assetManager.loadAsset(new ResourceUrn(&quot;engine:torch&quot;), fullLightData, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L69">        fullLight = blockManager.getBlock(new BlockUri(new ResourceUrn(&quot;engine:torch&quot;)));</span>
+
+<span class="fc" id="L71">        BlockFamilyDefinitionData weakLightData = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L72">        weakLightData.getBaseSection().setDisplayName(&quot;PartLight&quot;);</span>
+<span class="fc" id="L73">        weakLightData.getBaseSection().setShape(assetManager.getAsset(&quot;engine:cube&quot;, BlockShape.class).get());</span>
+<span class="fc" id="L74">        weakLightData.getBaseSection().setLuminance((byte) 2);</span>
+<span class="fc" id="L75">        weakLightData.getBaseSection().setTranslucent(true);</span>
+<span class="fc" id="L76">        weakLightData.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L77">        assetManager.loadAsset(new ResourceUrn(&quot;engine:weakLight&quot;), weakLightData, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L78">        weakLight = blockManager.getBlock(new BlockUri(new ResourceUrn(&quot;engine:weakLight&quot;)));</span>
+
+<span class="fc" id="L80">        BlockFamilyDefinitionData mediumLightData = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L81">        mediumLightData.getBaseSection().setDisplayName(&quot;MediumLight&quot;);</span>
+<span class="fc" id="L82">        mediumLightData.getBaseSection().setShape(assetManager.getAsset(&quot;engine:cube&quot;, BlockShape.class).get());</span>
+<span class="fc" id="L83">        mediumLightData.getBaseSection().setLuminance((byte) 5);</span>
+<span class="fc" id="L84">        mediumLightData.getBaseSection().setTranslucent(true);</span>
+<span class="fc" id="L85">        mediumLightData.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L86">        assetManager.loadAsset(new ResourceUrn(&quot;engine:mediumLight&quot;), mediumLightData, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L87">        mediumLight = blockManager.getBlock(new BlockUri(new ResourceUrn(&quot;engine:mediumLight&quot;)));</span>
+
+<span class="fc" id="L89">        BlockFamilyDefinitionData solidData = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L90">        solidData.getBaseSection().setDisplayName(&quot;Stone&quot;);</span>
+<span class="fc" id="L91">        solidData.getBaseSection().setShape(assetManager.getAsset(&quot;engine:cube&quot;, BlockShape.class).get());</span>
+<span class="fc" id="L92">        solidData.getBaseSection().setTranslucent(false);</span>
+<span class="fc" id="L93">        solidData.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L94">        assetManager.loadAsset(new ResourceUrn(&quot;engine:stone&quot;), solidData, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L95">        solid = blockManager.getBlock(new BlockUri(new ResourceUrn(&quot;engine:stone&quot;)));</span>
+
+<span class="fc" id="L97">        BlockFamilyDefinitionData solidMediumLightData = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L98">        solidMediumLightData.getBaseSection().setDisplayName(&quot;SolidMediumLight&quot;);</span>
+<span class="fc" id="L99">        solidMediumLightData.getBaseSection().setShape(assetManager.getAsset(&quot;engine:cube&quot;, BlockShape.class).get());</span>
+<span class="fc" id="L100">        solidMediumLightData.getBaseSection().setTranslucent(false);</span>
+<span class="fc" id="L101">        solidMediumLightData.getBaseSection().setLuminance((byte) 5);</span>
+<span class="fc" id="L102">        solidMediumLightData.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L103">        assetManager.loadAsset(new ResourceUrn(&quot;engine:solidMediumLight&quot;), solidMediumLightData, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L104">        solidMediumLight = blockManager.getBlock(new BlockUri(new ResourceUrn(&quot;engine:solidMediumLight&quot;)));</span>
+
+<span class="fc" id="L106">        air = blockManager.getBlock(BlockManager.AIR_ID);</span>
+<span class="fc" id="L107">    }</span>
+
+    @Test
+    public void testAddLightInVacuum() {
+<span class="fc" id="L111">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc" id="L112">        worldView.setBlockAt(Vector3i.zero(), fullLight);</span>
+
+<span class="fc" id="L114">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L115">        propagator.process(new BlockChange(Vector3i.zero(), air, fullLight));</span>
+
+<span class="fc" id="L117">        assertEquals(fullLight.getLuminance(), worldView.getValueAt(Vector3i.zero()));</span>
+<span class="fc" id="L118">        assertEquals(fullLight.getLuminance() - 1, worldView.getValueAt(new Vector3i(0, 1, 0)));</span>
+<span class="fc" id="L119">        assertEquals(fullLight.getLuminance() - 14, worldView.getValueAt(new Vector3i(0, 14, 0)));</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        for (int i = 1; i &lt; fullLight.getLuminance(); ++i) {</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(Vector3i.zero(), i)) {</span>
+<span class="fc" id="L122">                assertEquals(fullLight.getLuminance() - i, worldView.getValueAt(pos));</span>
+<span class="fc" id="L123">            }</span>
+        }
+<span class="fc" id="L125">    }</span>
+
+    @Test
+    public void testRemoveLightInVacuum() {
+<span class="fc" id="L129">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc" id="L130">        worldView.setBlockAt(Vector3i.zero(), fullLight);</span>
+<span class="fc" id="L131">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L132">        propagator.process(new BlockChange(Vector3i.zero(), air, fullLight));</span>
+
+<span class="fc" id="L134">        worldView.setBlockAt(Vector3i.zero(), air);</span>
+<span class="fc" id="L135">        propagator.process(new BlockChange(Vector3i.zero(), fullLight, air));</span>
+
+<span class="fc" id="L137">        assertEquals(0, worldView.getValueAt(Vector3i.zero()));</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        for (int i = 1; i &lt; fullLight.getLuminance(); ++i) {</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(Vector3i.zero(), i)) {</span>
+<span class="fc" id="L140">                assertEquals(0, worldView.getValueAt(pos));</span>
+<span class="fc" id="L141">            }</span>
+        }
+<span class="fc" id="L143">    }</span>
+
+    @Test
+    public void testReduceLight() {
+<span class="fc" id="L147">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc" id="L148">        worldView.setBlockAt(Vector3i.zero(), fullLight);</span>
+<span class="fc" id="L149">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L150">        propagator.process(new BlockChange(Vector3i.zero(), air, fullLight));</span>
+
+<span class="fc" id="L152">        worldView.setBlockAt(Vector3i.zero(), weakLight);</span>
+<span class="fc" id="L153">        propagator.process(new BlockChange(Vector3i.zero(), fullLight, weakLight));</span>
+
+<span class="fc" id="L155">        assertEquals(weakLight.getLuminance(), worldView.getValueAt(Vector3i.zero()));</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        for (int i = 1; i &lt; 15; ++i) {</span>
+<span class="fc" id="L157">            byte expectedLuminance = (byte) Math.max(0, weakLight.getLuminance() - i);</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(Vector3i.zero(), i)) {</span>
+<span class="fc" id="L159">                assertEquals(expectedLuminance, worldView.getValueAt(pos));</span>
+<span class="fc" id="L160">            }</span>
+        }
+<span class="fc" id="L162">    }</span>
+
+    @Test
+    public void testAddOverlappingLights() {
+<span class="fc" id="L166">        Vector3i lightPos = new Vector3i(5, 0, 0);</span>
+
+<span class="fc" id="L168">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(ChunkConstants.CHUNK_REGION, air);</span>
+<span class="fc" id="L169">        worldView.setBlockAt(Vector3i.zero(), fullLight);</span>
+<span class="fc" id="L170">        worldView.setBlockAt(lightPos, fullLight);</span>
+<span class="fc" id="L171">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L172">        propagator.process(new BlockChange(Vector3i.zero(), air, fullLight), new BlockChange(lightPos, air, fullLight));</span>
+
+<span class="fc" id="L174">        assertEquals(fullLight.getLuminance(), worldView.getValueAt(Vector3i.zero()));</span>
+<span class="fc" id="L175">        assertEquals(fullLight.getLuminance() - 1, worldView.getValueAt(new Vector3i(1, 0, 0)));</span>
+<span class="fc" id="L176">        assertEquals(fullLight.getLuminance() - 2, worldView.getValueAt(new Vector3i(2, 0, 0)));</span>
+<span class="fc" id="L177">        assertEquals(fullLight.getLuminance() - 2, worldView.getValueAt(new Vector3i(3, 0, 0)));</span>
+<span class="fc" id="L178">        assertEquals(fullLight.getLuminance() - 1, worldView.getValueAt(new Vector3i(4, 0, 0)));</span>
+<span class="fc" id="L179">        assertEquals(fullLight.getLuminance(), worldView.getValueAt(new Vector3i(5, 0, 0)));</span>
+<span class="fc" id="L180">    }</span>
+
+    @Test
+    public void testRemoveOverlappingLight() {
+<span class="fc" id="L184">        Vector3i lightPos = new Vector3i(5, 0, 0);</span>
+
+<span class="fc" id="L186">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc" id="L187">        worldView.setBlockAt(Vector3i.zero(), fullLight);</span>
+<span class="fc" id="L188">        worldView.setBlockAt(lightPos, fullLight);</span>
+<span class="fc" id="L189">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L190">        propagator.process(new BlockChange(Vector3i.zero(), air, fullLight), new BlockChange(lightPos, air, fullLight));</span>
+
+<span class="fc" id="L192">        worldView.setBlockAt(lightPos, air);</span>
+<span class="fc" id="L193">        propagator.process(new BlockChange(lightPos, fullLight, air));</span>
+
+<span class="fc bfc" id="L195" title="All 2 branches covered.">        for (int i = 0; i &lt; 16; ++i) {</span>
+<span class="fc" id="L196">            byte expectedLuminance = (byte) Math.max(0, fullLight.getLuminance() - i);</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(Vector3i.zero(), i)) {</span>
+<span class="fc" id="L198">                assertEquals(expectedLuminance, worldView.getValueAt(pos));</span>
+<span class="fc" id="L199">            }</span>
+        }
+<span class="fc" id="L201">    }</span>
+
+    @Test
+    public void testRemoveLightOverlappingAtEdge() {
+<span class="fc" id="L205">        Vector3i lightPos = new Vector3i(2, 0, 0);</span>
+
+<span class="fc" id="L207">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc" id="L208">        worldView.setBlockAt(Vector3i.zero(), weakLight);</span>
+<span class="fc" id="L209">        worldView.setBlockAt(lightPos, weakLight);</span>
+<span class="fc" id="L210">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L211">        propagator.process(new BlockChange(Vector3i.zero(), air, weakLight), new BlockChange(lightPos, air, weakLight));</span>
+
+<span class="fc" id="L213">        worldView.setBlockAt(lightPos, air);</span>
+<span class="fc" id="L214">        propagator.process(new BlockChange(lightPos, weakLight, air));</span>
+
+<span class="fc bfc" id="L216" title="All 2 branches covered.">        for (int i = 0; i &lt; weakLight.getLuminance() + 1; ++i) {</span>
+<span class="fc" id="L217">            byte expectedLuminance = (byte) Math.max(0, weakLight.getLuminance() - i);</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(Vector3i.zero(), i)) {</span>
+<span class="fc" id="L219">                assertEquals(expectedLuminance, worldView.getValueAt(pos));</span>
+<span class="fc" id="L220">            }</span>
+        }
+<span class="fc" id="L222">    }</span>
+
+    @Test
+    public void testAddLightInLight() {
+<span class="fc" id="L226">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc" id="L227">        worldView.setBlockAt(new Vector3i(2, 0, 0), mediumLight);</span>
+<span class="fc" id="L228">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L229">        propagator.process(new BlockChange(new Vector3i(2, 0, 0), air, mediumLight));</span>
+
+<span class="fc" id="L231">        worldView.setBlockAt(Vector3i.zero(), fullLight);</span>
+<span class="fc" id="L232">        propagator.process(new BlockChange(Vector3i.zero(), air, fullLight));</span>
+
+<span class="fc bfc" id="L234" title="All 2 branches covered.">        for (int i = 0; i &lt; fullLight.getLuminance() + 1; ++i) {</span>
+<span class="fc" id="L235">            byte expectedLuminance = (byte) Math.max(0, fullLight.getLuminance() - i);</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(Vector3i.zero(), i)) {</span>
+<span class="fc" id="L237">                assertEquals(expectedLuminance, worldView.getValueAt(pos));</span>
+<span class="fc" id="L238">            }</span>
+        }
+<span class="fc" id="L240">    }</span>
+
+    @Test
+    public void testAddAdjacentLights() {
+<span class="fc" id="L244">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc" id="L245">        worldView.setBlockAt(new Vector3i(1, 0, 0), mediumLight);</span>
+<span class="fc" id="L246">        worldView.setBlockAt(new Vector3i(0, 0, 0), mediumLight);</span>
+<span class="fc" id="L247">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L248">        propagator.process(new BlockChange(new Vector3i(1, 0, 0), air, mediumLight), new BlockChange(new Vector3i(0, 0, 0), air, mediumLight));</span>
+
+<span class="fc bfc" id="L250" title="All 2 branches covered.">        for (int i = 0; i &lt; fullLight.getLuminance() + 1; ++i) {</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(Vector3i.zero(), i)) {</span>
+<span class="fc" id="L252">                int dist = Math.min(Vector3i.zero().gridDistance(pos), new Vector3i(1, 0, 0).gridDistance(pos));</span>
+<span class="fc" id="L253">                byte expectedLuminance = (byte) Math.max(mediumLight.getLuminance() - dist, 0);</span>
+<span class="fc" id="L254">                assertEquals(expectedLuminance, worldView.getValueAt(pos));</span>
+<span class="fc" id="L255">            }</span>
+        }
+<span class="fc" id="L257">    }</span>
+
+    @Test
+    public void testAddWeakLightNextToStrongLight() {
+<span class="fc" id="L261">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc" id="L262">        worldView.setBlockAt(new Vector3i(0, 0, 0), fullLight);</span>
+<span class="fc" id="L263">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L264">        propagator.process(new BlockChange(new Vector3i(0, 0, 0), air, fullLight));</span>
+
+<span class="fc" id="L266">        worldView.setBlockAt(new Vector3i(1, 0, 0), weakLight);</span>
+<span class="fc" id="L267">        propagator.process(new BlockChange(new Vector3i(1, 0, 0), air, weakLight));</span>
+<span class="fc" id="L268">        assertEquals(14, worldView.getValueAt(new Vector3i(1, 0, 0)));</span>
+<span class="fc" id="L269">    }</span>
+
+    @Test
+    public void testRemoveAdjacentLights() {
+<span class="fc" id="L273">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc" id="L274">        worldView.setBlockAt(new Vector3i(1, 0, 0), mediumLight);</span>
+<span class="fc" id="L275">        worldView.setBlockAt(new Vector3i(0, 0, 0), mediumLight);</span>
+<span class="fc" id="L276">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L277">        propagator.process(new BlockChange(new Vector3i(1, 0, 0), air, mediumLight), new BlockChange(new Vector3i(0, 0, 0), air, mediumLight));</span>
+
+<span class="fc" id="L279">        worldView.setBlockAt(new Vector3i(1, 0, 0), air);</span>
+<span class="fc" id="L280">        worldView.setBlockAt(new Vector3i(0, 0, 0), air);</span>
+<span class="fc" id="L281">        propagator.process(new BlockChange(new Vector3i(1, 0, 0), mediumLight, air), new BlockChange(new Vector3i(0, 0, 0), mediumLight, air));</span>
+
+<span class="fc bfc" id="L283" title="All 2 branches covered.">        for (int i = 0; i &lt; fullLight.getLuminance() + 1; ++i) {</span>
+<span class="fc" id="L284">            byte expectedLuminance = (byte) 0;</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(Vector3i.zero(), i)) {</span>
+<span class="fc" id="L286">                assertEquals(expectedLuminance, worldView.getValueAt(pos));</span>
+<span class="fc" id="L287">            }</span>
+        }
+<span class="fc" id="L289">    }</span>
+
+    @Test
+    public void testAddSolidBlocksLight() {
+<span class="fc" id="L293">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(ChunkConstants.CHUNK_REGION, air);</span>
+<span class="fc" id="L294">        worldView.setBlockAt(new Vector3i(0, 0, 0), mediumLight);</span>
+<span class="fc" id="L295">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L296">        propagator.process(new BlockChange(new Vector3i(0, 0, 0), air, mediumLight));</span>
+
+<span class="fc" id="L298">        worldView.setBlockAt(new Vector3i(1, 0, 0), solid);</span>
+<span class="fc" id="L299">        propagator.process(new BlockChange(new Vector3i(1, 0, 0), air, solid));</span>
+
+<span class="fc" id="L301">        assertEquals(0, worldView.getValueAt(new Vector3i(1, 0, 0)));</span>
+<span class="fc" id="L302">        assertEquals(1, worldView.getValueAt(new Vector3i(2, 0, 0)));</span>
+<span class="fc" id="L303">    }</span>
+
+    @Test
+    public void testRemoveSolidAllowsLight() {
+<span class="fc" id="L307">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc bfc" id="L308" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromCenterExtents(new Vector3i(1, 0, 0), new Vector3i(0, 30, 30))) {</span>
+<span class="fc" id="L309">            worldView.setBlockAt(pos, solid);</span>
+<span class="fc" id="L310">        }</span>
+<span class="fc" id="L311">        worldView.setBlockAt(new Vector3i(0, 0, 0), fullLight);</span>
+<span class="fc" id="L312">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L313">        propagator.process(new BlockChange(new Vector3i(0, 0, 0), air, fullLight));</span>
+
+<span class="fc" id="L315">        assertEquals(0, worldView.getValueAt(new Vector3i(1, 0, 0)));</span>
+
+<span class="fc" id="L317">        worldView.setBlockAt(new Vector3i(1, 0, 0), air);</span>
+<span class="fc" id="L318">        propagator.process(new BlockChange(new Vector3i(1, 0, 0), solid, air));</span>
+
+<span class="fc" id="L320">        assertEquals(14, worldView.getValueAt(new Vector3i(1, 0, 0)));</span>
+<span class="fc" id="L321">        assertEquals(13, worldView.getValueAt(new Vector3i(2, 0, 0)));</span>
+<span class="fc" id="L322">    }</span>
+
+    @Test
+    public void testRemoveSolidAndLight() {
+<span class="fc" id="L326">        StubPropagatorWorldView worldView = new StubPropagatorWorldView(testingRegion, air);</span>
+<span class="fc bfc" id="L327" title="All 2 branches covered.">        for (Vector3i pos : Region3i.createFromCenterExtents(new Vector3i(1, 0, 0), new Vector3i(0, 30, 30))) {</span>
+<span class="fc" id="L328">            worldView.setBlockAt(pos, solid);</span>
+<span class="fc" id="L329">        }</span>
+<span class="fc" id="L330">        worldView.setBlockAt(new Vector3i(0, 0, 0), fullLight);</span>
+<span class="fc" id="L331">        BatchPropagator propagator = new StandardBatchPropagator(lightRules, worldView);</span>
+<span class="fc" id="L332">        propagator.process(new BlockChange(new Vector3i(0, 0, 0), air, fullLight));</span>
+
+<span class="fc" id="L334">        assertEquals(0, worldView.getValueAt(new Vector3i(1, 0, 0)));</span>
+
+<span class="fc" id="L336">        worldView.setBlockAt(new Vector3i(1, 0, 0), air);</span>
+<span class="fc" id="L337">        worldView.setBlockAt(new Vector3i(0, 0, 0), air);</span>
+<span class="fc" id="L338">        propagator.process(new BlockChange(new Vector3i(1, 0, 0), solid, air), new BlockChange(new Vector3i(0, 0, 0), fullLight, air));</span>
+
+<span class="fc bfc" id="L340" title="All 2 branches covered.">        for (int i = 0; i &lt; fullLight.getLuminance() + 1; ++i) {</span>
+<span class="fc" id="L341">            byte expectedLuminance = (byte) 0;</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">            for (Vector3i pos : Diamond3iIterator.iterateAtDistance(Vector3i.zero(), i)) {</span>
+<span class="fc" id="L343">                assertEquals(expectedLuminance, worldView.getValueAt(pos));</span>
+<span class="fc" id="L344">            }</span>
+        }
+<span class="fc" id="L346">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

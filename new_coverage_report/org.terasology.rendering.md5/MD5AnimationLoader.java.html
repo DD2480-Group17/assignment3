@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MD5AnimationLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.md5</a> &gt; <span class="el_source">MD5AnimationLoader.java</span></div><h1>MD5AnimationLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.md5;
+
+import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
+import gnu.trove.list.TIntList;
+import gnu.trove.list.array.TIntArrayList;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.math.AABB;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.rendering.assets.animation.MeshAnimationData;
+import org.terasology.rendering.assets.animation.MeshAnimationFrame;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@RegisterAssetFileFormat
+public class MD5AnimationLoader extends AbstractAssetFileFormat&lt;MeshAnimationData&gt; {
+
+    private static final int POSITION_X_FLAG = 0x1;
+    private static final int POSITION_Y_FLAG = 0x2;
+    private static final int POSITION_Z_FLAG = 0x4;
+    private static final int ORIENTATION_X_FLAG = 0x8;
+    private static final int ORIENTATION_Y_FLAG = 0x10;
+    private static final int ORIENTATION_Z_FLAG = 0x20;
+
+<span class="fc" id="L54">    private Pattern jointPattern = Pattern.compile(&quot;\&quot;(.*)\&quot;\\s+&quot; + MD5Patterns.INTEGER_PATTERN +</span>
+            &quot;\\s*&quot; + MD5Patterns.INTEGER_PATTERN + &quot;\\s*&quot; + MD5Patterns.INTEGER_PATTERN);
+<span class="fc" id="L56">    private Pattern doubleVectorPattern = Pattern.compile(MD5Patterns.VECTOR3_PATTERN +</span>
+            &quot;\\s*&quot; + MD5Patterns.VECTOR3_PATTERN);
+<span class="fc" id="L58">    private Pattern frameStartPattern = Pattern.compile(&quot;frame &quot; + MD5Patterns.INTEGER_PATTERN + &quot; \\{&quot;);</span>
+
+    public MD5AnimationLoader() {
+<span class="fc" id="L61">        super(&quot;md5anim&quot;);</span>
+<span class="fc" id="L62">    }</span>
+
+    @Override
+    public MeshAnimationData load(ResourceUrn urn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="nc" id="L66">        try (InputStream stream = inputs.get(0).openStream()) {</span>
+<span class="nc" id="L67">            MD5 md5 = parse(stream);</span>
+<span class="nc" id="L68">            return createAnimation(md5);</span>
+<span class="nc" id="L69">        } catch (NumberFormatException e) {</span>
+<span class="nc" id="L70">            throw new IOException(&quot;Error parsing &quot; + inputs.get(0).getFilename(), e);</span>
+        }
+    }
+
+    private MeshAnimationData createAnimation(MD5 md5) {
+<span class="nc" id="L75">        List&lt;String&gt; boneNames = Lists.newArrayListWithCapacity(md5.numJoints);</span>
+<span class="nc" id="L76">        TIntList boneParents = new TIntArrayList(md5.numJoints);</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        for (int i = 0; i &lt; md5.numJoints; ++i) {</span>
+<span class="nc" id="L78">            boneNames.add(md5.joints[i].name);</span>
+<span class="nc" id="L79">            boneParents.add(md5.joints[i].parent);</span>
+        }
+<span class="nc" id="L81">        float timePerFrame = 1.0f / md5.frameRate;</span>
+
+<span class="nc" id="L83">        List&lt;MeshAnimationFrame&gt; frames = Lists.newArrayList();</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        for (int frameIndex = 0; frameIndex &lt; md5.numFrames; ++frameIndex) {</span>
+<span class="nc" id="L85">            MD5Frame frame = md5.frames[frameIndex];</span>
+<span class="nc" id="L86">            List&lt;Vector3f&gt; positions = Lists.newArrayListWithExpectedSize(md5.numJoints);</span>
+<span class="nc" id="L87">            List&lt;Vector3f&gt; rawRotations = Lists.newArrayListWithExpectedSize(md5.numJoints);</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            for (int i = 0; i &lt; md5.numJoints; ++i) {</span>
+<span class="nc" id="L89">                positions.add(new Vector3f(md5.baseFramePosition[i]));</span>
+<span class="nc" id="L90">                rawRotations.add(new Vector3f(md5.baseFrameOrientation[i]));</span>
+            }
+
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            for (int jointIndex = 0; jointIndex &lt; md5.numJoints; ++jointIndex) {</span>
+<span class="nc" id="L94">                int compIndex = 0;</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                if ((md5.joints[jointIndex].flags &amp; POSITION_X_FLAG) != 0) {</span>
+<span class="nc" id="L96">                    positions.get(jointIndex).x = frame.components[md5.joints[jointIndex].startIndex + compIndex];</span>
+<span class="nc" id="L97">                    compIndex++;</span>
+                }
+<span class="nc bnc" id="L99" title="All 2 branches missed.">                if ((md5.joints[jointIndex].flags &amp; POSITION_Y_FLAG) != 0) {</span>
+<span class="nc" id="L100">                    positions.get(jointIndex).y = frame.components[md5.joints[jointIndex].startIndex + compIndex];</span>
+<span class="nc" id="L101">                    compIndex++;</span>
+                }
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                if ((md5.joints[jointIndex].flags &amp; POSITION_Z_FLAG) != 0) {</span>
+<span class="nc" id="L104">                    positions.get(jointIndex).z = frame.components[md5.joints[jointIndex].startIndex + compIndex];</span>
+<span class="nc" id="L105">                    compIndex++;</span>
+                }
+<span class="nc bnc" id="L107" title="All 2 branches missed.">                if ((md5.joints[jointIndex].flags &amp; ORIENTATION_X_FLAG) != 0) {</span>
+<span class="nc" id="L108">                    rawRotations.get(jointIndex).x = frame.components[md5.joints[jointIndex].startIndex + compIndex];</span>
+<span class="nc" id="L109">                    compIndex++;</span>
+                }
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                if ((md5.joints[jointIndex].flags &amp; ORIENTATION_Y_FLAG) != 0) {</span>
+<span class="nc" id="L112">                    rawRotations.get(jointIndex).y = frame.components[md5.joints[jointIndex].startIndex + compIndex];</span>
+<span class="nc" id="L113">                    compIndex++;</span>
+                }
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                if ((md5.joints[jointIndex].flags &amp; ORIENTATION_Z_FLAG) != 0) {</span>
+<span class="nc" id="L116">                    rawRotations.get(jointIndex).z = frame.components[md5.joints[jointIndex].startIndex + compIndex];</span>
+                }
+            }
+
+<span class="nc" id="L120">            List&lt;Quat4f&gt; rotations = rawRotations.stream().map(rot -&gt;</span>
+<span class="nc" id="L121">                    MD5ParserCommon.completeQuat4f(rot.x, rot.y, rot.z)).collect(Collectors.toCollection(ArrayList::new));</span>
+
+            // Rotate just the root bone to correct for coordinate system differences
+<span class="nc" id="L124">            rotations.set(0, MD5ParserCommon.correctQuat4f(rotations.get(0)));</span>
+<span class="nc" id="L125">            positions.set(0, MD5ParserCommon.correctOffset(positions.get(0)));</span>
+
+
+<span class="nc" id="L128">            frames.add(new MeshAnimationFrame(positions, rotations));</span>
+
+        }
+<span class="nc" id="L131">        AABB aabb = AABB.createEncompassing(Arrays.asList(md5.bounds));</span>
+<span class="nc" id="L132">        return new MeshAnimationData(boneNames, boneParents, frames, timePerFrame, aabb);</span>
+    }
+
+
+    private MD5 parse(InputStream stream) throws IOException {
+<span class="nc" id="L137">        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, Charsets.UTF_8));</span>
+<span class="nc" id="L138">        MD5 md5 = new MD5();</span>
+<span class="nc" id="L139">        String line = MD5ParserCommon.readToLine(reader, &quot;MD5Version &quot;);</span>
+<span class="nc" id="L140">        md5.version = Integer.parseInt(line.split(&quot; &quot;, 3)[1]);</span>
+
+<span class="nc" id="L142">        line = MD5ParserCommon.readToLine(reader, &quot;commandline &quot;);</span>
+<span class="nc" id="L143">        Matcher commandlineMatch = Pattern.compile(MD5Patterns.COMMAND_LINE_PATTERN).matcher(line);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (commandlineMatch.matches()) {</span>
+<span class="nc" id="L145">            md5.commandline = commandlineMatch.group(1);</span>
+        }
+
+<span class="nc" id="L148">        line = MD5ParserCommon.readToLine(reader, &quot;numFrames &quot;);</span>
+<span class="nc" id="L149">        md5.numFrames = Integer.parseInt(line.split(&quot; &quot;, 3)[1]);</span>
+<span class="nc" id="L150">        line = MD5ParserCommon.readToLine(reader, &quot;numJoints &quot;);</span>
+<span class="nc" id="L151">        md5.numJoints = Integer.parseInt(line.split(&quot; &quot;, 3)[1]);</span>
+<span class="nc" id="L152">        line = MD5ParserCommon.readToLine(reader, &quot;frameRate &quot;);</span>
+<span class="nc" id="L153">        md5.frameRate = Integer.parseInt(line.split(&quot; &quot;, 3)[1]);</span>
+<span class="nc" id="L154">        line = MD5ParserCommon.readToLine(reader, &quot;numAnimatedComponents &quot;);</span>
+<span class="nc" id="L155">        md5.numAnimatedComponents = Integer.parseInt(line.split(&quot; &quot;, 3)[1]);</span>
+
+<span class="nc" id="L157">        MD5ParserCommon.readToLine(reader, &quot;hierarchy {&quot;);</span>
+<span class="nc" id="L158">        readHierarchy(reader, md5);</span>
+
+<span class="nc" id="L160">        MD5ParserCommon.readToLine(reader, &quot;bounds {&quot;);</span>
+<span class="nc" id="L161">        readBounds(reader, md5);</span>
+
+<span class="nc" id="L163">        MD5ParserCommon.readToLine(reader, &quot;baseframe {&quot;);</span>
+<span class="nc" id="L164">        readBaseFrames(reader, md5);</span>
+
+<span class="nc" id="L166">        readFrames(reader, md5);</span>
+
+<span class="nc" id="L168">        return md5;</span>
+    }
+
+    private void readFrames(BufferedReader reader, MD5 md5) throws IOException {
+<span class="nc" id="L172">        md5.frames = new MD5Frame[md5.numFrames];</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        for (int i = 0; i &lt; md5.numFrames; ++i) {</span>
+<span class="nc" id="L174">            String frameStart = MD5ParserCommon.readToLine(reader, &quot;frame &quot;);</span>
+<span class="nc" id="L175">            Matcher frameStartMatcher = frameStartPattern.matcher(frameStart);</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            if (!frameStartMatcher.find()) {</span>
+<span class="nc" id="L177">                throw new IOException(&quot;Invalid frame line: \&quot;&quot; + frameStart + &quot;\&quot;&quot;);</span>
+            }
+<span class="nc" id="L179">            int frameIndex = Integer.parseInt(frameStartMatcher.group(1));</span>
+
+<span class="nc" id="L181">            MD5Frame frame = new MD5Frame();</span>
+<span class="nc" id="L182">            frame.components = new float[md5.numAnimatedComponents];</span>
+<span class="nc" id="L183">            int componentsRead = 0;</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            while (componentsRead &lt; md5.numAnimatedComponents) {</span>
+<span class="nc" id="L185">                String line = MD5ParserCommon.readNextLine(reader);</span>
+<span class="nc" id="L186">                String[] components = line.trim().split(&quot;\\s+&quot;);</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                for (String component : components) {</span>
+<span class="nc" id="L188">                    frame.components[componentsRead++] = Float.parseFloat(component);</span>
+                }
+<span class="nc" id="L190">            }</span>
+<span class="nc" id="L191">            md5.frames[frameIndex] = frame;</span>
+        }
+<span class="nc" id="L193">    }</span>
+
+    private void readBaseFrames(BufferedReader reader, MD5 md5) throws IOException {
+<span class="nc" id="L196">        md5.baseFramePosition = new Vector3f[md5.numJoints];</span>
+<span class="nc" id="L197">        md5.baseFrameOrientation = new Vector3f[md5.numJoints];</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        for (int i = 0; i &lt; md5.numJoints; ++i) {</span>
+<span class="nc" id="L199">            String line = MD5ParserCommon.readNextLine(reader);</span>
+<span class="nc" id="L200">            Matcher matcher = doubleVectorPattern.matcher(line);</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            if (!matcher.find()) {</span>
+<span class="nc" id="L202">                throw new IOException(&quot;Invalid base frame line: \&quot;&quot; + line + &quot;\&quot;&quot;);</span>
+            }
+<span class="nc" id="L204">            md5.baseFramePosition[i] = MD5ParserCommon.readVector3f(matcher.group(1), matcher.group(2), matcher.group(3));</span>
+<span class="nc" id="L205">            md5.baseFrameOrientation[i] = MD5ParserCommon.readVector3f(matcher.group(4), matcher.group(5), matcher.group(6));</span>
+        }
+<span class="nc" id="L207">    }</span>
+
+    private void readBounds(BufferedReader reader, MD5 md5) throws IOException {
+<span class="nc" id="L210">        md5.bounds = new AABB[md5.numFrames];</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        for (int i = 0; i &lt; md5.numFrames; ++i) {</span>
+<span class="nc" id="L212">            String line = MD5ParserCommon.readNextLine(reader);</span>
+<span class="nc" id="L213">            Matcher matcher = doubleVectorPattern.matcher(line);</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">            if (!matcher.find()) {</span>
+<span class="nc" id="L215">                throw new IOException(&quot;Invalid bounds line: \&quot;&quot; + line + &quot;\&quot;&quot;);</span>
+            }
+<span class="nc" id="L217">            Vector3f a = MD5ParserCommon.readVector3fAndCorrect(matcher.group(1), matcher.group(2), matcher.group(3));</span>
+<span class="nc" id="L218">            Vector3f b = MD5ParserCommon.readVector3fAndCorrect(matcher.group(4), matcher.group(5), matcher.group(6));</span>
+<span class="nc" id="L219">            Vector3f min = new Vector3f();</span>
+<span class="nc" id="L220">            min.x = Math.min(a.x, b.x);</span>
+<span class="nc" id="L221">            min.y = Math.min(a.y, b.y);</span>
+<span class="nc" id="L222">            min.z = Math.min(a.z, b.z);</span>
+<span class="nc" id="L223">            Vector3f max = new Vector3f();</span>
+<span class="nc" id="L224">            max.x = Math.max(a.x, b.x);</span>
+<span class="nc" id="L225">            max.y = Math.max(a.y, b.y);</span>
+<span class="nc" id="L226">            max.z = Math.max(a.z, b.z);</span>
+<span class="nc" id="L227">            md5.bounds[i] = AABB.createMinMax(min, max);</span>
+        }
+<span class="nc" id="L229">    }</span>
+
+    private void readHierarchy(BufferedReader reader, MD5 md5) throws IOException {
+<span class="nc" id="L232">        md5.joints = new MD5Joint[md5.numJoints];</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        for (int i = 0; i &lt; md5.numJoints; ++i) {</span>
+<span class="nc" id="L234">            String line = MD5ParserCommon.readNextLine(reader);</span>
+<span class="nc" id="L235">            Matcher matcher = jointPattern.matcher(line);</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">            if (!matcher.find()) {</span>
+<span class="nc" id="L237">                throw new IOException(&quot;Invalid joint line: \&quot;&quot; + line + &quot;\&quot;&quot;);</span>
+            }
+<span class="nc" id="L239">            MD5Joint joint = new MD5Joint();</span>
+<span class="nc" id="L240">            joint.name = matcher.group(1);</span>
+<span class="nc" id="L241">            joint.parent = Integer.parseInt(matcher.group(2));</span>
+<span class="nc" id="L242">            joint.flags = Integer.parseInt(matcher.group(3));</span>
+<span class="nc" id="L243">            joint.startIndex = Integer.parseInt(matcher.group(4));</span>
+<span class="nc" id="L244">            md5.joints[i] = joint;</span>
+        }
+<span class="nc" id="L246">    }</span>
+
+    private static class MD5 {
+        public int version;
+        public String commandline;
+        public int numFrames;
+        public int numJoints;
+        public int frameRate;
+        public int numAnimatedComponents;
+
+        public MD5Joint[] joints;
+        public AABB[] bounds;
+        public Vector3f[] baseFramePosition;
+        public Vector3f[] baseFrameOrientation;
+        public MD5Frame[] frames;
+    }
+
+<span class="nc" id="L263">    public static class MD5Joint {</span>
+        public String name;
+        public int parent;
+        public int flags;
+        public int startIndex;
+    }
+
+<span class="nc" id="L270">    public static class MD5Frame {</span>
+        public float[] components;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

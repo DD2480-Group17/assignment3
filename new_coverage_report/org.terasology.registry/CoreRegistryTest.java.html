@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CoreRegistryTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.registry</a> &gt; <span class="el_source">CoreRegistryTest.java</span></div><h1>CoreRegistryTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.registry;
+
+import com.google.common.collect.Maps;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.context.Context;
+
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+
+<span class="fc" id="L29">public class CoreRegistryTest {</span>
+    private Context context;
+
+    /**
+     * Create a Context implementation instance an assign it to CoreRegistry before testing.
+     */
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L37">        context = new ContextImplementation();</span>
+<span class="fc" id="L38">        CoreRegistry.setContext(context);</span>
+<span class="fc" id="L39">    }</span>
+
+    /**
+     * Check if the context is changed with setContext method.
+     */
+    @Test
+    public void testContextChange() {
+<span class="fc" id="L46">        CoreRegistry.setContext(new ContextImplementation());</span>
+<span class="fc" id="L47">        assertNotEquals(CoreRegistry.get(Context.class), context);</span>
+<span class="fc" id="L48">    }</span>
+
+    /**
+     * Check if CoreRegistry returns null on its methods when the context is not defined.
+     */
+    @Test
+    public void testNullReturnOnMissingContext() {
+<span class="fc" id="L55">        CoreRegistry.setContext(null);</span>
+
+<span class="fc" id="L57">        assertEquals(CoreRegistry.put(Integer.class, 10), null);</span>
+<span class="fc" id="L58">        assertEquals(CoreRegistry.get(Integer.class), null);</span>
+<span class="fc" id="L59">    }</span>
+
+    /**
+     * Test if the CoreRegistry context is being returned by the get method when the argument is Context.class
+     * independently of the Context implementation.
+     */
+    @Test
+    public void testContextGetIndependenceFromContextInterfaceImplementation() {
+<span class="fc" id="L67">        assertEquals(CoreRegistry.get(Context.class), context);</span>
+
+<span class="fc" id="L69">        assertEquals(context.get(Context.class), null);</span>
+<span class="fc" id="L70">    }</span>
+
+    /**
+     * Check if the CoreRegistry is calling the methods of its Context
+     */
+    @Test
+    public void testContextMethodsCalled() {
+        // Load value in context
+<span class="fc" id="L78">        Integer value = 10;</span>
+<span class="fc" id="L79">        CoreRegistry.put(Integer.class, value);</span>
+<span class="fc" id="L80">        assertEquals(value, context.get(Integer.class));</span>
+<span class="fc" id="L81">        assertEquals(context.get(Integer.class), CoreRegistry.get(Integer.class));</span>
+
+        // Change context
+<span class="fc" id="L84">        CoreRegistry.setContext(new ContextImplementation());</span>
+<span class="fc" id="L85">        assertNotEquals(CoreRegistry.get(Context.class), context);</span>
+<span class="fc" id="L86">        assertEquals(CoreRegistry.get(Integer.class), null);</span>
+
+        // Restore first context
+<span class="fc" id="L89">        CoreRegistry.setContext(context);</span>
+<span class="fc" id="L90">        assertEquals(CoreRegistry.get(Integer.class), value);</span>
+<span class="fc" id="L91">    }</span>
+
+
+<span class="fc" id="L94">    private static class ContextImplementation implements Context {</span>
+<span class="fc" id="L95">        private final Map&lt;Class&lt;?&gt;, Object&gt; map = Maps.newConcurrentMap();</span>
+
+        @Override
+        public &lt;T&gt; T get(Class&lt;? extends T&gt; type) {
+<span class="fc" id="L99">            T result = type.cast(map.get(type));</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">            if (result != null) {</span>
+<span class="fc" id="L101">                return result;</span>
+            }
+<span class="fc" id="L103">            return null;</span>
+        }
+
+        @Override
+        public &lt;T, U extends T&gt; void put(Class&lt;T&gt; type, U object) {
+<span class="fc" id="L108">            map.put(type, object);</span>
+<span class="fc" id="L109">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

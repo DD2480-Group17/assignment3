@@ -1,0 +1,566 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.network.internal</a> &gt; <span class="el_source">NetClient.java</span></div><h1>NetClient.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.network.internal;
+
+import com.google.common.base.Objects;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Queues;
+import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
+import gnu.trove.iterator.TIntIterator;
+import gnu.trove.set.TIntSet;
+import gnu.trove.set.hash.TIntHashSet;
+import org.jboss.netty.channel.Channel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.Event;
+import org.terasology.entitySystem.metadata.EventLibrary;
+import org.terasology.entitySystem.metadata.EventMetadata;
+import org.terasology.entitySystem.metadata.NetworkEventType;
+import org.terasology.identity.PublicIdentityCertificate;
+import org.terasology.logic.characters.PredictionSystem;
+import org.terasology.logic.common.DisplayNameComponent;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.ChunkMath;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.network.Client;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.ColorComponent;
+import org.terasology.network.NetMetricSource;
+import org.terasology.network.NetworkComponent;
+import org.terasology.network.serialization.ServerComponentFieldCheck;
+import org.terasology.persistence.serializers.EventSerializer;
+import org.terasology.persistence.serializers.NetworkEntitySerializer;
+import org.terasology.persistence.typeHandling.DeserializationException;
+import org.terasology.persistence.typeHandling.SerializationException;
+import org.terasology.protobuf.EntityData;
+import org.terasology.protobuf.NetData;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
+import org.terasology.world.WorldChangeListener;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockComponent;
+import org.terasology.world.block.family.BlockFamily;
+import org.terasology.world.chunks.Chunk;
+
+import java.math.RoundingMode;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * A remote client.
+ *
+ */
+public class NetClient extends AbstractClient implements WorldChangeListener {
+<span class="fc" id="L82">    private static final Logger logger = LoggerFactory.getLogger(NetClient.class);</span>
+    private static final float NET_TICK_RATE = 0.05f;
+
+    private Time time;
+    private NetworkSystemImpl networkSystem;
+    private Channel channel;
+    private NetworkEntitySerializer entitySerializer;
+    private EventSerializer eventSerializer;
+    private EventLibrary eventLibrary;
+    private NetMetricSource metricSource;
+
+    // Relevance
+<span class="nc" id="L94">    private Set&lt;Vector3i&gt; relevantChunks = Sets.newHashSet();</span>
+<span class="nc" id="L95">    private TIntSet netRelevant = new TIntHashSet();</span>
+
+    // Entity replication data
+<span class="nc" id="L98">    private TIntSet netInitial = new TIntHashSet();</span>
+<span class="nc" id="L99">    private TIntSet netDirty = new TIntHashSet();</span>
+<span class="nc" id="L100">    private TIntSet netRemoved = new TIntHashSet();</span>
+<span class="nc" id="L101">    private SetMultimap&lt;Integer, Class&lt;? extends Component&gt;&gt; dirtyComponents = LinkedHashMultimap.create();</span>
+<span class="nc" id="L102">    private SetMultimap&lt;Integer, Class&lt;? extends Component&gt;&gt; addedComponents = LinkedHashMultimap.create();</span>
+<span class="nc" id="L103">    private SetMultimap&lt;Integer, Class&lt;? extends Component&gt;&gt; removedComponents = LinkedHashMultimap.create();</span>
+
+<span class="nc" id="L105">    private String preferredName = &quot;Player&quot;;</span>
+    private long lastReceivedTime;
+<span class="nc" id="L107">    private ViewDistance viewDistance = ViewDistance.NEAR;</span>
+<span class="nc" id="L108">    private float chunkSendCounter = 1.0f;</span>
+
+<span class="nc" id="L110">    private float chunkSendRate = 0.05469f;</span>
+
+    private PublicIdentityCertificate identity;
+
+    // Outgoing messages
+<span class="nc" id="L115">    private BlockingQueue&lt;NetData.BlockChangeMessage&gt; queuedOutgoingBlockChanges = Queues.newLinkedBlockingQueue();</span>
+<span class="nc" id="L116">    private BlockingQueue&lt;NetData.ExtraDataChangeMessage&gt; queuedOutgoingExtraDataChanges = Queues.newLinkedBlockingQueue();</span>
+<span class="nc" id="L117">    private List&lt;NetData.EventMessage&gt; queuedOutgoingEvents = Lists.newArrayList();</span>
+<span class="nc" id="L118">    private final List&lt;BlockFamily&gt; newlyRegisteredFamilies = Lists.newArrayList();</span>
+
+<span class="nc" id="L120">    private Map&lt;Vector3i, Chunk&gt; readyChunks = Maps.newLinkedHashMap();</span>
+<span class="nc" id="L121">    private Set&lt;Vector3i&gt; invalidatedChunks = Sets.newLinkedHashSet();</span>
+
+
+    // Incoming messages
+<span class="nc" id="L125">    private BlockingQueue&lt;NetData.NetMessage&gt; queuedIncomingMessage = Queues.newLinkedBlockingQueue();</span>
+
+    // Metrics
+<span class="nc" id="L128">    private AtomicInteger receivedMessages = new AtomicInteger();</span>
+<span class="nc" id="L129">    private AtomicInteger receivedBytes = new AtomicInteger();</span>
+<span class="nc" id="L130">    private AtomicInteger sentMessages = new AtomicInteger();</span>
+<span class="nc" id="L131">    private AtomicInteger sentBytes = new AtomicInteger();</span>
+    private Color color;
+
+    /**
+     * Sets up a new net client with metrics, time, identity, and a world provider.
+     * @param channel
+     * @param networkSystem
+     * @param identity Publice certificate for the client.
+     */
+<span class="nc" id="L140">    public NetClient(Channel channel, NetworkSystemImpl networkSystem, PublicIdentityCertificate identity) {</span>
+<span class="nc" id="L141">        this.channel = channel;</span>
+<span class="nc" id="L142">        metricSource = (NetMetricSource) channel.getPipeline().get(MetricRecordingHandler.NAME);</span>
+<span class="nc" id="L143">        this.networkSystem = networkSystem;</span>
+<span class="nc" id="L144">        this.time = CoreRegistry.get(Time.class);</span>
+<span class="nc" id="L145">        this.identity = identity;</span>
+<span class="nc" id="L146">        WorldProvider worldProvider = CoreRegistry.get(WorldProvider.class);</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        if (worldProvider != null) {</span>
+<span class="nc" id="L148">            worldProvider.registerListener(this);</span>
+        }
+<span class="nc" id="L150">    }</span>
+
+    @Override
+    public String getName() {
+<span class="nc" id="L154">        ClientComponent clientComp = getEntity().getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (clientComp != null) {</span>
+<span class="nc" id="L156">            DisplayNameComponent displayInfo = clientComp.clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">            if (displayInfo != null) {</span>
+<span class="nc" id="L158">                return displayInfo.name;</span>
+            }
+        }
+<span class="nc" id="L161">        return &quot;Unknown Player&quot;;</span>
+    }
+
+    @Override
+    public Color getColor() {
+<span class="nc" id="L166">        ClientComponent clientComp = getEntity().getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        if (clientComp != null) {</span>
+<span class="nc" id="L168">            ColorComponent colorComp = clientComp.clientInfo.getComponent(ColorComponent.class);</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (colorComp != null) {</span>
+<span class="nc" id="L170">                return colorComp.color;</span>
+            }
+        }
+<span class="nc" id="L173">        return color;</span>
+    }
+
+    @Override
+    public String getId() {
+<span class="nc" id="L178">        return identity.getId();</span>
+    }
+
+    public void setColor(Color color) {
+<span class="nc" id="L182">        this.color = color;</span>
+
+<span class="nc" id="L184">        ClientComponent client = getEntity().getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        if (client != null) {</span>
+<span class="nc" id="L186">            ColorComponent colorInfo = client.clientInfo.getComponent(ColorComponent.class);</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            if (colorInfo != null) {</span>
+<span class="nc" id="L188">                colorInfo.color = color;</span>
+<span class="nc" id="L189">                client.clientInfo.saveComponent(colorInfo);</span>
+            }
+        }
+
+<span class="nc" id="L193">    }</span>
+
+    /**
+     * @param preferredName the name the player would like to use.
+     */
+    public void setPreferredName(String preferredName) {
+<span class="nc" id="L199">        this.preferredName = preferredName;</span>
+<span class="nc" id="L200">    }</span>
+
+    @Override
+    public void disconnect() {
+<span class="nc" id="L204">        super.disconnect();</span>
+
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        if (channel.isOpen()) {</span>
+<span class="nc" id="L207">            channel.close().awaitUninterruptibly();</span>
+        }
+
+<span class="nc" id="L210">        WorldProvider worldProvider = CoreRegistry.get(WorldProvider.class);</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        if (worldProvider != null) {</span>
+<span class="nc" id="L212">            worldProvider.unregisterListener(this);</span>
+        }
+<span class="nc" id="L214">    }</span>
+
+    @Override
+    public void update(boolean netTick) {
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if (netTick) {</span>
+<span class="nc" id="L219">            NetData.NetMessage.Builder message = NetData.NetMessage.newBuilder();</span>
+<span class="nc" id="L220">            message.setTime(time.getGameTimeInMs());</span>
+<span class="nc" id="L221">            sendRegisteredBlocks(message);</span>
+<span class="nc" id="L222">            sendChunkInvalidations(message);</span>
+<span class="nc" id="L223">            sendNewChunks(message);</span>
+<span class="nc" id="L224">            sendRemovedEntities(message);</span>
+<span class="nc" id="L225">            sendInitialEntities(message);</span>
+<span class="nc" id="L226">            sendDirtyEntities(message);</span>
+<span class="nc" id="L227">            sendEvents(message);</span>
+<span class="nc" id="L228">            send(message.build());</span>
+        }
+<span class="nc" id="L230">        processReceivedMessages();</span>
+<span class="nc" id="L231">    }</span>
+
+    private void sendRegisteredBlocks(NetData.NetMessage.Builder message) {
+<span class="nc" id="L234">        synchronized (newlyRegisteredFamilies) {</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            for (BlockFamily family : newlyRegisteredFamilies) {</span>
+<span class="nc" id="L236">                NetData.BlockFamilyRegisteredMessage.Builder blockRegMessage = NetData.BlockFamilyRegisteredMessage.newBuilder();</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">                for (Block block : family.getBlocks()) {</span>
+<span class="nc" id="L238">                    blockRegMessage.addBlockUri(block.getURI().toString());</span>
+<span class="nc" id="L239">                    blockRegMessage.addBlockId(block.getId());</span>
+<span class="nc" id="L240">                }</span>
+<span class="nc" id="L241">                message.addBlockFamilyRegistered(blockRegMessage);</span>
+<span class="nc" id="L242">            }</span>
+<span class="nc" id="L243">            newlyRegisteredFamilies.clear();</span>
+<span class="nc" id="L244">        }</span>
+<span class="nc" id="L245">    }</span>
+
+    private void sendNewChunks(NetData.NetMessage.Builder message) {
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        if (!readyChunks.isEmpty()) {</span>
+<span class="nc" id="L249">            chunkSendCounter += chunkSendRate * NET_TICK_RATE * networkSystem.getBandwidthPerClient();</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">            if (chunkSendCounter &gt; 1.0f) {</span>
+<span class="nc" id="L251">                chunkSendCounter -= 1.0f;</span>
+<span class="nc" id="L252">                Vector3i center = new Vector3i();</span>
+<span class="nc" id="L253">                LocationComponent loc = getEntity().getComponent(ClientComponent.class).character.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">                if (loc != null) {</span>
+<span class="nc" id="L255">                    center.set(ChunkMath.calcChunkPos(new Vector3i(loc.getWorldPosition(), RoundingMode.HALF_UP)));</span>
+                }
+<span class="nc" id="L257">                Vector3i pos = null;</span>
+<span class="nc" id="L258">                int distance = Integer.MAX_VALUE;</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">                for (Vector3i chunkPos : readyChunks.keySet()) {</span>
+<span class="nc" id="L260">                    int chunkDistance = chunkPos.distanceSquared(center);</span>
+<span class="nc bnc" id="L261" title="All 4 branches missed.">                    if (pos == null || chunkDistance &lt; distance) {</span>
+<span class="nc" id="L262">                        pos = chunkPos;</span>
+<span class="nc" id="L263">                        distance = chunkDistance;</span>
+                    }
+<span class="nc" id="L265">                }</span>
+<span class="nc" id="L266">                Chunk chunk = readyChunks.remove(pos);</span>
+<span class="nc" id="L267">                relevantChunks.add(pos);</span>
+<span class="nc" id="L268">                message.addChunkInfo(chunk.encode());</span>
+<span class="nc" id="L269">            }</span>
+        } else {
+<span class="nc" id="L271">            chunkSendCounter = 1.0f;</span>
+        }
+<span class="nc" id="L273">    }</span>
+
+    private void sendChunkInvalidations(NetData.NetMessage.Builder message) {
+<span class="nc" id="L276">        Iterator&lt;Vector3i&gt; i = invalidatedChunks.iterator();</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        while (i.hasNext()) {</span>
+<span class="nc" id="L278">            Vector3i pos = i.next();</span>
+<span class="nc" id="L279">            i.remove();</span>
+<span class="nc" id="L280">            relevantChunks.remove(pos);</span>
+<span class="nc" id="L281">            message.addInvalidateChunk(NetData.InvalidateChunkMessage.newBuilder().setPos(NetMessageUtil.convert(pos)));</span>
+<span class="nc" id="L282">        }</span>
+<span class="nc" id="L283">        invalidatedChunks.clear();</span>
+<span class="nc" id="L284">    }</span>
+
+    public void setNetInitial(int netId) {
+<span class="nc" id="L287">        netInitial.add(netId);</span>
+<span class="nc" id="L288">    }</span>
+
+    public void setNetRemoved(int netId) {
+<span class="nc bnc" id="L291" title="All 2 branches missed.">        if (!netInitial.remove(netId)) {</span>
+<span class="nc" id="L292">            netRemoved.add(netId);</span>
+        }
+<span class="nc" id="L294">        dirtyComponents.keySet().remove(netId);</span>
+<span class="nc" id="L295">        addedComponents.keySet().remove(netId);</span>
+<span class="nc" id="L296">        removedComponents.keySet().remove(netId);</span>
+<span class="nc" id="L297">        netDirty.remove(netId);</span>
+<span class="nc" id="L298">        netRelevant.remove(netId);</span>
+<span class="nc" id="L299">    }</span>
+
+    public void setComponentAdded(int networkId, Class&lt;? extends Component&gt; component) {
+<span class="nc bnc" id="L302" title="All 4 branches missed.">        if (netRelevant.contains(networkId) &amp;&amp; !netInitial.contains(networkId)) {</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">            if (removedComponents.remove(networkId, component)) {</span>
+<span class="nc" id="L304">                dirtyComponents.put(networkId, component);</span>
+            } else {
+<span class="nc" id="L306">                addedComponents.put(networkId, component);</span>
+<span class="nc" id="L307">                netDirty.add(networkId);</span>
+            }
+        }
+<span class="nc" id="L310">    }</span>
+
+    public void setComponentRemoved(int networkId, Class&lt;? extends Component&gt; component) {
+<span class="nc bnc" id="L313" title="All 4 branches missed.">        if (netRelevant.contains(networkId) &amp;&amp; !netInitial.contains(networkId)) {</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">            if (!addedComponents.remove(networkId, component)) {</span>
+<span class="nc" id="L315">                removedComponents.put(networkId, component);</span>
+<span class="nc bnc" id="L316" title="All 2 branches missed.">                if (!dirtyComponents.remove(networkId, component)) {</span>
+<span class="nc" id="L317">                    netDirty.add(networkId);</span>
+                }
+            }
+        }
+<span class="nc" id="L321">    }</span>
+
+    public void setComponentDirty(int netId, Class&lt;? extends Component&gt; componentType) {
+<span class="nc bnc" id="L324" title="All 6 branches missed.">        if (netRelevant.contains(netId) &amp;&amp; !netInitial.contains(netId) &amp;&amp; !addedComponents.get(netId).contains(componentType)) {</span>
+<span class="nc" id="L325">            dirtyComponents.put(netId, componentType);</span>
+<span class="nc" id="L326">            netDirty.add(netId);</span>
+        }
+<span class="nc" id="L328">    }</span>
+
+    public void connected(EntityManager entityManager, NetworkEntitySerializer newEntitySerializer,
+                          EventSerializer newEventSerializer, EventLibrary newEventLibrary) {
+<span class="nc" id="L332">        this.entitySerializer = newEntitySerializer;</span>
+<span class="nc" id="L333">        this.eventSerializer = newEventSerializer;</span>
+<span class="nc" id="L334">        this.eventLibrary = newEventLibrary;</span>
+
+<span class="nc" id="L336">        createEntity(preferredName, color, entityManager);</span>
+<span class="nc" id="L337">    }</span>
+
+    @Override
+    public void send(Event event, EntityRef target) {
+        try {
+<span class="nc" id="L342">            BlockComponent blockComp = target.getComponent(BlockComponent.class);</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">            if (blockComp != null) {</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">                if (relevantChunks.contains(ChunkMath.calcChunkPos(blockComp.position))) {</span>
+<span class="nc" id="L345">                    queuedOutgoingEvents.add(NetData.EventMessage.newBuilder()</span>
+<span class="nc" id="L346">                            .setTargetBlockPos(NetMessageUtil.convert(blockComp.position))</span>
+<span class="nc" id="L347">                            .setEvent(eventSerializer.serialize(event)).build());</span>
+                }
+            } else {
+<span class="nc" id="L350">                NetworkComponent networkComponent = target.getComponent(NetworkComponent.class);</span>
+<span class="nc bnc" id="L351" title="All 2 branches missed.">                if (networkComponent != null) {</span>
+<span class="nc bnc" id="L352" title="All 4 branches missed.">                    if (netRelevant.contains(networkComponent.getNetworkId()) || netInitial.contains(networkComponent.getNetworkId())) {</span>
+<span class="nc" id="L353">                        queuedOutgoingEvents.add(NetData.EventMessage.newBuilder()</span>
+<span class="nc" id="L354">                                .setTargetId(networkComponent.getNetworkId())</span>
+<span class="nc" id="L355">                                .setEvent(eventSerializer.serialize(event)).build());</span>
+                    }
+                }
+            }
+<span class="nc" id="L359">        } catch (SerializationException e) {</span>
+<span class="nc" id="L360">            logger.error(&quot;Failed to serialize event&quot;, e);</span>
+<span class="nc" id="L361">        }</span>
+<span class="nc" id="L362">    }</span>
+
+    @Override
+    public ViewDistance getViewDistance() {
+<span class="nc" id="L366">        return viewDistance;</span>
+    }
+
+    @Override
+    public boolean isLocal() {
+<span class="nc" id="L371">        return false;</span>
+    }
+
+    void send(NetData.NetMessage data) {
+<span class="nc" id="L375">        logger.trace(&quot;Sending packet with size {}&quot;, data.getSerializedSize());</span>
+<span class="nc" id="L376">        sentMessages.incrementAndGet();</span>
+<span class="nc" id="L377">        sentBytes.addAndGet(data.getSerializedSize());</span>
+<span class="nc" id="L378">        channel.write(data);</span>
+<span class="nc" id="L379">    }</span>
+
+    @Override
+    public void onChunkRelevant(Vector3i pos, Chunk chunk) {
+<span class="nc" id="L383">        invalidatedChunks.remove(pos);</span>
+<span class="nc" id="L384">        readyChunks.put(pos, chunk);</span>
+<span class="nc" id="L385">    }</span>
+
+    @Override
+    public void onChunkIrrelevant(Vector3i pos) {
+<span class="nc" id="L389">        readyChunks.remove(pos);</span>
+<span class="nc" id="L390">        invalidatedChunks.add(pos);</span>
+<span class="nc" id="L391">    }</span>
+
+    @Override
+    public void onBlockChanged(Vector3i pos, Block newBlock, Block originalBlock) {
+<span class="nc" id="L395">        Vector3i chunkPos = ChunkMath.calcChunkPos(pos);</span>
+<span class="nc bnc" id="L396" title="All 2 branches missed.">        if (relevantChunks.contains(chunkPos)) {</span>
+<span class="nc" id="L397">            queuedOutgoingBlockChanges.add(NetData.BlockChangeMessage.newBuilder()</span>
+<span class="nc" id="L398">                    .setPos(NetMessageUtil.convert(pos))</span>
+<span class="nc" id="L399">                    .setNewBlock(newBlock.getId())</span>
+<span class="nc" id="L400">                    .build());</span>
+        }
+<span class="nc" id="L402">    }</span>
+
+    @Override
+    public void onExtraDataChanged(int i, Vector3i pos, int newData, int oldData) {
+<span class="nc" id="L406">        Vector3i chunkPos = ChunkMath.calcChunkPos(pos);</span>
+<span class="nc bnc" id="L407" title="All 2 branches missed.">        if (relevantChunks.contains(chunkPos)) {</span>
+<span class="nc" id="L408">            queuedOutgoingExtraDataChanges.add(NetData.ExtraDataChangeMessage.newBuilder()</span>
+<span class="nc" id="L409">                    .setIndex(i)</span>
+<span class="nc" id="L410">                    .setPos(NetMessageUtil.convert(pos))</span>
+<span class="nc" id="L411">                    .setNewData(newData)</span>
+<span class="nc" id="L412">                    .build());</span>
+        }
+<span class="nc" id="L414">    }</span>
+
+    private void processReceivedMessages() {
+<span class="nc" id="L417">        List&lt;NetData.NetMessage&gt; messages = Lists.newArrayListWithExpectedSize(queuedIncomingMessage.size());</span>
+<span class="nc" id="L418">        queuedIncomingMessage.drainTo(messages);</span>
+<span class="nc bnc" id="L419" title="All 2 branches missed.">        for (NetData.NetMessage message : messages) {</span>
+<span class="nc bnc" id="L420" title="All 4 branches missed.">            if (message.hasTime() &amp;&amp; message.getTime() &gt; lastReceivedTime) {</span>
+<span class="nc" id="L421">                lastReceivedTime = message.getTime();</span>
+            }
+<span class="nc" id="L423">            processEntityUpdates(message);</span>
+<span class="nc" id="L424">            processEvents(message);</span>
+
+<span class="nc" id="L426">        }</span>
+<span class="nc" id="L427">    }</span>
+
+    private void sendEvents(NetData.NetMessage.Builder message) {
+<span class="nc" id="L430">        List&lt;NetData.BlockChangeMessage&gt; blockChanges = Lists.newArrayListWithExpectedSize(queuedOutgoingBlockChanges.size());</span>
+<span class="nc" id="L431">        queuedOutgoingBlockChanges.drainTo(blockChanges);</span>
+<span class="nc" id="L432">        message.addAllBlockChange(blockChanges);</span>
+        
+<span class="nc" id="L434">        List&lt;NetData.ExtraDataChangeMessage&gt; extraDataChanges = Lists.newArrayListWithExpectedSize(queuedOutgoingExtraDataChanges.size());</span>
+<span class="nc" id="L435">        queuedOutgoingExtraDataChanges.drainTo(extraDataChanges);</span>
+<span class="nc" id="L436">        message.addAllExtraDataChange(extraDataChanges);</span>
+
+<span class="nc" id="L438">        message.addAllEvent(queuedOutgoingEvents);</span>
+<span class="nc" id="L439">        queuedOutgoingEvents.clear();</span>
+<span class="nc" id="L440">    }</span>
+
+    private void processEntityUpdates(NetData.NetMessage message) {
+<span class="nc bnc" id="L443" title="All 2 branches missed.">        for (NetData.UpdateEntityMessage updateMessage : message.getUpdateEntityList()) {</span>
+
+<span class="nc" id="L445">            EntityRef currentEntity = networkSystem.getEntity(updateMessage.getNetId());</span>
+<span class="nc bnc" id="L446" title="All 2 branches missed.">            if (networkSystem.getOwner(currentEntity) == this) {</span>
+<span class="nc" id="L447">                entitySerializer.deserializeOnto(currentEntity, updateMessage.getEntity(), new ServerComponentFieldCheck(false, true));</span>
+            }
+<span class="nc" id="L449">        }</span>
+<span class="nc" id="L450">    }</span>
+
+    private void sendDirtyEntities(NetData.NetMessage.Builder message) {
+<span class="nc" id="L453">        TIntIterator dirtyIterator = netDirty.iterator();</span>
+<span class="nc bnc" id="L454" title="All 2 branches missed.">        while (dirtyIterator.hasNext()) {</span>
+<span class="nc" id="L455">            int netId = dirtyIterator.next();</span>
+<span class="nc" id="L456">            EntityRef entity = networkSystem.getEntity(netId);</span>
+<span class="nc bnc" id="L457" title="All 2 branches missed.">            if (!entity.exists()) {</span>
+<span class="nc" id="L458">                logger.error(&quot;Sending non-existent entity update for netId {}&quot;, netId);</span>
+            }
+<span class="nc bnc" id="L460" title="All 2 branches missed.">            boolean isOwner = networkSystem.getOwner(entity) == this;</span>
+<span class="nc" id="L461">            EntityData.PackedEntity entityData = entitySerializer.serialize(entity, addedComponents.get(netId), dirtyComponents.get(netId), removedComponents.get(netId),</span>
+                    new ServerComponentFieldCheck(isOwner, false));
+<span class="nc bnc" id="L463" title="All 2 branches missed.">            if (entityData != null) {</span>
+<span class="nc" id="L464">                message.addUpdateEntity(NetData.UpdateEntityMessage.newBuilder().setEntity(entityData).setNetId(netId));</span>
+            }
+<span class="nc" id="L466">        }</span>
+<span class="nc" id="L467">        netDirty.clear();</span>
+<span class="nc" id="L468">        addedComponents.clear();</span>
+<span class="nc" id="L469">        removedComponents.clear();</span>
+<span class="nc" id="L470">        dirtyComponents.clear();</span>
+<span class="nc" id="L471">    }</span>
+
+    private void sendRemovedEntities(NetData.NetMessage.Builder message) {
+<span class="nc" id="L474">        TIntIterator initialIterator = netRemoved.iterator();</span>
+<span class="nc bnc" id="L475" title="All 2 branches missed.">        while (initialIterator.hasNext()) {</span>
+<span class="nc" id="L476">            message.addRemoveEntity(NetData.RemoveEntityMessage.newBuilder().setNetId(initialIterator.next()));</span>
+        }
+<span class="nc" id="L478">        netRemoved.clear();</span>
+<span class="nc" id="L479">    }</span>
+
+    private void sendInitialEntities(NetData.NetMessage.Builder message) {
+<span class="nc" id="L482">        int[] initial = netInitial.toArray();</span>
+<span class="nc" id="L483">        netInitial.clear();</span>
+<span class="nc" id="L484">        Arrays.sort(initial);</span>
+<span class="nc bnc" id="L485" title="All 2 branches missed.">        for (int netId : initial) {</span>
+<span class="nc" id="L486">            netRelevant.add(netId);</span>
+<span class="nc" id="L487">            EntityRef entity = networkSystem.getEntity(netId);</span>
+<span class="nc bnc" id="L488" title="All 2 branches missed.">            if (!entity.hasComponent(NetworkComponent.class)) {</span>
+<span class="nc" id="L489">                logger.error(&quot;Sending net entity with no network component: {} - {}&quot;, netId, entity);</span>
+<span class="nc" id="L490">                continue;</span>
+            }
+            // Note: Send owner-&gt;server fields on initial create
+<span class="nc" id="L493">            Client owner = networkSystem.getOwner(entity);</span>
+<span class="nc bnc" id="L494" title="All 2 branches missed.">            EntityData.PackedEntity entityData = entitySerializer.serialize(entity, true, new ServerComponentFieldCheck(owner == this, true)).build();</span>
+<span class="nc" id="L495">            NetData.CreateEntityMessage.Builder createMessage = NetData.CreateEntityMessage.newBuilder().setEntity(entityData);</span>
+<span class="nc" id="L496">            BlockComponent blockComponent = entity.getComponent(BlockComponent.class);</span>
+<span class="nc bnc" id="L497" title="All 2 branches missed.">            if (blockComponent != null) {</span>
+<span class="nc" id="L498">                createMessage.setBlockPos(NetMessageUtil.convert(blockComponent.position));</span>
+            }
+<span class="nc" id="L500">            message.addCreateEntity(createMessage);</span>
+        }
+
+<span class="nc" id="L503">    }</span>
+
+    private void processEvents(NetData.NetMessage message) {
+<span class="nc" id="L506">        boolean lagCompensated = false;</span>
+<span class="nc" id="L507">        PredictionSystem predictionSystem = CoreRegistry.get(PredictionSystem.class);</span>
+<span class="nc bnc" id="L508" title="All 2 branches missed.">        for (NetData.EventMessage eventMessage : message.getEventList()) {</span>
+            try {
+<span class="nc" id="L510">                Event event = eventSerializer.deserialize(eventMessage.getEvent());</span>
+<span class="nc" id="L511">                EventMetadata&lt;?&gt; metadata = eventLibrary.getMetadata(event.getClass());</span>
+<span class="nc bnc" id="L512" title="All 2 branches missed.">                if (metadata.getNetworkEventType() != NetworkEventType.SERVER) {</span>
+<span class="nc" id="L513">                    logger.warn(&quot;Received non-server event '{}' from client '{}'&quot;, metadata, getName());</span>
+<span class="nc" id="L514">                    continue;</span>
+                }
+<span class="nc bnc" id="L516" title="All 4 branches missed.">                if (!lagCompensated &amp;&amp; metadata.isLagCompensated()) {</span>
+<span class="nc bnc" id="L517" title="All 2 branches missed.">                    if (predictionSystem != null) {</span>
+<span class="nc" id="L518">                        predictionSystem.lagCompensate(getEntity(), lastReceivedTime);</span>
+                    }
+<span class="nc" id="L520">                    lagCompensated = true;</span>
+                }
+<span class="nc" id="L522">                EntityRef target = EntityRef.NULL;</span>
+<span class="nc bnc" id="L523" title="All 2 branches missed.">                if (eventMessage.hasTargetId()) {</span>
+<span class="nc" id="L524">                    target = networkSystem.getEntity(eventMessage.getTargetId());</span>
+                }
+<span class="nc bnc" id="L526" title="All 2 branches missed.">                if (target.exists()) {</span>
+<span class="nc bnc" id="L527" title="All 2 branches missed.">                    if (Objects.equal(networkSystem.getOwner(target), this)) {</span>
+<span class="nc" id="L528">                        target.send(event);</span>
+                    } else {
+<span class="nc" id="L530">                        logger.warn(&quot;Received event {} for non-owned entity {} from {}&quot;, event, target, this);</span>
+                    }
+                }
+<span class="nc" id="L533">            } catch (DeserializationException e) {</span>
+<span class="nc" id="L534">                logger.error(&quot;Failed to deserialize event&quot;, e);</span>
+<span class="nc" id="L535">            } catch (RuntimeException e) {</span>
+<span class="nc" id="L536">                logger.error(&quot;Error processing event&quot;, e);</span>
+<span class="nc" id="L537">            }</span>
+<span class="nc" id="L538">        }</span>
+<span class="nc bnc" id="L539" title="All 4 branches missed.">        if (lagCompensated &amp;&amp; predictionSystem != null) {</span>
+<span class="nc" id="L540">            predictionSystem.restoreToPresent();</span>
+        }
+<span class="nc" id="L542">    }</span>
+
+    public void messageReceived(NetData.NetMessage message) {
+<span class="nc" id="L545">        int serializedSize = message.getSerializedSize();</span>
+<span class="nc" id="L546">        receivedBytes.addAndGet(serializedSize);</span>
+<span class="nc" id="L547">        receivedMessages.incrementAndGet();</span>
+<span class="nc" id="L548">        queuedIncomingMessage.offer(message);</span>
+<span class="nc" id="L549">    }</span>
+
+    public NetMetricSource getMetrics() {
+<span class="nc" id="L552">        return metricSource;</span>
+    }
+
+    @Override
+    public void setViewDistanceMode(ViewDistance distanceMode) {
+<span class="nc" id="L557">        this.viewDistance = distanceMode;</span>
+<span class="nc" id="L558">    }</span>
+
+    public void blockFamilyRegistered(BlockFamily family) {
+<span class="nc" id="L561">        synchronized (newlyRegisteredFamilies) {</span>
+<span class="nc" id="L562">            newlyRegisteredFamilies.add(family);</span>
+<span class="nc" id="L563">        }</span>
+<span class="nc" id="L564">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

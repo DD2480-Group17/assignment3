@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StandardTranslationProject.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.i18n</a> &gt; <span class="el_source">StandardTranslationProject.java</span></div><h1>StandardTranslationProject.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.i18n;
+
+import org.terasology.i18n.assets.Translation;
+import org.terasology.naming.Name;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * Performs textual translations based on a set of {@link Translation} instances.
+ */
+<span class="nc" id="L32">public class StandardTranslationProject implements TranslationProject {</span>
+
+<span class="nc" id="L34">    private final Map&lt;Locale, Translation&gt; translations = new HashMap&lt;&gt;();</span>
+
+    @Override
+    public void add(Translation trans) {
+<span class="nc" id="L38">        translations.put(trans.getLocale(), trans);</span>
+<span class="nc" id="L39">    }</span>
+
+    @Override
+    public void remove(Translation trans) {
+<span class="nc" id="L43">        translations.remove(trans.getLocale(), trans);</span>
+<span class="nc" id="L44">    }</span>
+
+    @Override
+    public Optional&lt;String&gt; translate(Name key, Locale locale) {
+<span class="nc" id="L48">        String result = translateExact(key, locale);</span>
+<span class="nc bnc" id="L49" title="All 4 branches missed.">        if (result == null &amp;&amp; !locale.getVariant().isEmpty()) {</span>
+            // try without variant
+<span class="nc" id="L51">            Locale fallbackLocale = new Locale(locale.getLanguage(), locale.getCountry());</span>
+<span class="nc" id="L52">            result = translateExact(key, fallbackLocale);</span>
+        }
+<span class="nc bnc" id="L54" title="All 4 branches missed.">        if (result == null &amp;&amp; !locale.getCountry().isEmpty()) {</span>
+            // try without country
+<span class="nc" id="L56">            Locale fallbackLocale = new Locale(locale.getLanguage());</span>
+<span class="nc" id="L57">            result = translateExact(key, fallbackLocale);</span>
+        }
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L60">            result = translateExact(key, Locale.ENGLISH);</span>
+        }
+
+<span class="nc" id="L63">        return Optional.ofNullable(result);</span>
+    }
+
+    @Override
+    public Set&lt;Locale&gt; getAvailableLocales() {
+<span class="nc" id="L68">        Set&lt;Locale&gt; result = new HashSet&lt;&gt;(translations.keySet());</span>
+<span class="nc" id="L69">        result.remove(Locale.ROOT);</span>
+<span class="nc" id="L70">        return result;</span>
+    }
+
+    private String translateExact(Name key, Locale locale) {
+<span class="nc" id="L74">        Translation trans = translations.get(locale);</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (trans != null) {</span>
+<span class="nc" id="L76">            return trans.lookup(key);</span>
+        }
+<span class="nc" id="L78">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VisualCharacterSystemTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.characters</a> &gt; <span class="el_source">VisualCharacterSystemTest.java</span></div><h1>VisualCharacterSystemTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.characters;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.engine.modes.loadProcesses.AwaitedLocalCharacterSpawnEvent;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
+import org.terasology.entitySystem.event.Event;
+import org.terasology.logic.characters.events.CreateVisualCharacterEvent;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.registry.InjectionHelper;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ * Tests for {@link VisualCharacterSystem}
+ */
+<span class="fc" id="L45">public class VisualCharacterSystemTest {</span>
+    private LocalPlayer localPlayer;
+    private VisualCharacterSystem system;
+    private EntityManager entityManager;
+
+<span class="fc" id="L50">    private EntityRef clientEntityReturnedByLocalPlayer = EntityRef.NULL;</span>
+    /**
+     * Next entity id used for mocked {@link EntityRef}s, 0 does not get used as {@link EntityRef#NULL} uses it.
+     */
+<span class="fc" id="L54">    private long nextEntityId = 1;</span>
+
+    @BeforeEach
+    public void setup() throws Exception {
+<span class="fc" id="L58">        this.system = new VisualCharacterSystem();</span>
+<span class="fc" id="L59">        Context context = new ContextImpl();</span>
+
+<span class="fc" id="L61">        this.localPlayer = Mockito.mock(LocalPlayer.class);</span>
+<span class="fc" id="L62">        context.put(LocalPlayer.class, localPlayer);</span>
+<span class="fc" id="L63">        Mockito.doAnswer(new Answer() {</span>
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+<span class="fc" id="L66">                return clientEntityReturnedByLocalPlayer;</span>
+            }
+<span class="fc" id="L68">        }).when(localPlayer).getClientEntity();</span>
+
+<span class="fc" id="L70">        this.entityManager = Mockito.mock(EntityManager.class);</span>
+
+<span class="fc" id="L72">        Mockito.doReturn(Mockito.mock(EntityBuilder.class)).when(entityManager).newBuilder();</span>
+
+<span class="fc" id="L74">        context.put(EntityManager.class, this.entityManager);</span>
+<span class="fc" id="L75">        InjectionHelper.inject(system, context);</span>
+<span class="fc" id="L76">        system.setCreateAndAttachVisualEntityStrategy((entityBuilder, characterEntity) -&gt; Mockito.mock(EntityRef.class));</span>
+
+<span class="fc" id="L78">    }</span>
+
+    private void recordEntityEventsToList(EntityRef entityRefMock, List&lt;Event&gt; listToFill) {
+<span class="fc" id="L81">        Mockito.when(entityRefMock.send(Mockito.any())).then(new Answer&lt;Event&gt;() {</span>
+            @Override
+            public Event answer(InvocationOnMock invocation) throws Throwable {
+<span class="fc" id="L84">                Event event = invocation.getArgument(0);</span>
+<span class="fc" id="L85">                listToFill.add(event);</span>
+<span class="fc" id="L86">                return event;</span>
+            }
+        });
+<span class="fc" id="L89">    }</span>
+
+    /**
+     * This test verifies that:
+     * &lt;ul&gt;
+     *     &lt;li&gt;No visual character gets created (via event) for the own character (as it is first person)&lt;/li&gt;
+     *     &lt;li&gt;That the system can deal with LocalPlayer and characters not being properly linked when
+     *     the character entities get loaded/created&lt;/li&gt;
+     *     &lt;li&gt;A visual character gets created (via event) for characters that were already present when the player
+     *     joined&lt;/li&gt;
+     *     &lt;li&gt;A visual character gets created (via event) for characters that joins afterwards &lt;/li&gt;
+     * &lt;/ul&gt;
+     */
+    @Test
+    public void testSendingOfCreateVisualCharacterEvent() {
+<span class="fc" id="L104">        EntityRef clientEntity = mockEntityWithUniqueId();</span>
+<span class="fc" id="L105">        EntityRef otherClientEntity = mockEntityWithUniqueId();</span>
+
+<span class="fc" id="L107">        EntityRef ownCharacterEntity = mockEntityWithUniqueId();</span>
+<span class="fc" id="L108">        List&lt;Event&gt; ownCharacterEntityEvents = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L109">        recordEntityEventsToList(ownCharacterEntity, ownCharacterEntityEvents);</span>
+<span class="fc" id="L110">        VisualCharacterComponent visualComponentOfOwnCharacter = new VisualCharacterComponent();</span>
+<span class="fc" id="L111">        Mockito.when(ownCharacterEntity.getComponent(VisualCharacterComponent.class)).thenReturn(visualComponentOfOwnCharacter);</span>
+
+<span class="fc" id="L113">        EntityRef otherCharacterEntity = mockEntityWithUniqueId();</span>
+<span class="fc" id="L114">        List&lt;Event&gt; otherCharacterEntityEvents = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L115">        recordEntityEventsToList(otherCharacterEntity, otherCharacterEntityEvents);</span>
+<span class="fc" id="L116">        VisualCharacterComponent visualComponentOfOtherCharacter = new VisualCharacterComponent();</span>
+<span class="fc" id="L117">        Mockito.when(otherCharacterEntity.getComponent(VisualCharacterComponent.class)).thenReturn(visualComponentOfOtherCharacter);</span>
+
+<span class="fc" id="L119">        clientEntityReturnedByLocalPlayer = EntityRef.NULL;</span>
+
+
+        /*
+         * Simulate activation before entity is done
+         * since the character is not properly linked yet nothing should happen
+         */
+<span class="fc" id="L126">        system.onActivatedVisualCharacter(OnActivatedComponent.newInstance(), otherCharacterEntity,</span>
+                visualComponentOfOtherCharacter);
+<span class="fc" id="L128">        system.onActivatedVisualCharacter(OnActivatedComponent.newInstance(), ownCharacterEntity,</span>
+                visualComponentOfOwnCharacter);
+
+<span class="fc" id="L131">        simulateProperLinkingOfLocalPlayerAndCharacterEntities(clientEntity, otherClientEntity,</span>
+                ownCharacterEntity, otherCharacterEntity);
+
+
+<span class="fc" id="L135">        system.onAwaitedLocalCharacterSpawnEvent(new AwaitedLocalCharacterSpawnEvent(), ownCharacterEntity);</span>
+
+
+<span class="fc" id="L138">        assertTypesInListEqual(ownCharacterEntityEvents, Collections.emptyList());</span>
+<span class="fc" id="L139">        assertTypesInListEqual(otherCharacterEntityEvents, Arrays.asList(CreateVisualCharacterEvent.class));</span>
+
+
+<span class="fc" id="L142">        EntityRef laterJoiningCharacterEntity = mockEntityWithUniqueId();</span>
+<span class="fc" id="L143">        List&lt;Event&gt; laterJoiningCharacterEntityEvents = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L144">        recordEntityEventsToList(laterJoiningCharacterEntity, laterJoiningCharacterEntityEvents);</span>
+<span class="fc" id="L145">        VisualCharacterComponent visualComponentOfLaterJoiningCharacter = new VisualCharacterComponent();</span>
+<span class="fc" id="L146">        Mockito.when(laterJoiningCharacterEntity.getComponent(VisualCharacterComponent.class)).thenReturn(visualComponentOfLaterJoiningCharacter);</span>
+
+        // Joined player is not properly linked but it should not matter:
+<span class="fc" id="L149">        Mockito.when(laterJoiningCharacterEntity.getOwner()).thenReturn(EntityRef.NULL);</span>
+
+<span class="fc" id="L151">        system.onActivatedVisualCharacter(OnActivatedComponent.newInstance(), laterJoiningCharacterEntity,</span>
+                visualComponentOfLaterJoiningCharacter);
+
+
+        /*
+         * There is no second AwaitedLocalCharacterSpawnEvent event,
+         * the system must use the activation to send the event:
+         */
+<span class="fc" id="L159">        assertTypesInListEqual(laterJoiningCharacterEntityEvents, Arrays.asList(CreateVisualCharacterEvent.class));</span>
+
+<span class="fc" id="L161">    }</span>
+
+    private EntityRef mockEntityWithUniqueId() {
+<span class="fc" id="L164">        EntityRef entityRef = Mockito.mock(EntityRef.class);</span>
+        // Proper getId and exists method are needed to make equals work properly.
+<span class="fc" id="L166">        Mockito.when(entityRef.getId()).thenReturn(nextEntityId++);</span>
+<span class="fc" id="L167">        Mockito.when(entityRef.exists()).thenReturn(true);</span>
+<span class="fc" id="L168">        return entityRef;</span>
+    }
+
+    private void simulateProperLinkingOfLocalPlayerAndCharacterEntities(EntityRef clientEntity, EntityRef otherClientEntity, EntityRef ownCharacterEntity, EntityRef otherCharacterEntity) {
+        // Simulate linking of character with client
+<span class="fc" id="L173">        clientEntityReturnedByLocalPlayer = clientEntity;</span>
+<span class="fc" id="L174">        Mockito.when(ownCharacterEntity.getOwner()).thenReturn(clientEntity);</span>
+<span class="fc" id="L175">        Mockito.when(otherCharacterEntity.getOwner()).thenReturn(otherClientEntity);</span>
+<span class="fc" id="L176">        Mockito.when(entityManager.getEntitiesWith(VisualCharacterComponent.class)).thenReturn(Arrays.asList(otherCharacterEntity, ownCharacterEntity));</span>
+
+<span class="fc" id="L178">    }</span>
+
+    private void assertTypesInListEqual(List&lt;Event&gt; events, List&lt;Class&lt;?&gt;&gt; expectedTypes) {
+<span class="fc" id="L181">        List&lt;Class&lt;?&gt;&gt; actualTypesList = typesOf(events);</span>
+<span class="fc" id="L182">        assertEquals(expectedTypes, actualTypesList);</span>
+
+<span class="fc" id="L184">    }</span>
+
+    private List&lt;Class&lt;?&gt;&gt; typesOf(List&lt;?&gt; objects) {
+<span class="fc" id="L187">        List&lt;Class&lt;?&gt;&gt; typeList = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">        for (Object object: objects) {</span>
+<span class="fc" id="L189">            typeList.add(object.getClass());</span>
+<span class="fc" id="L190">        }</span>
+<span class="fc" id="L191">        return typeList;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

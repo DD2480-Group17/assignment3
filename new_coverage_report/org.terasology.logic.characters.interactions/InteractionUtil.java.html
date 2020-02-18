@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InteractionUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.characters.interactions</a> &gt; <span class="el_source">InteractionUtil.java</span></div><h1>InteractionUtil.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.logic.characters.interactions;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.characters.CharacterComponent;
+import org.terasology.module.sandbox.API;
+
+/**
+ * Utility class for entities with the {@link org.terasology.logic.characters.CharacterComponent}.
+ */
+@API
+public final class InteractionUtil {
+<span class="nc" id="L31">    private static final Logger logger = LoggerFactory.getLogger(InteractionUtil.class);</span>
+
+    private InteractionUtil() {
+        // Utility class: no instance required.
+    }
+
+
+    /**
+     * This method can be used by clients to request the cancelation of an interaction.
+     * The client will update it's
+     */
+    public static void cancelInteractionAsClient(EntityRef character) {
+<span class="nc" id="L43">        cancelInteractionAsClient(character, true);</span>
+<span class="nc" id="L44">    }</span>
+
+    static void cancelInteractionAsClient(EntityRef character, boolean notifyServer) {
+<span class="nc" id="L47">        CharacterComponent characterComponent = character.getComponent(CharacterComponent.class);</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (characterComponent == null) {</span>
+<span class="nc" id="L49">            logger.error(&quot;Interaction instigator has no character component&quot;);</span>
+<span class="nc" id="L50">            return;</span>
+        }
+
+<span class="nc" id="L53">        EntityRef oldTarget = characterComponent.predictedInteractionTarget;</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (oldTarget.exists()) {</span>
+<span class="nc" id="L55">            characterComponent.predictedInteractionTarget = EntityRef.NULL;</span>
+<span class="nc" id="L56">            character.saveComponent(characterComponent);</span>
+<span class="nc" id="L57">            oldTarget.send(new InteractionEndPredicted(character));</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            if (notifyServer) {</span>
+<span class="nc" id="L59">                character.send(new InteractionEndRequest());</span>
+            }
+        }
+<span class="nc" id="L62">    }</span>
+
+
+    public static void cancelInteractionAsServer(EntityRef character) {
+<span class="nc" id="L66">        CharacterComponent characterComponent = character.getComponent(CharacterComponent.class);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (characterComponent == null) {</span>
+<span class="nc" id="L68">            logger.error(&quot;Interaction end request instigator has no character component&quot;);</span>
+<span class="nc" id="L69">            return;</span>
+        }
+<span class="nc" id="L71">        int oldInteractionId = characterComponent.authorizedInteractionId;</span>
+<span class="nc" id="L72">        EntityRef oldTarget = characterComponent.authorizedInteractionTarget;</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if (oldTarget.exists()) {</span>
+<span class="nc" id="L74">            characterComponent.authorizedInteractionTarget = EntityRef.NULL;</span>
+<span class="nc" id="L75">            character.saveComponent(characterComponent);</span>
+        }
+
+<span class="nc" id="L78">        character.send(new InteractionEndEvent(oldInteractionId));</span>
+<span class="nc" id="L79">    }</span>
+
+    /**
+     * @return the active interaction screen uri of the specified character.
+     * The method returns null if the player has no interaction screen open.
+     * The method is only intended to be called for the own character.
+     */
+    public static ResourceUrn getActiveInteractionScreenUri(EntityRef character) {
+<span class="nc" id="L87">        CharacterComponent characterComponent = character.getComponent(CharacterComponent.class);</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (characterComponent == null) {</span>
+<span class="nc" id="L89">            return null;</span>
+        }
+<span class="nc" id="L91">        EntityRef interactionTarget = characterComponent.predictedInteractionTarget;</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (!interactionTarget.exists()) {</span>
+<span class="nc" id="L93">            return null;</span>
+        }
+<span class="nc" id="L95">        InteractionScreenComponent screenComponent = interactionTarget.getComponent(InteractionScreenComponent.class);</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        if (screenComponent == null) {</span>
+<span class="nc" id="L97">            return null;</span>
+        }
+<span class="nc" id="L99">        return new ResourceUrn(screenComponent.screen);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

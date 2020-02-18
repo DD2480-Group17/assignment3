@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DelayedActionSystemTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.delay</a> &gt; <span class="el_source">DelayedActionSystemTest.java</span></div><h1>DelayedActionSystemTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.delay;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+<span class="fc" id="L33">public class DelayedActionSystemTest extends TerasologyTestingEnvironment {</span>
+
+<span class="fc" id="L35">    long nextFakeEntityId = 1;</span>
+    int lookingForId; // Use this for ordering the time events. 0 is earliest.
+
+    private DelayedActionSystem delayedActionSystem;
+    private List&lt;Integer&gt; vals; // Use this for ordering the expected values.
+
+    private Time time;
+
+    @BeforeEach
+    @Override
+    public void setup() throws Exception {
+<span class="fc" id="L46">        super.setup();</span>
+
+<span class="fc" id="L48">        delayedActionSystem = new DelayedActionSystem();</span>
+<span class="fc" id="L49">        nextFakeEntityId = 1;</span>
+<span class="fc" id="L50">        lookingForId = 0;</span>
+
+<span class="fc" id="L52">        time = mockTime;</span>
+<span class="fc" id="L53">        delayedActionSystem.setTime(mockTime);</span>
+<span class="fc" id="L54">    }</span>
+
+    private EntityRef createFakeEntityWith(ArbritaryDelayActionComponent arbritaryDelayActionComp) {
+<span class="fc" id="L57">        EntityRef entRef = mock(EntityRef.class);</span>
+<span class="fc" id="L58">        when(entRef.getComponent(ArbritaryDelayActionComponent.class)).thenReturn(arbritaryDelayActionComp);</span>
+<span class="fc" id="L59">        when(entRef.exists()).thenReturn(true);</span>
+<span class="fc" id="L60">        when(entRef.getId()).thenReturn(nextFakeEntityId++);</span>
+<span class="fc" id="L61">        return entRef;</span>
+    }
+
+    @Test
+    public void test1DelayedAction() {
+<span class="fc" id="L66">        ArbritaryDelayActionComponent a1 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L67">        a1.value = 3;</span>
+
+<span class="fc" id="L69">        vals = new ArrayList&lt;Integer&gt;(Arrays.asList(3));</span>
+
+<span class="fc" id="L71">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a1),</span>
+<span class="fc" id="L72">                &quot;Blah Blah&quot;, ((time.getGameTimeInMs() + 1000) - time.getGameTimeInMs()));</span>
+<span class="fc" id="L73">        nextFakeEntityId++;</span>
+<span class="fc" id="L74">    }</span>
+
+    @Test
+    public void test2DelayedActionsInChronoOrder() {
+<span class="fc" id="L78">        ArbritaryDelayActionComponent a1 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L79">        ArbritaryDelayActionComponent a2 = new ArbritaryDelayActionComponent();</span>
+
+<span class="fc" id="L81">        a1.value = 3;</span>
+<span class="fc" id="L82">        a2.value = 2;</span>
+
+<span class="fc" id="L84">        vals = new ArrayList&lt;Integer&gt;(Arrays.asList(3, 2));</span>
+
+<span class="fc" id="L86">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a1),</span>
+<span class="fc" id="L87">                &quot;First&quot;, (time.getGameTimeInMs() + 1000) - time.getGameTimeInMs());</span>
+<span class="fc" id="L88">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a2),</span>
+<span class="fc" id="L89">                &quot;Second&quot;, (time.getGameTimeInMs() + 1500) - time.getGameTimeInMs());</span>
+<span class="fc" id="L90">    }</span>
+
+    @Test
+    public void test2DelayedActionsInReverseChronoOrder() {
+<span class="fc" id="L94">        ArbritaryDelayActionComponent a1 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L95">        ArbritaryDelayActionComponent a2 = new ArbritaryDelayActionComponent();</span>
+
+<span class="fc" id="L97">        a1.value = 5;</span>
+<span class="fc" id="L98">        a2.value = 8;</span>
+
+<span class="fc" id="L100">        vals = new ArrayList&lt;Integer&gt;(Arrays.asList(5, 8));</span>
+
+<span class="fc" id="L102">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a2),</span>
+<span class="fc" id="L103">                &quot;Second&quot;, (time.getGameTimeInMs() + 1500) - time.getGameTimeInMs());</span>
+<span class="fc" id="L104">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a1),</span>
+<span class="fc" id="L105">                &quot;First&quot;, (time.getGameTimeInMs() + 1000) - time.getGameTimeInMs());</span>
+<span class="fc" id="L106">    }</span>
+
+    @Test
+    public void testMultipleDelayedActionsInChronoOrder() {
+<span class="fc" id="L110">        ArbritaryDelayActionComponent a1 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L111">        ArbritaryDelayActionComponent a2 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L112">        ArbritaryDelayActionComponent a3 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L113">        ArbritaryDelayActionComponent a4 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L114">        ArbritaryDelayActionComponent a5 = new ArbritaryDelayActionComponent();</span>
+
+<span class="fc" id="L116">        a1.value = 13;</span>
+<span class="fc" id="L117">        a2.value = 22;</span>
+<span class="fc" id="L118">        a3.value = 10;</span>
+<span class="fc" id="L119">        a4.value = 50;</span>
+<span class="fc" id="L120">        a5.value = 1;</span>
+
+<span class="fc" id="L122">        vals = new ArrayList&lt;Integer&gt;(Arrays.asList(13, 22, 10, 50, 1));</span>
+
+<span class="fc" id="L124">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a1),</span>
+<span class="fc" id="L125">                &quot;First&quot;, (time.getGameTimeInMs() + 1000) - time.getGameTimeInMs());</span>
+<span class="fc" id="L126">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a2),</span>
+<span class="fc" id="L127">                &quot;Second&quot;, (time.getGameTimeInMs() + 1500) - time.getGameTimeInMs());</span>
+<span class="fc" id="L128">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a3),</span>
+<span class="fc" id="L129">                &quot;Third&quot;, (time.getGameTimeInMs() + 2000) - time.getGameTimeInMs());</span>
+<span class="fc" id="L130">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a4),</span>
+<span class="fc" id="L131">                &quot;Fourth&quot;, (time.getGameTimeInMs() + 2500) - time.getGameTimeInMs());</span>
+<span class="fc" id="L132">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a5),</span>
+<span class="fc" id="L133">                &quot;Fifth&quot;, (time.getGameTimeInMs() + 3000) - time.getGameTimeInMs());</span>
+<span class="fc" id="L134">    }</span>
+
+    @Test
+    public void testMultipleDelayedActionsInRandomOrder() {
+<span class="fc" id="L138">        ArbritaryDelayActionComponent a3 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L139">        ArbritaryDelayActionComponent a5 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L140">        ArbritaryDelayActionComponent a2 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L141">        ArbritaryDelayActionComponent a1 = new ArbritaryDelayActionComponent();</span>
+<span class="fc" id="L142">        ArbritaryDelayActionComponent a4 = new ArbritaryDelayActionComponent();</span>
+
+<span class="fc" id="L144">        a1.value = 100;</span>
+<span class="fc" id="L145">        a2.value = 200;</span>
+<span class="fc" id="L146">        a3.value = 314;</span>
+<span class="fc" id="L147">        a4.value = 12;</span>
+<span class="fc" id="L148">        a5.value = 51;</span>
+
+<span class="fc" id="L150">        vals = new ArrayList&lt;Integer&gt;(Arrays.asList(100, 200, 314, 12, 51));</span>
+
+<span class="fc" id="L152">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a3),</span>
+<span class="fc" id="L153">                &quot;Third&quot;, (time.getGameTimeInMs() + 2000) - time.getGameTimeInMs());</span>
+<span class="fc" id="L154">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a5),</span>
+<span class="fc" id="L155">                &quot;Fifth&quot;, (time.getGameTimeInMs() + 3000) - time.getGameTimeInMs());</span>
+<span class="fc" id="L156">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a2),</span>
+<span class="fc" id="L157">                &quot;Second&quot;, (time.getGameTimeInMs() + 1500) - time.getGameTimeInMs());</span>
+<span class="fc" id="L158">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a1),</span>
+<span class="fc" id="L159">                &quot;First&quot;, (time.getGameTimeInMs() + 1000) - time.getGameTimeInMs());</span>
+<span class="fc" id="L160">        delayedActionSystem.addDelayedAction(createFakeEntityWith(a4),</span>
+<span class="fc" id="L161">                &quot;Fourth&quot;, (time.getGameTimeInMs() + 2500) - time.getGameTimeInMs());</span>
+<span class="fc" id="L162">    }</span>
+
+    @ReceiveEvent
+    public void finishWaiting(DelayedActionTriggeredEvent event, EntityRef entity, ArbritaryDelayActionComponent arbritaryDelayActionComp) {
+<span class="nc" id="L166">        assertEquals(vals.get(lookingForId).intValue(), arbritaryDelayActionComp.value);</span>
+<span class="nc" id="L167">        lookingForId++;</span>
+<span class="nc" id="L168">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BenchmarkTeraArraySerializeToStreamViaChannel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.benchmark.chunks.arrays</a> &gt; <span class="el_source">BenchmarkTeraArraySerializeToStreamViaChannel.java</span></div><h1>BenchmarkTeraArraySerializeToStreamViaChannel.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.benchmark.chunks.arrays;
+
+import org.terasology.world.chunks.blockdata.TeraArray;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
+
+public class BenchmarkTeraArraySerializeToStreamViaChannel extends BenchmarkTeraArraySerialization {
+
+    protected ByteBuffer buffer;
+    protected ByteArrayOutputStream out;
+    protected WritableByteChannel channel;
+
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    public BenchmarkTeraArraySerializeToStreamViaChannel(TeraArray.SerializationHandler handler, TeraArray array) {
+<span class="nc" id="L34">        super(handler, array);</span>
+<span class="nc" id="L35">    }</span>
+
+    @Override
+    public String getTitle() {
+<span class="nc" id="L39">        return array.getClass().getSimpleName() + &quot; serialization into ByteBuffer and transfer via Channel into ByteArrayOutputStream&quot;;</span>
+    }
+
+    @Override
+    public void setup() {
+<span class="nc" id="L44">        buffer = ByteBuffer.allocate(BUFFER_SIZE);</span>
+<span class="nc" id="L45">        out = new ByteArrayOutputStream(BUFFER_SIZE);</span>
+<span class="nc" id="L46">        channel = Channels.newChannel(out);</span>
+<span class="nc" id="L47">    }</span>
+
+    @Override
+    public void prerun() {
+<span class="nc" id="L51">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    @Override
+    public void run() {
+        try {
+<span class="nc" id="L57">            handler.serialize(array, buffer);</span>
+<span class="nc" id="L58">            buffer.rewind();</span>
+<span class="nc" id="L59">            channel.write(buffer);</span>
+<span class="nc" id="L60">            buffer.rewind();</span>
+<span class="nc" id="L61">            out.reset();</span>
+<span class="nc" id="L62">        } catch (IOException e) {</span>
+<span class="nc" id="L63">            throw new RuntimeException(e);</span>
+<span class="nc" id="L64">        }</span>
+<span class="nc" id="L65">    }</span>
+
+    @Override
+    public void postrun() {
+<span class="nc" id="L69">    }</span>
+
+    @Override
+    public void finish(boolean aborted) {
+<span class="nc" id="L73">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NUIEditorMenuTreeBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.editor.utils</a> &gt; <span class="el_source">NUIEditorMenuTreeBuilder.java</span></div><h1>NUIEditorMenuTreeBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.editor.utils;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.gson.annotations.SerializedName;
+import org.reflections.ReflectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.math.Border;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.AbstractWidget;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.UILayout;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.contextMenu.MenuTree;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.skin.UISkin;
+import org.terasology.rendering.nui.widgets.treeView.JsonTree;
+import org.terasology.rendering.nui.widgets.treeView.JsonTreeValue;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Consumer;
+
+/**
+ * A utility class to construct {@link MenuTree} instances.
+ */
+@SuppressWarnings(&quot;unchecked&quot;)
+<span class="nc" id="L52">public class NUIEditorMenuTreeBuilder {</span>
+    // Context menu options.
+    public static final String OPTION_ADD_EXTENDED = &quot;Add...&quot;;
+    public static final String OPTION_ADD_WIDGET = &quot;Add Widget&quot;;
+    public static final String OPTION_COPY = &quot;Copy&quot;;
+    public static final String OPTION_DELETE = &quot;Delete&quot;;
+    public static final String OPTION_EDIT = &quot;Edit&quot;;
+    public static final String OPTION_PASTE = &quot;Paste&quot;;
+
+<span class="nc" id="L61">    private Logger logger = LoggerFactory.getLogger(NUIEditorMenuTreeBuilder.class);</span>
+
+    /**
+     * A {@link NUIManager} instance retrieved from the editor screen.
+     */
+    private NUIManager nuiManager;
+    /**
+     * External consumer methods to be used when creating the menu.
+     */
+<span class="nc" id="L70">    private Map&lt;String, Consumer&lt;JsonTree&gt;&gt; externalConsumers = Maps.newHashMap();</span>
+    /**
+     * Listeners fired when one of the options within {@code LEVEL_ADD_EXTENDED} is selected.
+     */
+<span class="nc" id="L74">    private List&lt;Consumer&lt;JsonTree&gt;&gt; addContextMenuListeners = Lists.newArrayList();</span>
+
+    public void setManager(NUIManager manager) {
+<span class="nc" id="L77">        this.nuiManager = manager;</span>
+<span class="nc" id="L78">    }</span>
+
+    public void putConsumer(String key, Consumer&lt;JsonTree&gt; value) {
+<span class="nc" id="L81">        externalConsumers.put(key, value);</span>
+<span class="nc" id="L82">    }</span>
+
+    public void subscribeAddContextMenu(Consumer&lt;JsonTree&gt; listener) {
+<span class="nc" id="L85">        addContextMenuListeners.add(listener);</span>
+<span class="nc" id="L86">    }</span>
+
+    public MenuTree createPrimaryContextMenu(JsonTree node) {
+<span class="nc" id="L89">        MenuTree primaryTree = new MenuTree(null);</span>
+
+<span class="nc" id="L91">        JsonTreeValue.Type type = node.getValue().getType();</span>
+
+        // Create the ADD_EXTENDED level.
+<span class="nc bnc" id="L94" title="All 6 branches missed.">        if ((type == JsonTreeValue.Type.ARRAY &amp;&amp; !&quot;contents&quot;.equals(node.getValue().getKey()))</span>
+                || type == JsonTreeValue.Type.OBJECT) {
+<span class="nc" id="L96">            MenuTree addTree = createAddContextMenu(node);</span>
+<span class="nc" id="L97">            primaryTree.addSubmenu(addTree);</span>
+        }
+
+        // If the node is a &quot;contents&quot; array, add the widget addition option (redirects to WidgetSelectionScreen).
+<span class="nc bnc" id="L101" title="All 4 branches missed.">        if (type == JsonTreeValue.Type.ARRAY &amp;&amp; &quot;contents&quot;.equals(node.getValue().getKey())) {</span>
+<span class="nc" id="L102">            primaryTree.addOption(OPTION_ADD_WIDGET, externalConsumers.get(OPTION_ADD_WIDGET), node);</span>
+        }
+
+        // Always add the copy&amp;paste options.
+<span class="nc" id="L106">        primaryTree.addOption(OPTION_COPY, externalConsumers.get(OPTION_COPY), node);</span>
+<span class="nc" id="L107">        primaryTree.addOption(OPTION_PASTE, externalConsumers.get(OPTION_PASTE), node);</span>
+
+        // Unless the node is an OBJECT child of an ARRAY (should always have an empty key), add the edit option.
+<span class="nc bnc" id="L110" title="All 4 branches missed.">        if (type != JsonTreeValue.Type.NULL &amp;&amp; !(type == JsonTreeValue.Type.OBJECT</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                &amp;&amp; !node.isRoot()</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                &amp;&amp; node.getParent().getValue().getType() == JsonTreeValue.Type.ARRAY)) {</span>
+<span class="nc" id="L113">            primaryTree.addOption(OPTION_EDIT, externalConsumers.get(OPTION_EDIT), node);</span>
+        }
+
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        if (!node.isRoot()) {</span>
+<span class="nc" id="L117">            primaryTree.addOption(OPTION_DELETE, externalConsumers.get(OPTION_DELETE), node);</span>
+        }
+
+<span class="nc" id="L120">        return primaryTree;</span>
+    }
+
+    public MenuTree createPrimarySkinContextMenu(JsonTree node) {
+<span class="nc" id="L124">        MenuTree primaryTree = new MenuTree(null);</span>
+
+<span class="nc" id="L126">        JsonTreeValue.Type type = node.getValue().getType();</span>
+
+        // Create the ADD_EXTENDED level.
+<span class="nc bnc" id="L129" title="All 4 branches missed.">        if (type == JsonTreeValue.Type.ARRAY || (type == JsonTreeValue.Type.OBJECT</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                &amp;&amp; !&quot;elements&quot;.equals(node.getValue().getKey()))) {</span>
+<span class="nc" id="L131">            MenuTree addTree = createAddSkinContextMenu(node);</span>
+<span class="nc" id="L132">            primaryTree.addSubmenu(addTree);</span>
+        }
+
+        // If the node is an &quot;elements&quot; object, add the widget addition option (redirects to WidgetSelectionScreen).
+<span class="nc bnc" id="L136" title="All 4 branches missed.">        if (type == JsonTreeValue.Type.OBJECT &amp;&amp; &quot;elements&quot;.equals(node.getValue().getKey())) {</span>
+<span class="nc" id="L137">            primaryTree.addOption(OPTION_ADD_WIDGET, externalConsumers.get(OPTION_ADD_WIDGET), node);</span>
+        }
+
+        // Always add the copy&amp;paste and edit options.
+<span class="nc" id="L141">        primaryTree.addOption(OPTION_COPY, externalConsumers.get(OPTION_COPY), node);</span>
+<span class="nc" id="L142">        primaryTree.addOption(OPTION_PASTE, externalConsumers.get(OPTION_PASTE), node);</span>
+<span class="nc" id="L143">        primaryTree.addOption(OPTION_EDIT, externalConsumers.get(OPTION_EDIT), node);</span>
+
+<span class="nc" id="L145">        return primaryTree;</span>
+    }
+
+    public MenuTree createAddContextMenu(JsonTree node) {
+<span class="nc" id="L149">        MenuTree addTree = new MenuTree(OPTION_ADD_EXTENDED);</span>
+<span class="nc" id="L150">        JsonTreeValue.Type type = node.getValue().getType();</span>
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (type == JsonTreeValue.Type.ARRAY) {</span>
+            // Add generic item addition options.
+<span class="nc" id="L154">            addTree.addOption(&quot;Boolean value&quot;, n -&gt; {</span>
+<span class="nc" id="L155">                JsonTree child = new JsonTree(new JsonTreeValue(null, false, JsonTreeValue.Type.VALUE));</span>
+<span class="nc" id="L156">                n.addChild(child);</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                for (Consumer&lt;JsonTree&gt; listener : addContextMenuListeners) {</span>
+<span class="nc" id="L158">                    listener.accept(child);</span>
+<span class="nc" id="L159">                }</span>
+<span class="nc" id="L160">            }, node);</span>
+<span class="nc" id="L161">            addTree.addOption(&quot;Number value&quot;, n -&gt; {</span>
+<span class="nc" id="L162">                JsonTree child = new JsonTree((new JsonTreeValue(null, 0.0f, JsonTreeValue.Type.VALUE)));</span>
+<span class="nc" id="L163">                n.addChild(child);</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                for (Consumer&lt;JsonTree&gt; listener : addContextMenuListeners) {</span>
+<span class="nc" id="L165">                    listener.accept(n);</span>
+<span class="nc" id="L166">                }</span>
+<span class="nc" id="L167">            }, node);</span>
+<span class="nc" id="L168">            addTree.addOption(&quot;String value&quot;, n -&gt; {</span>
+<span class="nc" id="L169">                JsonTree child = new JsonTree((new JsonTreeValue(null, &quot;&quot;, JsonTreeValue.Type.VALUE)));</span>
+<span class="nc" id="L170">                n.addChild(child);</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">                for (Consumer&lt;JsonTree&gt; listener : addContextMenuListeners) {</span>
+<span class="nc" id="L172">                    listener.accept(child);</span>
+<span class="nc" id="L173">                }</span>
+<span class="nc" id="L174">            }, node);</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        } else if (type == JsonTreeValue.Type.OBJECT) {</span>
+            // Add a generic key/value pair addition option.
+<span class="nc" id="L177">            addTree.addOption(&quot;Key/value pair&quot;, n -&gt; {</span>
+<span class="nc" id="L178">                JsonTree child = new JsonTree((new JsonTreeValue(&quot;&quot;, &quot;&quot;, JsonTreeValue.Type.KEY_VALUE_PAIR)));</span>
+<span class="nc" id="L179">                n.addChild(child);</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                for (Consumer&lt;JsonTree&gt; listener : addContextMenuListeners) {</span>
+<span class="nc" id="L181">                    listener.accept(child);</span>
+<span class="nc" id="L182">                }</span>
+<span class="nc" id="L183">            }, node);</span>
+
+<span class="nc" id="L185">            populateContextMenu(node, addTree, false);</span>
+        }
+
+<span class="nc" id="L188">        return addTree;</span>
+    }
+
+    public MenuTree createAddSkinContextMenu(JsonTree node) {
+<span class="nc" id="L192">        MenuTree addTree = new MenuTree(OPTION_ADD_EXTENDED);</span>
+<span class="nc" id="L193">        JsonTreeValue.Type type = node.getValue().getType();</span>
+
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        if (type == JsonTreeValue.Type.OBJECT) {</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">            if (&quot;families&quot;.equals(node.getValue().getKey())) {</span>
+                // Add an option to add a family for a &quot;families&quot; node.
+<span class="nc" id="L198">                addTree.addOption(&quot;New family&quot;, n -&gt; {</span>
+<span class="nc" id="L199">                    JsonTree child = new JsonTree(new JsonTreeValue(&quot;&quot;, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L200">                    child.setExpanded(true);</span>
+<span class="nc" id="L201">                    n.addChild(child);</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">                    for (Consumer&lt;JsonTree&gt; listener : addContextMenuListeners) {</span>
+<span class="nc" id="L203">                        listener.accept(child);</span>
+<span class="nc" id="L204">                    }</span>
+<span class="nc" id="L205">                }, node);</span>
+            } else {
+<span class="nc" id="L207">                addTree.addOption(&quot;Key/value pair&quot;, n -&gt; {</span>
+<span class="nc" id="L208">                    JsonTree child = new JsonTree((new JsonTreeValue(&quot;&quot;, &quot;&quot;, JsonTreeValue.Type.KEY_VALUE_PAIR)));</span>
+<span class="nc" id="L209">                    n.addChild(child);</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">                    for (Consumer&lt;JsonTree&gt; listener : addContextMenuListeners) {</span>
+<span class="nc" id="L211">                        listener.accept(child);</span>
+<span class="nc" id="L212">                    }</span>
+<span class="nc" id="L213">                }, node);</span>
+
+<span class="nc" id="L215">                populateContextMenu(node, addTree, true);</span>
+            }
+        }
+
+<span class="nc" id="L219">        return addTree;</span>
+    }
+
+    private void populateContextMenu(JsonTree node, MenuTree addTree, boolean isSkin) {
+        NUIEditorNodeUtils.NodeInfo nodeInfo;
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        if (isSkin) {</span>
+<span class="nc" id="L225">            nodeInfo = NUIEditorNodeUtils.getSkinNodeInfo(node);</span>
+        } else {
+<span class="nc" id="L227">            nodeInfo = NUIEditorNodeUtils.getNodeInfo(node, nuiManager);</span>
+        }
+
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        if (nodeInfo != null) {</span>
+<span class="nc" id="L231">            Class clazz = nodeInfo.getNodeClass();</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            if (clazz != null) {</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                for (Field field : ReflectionUtils.getAllFields(clazz)) {</span>
+<span class="nc bnc" id="L234" title="All 4 branches missed.">                    if ((!UIWidget.class.isAssignableFrom(clazz) || field.isAnnotationPresent(LayoutConfig.class))</span>
+                            // Exclude static final fields, as they shouldn't be modified.
+<span class="nc bnc" id="L236" title="All 4 branches missed.">                            &amp;&amp; !(Modifier.isFinal(field.getModifiers()) &amp;&amp; Modifier.isStatic(field.getModifiers()))) {</span>
+<span class="nc" id="L237">                        field.setAccessible(true);</span>
+<span class="nc" id="L238">                        String name = getNodeName(field);</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">                        if (!node.hasChildWithKey(name)) {</span>
+<span class="nc" id="L240">                            addTree.addOption(name, n -&gt; {</span>
+                                try {
+<span class="nc" id="L242">                                    JsonTree child = createChild(name, node, field, clazz);</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">                                    for (Consumer&lt;JsonTree&gt; listener : addContextMenuListeners) {</span>
+<span class="nc" id="L244">                                        listener.accept(child);</span>
+<span class="nc" id="L245">                                    }</span>
+<span class="nc" id="L246">                                } catch (IllegalAccessException | InstantiationException e) {</span>
+<span class="nc" id="L247">                                    logger.warn(&quot;Could not add child&quot;, e);</span>
+<span class="nc" id="L248">                                }</span>
+<span class="nc" id="L249">                            }, node);</span>
+                        }
+                    }
+<span class="nc" id="L252">                }</span>
+                // If the node is part of a layout, add an option to add the layoutInfo node.
+<span class="nc bnc" id="L254" title="All 4 branches missed.">                if (!node.isRoot() &amp;&amp; !node.getParent().isRoot()) {</span>
+<span class="nc" id="L255">                    String layoutInfo = &quot;layoutInfo&quot;;</span>
+<span class="nc" id="L256">                    String contents = &quot;contents&quot;;</span>
+<span class="nc" id="L257">                    Class parentParentClass = NUIEditorNodeUtils</span>
+<span class="nc" id="L258">                            .getNodeInfo((JsonTree) node.getParent().getParent(), nuiManager)</span>
+<span class="nc" id="L259">                            .getNodeClass();</span>
+<span class="nc bnc" id="L260" title="All 2 branches missed.">                    if (!node.hasChildWithKey(layoutInfo)</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                            &amp;&amp; UIWidget.class.isAssignableFrom(clazz)</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">                            &amp;&amp; node.getParent().getValue() != null</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">                            &amp;&amp; node.getParent().getValue().getKey() != null</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">                            &amp;&amp; node.getParent().getValue().getKey().equals(contents)</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">                            &amp;&amp; UILayout.class.isAssignableFrom(parentParentClass)) {</span>
+<span class="nc" id="L266">                        addTree.addOption(layoutInfo, n -&gt; {</span>
+<span class="nc" id="L267">                            JsonTree child = new JsonTree(new JsonTreeValue(layoutInfo, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L268">                            child.setExpanded(true);</span>
+<span class="nc" id="L269">                            n.addChild(child);</span>
+<span class="nc" id="L270">                        }, node);</span>
+                    }
+                }
+            }
+<span class="nc" id="L274">        } else {</span>
+<span class="nc" id="L275">            logger.warn(&quot;Could not get class for node {}&quot;, node.getValue().toString());</span>
+        }
+<span class="nc" id="L277">    }</span>
+
+    private JsonTree createChild(String name, JsonTree node, Field field, Class clazz)
+            throws IllegalAccessException, InstantiationException {
+<span class="nc" id="L281">        JsonTreeValue childValue = new JsonTreeValue();</span>
+<span class="nc" id="L282">        childValue.setKey(name);</span>
+
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        if (UISkin.class.isAssignableFrom(field.getType())) {</span>
+            // Skin fields should always be KEY_VALUE_PAIR nodes with string values.
+<span class="nc" id="L286">            childValue.setValue(&quot;engine:default&quot;);</span>
+<span class="nc" id="L287">            childValue.setType(JsonTreeValue.Type.KEY_VALUE_PAIR);</span>
+        } else {
+<span class="nc bnc" id="L289" title="All 2 branches missed.">            if (isWidget(field)) {</span>
+<span class="nc" id="L290">                createWidgetChild(name, node);</span>
+<span class="nc" id="L291">                return null;</span>
+            } else {
+<span class="nc" id="L293">                childValue.setValue(getFieldValue(field, clazz));</span>
+<span class="nc" id="L294">                childValue.setType(getNodeType(field, getFieldValue(field, clazz)));</span>
+            }
+        }
+
+<span class="nc" id="L298">        JsonTree child = new JsonTree(childValue);</span>
+<span class="nc" id="L299">        child.setExpanded(true);</span>
+<span class="nc" id="L300">        node.addChild(child);</span>
+<span class="nc" id="L301">        return child;</span>
+    }
+
+    private boolean isWidget(Field field) throws IllegalAccessException {
+        // The field is a Binding&lt;? extends UIWidget&gt;.
+<span class="nc bnc" id="L306" title="All 2 branches missed.">        if (Binding.class.isAssignableFrom(field.getType())</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">                &amp;&amp; UIWidget.class.isAssignableFrom((Class&lt;?&gt;)</span>
+<span class="nc" id="L308">                ((ParameterizedType) (field.getGenericType())).getActualTypeArguments()[0])) {</span>
+<span class="nc" id="L309">            return true;</span>
+        }
+
+<span class="nc" id="L312">        return UIWidget.class.isAssignableFrom(field.getType());</span>
+    }
+
+    private void createWidgetChild(String name, JsonTree node) {
+<span class="nc" id="L316">        JsonTree widgetTree = new JsonTree(new JsonTreeValue(name, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L317">        NUIEditorNodeUtils</span>
+<span class="nc" id="L318">                .createNewWidget(&quot;UILabel&quot;, &quot;newWidget&quot;, false)</span>
+<span class="nc" id="L319">                .getChildren()</span>
+<span class="nc" id="L320">                .forEach(widgetTree::addChild);</span>
+<span class="nc" id="L321">        widgetTree.addChild(new JsonTreeValue(&quot;text&quot;, &quot;&quot;, JsonTreeValue.Type.KEY_VALUE_PAIR));</span>
+<span class="nc" id="L322">        node.addChild(widgetTree);</span>
+<span class="nc" id="L323">    }</span>
+
+    /**
+     * @param field A class field.
+     * @return The name of the field as it would appear in a JSON file.
+     */
+    private String getNodeName(Field field) {
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        return field.isAnnotationPresent(SerializedName.class)</span>
+<span class="nc" id="L331">                ? field.getAnnotation(SerializedName.class).value() : field.getName();</span>
+    }
+
+    /**
+     * @param field A class field.
+     * @param value The value of the field.
+     * @return The type of a JSON node that would contain the field.
+     */
+    private JsonTreeValue.Type getNodeType(Field field, Object value) {
+<span class="nc bnc" id="L340" title="All 10 branches missed.">        return Enum.class.isAssignableFrom(field.getType()) || value instanceof UISkin</span>
+                || value instanceof Boolean || value instanceof String || value instanceof Number
+                ? JsonTreeValue.Type.KEY_VALUE_PAIR : JsonTreeValue.Type.OBJECT;
+    }
+
+    private Object getFieldValue(Field field, Class clazz) throws IllegalAccessException, InstantiationException {
+<span class="nc bnc" id="L346" title="All 2 branches missed.">        if (Enum.class.isAssignableFrom(field.getType())) {</span>
+<span class="nc" id="L347">            return field.getType().getEnumConstants()[0].toString();</span>
+        } else {
+            Object value;
+<span class="nc bnc" id="L350" title="All 2 branches missed.">            if (Binding.class.isAssignableFrom(field.getType())) {</span>
+<span class="nc bnc" id="L351" title="All 4 branches missed.">                if (AbstractWidget.class.isAssignableFrom(clazz) &amp;&amp; Objects.equals(field.getName(), &quot;family&quot;)) {</span>
+                    // The default - and acceptable - value for the AbstractWidget.family binding is null, but a user
+                    // most likely wants to use a custom family. Therefore, the default is set to an empty string instead.
+<span class="nc" id="L354">                    value = &quot;&quot;;</span>
+                } else {
+<span class="nc" id="L356">                    Binding binding = (Binding) field.get(newInstance(clazz));</span>
+<span class="nc" id="L357">                    value = binding.get();</span>
+<span class="nc" id="L358">                }</span>
+<span class="nc bnc" id="L359" title="All 2 branches missed.">            } else if (Optional.class.isAssignableFrom(field.getType())) {</span>
+<span class="nc" id="L360">                value = newInstance((Class) ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0]);</span>
+            } else {
+<span class="nc" id="L362">                value = field.get(newInstance(clazz));</span>
+            }
+
+<span class="nc bnc" id="L365" title="All 4 branches missed.">            if (value != null &amp;&amp; value instanceof Boolean) {</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">                value = !(Boolean) value;</span>
+            }
+
+<span class="nc bnc" id="L369" title="All 4 branches missed.">            return (value != null || Binding.class.isAssignableFrom(field.getType()))</span>
+<span class="nc" id="L370">                    ? value : newInstance(field.getType());</span>
+        }
+    }
+
+    private Object newInstance(Class clazz) throws IllegalAccessException, InstantiationException {
+<span class="nc bnc" id="L375" title="All 2 branches missed.">        if (Boolean.class.isAssignableFrom(clazz)) {</span>
+<span class="nc" id="L376">            return false;</span>
+        }
+<span class="nc bnc" id="L378" title="All 2 branches missed.">        if (Border.class.isAssignableFrom(clazz)) {</span>
+<span class="nc" id="L379">            return Border.ZERO;</span>
+        }
+<span class="nc bnc" id="L381" title="All 2 branches missed.">        if (Color.class.isAssignableFrom(clazz)) {</span>
+<span class="nc" id="L382">            return &quot;000000FF&quot;;</span>
+        }
+<span class="nc bnc" id="L384" title="All 2 branches missed.">        if (Font.class.isAssignableFrom(clazz)) {</span>
+<span class="nc" id="L385">            return &quot;NotoSans-Regular&quot;;</span>
+        }
+<span class="nc bnc" id="L387" title="All 2 branches missed.">        if (Number.class.isAssignableFrom(clazz)) {</span>
+<span class="nc" id="L388">            return 0;</span>
+        }
+<span class="nc bnc" id="L390" title="All 2 branches missed.">        if (String.class.isAssignableFrom(clazz)) {</span>
+<span class="nc" id="L391">            return &quot;&quot;;</span>
+        }
+<span class="nc bnc" id="L393" title="All 2 branches missed.">        if (TextureRegion.class.isAssignableFrom(clazz)) {</span>
+<span class="nc" id="L394">            return &quot;&quot;;</span>
+        }
+<span class="nc" id="L396">        return clazz.newInstance();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

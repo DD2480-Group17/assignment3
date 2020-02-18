@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Location.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.location</a> &gt; <span class="el_source">Location.java</span></div><h1>Location.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.logic.location;
+
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeRemoveComponent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+
+import java.util.Iterator;
+
+/**
+ */
+@RegisterSystem
+<span class="fc" id="L33">public class Location extends BaseComponentSystem {</span>
+
+    /**
+     * Attaches an entity to another entity. Both must have location components.
+     * This method sets the child's relative offset and rotation to the
+     *
+     * @param parent
+     * @param child
+     * @param offset
+     * @param relativeRotation
+     */
+    public static void attachChild(EntityRef parent, EntityRef child, Vector3f offset, Quat4f relativeRotation, float relativeScale) {
+<span class="nc" id="L45">        LocationComponent childLoc = child.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L46">        LocationComponent parentLoc = parent.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L47" title="All 6 branches missed.">        if (childLoc != null &amp;&amp; parentLoc != null &amp;&amp; !childLoc.getParent().equals(parent)) {</span>
+<span class="nc" id="L48">            LocationComponent oldParentLoc = childLoc.getParent().getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">            if (oldParentLoc != null) {</span>
+<span class="nc" id="L50">                oldParentLoc.children.remove(child);</span>
+<span class="nc" id="L51">                childLoc.getParent().saveComponent(oldParentLoc);</span>
+            }
+<span class="nc" id="L53">            childLoc.parent = parent;</span>
+<span class="nc" id="L54">            childLoc.setLocalPosition(offset);</span>
+<span class="nc" id="L55">            childLoc.setLocalRotation(relativeRotation);</span>
+<span class="nc" id="L56">            childLoc.setLocalScale(relativeScale);</span>
+<span class="nc" id="L57">            parentLoc.children.add(child);</span>
+<span class="nc" id="L58">            child.saveComponent(childLoc);</span>
+<span class="nc" id="L59">            parent.saveComponent(parentLoc);</span>
+        }
+<span class="nc" id="L61">    }</span>
+
+    public static void attachChild(EntityRef parent, EntityRef child, Vector3f offset, Quat4f relativeRotation) {
+<span class="nc" id="L64">        attachChild(parent, child, offset, relativeRotation, 1f);</span>
+<span class="nc" id="L65">    }</span>
+
+    /**
+     * Attaches an entity to another entity. Both must have location components. The child maintains its previous position
+     * and rotation but follows the parent.
+     *
+     * @param parent
+     * @param child
+     */
+    public static void attachChild(EntityRef parent, EntityRef child) {
+<span class="fc" id="L75">        LocationComponent childLoc = child.getComponent(LocationComponent.class);</span>
+<span class="fc" id="L76">        LocationComponent parentLoc = parent.getComponent(LocationComponent.class);</span>
+<span class="pc bpc" id="L77" title="3 of 6 branches missed.">        if (childLoc != null &amp;&amp; parentLoc != null &amp;&amp; !childLoc.getParent().equals(parent)) {</span>
+<span class="fc" id="L78">            Vector3f oldWorldPos = childLoc.getWorldPosition();</span>
+<span class="fc" id="L79">            LocationComponent oldParentLoc = childLoc.getParent().getComponent(LocationComponent.class);</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">            if (oldParentLoc != null) {</span>
+<span class="nc" id="L81">                oldParentLoc.children.remove(child);</span>
+<span class="nc" id="L82">                childLoc.getParent().saveComponent(oldParentLoc);</span>
+            }
+<span class="fc" id="L84">            childLoc.parent = parent;</span>
+<span class="fc" id="L85">            childLoc.setWorldPosition(oldWorldPos);</span>
+<span class="fc" id="L86">            parentLoc.children.add(child);</span>
+<span class="fc" id="L87">            child.saveComponent(childLoc);</span>
+<span class="fc" id="L88">            parent.saveComponent(parentLoc);</span>
+        }
+<span class="fc" id="L90">    }</span>
+
+    public static void removeChild(EntityRef parent, EntityRef child) {
+<span class="fc" id="L93">        LocationComponent childLoc = child.getComponent(LocationComponent.class);</span>
+<span class="fc" id="L94">        LocationComponent parentLoc = parent.getComponent(LocationComponent.class);</span>
+<span class="pc bpc" id="L95" title="3 of 6 branches missed.">        if (childLoc != null &amp;&amp; parentLoc != null &amp;&amp; childLoc.getParent().equals(parent)) {</span>
+<span class="fc" id="L96">            Vector3f oldWorldPos = childLoc.getWorldPosition();</span>
+<span class="fc" id="L97">            parentLoc.children.remove(child);</span>
+<span class="fc" id="L98">            childLoc.parent = EntityRef.NULL;</span>
+<span class="fc" id="L99">            childLoc.setWorldPosition(oldWorldPos);</span>
+<span class="fc" id="L100">            child.saveComponent(childLoc);</span>
+<span class="fc" id="L101">            parent.saveComponent(parentLoc);</span>
+        }
+<span class="fc" id="L103">    }</span>
+
+    @ReceiveEvent
+    public void onDestroyed(BeforeRemoveComponent event, EntityRef entity, LocationComponent location) {
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        if (location.parent.exists()) {</span>
+<span class="nc" id="L108">            removeChild(location.parent, entity);</span>
+        }
+<span class="fc" id="L110">        Iterator&lt;EntityRef&gt; childIterator = location.getChildren().iterator();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        while (childIterator.hasNext()) {</span>
+<span class="fc" id="L112">            EntityRef child = childIterator.next();</span>
+<span class="fc" id="L113">            LocationComponent childLoc = child.getComponent(LocationComponent.class);</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">            if (childLoc != null) {</span>
+<span class="fc" id="L115">                Vector3f oldWorldPos = childLoc.getWorldPosition();</span>
+<span class="fc" id="L116">                childLoc.parent = EntityRef.NULL;</span>
+<span class="fc" id="L117">                childLoc.setWorldPosition(oldWorldPos);</span>
+<span class="fc" id="L118">                child.saveComponent(childLoc);</span>
+            }
+<span class="fc" id="L120">            childIterator.remove();</span>
+<span class="fc" id="L121">        }</span>
+<span class="fc" id="L122">    }</span>
+
+    @ReceiveEvent(netFilter = RegisterMode.REMOTE_CLIENT)
+    public void onResyncLocation(LocationResynchEvent event, EntityRef entityRef, LocationComponent locationComponent) {
+<span class="nc" id="L126">        locationComponent.setWorldPosition(event.getPosition());</span>
+<span class="nc" id="L127">        locationComponent.setWorldRotation(event.getRotation());</span>
+<span class="nc" id="L128">        entityRef.saveComponent(locationComponent);</span>
+<span class="nc" id="L129">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

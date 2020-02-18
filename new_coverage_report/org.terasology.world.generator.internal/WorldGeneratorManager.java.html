@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldGeneratorManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.generator.internal</a> &gt; <span class="el_source">WorldGeneratorManager.java</span></div><h1>WorldGeneratorManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.generator.internal;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.ResolutionResult;
+import org.terasology.naming.Name;
+import org.terasology.registry.InjectionHelper;
+import org.terasology.world.generator.RegisterWorldGenerator;
+import org.terasology.world.generator.UnresolvedWorldGeneratorException;
+import org.terasology.world.generator.WorldGenerator;
+
+import java.lang.reflect.InvocationTargetException;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ */
+public class WorldGeneratorManager {
+<span class="nc" id="L42">    private static final Logger logger = LoggerFactory.getLogger(WorldGeneratorManager.class);</span>
+
+    private Context context;
+
+    private ImmutableList&lt;WorldGeneratorInfo&gt; generatorInfo;
+
+<span class="nc" id="L48">    public WorldGeneratorManager(Context context) {</span>
+<span class="nc" id="L49">        this.context = context;</span>
+<span class="nc" id="L50">        refresh();</span>
+<span class="nc" id="L51">    }</span>
+
+    public void refresh() {
+<span class="nc" id="L54">        ModuleManager moduleManager = context.get(ModuleManager.class);</span>
+<span class="nc" id="L55">        List&lt;WorldGeneratorInfo&gt; infos = Lists.newArrayList();</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">        for (Name moduleId : moduleManager.getRegistry().getModuleIds()) {</span>
+<span class="nc" id="L57">            Module module = moduleManager.getRegistry().getLatestModuleVersion(moduleId);</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            if (module.isCodeModule()) {</span>
+<span class="nc" id="L59">                DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());</span>
+<span class="nc" id="L60">                ResolutionResult resolutionResult = resolver.resolve(module.getId());</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">                if (resolutionResult.isSuccess()) {</span>
+<span class="nc" id="L62">                    try (ModuleEnvironment tempEnvironment = moduleManager.loadEnvironment(resolutionResult.getModules(), false)) {</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">                        for (Class&lt;?&gt; generatorClass : tempEnvironment.getTypesAnnotatedWith(RegisterWorldGenerator.class)) {</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">                            if (tempEnvironment.getModuleProviding(generatorClass).equals(module.getId())) {</span>
+<span class="nc" id="L65">                                RegisterWorldGenerator annotation = generatorClass.getAnnotation(RegisterWorldGenerator.class);</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">                                if (isValidWorldGenerator(generatorClass)) {</span>
+<span class="nc" id="L67">                                    SimpleUri uri = new SimpleUri(moduleId, annotation.id());</span>
+<span class="nc" id="L68">                                    infos.add(new WorldGeneratorInfo(uri, annotation.displayName(), annotation.description()));</span>
+<span class="nc" id="L69">                                } else {</span>
+<span class="nc" id="L70">                                    logger.error(&quot;{} marked to be registered as a World Generator, but is not a subclass of WorldGenerator or lacks the correct constructor&quot;,</span>
+                                            generatorClass);
+                                }
+                            }
+<span class="nc" id="L74">                        }</span>
+<span class="nc" id="L75">                    } catch (Exception e) {</span>
+<span class="nc" id="L76">                        logger.error(&quot;Error loading world generator in module {}, skipping&quot;, module.getId(), e);</span>
+<span class="nc" id="L77">                    }</span>
+                } else {
+<span class="nc" id="L79">                    logger.warn(&quot;Could not resolve dependencies for module: {}&quot;, module);</span>
+                }
+            }
+<span class="nc" id="L82">        }</span>
+<span class="nc" id="L83">        Collections.sort(infos);</span>
+<span class="nc" id="L84">        generatorInfo = ImmutableList.copyOf(infos);</span>
+<span class="nc" id="L85">    }</span>
+
+    public List&lt;WorldGeneratorInfo&gt; getWorldGenerators() {
+<span class="nc" id="L88">        return generatorInfo;</span>
+    }
+
+    public WorldGeneratorInfo getWorldGeneratorInfo(SimpleUri uri) {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        for (WorldGeneratorInfo info : generatorInfo) {</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            if (info.getUri().equals(uri)) {</span>
+<span class="nc" id="L94">                return info;</span>
+            }
+<span class="nc" id="L96">        }</span>
+<span class="nc" id="L97">        return null;</span>
+    }
+
+    /**
+     * @param uri uri of the world generator to create.
+     * @param context objects from this context will be injected into the
+     * @return The instantiated world generator.
+     */
+    public static WorldGenerator createGenerator(SimpleUri uri, Context context) throws UnresolvedWorldGeneratorException {
+<span class="nc" id="L106">        ModuleManager moduleManager = context.get(ModuleManager.class);</span>
+<span class="nc" id="L107">        Module module = moduleManager.getEnvironment().get(uri.getModuleName());</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (module == null) {</span>
+<span class="nc" id="L109">            DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());</span>
+<span class="nc" id="L110">            ResolutionResult result = resolver.resolve(uri.getModuleName());</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">            if (!result.isSuccess()) {</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                if (moduleManager.getRegistry().getLatestModuleVersion(uri.getModuleName()) == null) {</span>
+<span class="nc" id="L113">                    throw new UnresolvedWorldGeneratorException(&quot;Unable to resolve world generator '&quot; + uri + &quot;' - not found&quot;);</span>
+                } else {
+<span class="nc" id="L115">                    throw new UnresolvedWorldGeneratorException(&quot;Unable to resolve world generator '&quot; + uri + &quot;' - unable to resolve module dependencies&quot;);</span>
+                }
+            }
+<span class="nc" id="L118">            try (ModuleEnvironment environment = moduleManager.loadEnvironment(result.getModules(), false)) {</span>
+<span class="nc" id="L119">                return createWorldGenerator(uri, context, environment);</span>
+            }
+        } else {
+<span class="nc" id="L122">            return createWorldGenerator(uri, context, moduleManager.getEnvironment());</span>
+        }
+    }
+
+    /**
+     * @param uri uri of the world generator to create.
+     * @param context that will be used to inject teh world generator.
+     * @param environment to be searched for the world generator class.
+     * @return a new world generator with the specified uri.
+     */
+    public static WorldGenerator createWorldGenerator(SimpleUri uri, Context context, ModuleEnvironment environment) throws UnresolvedWorldGeneratorException {
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        for (Class&lt;?&gt; generatorClass : environment.getTypesAnnotatedWith(RegisterWorldGenerator.class)) {</span>
+<span class="nc" id="L134">            RegisterWorldGenerator annotation = generatorClass.getAnnotation(RegisterWorldGenerator.class);</span>
+<span class="nc" id="L135">            SimpleUri generatorUri = new SimpleUri(environment.getModuleProviding(generatorClass), annotation.id());</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            if (generatorUri.equals(uri)) {</span>
+<span class="nc" id="L137">                WorldGenerator worldGenerator = loadGenerator(generatorClass, generatorUri);</span>
+<span class="nc" id="L138">                InjectionHelper.inject(worldGenerator, context);</span>
+<span class="nc" id="L139">                return worldGenerator;</span>
+            }
+<span class="nc" id="L141">        }</span>
+<span class="nc" id="L142">        throw new UnresolvedWorldGeneratorException(&quot;Unable to resolve world generator '&quot; + uri + &quot;' - not found&quot;);</span>
+    }
+
+    private static WorldGenerator loadGenerator(Class&lt;?&gt; generatorClass, SimpleUri uri) throws UnresolvedWorldGeneratorException {
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        if (isValidWorldGenerator(generatorClass)) {</span>
+            try {
+<span class="nc" id="L148">                return (WorldGenerator) generatorClass.getConstructor(SimpleUri.class).newInstance(uri);</span>
+<span class="nc" id="L149">            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {</span>
+<span class="nc" id="L150">                throw new UnresolvedWorldGeneratorException(&quot;Failed to instantiate world generator '&quot; + uri + &quot;'&quot;, e);</span>
+            }
+        } else {
+<span class="nc" id="L153">            throw new UnresolvedWorldGeneratorException(uri + &quot; is not a valid world generator&quot;);</span>
+        }
+    }
+
+    private static boolean isValidWorldGenerator(Class&lt;?&gt; generatorClass) {
+        try {
+<span class="nc bnc" id="L159" title="All 2 branches missed.">            if (WorldGenerator.class.isAssignableFrom(generatorClass)) {</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                if (generatorClass.getConstructor(SimpleUri.class) != null) {</span>
+<span class="nc" id="L161">                    return true;</span>
+                }
+            }
+<span class="nc" id="L164">            return false;</span>
+            // Being generous in catching here, because if the module is broken due to code changes or missing classes the world generator is invalid
+<span class="nc" id="L166">        } catch (NoSuchMethodException | RuntimeException e) {</span>
+<span class="nc" id="L167">            return false;</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

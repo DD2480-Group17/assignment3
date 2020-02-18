@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIRadialRing.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIRadialRing.java</span></div><h1>UIRadialRing.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseOverEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * A radial menu widget
+ */
+<span class="nc" id="L37">public class UIRadialRing extends CoreWidget {</span>
+
+<span class="nc" id="L39">    @LayoutConfig</span>
+    private List&lt;UIRadialSection&gt; sections = new ArrayList&lt;&gt;();
+
+    public int getSelectedTab() {
+<span class="nc" id="L43">        return selectedTab;</span>
+    }
+
+<span class="nc" id="L46">    private int selectedTab = -1;</span>
+    private boolean hasInitialised;
+    private int radius;
+    private double sectionAngle;
+
+<span class="nc" id="L51">    private BaseInteractionListener baseInteractionListener = new BaseInteractionListener() {</span>
+        @Override
+        public void onMouseOver(NUIMouseOverEvent event) {
+<span class="nc" id="L54">            int sectionOver = getSectionOver(event.getRelativeMousePosition());</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">            if (selectedTab != -1) {</span>
+<span class="nc" id="L56">                sections.get(selectedTab).setSelected(false);</span>
+            }
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">            if (sectionOver != -1) {</span>
+<span class="nc" id="L60">                sections.get(sectionOver).setSelected(true);</span>
+            }
+<span class="nc" id="L62">            selectedTab = sectionOver;</span>
+<span class="nc" id="L63">        }</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc" id="L67">            return true;</span>
+        }
+
+        @Override
+        public void onMouseDrag(NUIMouseDragEvent event) {
+<span class="nc" id="L72">        }</span>
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            if (selectedTab != -1) {</span>
+<span class="nc" id="L77">                sections.get(selectedTab).setSelected(false);</span>
+<span class="nc" id="L78">                sections.get(selectedTab).activateSection();</span>
+<span class="nc" id="L79">                selectedTab = -1;</span>
+            }
+<span class="nc" id="L81">        }</span>
+    };
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (!hasInitialised) {</span>
+<span class="nc" id="L87">            hasInitialised = true;</span>
+<span class="nc" id="L88">            initialise(canvas);</span>
+        }
+<span class="nc" id="L90">        canvas.addInteractionRegion(baseInteractionListener);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        for (UIRadialSection section : sections) {</span>
+<span class="nc" id="L92">            canvas.drawWidget(section);</span>
+<span class="nc" id="L93">        }</span>
+<span class="nc" id="L94">    }</span>
+
+    private void initialise(Canvas canvas) {
+<span class="nc" id="L97">        final double circleToSquare = 0.707106781;</span>
+<span class="nc" id="L98">        Rect2i region = canvas.getRegion();</span>
+
+<span class="nc" id="L100">        int sectionWidth = region.width() / 4;</span>
+<span class="nc" id="L101">        double offset = sectionWidth * 1.5;</span>
+<span class="nc" id="L102">        radius = sectionWidth * 2;</span>
+<span class="nc" id="L103">        sectionAngle = (Math.PI * 2) / sections.size();</span>
+<span class="nc" id="L104">        int infoSquareSize = (int) (radius * circleToSquare);</span>
+<span class="nc" id="L105">        int sectionSquareSize = (int) (sectionWidth * circleToSquare);</span>
+<span class="nc" id="L106">        Rect2i infoRegion = Rect2i.createFromMinAndSize(</span>
+                sectionWidth + infoSquareSize / 4,
+                sectionWidth + infoSquareSize / 4,
+                infoSquareSize,
+                infoSquareSize);
+
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        for (int i = 0; i &lt; sections.size(); i++) {</span>
+<span class="nc" id="L113">            sections.get(i).setDrawRegion(Rect2i.createFromMinAndSize(</span>
+<span class="nc" id="L114">                    (int) (Math.cos(i * sectionAngle + sectionAngle / 2) * offset + sectionWidth * 1.5),</span>
+<span class="nc" id="L115">                    (int) (Math.sin(i * sectionAngle + sectionAngle / 2) * offset + sectionWidth * 1.5),</span>
+                    sectionWidth, sectionWidth));
+<span class="nc" id="L117">            sections.get(i).setInnerRegion(Rect2i.createFromMinAndSize(</span>
+<span class="nc" id="L118">                    (int) (Math.cos(i * sectionAngle + sectionAngle / 2) * offset + sectionWidth * 1.5 + sectionSquareSize / 4),</span>
+<span class="nc" id="L119">                    (int) (Math.sin(i * sectionAngle + sectionAngle / 2) * offset + sectionWidth * 1.5 + sectionSquareSize / 4),</span>
+                    sectionSquareSize, sectionSquareSize));
+<span class="nc" id="L121">            sections.get(i).setInfoRegion(infoRegion);</span>
+        }
+<span class="nc" id="L123">    }</span>
+
+    /**
+     * Subscribes a listener to a section. Will be triggered when the mouse is released over that section
+     *
+     * @param sectionNum The section to attach the listener to
+     * @param listener   The listener to attach
+     */
+    public void subscribe(int sectionNum, ActivateEventListener listener) {
+<span class="nc bnc" id="L132" title="All 4 branches missed.">        if (sectionNum &gt;= 0 &amp;&amp; sectionNum &lt; sections.size()) {</span>
+<span class="nc" id="L133">            sections.get(sectionNum).addListener(listener);</span>
+        }
+<span class="nc" id="L135">    }</span>
+
+    public int addSection(UIRadialSection section) {
+<span class="nc" id="L138">        sections.add(section);</span>
+<span class="nc" id="L139">        hasInitialised = false;</span>
+<span class="nc" id="L140">        return sections.size() - 1;</span>
+    }
+
+    public UIRadialSection getSection(int index) {
+<span class="nc" id="L144">        return sections.get(index);</span>
+    }
+
+    public void setSections(List&lt;UIRadialSection&gt; sections) {
+<span class="nc" id="L148">        this.sections = sections;</span>
+<span class="nc" id="L149">        hasInitialised = false;</span>
+<span class="nc" id="L150">    }</span>
+
+    public List&lt;UIRadialSection&gt; getSections() {
+<span class="nc" id="L153">        return sections;</span>
+    }
+
+    /**
+     * Unsubscribes a listener from a section. It will no longer be triggered by that section
+     *
+     * @param sectionNum The section to unsubscribe from
+     * @param listener   The listener to unsubscribe
+     */
+    public void unsubscribe(int sectionNum, ActivateEventListener listener) {
+<span class="nc bnc" id="L163" title="All 4 branches missed.">        if (sectionNum &gt;= 0 &amp;&amp; sectionNum &lt; sections.size()) {</span>
+<span class="nc" id="L164">            sections.get(sectionNum).removeListener(listener);</span>
+        }
+<span class="nc" id="L166">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc" id="L170">        return canvas.getRegion().size();</span>
+    }
+
+
+    private int getSectionOver(Vector2i mousePos) {
+<span class="nc" id="L175">        mousePos.x -= radius;</span>
+<span class="nc" id="L176">        mousePos.y -= radius;</span>
+
+<span class="nc" id="L178">        double angle = Math.atan2(mousePos.y(), mousePos.x());</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        angle = angle &lt; 0 ? angle + Math.PI * 2 : angle;</span>
+
+<span class="nc" id="L181">        double dist = Math.sqrt((double) mousePos.x() * mousePos.x() + (double) mousePos.y() * mousePos.y());</span>
+<span class="nc bnc" id="L182" title="All 4 branches missed.">        if (dist &lt; radius / 2 || dist &gt; radius) {</span>
+<span class="nc" id="L183">            return -1;</span>
+        }
+
+<span class="nc" id="L186">        return (int) Math.floor(angle / sectionAngle);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

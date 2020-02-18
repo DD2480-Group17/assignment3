@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SortOrderSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui</a> &gt; <span class="el_source">SortOrderSystem.java</span></div><h1>SortOrderSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.nui;
+
+import com.google.common.collect.Queues;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.subsystem.config.BindsManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.input.BindButtonEvent;
+import org.terasology.input.BindButtonSubscriber;
+import org.terasology.input.BindableButton;
+import org.terasology.input.Keyboard;
+import org.terasology.input.internal.BindableButtonImpl;
+import org.terasology.logic.console.ui.ConsoleScreen;
+import org.terasology.registry.In;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.Map;
+
+/**
+ * Keeps track of the order of screens, and allows the order of them to change.
+ */
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L44">public class SortOrderSystem extends BaseComponentSystem {</span>
+    public static final int DEFAULT_DEPTH = -99999;
+    private static int current;
+    private static ArrayList&lt;Integer&gt; layersFilled;
+    private static int index;
+    private static boolean inSortOrder;
+    private static ArrayList&lt;CoreScreenLayer&gt; enabledWidgets;
+<span class="nc" id="L51">    private static boolean initialized = false;</span>
+    private static ArrayList&lt;Integer&gt; used;
+    private static boolean controlPressed;
+
+    @In
+    private BindsManager bindsManager;
+
+    /**
+     * Initializes sort order.
+     */
+     public void postBegin() {
+<span class="nc" id="L62">        initialized = true;</span>
+<span class="nc" id="L63">        controlPressed = false;</span>
+<span class="nc" id="L64">        Map&lt;Integer, BindableButton&gt; keys = bindsManager.getKeyBinds();</span>
+<span class="nc" id="L65">         BindButtonSubscriber controlSubscriber = new BindButtonSubscriber() {</span>
+             @Override
+             public boolean onPress(float delta, EntityRef target) {
+<span class="nc bnc" id="L68" title="All 2 branches missed.">                 if (!containsConsole()) {</span>
+<span class="nc" id="L69">                     controlPressed = true;</span>
+                 } else {
+<span class="nc" id="L71">                     controlPressed = false;</span>
+                 }
+<span class="nc" id="L73">                 return false;</span>
+             }
+
+             @Override
+             public boolean onRepeat(float delta, EntityRef target) {
+<span class="nc" id="L78">                 return false;</span>
+             }
+
+             @Override
+             public boolean onRelease(float delta, EntityRef target) {
+<span class="nc" id="L83">                 controlPressed = false;</span>
+<span class="nc" id="L84">                 return false;</span>
+             }
+         };
+<span class="nc" id="L87">         BindButtonSubscriber tabSubscriber = new BindButtonSubscriber() {</span>
+             @Override
+             public boolean onPress(float delta, EntityRef target) {
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                 if (controlPressed) {</span>
+<span class="nc" id="L91">                     target.send(new FocusChangedEvent());</span>
+                 }
+<span class="nc" id="L93">                 return false;</span>
+             }
+
+             @Override
+             public boolean onRepeat(float delta, EntityRef target) {
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                 if (controlPressed) {</span>
+<span class="nc" id="L99">                     target.send(new FocusChangedEvent());</span>
+                 }
+<span class="nc" id="L101">                 return false;</span>
+             }
+
+             @Override
+             public boolean onRelease(float delta, EntityRef target) {
+<span class="nc" id="L106">                 return false;</span>
+             }
+         };
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">         if (keys.containsKey(Keyboard.Key.RIGHT_CTRL.getId())) {</span>
+<span class="nc" id="L111">             keys.get(Keyboard.Key.RIGHT_CTRL.getId()).subscribe(controlSubscriber);</span>
+         } else {
+<span class="nc" id="L113">             keys.put(Keyboard.Key.RIGHT_CTRL.getId(), new BindableButtonImpl(new SimpleUri(&quot;ctrlMod&quot;), &quot;Control Modifier&quot;, new BindButtonEvent()));</span>
+<span class="nc" id="L114">             keys.get(Keyboard.Key.RIGHT_CTRL.getId()).subscribe(controlSubscriber);</span>
+         }
+<span class="nc bnc" id="L116" title="All 2 branches missed.">         if (keys.containsKey(Keyboard.Key.LEFT_CTRL.getId())) {</span>
+<span class="nc" id="L117">             keys.get(Keyboard.Key.LEFT_CTRL.getId()).subscribe(controlSubscriber);</span>
+         } else {
+<span class="nc" id="L119">             keys.put(Keyboard.Key.LEFT_CTRL.getId(), new BindableButtonImpl(new SimpleUri(&quot;ctrlMod&quot;), &quot;Control Modifier&quot;, new BindButtonEvent()));</span>
+<span class="nc" id="L120">             keys.get(Keyboard.Key.LEFT_CTRL.getId()).subscribe(controlSubscriber);</span>
+         }
+<span class="nc bnc" id="L122" title="All 2 branches missed.">         if (keys.containsKey(Keyboard.Key.TAB.getId())) {</span>
+<span class="nc" id="L123">             keys.get(Keyboard.Key.TAB.getId()).subscribe(tabSubscriber);</span>
+         } else {
+<span class="nc" id="L125">             keys.put(Keyboard.Key.TAB.getId(), new BindableButtonImpl(new SimpleUri(&quot;changeFocus&quot;), &quot;Change Focus&quot;, new BindButtonEvent()));</span>
+<span class="nc" id="L126">             keys.get(Keyboard.Key.TAB.getId()).subscribe(tabSubscriber);</span>
+         }
+
+<span class="nc" id="L129">        current = 0;</span>
+<span class="nc" id="L130">        index = 0;</span>
+<span class="nc" id="L131">        layersFilled = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L132">        enabledWidgets = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L133">        used = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L134">        inSortOrder = false;</span>
+<span class="nc" id="L135">    }</span>
+
+    @ReceiveEvent
+    public void changeFocus(FocusChangedEvent event, EntityRef ref) {
+<span class="nc" id="L139">        rotateOrder(true);</span>
+<span class="nc" id="L140">    }</span>
+
+    /**
+     * rotates through the elements
+     * @param increase where or not to increment index
+     */
+    public static void rotateOrder(boolean increase) {
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        if (layersFilled.size() &gt; 0) {</span>
+<span class="nc" id="L148">            Collections.sort(layersFilled, (a, b) -&gt; Math.max(a, b));</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            if (increase) {</span>
+<span class="nc" id="L150">                index++;</span>
+            }
+            int iterator;
+
+<span class="nc bnc" id="L154" title="All 2 branches missed.">            while(index &gt;= layersFilled.size()) {</span>
+<span class="nc" id="L155">                index -= layersFilled.size();</span>
+            }
+
+<span class="nc" id="L158">            iterator = layersFilled.get(index);</span>
+
+<span class="nc" id="L160">            boolean loopThroughDone = false;</span>
+
+
+<span class="nc" id="L163">            int tempIndex = index;</span>
+<span class="nc" id="L164">            int timesLooping = 0;</span>
+
+<span class="nc" id="L166">            ArrayList&lt;CoreScreenLayer&gt; widgetsCopy = new ArrayList&lt;&gt;(enabledWidgets);</span>
+
+<span class="nc bnc" id="L168" title="All 2 branches missed.">            while (!loopThroughDone) {</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                for (CoreScreenLayer widget : widgetsCopy) {</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                    if (widget.getManager() != null) {</span>
+<span class="nc" id="L171">                        inSortOrder = true;</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                        if (widget.getDepth() == iterator) {</span>
+<span class="nc" id="L173">                            String widgId = widget.getId();</span>
+<span class="nc" id="L174">                            widget.getManager().pushScreen(widgId);</span>
+<span class="nc" id="L175">                            widget.getManager().render();</span>
+                        }
+<span class="nc" id="L177">                        inSortOrder = false;</span>
+                    }
+<span class="nc" id="L179">                }</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                if (tempIndex &lt; layersFilled.size()) {</span>
+<span class="nc" id="L181">                    iterator = layersFilled.get(tempIndex);</span>
+<span class="nc" id="L182">                    tempIndex++;</span>
+                } else {
+<span class="nc" id="L184">                    tempIndex = 0;</span>
+<span class="nc" id="L185">                    iterator = layersFilled.get(tempIndex);</span>
+<span class="nc" id="L186">                    tempIndex++;</span>
+                }
+<span class="nc bnc" id="L188" title="All 2 branches missed.">                if (timesLooping &gt; layersFilled.size()) {</span>
+<span class="nc" id="L189">                    loopThroughDone = true;</span>
+                }
+<span class="nc" id="L191">                timesLooping++;</span>
+            }
+<span class="nc bnc" id="L193" title="All 2 branches missed.">            for (CoreScreenLayer layer:enabledWidgets) {</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                if (layer.getManager() != null) {</span>
+<span class="nc" id="L195">                    Deque&lt;UIScreenLayer&gt; screens = layer.getManager().getScreens();</span>
+<span class="nc" id="L196">                    Deque&lt;UIScreenLayer&gt; toCreate = Queues.newArrayDeque();</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                    for (UIScreenLayer screen : screens) {</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                        if (!toCreate.contains(screen)) {</span>
+<span class="nc" id="L199">                            toCreate.add(screen);</span>
+                        }
+<span class="nc" id="L201">                    }</span>
+<span class="nc" id="L202">                    layer.getManager().setScreens(toCreate);</span>
+                }
+<span class="nc" id="L204">            }</span>
+
+<span class="nc" id="L206">            enabledWidgets = widgetsCopy;</span>
+        }
+<span class="nc" id="L208">    }</span>
+
+    /**
+     * increments current (for depth)
+     * @return the new value of current
+     */
+    public static int getCurrent() {
+<span class="nc" id="L215">        current++;</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        while (used.contains(current)) {</span>
+<span class="nc" id="L217">            current++;</span>
+        }
+<span class="nc" id="L219">        return current;</span>
+    }
+
+    /**
+     * Adds a certain depth to layersFilled.
+     * @param layer the depth
+     */
+    public static void addAnother(int layer) {
+<span class="nc bnc" id="L227" title="All 2 branches missed.">        if (!layersFilled.contains(layer)) {</span>
+<span class="nc" id="L228">            layersFilled.add(layer);</span>
+        }
+<span class="nc" id="L230">        index = -1;</span>
+<span class="nc" id="L231">    }</span>
+
+    /**
+     * removes an occurance of a certain depth to layers filled
+     * @param layer the depth
+     */
+    public static void removeOne(int layer) {
+<span class="nc bnc" id="L238" title="All 2 branches missed.">        if (layersFilled.contains(layer)) {</span>
+<span class="nc" id="L239">            layersFilled.remove(layersFilled.indexOf(layer));</span>
+        }
+<span class="nc" id="L241">    }</span>
+
+    public static void setEnabledWidgets(ArrayList&lt;CoreScreenLayer&gt; widgetList) {
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        if (initialized) {</span>
+<span class="nc" id="L245">            enabledWidgets = widgetList;</span>
+        }
+<span class="nc" id="L247">    }</span>
+
+    public static ArrayList&lt;CoreScreenLayer&gt; getEnabledWidgets() {
+<span class="nc" id="L250">        return enabledWidgets;</span>
+    }
+
+    public static boolean isInitialized() {
+<span class="nc" id="L254">        return initialized;</span>
+    }
+
+    public static boolean isInSortOrder() {
+<span class="nc" id="L258">        return inSortOrder;</span>
+    }
+
+    public static ArrayList&lt;Integer&gt; getUsed() {
+<span class="nc" id="L262">        return used;</span>
+    }
+
+    public static void setUsed(ArrayList&lt;Integer&gt; other) {
+<span class="nc" id="L266">        used = other;</span>
+<span class="nc" id="L267">    }</span>
+
+    public static boolean containsConsole() {
+<span class="nc bnc" id="L270" title="All 2 branches missed.">        if (enabledWidgets != null) {</span>
+<span class="nc" id="L271">            boolean containsConsole = false;</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">            for (CoreScreenLayer layer : enabledWidgets) {</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">                if (layer instanceof ConsoleScreen) {</span>
+<span class="nc" id="L274">                    return true;</span>
+                }
+<span class="nc" id="L276">            }</span>
+        }
+<span class="nc" id="L278">        return false;</span>
+    }
+    public static boolean getControlPressed() {
+<span class="nc" id="L281">        return controlPressed;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SelectionScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">SelectionScreen.java</span></div><h1>SelectionScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.naming.Name;
+import org.terasology.naming.NameVersion;
+import org.terasology.persistence.internal.GamePreviewImageProvider;
+import org.terasology.registry.In;
+import org.terasology.rendering.assets.texture.AWTTextureFormat;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureData;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameInfo;
+import org.terasology.rendering.nui.widgets.UIImage;
+import org.terasology.rendering.nui.widgets.UIImageSlideshow;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIList;
+import org.terasology.utilities.Assets;
+import org.terasology.utilities.FilesUtil;
+
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+/**
+ * This abstract class has common methods and attributes used by SelectGameScreen, RecordScreen and ReplayScreen.
+ */
+<span class="nc" id="L52">public abstract class SelectionScreen extends CoreScreenLayer {</span>
+
+    private static final String PREVIEW_IMAGE_URI_PATTERN = &quot;engine:savedGamePreview&quot;;
+<span class="nc" id="L55">    private static final ResourceUrn DEFAULT_PREVIEW_IMAGE_URI = new ResourceUrn(&quot;engine:defaultPreview&quot;);</span>
+    private static final int MODULES_LINE_LIMIT = 180;
+
+<span class="nc" id="L58">    private static final Logger logger = LoggerFactory.getLogger(SelectionScreen.class);</span>
+
+    @In
+    protected Config config;
+
+    @In
+    protected TranslationSystem translationSystem;
+
+    protected UIImageSlideshow previewSlideshow;
+    private UILabel worldGenerator;
+    private UILabel moduleNames;
+    private UIList&lt;GameInfo&gt; gameInfos;
+    private UILabel saveGamePath;
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L74">        return false;</span>
+    }
+
+    void updateDescription(final GameInfo gameInfo) {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        if (gameInfo == null) {</span>
+<span class="nc" id="L79">            worldGenerator.setText(&quot;&quot;);</span>
+<span class="nc" id="L80">            moduleNames.setText(&quot;&quot;);</span>
+<span class="nc" id="L81">            loadPreviewImages(null);</span>
+<span class="nc" id="L82">            return;</span>
+        }
+
+<span class="nc" id="L85">        final String mainWorldGenerator = gameInfo.getManifest()</span>
+<span class="nc" id="L86">                .getWorldInfo(TerasologyConstants.MAIN_WORLD)</span>
+<span class="nc" id="L87">                .getWorldGenerator()</span>
+<span class="nc" id="L88">                .getObjectName()</span>
+<span class="nc" id="L89">                .toString();</span>
+
+<span class="nc" id="L91">        final String commaSeparatedModules = gameInfo.getManifest()</span>
+<span class="nc" id="L92">                .getModules()</span>
+<span class="nc" id="L93">                .stream()</span>
+<span class="nc" id="L94">                .map(NameVersion::getName)</span>
+<span class="nc" id="L95">                .map(Name::toString)</span>
+<span class="nc" id="L96">                .sorted(String::compareToIgnoreCase)</span>
+<span class="nc" id="L97">                .collect(Collectors.joining(&quot;, &quot;));</span>
+
+<span class="nc" id="L99">        worldGenerator.setText(mainWorldGenerator);</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        moduleNames.setText(commaSeparatedModules.length() &gt; MODULES_LINE_LIMIT ? commaSeparatedModules.substring(0, MODULES_LINE_LIMIT) + &quot;...&quot; : commaSeparatedModules);</span>
+
+<span class="nc" id="L102">        loadPreviewImages(gameInfo);</span>
+<span class="nc" id="L103">    }</span>
+
+    private void loadPreviewImages(final GameInfo gameInfo) {
+<span class="nc" id="L106">        List&lt;Texture&gt; textures = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L107" title="All 4 branches missed.">        if (gameInfo != null &amp;&amp; gameInfo.getSavePath() != null) {</span>
+<span class="nc" id="L108">            final List&lt;BufferedImage&gt; bufferedImages = GamePreviewImageProvider.getAllPreviewImages(gameInfo.getSavePath());</span>
+<span class="nc" id="L109">            textures = bufferedImages</span>
+<span class="nc" id="L110">                    .stream()</span>
+<span class="nc" id="L111">                    .map(buffImage -&gt; {</span>
+                        TextureData textureData;
+                        try {
+<span class="nc" id="L114">                            textureData = AWTTextureFormat.convertToTextureData(buffImage, Texture.FilterMode.LINEAR);</span>
+<span class="nc" id="L115">                        } catch (IOException e) {</span>
+<span class="nc" id="L116">                            logger.error(&quot;Converting preview image to texture data {} failed&quot;, e);</span>
+<span class="nc" id="L117">                            return null;</span>
+<span class="nc" id="L118">                        }</span>
+<span class="nc" id="L119">                        return Assets.generateAsset(new ResourceUrn(PREVIEW_IMAGE_URI_PATTERN + bufferedImages.indexOf(buffImage)), textureData, Texture.class);</span>
+                    })
+<span class="nc" id="L121">                    .filter(Objects::nonNull)</span>
+<span class="nc" id="L122">                    .collect(Collectors.toList());</span>
+        }
+
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        if (textures.isEmpty()) {</span>
+<span class="nc" id="L126">            textures.add(Assets.getTexture(DEFAULT_PREVIEW_IMAGE_URI).get());</span>
+        }
+
+<span class="nc" id="L129">        previewSlideshow.clean();</span>
+<span class="nc" id="L130">        textures.forEach(tex -&gt; {</span>
+<span class="nc" id="L131">            UIImage image = new UIImage(null, tex, true);</span>
+<span class="nc" id="L132">            previewSlideshow.addImage(image);</span>
+<span class="nc" id="L133">        });</span>
+<span class="nc" id="L134">    }</span>
+
+    protected void remove(final UIList&lt;GameInfo&gt; gameList, Path world, String removeString) {
+<span class="nc" id="L137">        final GameInfo gameInfo = gameList.getSelection();</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        if (gameInfo != null) {</span>
+            try {
+<span class="nc" id="L140">                FilesUtil.recursiveDelete(world);</span>
+<span class="nc" id="L141">                gameList.getList().remove(gameInfo);</span>
+<span class="nc" id="L142">                gameList.setSelection(null);</span>
+<span class="nc" id="L143">                gameList.select(0);</span>
+<span class="nc" id="L144">            } catch (Exception e) {</span>
+<span class="nc" id="L145">                logger.error(&quot;Failed to delete &quot; + removeString, e);</span>
+<span class="nc" id="L146">                getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Error Deleting Game&quot;, e.getMessage());</span>
+<span class="nc" id="L147">            }</span>
+        }
+<span class="nc" id="L149">    }</span>
+
+    protected void initWidgets() {
+<span class="nc" id="L152">        worldGenerator = find(&quot;worldGenerator&quot;, UILabel.class);</span>
+<span class="nc" id="L153">        moduleNames = find(&quot;moduleNames&quot;, UILabel.class);</span>
+<span class="nc" id="L154">        previewSlideshow = find(&quot;previewImage&quot;, UIImageSlideshow.class);</span>
+<span class="nc" id="L155">        gameInfos = find(&quot;gameList&quot;, UIList.class);</span>
+<span class="nc" id="L156">        saveGamePath = find(&quot;saveGamePath&quot;, UILabel.class);</span>
+<span class="nc" id="L157">    }</span>
+
+    UIList&lt;GameInfo&gt; getGameInfos() {
+<span class="nc" id="L160">        return gameInfos;</span>
+    }
+
+    void refreshGameInfoList(final List&lt;GameInfo&gt; updatedGameInfos) {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        if (gameInfos != null) {</span>
+<span class="nc" id="L165">            gameInfos.setList(updatedGameInfos);</span>
+<span class="nc" id="L166">            gameInfos.select(0);</span>
+        }
+<span class="nc" id="L168">    }</span>
+
+    void initSaveGamePathWidget(final Path savePath) {
+<span class="nc" id="L171">        saveGamePath.setText(</span>
+<span class="nc" id="L172">                translationSystem.translate(&quot;${engine:menu#save-game-path} &quot;) +</span>
+<span class="nc" id="L173">                        savePath.toAbsolutePath().toString());</span>
+<span class="nc" id="L174">    }</span>
+
+    protected boolean isValidScreen() {
+<span class="nc" id="L177">        if (Stream.of(worldGenerator, moduleNames, gameInfos, previewSlideshow, saveGamePath)</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                .anyMatch(Objects::isNull)) {</span>
+<span class="nc" id="L179">            logger.error(&quot;Can't initialize screen correctly. At least one widget was missed!&quot;);</span>
+<span class="nc" id="L180">            return false;</span>
+        }
+<span class="nc" id="L182">        return true;</span>
+    }
+
+    public UIImageSlideshow getPreviewSlideshow() {
+<span class="nc" id="L186">        return previewSlideshow;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GameManifest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.game</a> &gt; <span class="el_source">GameManifest.java</span></div><h1>GameManifest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.game;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.naming.Name;
+import org.terasology.naming.NameVersion;
+import org.terasology.naming.Version;
+import org.terasology.naming.gson.NameTypeAdapter;
+import org.terasology.naming.gson.VersionTypeAdapter;
+import org.terasology.utilities.gson.CaseInsensitiveEnumTypeAdapterFactory;
+import org.terasology.utilities.gson.UriTypeAdapterFactory;
+import org.terasology.world.internal.WorldInfo;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+
+/**
+ */
+public class GameManifest {
+    public static final String DEFAULT_FILE_NAME = &quot;manifest.json&quot;;
+
+<span class="fc" id="L46">    private String title = &quot;&quot;;</span>
+<span class="fc" id="L47">    private String seed = &quot;&quot;;</span>
+    private long time;
+<span class="fc" id="L49">    private List&lt;String&gt; registeredBlockFamilies = Lists.newArrayList();</span>
+<span class="fc" id="L50">    private Map&lt;String, Short&gt; blockIdMap = Maps.newHashMap();</span>
+<span class="fc" id="L51">    private Map&lt;String, WorldInfo&gt; worlds = Maps.newHashMap();</span>
+<span class="fc" id="L52">    private List&lt;NameVersion&gt; modules = Lists.newArrayList();</span>
+
+<span class="fc" id="L54">    public GameManifest() {</span>
+<span class="fc" id="L55">    }</span>
+
+<span class="fc" id="L57">    public GameManifest(String title, String seed, long time) {</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        if (title != null) {</span>
+<span class="fc" id="L59">            this.title = title;</span>
+        }
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if (seed != null) {</span>
+<span class="fc" id="L62">            this.seed = seed;</span>
+        }
+<span class="fc" id="L64">        this.time = time;</span>
+<span class="fc" id="L65">    }</span>
+
+    public String getTitle() {
+<span class="fc" id="L68">        return title;</span>
+    }
+
+    public void setTitle(String title) {
+<span class="nc" id="L72">        this.title = title;</span>
+<span class="nc" id="L73">    }</span>
+
+    public String getSeed() {
+<span class="nc" id="L76">        return seed;</span>
+    }
+
+    public void setSeed(String seed) {
+<span class="nc" id="L80">        this.seed = seed;</span>
+<span class="nc" id="L81">    }</span>
+
+    public long getTime() {
+<span class="nc" id="L84">        return time;</span>
+    }
+
+    public void setTime(long time) {
+<span class="nc" id="L88">        this.time = time;</span>
+<span class="nc" id="L89">    }</span>
+
+    public List&lt;String&gt; getRegisteredBlockFamilies() {
+<span class="nc" id="L92">        return registeredBlockFamilies;</span>
+    }
+
+    public void setRegisteredBlockFamilies(List&lt;String&gt; registeredBlockFamilies) {
+<span class="fc" id="L96">        this.registeredBlockFamilies = registeredBlockFamilies;</span>
+<span class="fc" id="L97">    }</span>
+
+    public Map&lt;String, Short&gt; getBlockIdMap() {
+<span class="nc" id="L100">        return blockIdMap;</span>
+    }
+
+    public void setBlockIdMap(Map&lt;String, Short&gt; blockIdMap) {
+<span class="fc" id="L104">        this.blockIdMap = blockIdMap;</span>
+<span class="fc" id="L105">    }</span>
+
+    public WorldInfo getWorldInfo(String name) {
+<span class="nc" id="L108">        return worlds.get(name);</span>
+    }
+
+    public Map&lt;String, WorldInfo&gt; getWorldInfoMap() {
+<span class="nc" id="L112">        return worlds;</span>
+    }
+
+    public void addWorld(WorldInfo worldInfo) {
+<span class="nc" id="L116">        this.worlds.put(worldInfo.getTitle(), worldInfo);</span>
+<span class="nc" id="L117">    }</span>
+
+    public Iterable&lt;WorldInfo&gt; getWorlds() {
+<span class="nc" id="L120">        return this.worlds.values();</span>
+    }
+
+    public static void save(Path toFile, GameManifest gameManifest) throws IOException {
+<span class="fc" id="L124">        try (Writer writer = Files.newBufferedWriter(toFile, TerasologyConstants.CHARSET)) {</span>
+<span class="fc" id="L125">            createGson().toJson(gameManifest, writer);</span>
+        }
+<span class="fc" id="L127">    }</span>
+
+    public static GameManifest load(Path filePath) throws IOException {
+<span class="fc" id="L130">        try (BufferedReader reader = Files.newBufferedReader(filePath, TerasologyConstants.CHARSET)) {</span>
+<span class="fc" id="L131">            return createGson().fromJson(reader, GameManifest.class);</span>
+        }
+    }
+
+    private static Gson createGson() {
+<span class="fc" id="L136">        return new GsonBuilder()</span>
+<span class="fc" id="L137">                .registerTypeAdapterFactory(new CaseInsensitiveEnumTypeAdapterFactory())</span>
+<span class="fc" id="L138">                .registerTypeAdapterFactory(new UriTypeAdapterFactory())</span>
+<span class="fc" id="L139">                .registerTypeAdapter(Version.class, new VersionTypeAdapter())</span>
+<span class="fc" id="L140">                .registerTypeAdapter(Name.class, new NameTypeAdapter())</span>
+<span class="fc" id="L141">                .setPrettyPrinting()</span>
+<span class="fc" id="L142">                .create();</span>
+    }
+
+    public List&lt;NameVersion&gt; getModules() {
+<span class="nc" id="L146">        return ImmutableList.copyOf(modules);</span>
+    }
+
+    public void addModule(Name id, Version version) {
+<span class="fc" id="L150">        modules.add(new NameVersion(id, version));</span>
+<span class="fc" id="L151">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

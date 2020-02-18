@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InputSettingsScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu.inputSettings</a> &gt; <span class="el_source">InputSettingsScreen.java</span></div><h1>InputSettingsScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu.inputSettings;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.BindsConfig;
+import org.terasology.config.ControllerConfig.ControllerInfo;
+import org.terasology.config.facade.InputDeviceConfiguration;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.subsystem.config.BindsManager;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.input.BindButtonEvent;
+import org.terasology.input.Input;
+import org.terasology.input.InputCategory;
+import org.terasology.input.InputSystem;
+import org.terasology.input.InputType;
+import org.terasology.input.Keyboard.KeyId;
+import org.terasology.input.RegisterBindButton;
+import org.terasology.input.internal.BindCommands;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.ResolutionResult;
+import org.terasology.module.predicates.FromModule;
+import org.terasology.naming.Name;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.BindHelper;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.layouts.ColumnLayout;
+import org.terasology.rendering.nui.layouts.RowLayout;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UICheckbox;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UISlider;
+import org.terasology.rendering.nui.widgets.UISpace;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+/**
+ *
+ */
+<span class="nc" id="L68">public class InputSettingsScreen extends CoreScreenLayer {</span>
+
+<span class="nc" id="L70">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:inputSettingsScreen&quot;);</span>
+    private static final int PRIMARY_BIND_INDEX = 0;
+    private static final int SECONDARY_BIND_INDEX = 1;
+
+<span class="nc" id="L74">    private int horizontalSpacing = 12;</span>
+
+    @In
+    private InputDeviceConfiguration inputDeviceConfiguration;
+
+    @In
+    private BindsManager bindsManager;
+
+    @In
+    private ModuleManager moduleManager;
+
+    @In
+    private InputSystem inputSystem;
+
+    @In
+    private TranslationSystem translationSystem;
+
+    @In
+    private Context context;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L96">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+<span class="nc" id="L97">        ColumnLayout mainLayout = find(&quot;main&quot;, ColumnLayout.class);</span>
+
+<span class="nc" id="L99">        UIButton azerty = find(&quot;azerty&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (azerty != null) {</span>
+<span class="nc" id="L101">            azerty.subscribe(event -&gt; {</span>
+<span class="nc" id="L102">                BindCommands.AZERTY.forEach(this::setPrimaryBind);</span>
+<span class="nc" id="L103">                bindsManager.registerBinds();</span>
+<span class="nc" id="L104">            });</span>
+        }
+<span class="nc" id="L106">        UIButton dvorak = find(&quot;dvorak&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (dvorak != null) {</span>
+<span class="nc" id="L108">            dvorak.subscribe(event -&gt; {</span>
+<span class="nc" id="L109">                BindCommands.DVORAK.forEach(this::setPrimaryBind);</span>
+<span class="nc" id="L110">                bindsManager.registerBinds();</span>
+<span class="nc" id="L111">            });</span>
+        }
+<span class="nc" id="L113">        UIButton neo = find(&quot;neo&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (neo != null) {</span>
+<span class="nc" id="L115">            neo.subscribe(event -&gt; {</span>
+<span class="nc" id="L116">                BindCommands.NEO.forEach(this::setPrimaryBind);</span>
+<span class="nc" id="L117">                bindsManager.registerBinds();</span>
+<span class="nc" id="L118">            });</span>
+        }
+
+<span class="nc" id="L121">        UISlider mouseSensitivity = new UISlider(&quot;mouseSensitivity&quot;);</span>
+<span class="nc" id="L122">        mouseSensitivity.bindValue(BindHelper.bindBeanProperty(&quot;mouseSensitivity&quot;, inputDeviceConfiguration, Float.TYPE));</span>
+<span class="nc" id="L123">        mouseSensitivity.setIncrement(0.025f);</span>
+<span class="nc" id="L124">        mouseSensitivity.setPrecision(3);</span>
+
+<span class="nc" id="L126">        UICheckbox mouseInverted = new UICheckbox(&quot;mouseYAxisInverted&quot;);</span>
+<span class="nc" id="L127">        mouseInverted.bindChecked(BindHelper.bindBeanProperty(&quot;mouseYAxisInverted&quot;, inputDeviceConfiguration, Boolean.TYPE));</span>
+
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        if (mainLayout != null) {</span>
+<span class="nc" id="L130">            mainLayout.addWidget(new UILabel(&quot;mouseLabel&quot;, &quot;subheading&quot;, translationSystem.translate(&quot;${engine:menu#category-mouse}&quot;)));</span>
+<span class="nc" id="L131">            mainLayout.addWidget(new RowLayout(new UILabel(translationSystem.translate(&quot;${engine:menu#mouse-sensitivity}&quot;) + &quot;:&quot;), mouseSensitivity)</span>
+<span class="nc" id="L132">                    .setColumnRatios(0.4f)</span>
+<span class="nc" id="L133">                    .setHorizontalSpacing(horizontalSpacing));</span>
+<span class="nc" id="L134">            mainLayout.addWidget(new RowLayout(new UILabel(translationSystem.translate(&quot;${engine:menu#invert-mouse}&quot;) + &quot;:&quot;), mouseInverted)</span>
+<span class="nc" id="L135">                    .setColumnRatios(0.4f)</span>
+<span class="nc" id="L136">                    .setHorizontalSpacing(horizontalSpacing));</span>
+        }
+
+<span class="nc" id="L139">        Map&lt;String, InputCategory&gt; inputCategories = Maps.newHashMap();</span>
+<span class="nc" id="L140">        Map&lt;SimpleUri, RegisterBindButton&gt; inputsById = Maps.newHashMap();</span>
+<span class="nc" id="L141">        DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        for (Name moduleId : moduleManager.getRegistry().getModuleIds()) {</span>
+<span class="nc" id="L143">            Module module = moduleManager.getRegistry().getLatestModuleVersion(moduleId);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if (module.isCodeModule()) {</span>
+<span class="nc" id="L145">                ResolutionResult result = resolver.resolve(moduleId);</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                if (result.isSuccess()) {</span>
+<span class="nc" id="L147">                    try (ModuleEnvironment environment = moduleManager.loadEnvironment(result.getModules(), false)) {</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                        for (Class&lt;?&gt; holdingType : environment.getTypesAnnotatedWith(InputCategory.class, new FromModule(environment, moduleId))) {</span>
+<span class="nc" id="L149">                            InputCategory inputCategory = holdingType.getAnnotation(InputCategory.class);</span>
+<span class="nc" id="L150">                            inputCategories.put(module.getId() + &quot;:&quot; + inputCategory.id(), inputCategory);</span>
+<span class="nc" id="L151">                        }</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">                        for (Class&lt;?&gt; bindEvent : environment.getTypesAnnotatedWith(RegisterBindButton.class, new FromModule(environment, moduleId))) {</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                            if (BindButtonEvent.class.isAssignableFrom(bindEvent)) {</span>
+<span class="nc" id="L154">                                RegisterBindButton bindRegister = bindEvent.getAnnotation(RegisterBindButton.class);</span>
+<span class="nc" id="L155">                                inputsById.put(new SimpleUri(module.getId(), bindRegister.id()), bindRegister);</span>
+                            }
+<span class="nc" id="L157">                        }</span>
+                    }
+                }
+
+            }
+<span class="nc" id="L162">        }</span>
+
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        if (mainLayout != null) {</span>
+<span class="nc" id="L165">            addInputSection(inputCategories.remove(&quot;engine:movement&quot;), mainLayout, inputsById);</span>
+<span class="nc" id="L166">            addInputSection(inputCategories.remove(&quot;engine:interaction&quot;), mainLayout, inputsById);</span>
+<span class="nc" id="L167">            addInputSection(inputCategories.remove(&quot;engine:inventory&quot;), mainLayout, inputsById);</span>
+<span class="nc" id="L168">            addInputSection(inputCategories.remove(&quot;engine:general&quot;), mainLayout, inputsById);</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            for (InputCategory category : inputCategories.values()) {</span>
+<span class="nc" id="L170">                addInputSection(category, mainLayout, inputsById);</span>
+<span class="nc" id="L171">            }</span>
+<span class="nc" id="L172">            mainLayout.addWidget(new UISpace(new Vector2i(1, 16)));</span>
+
+<span class="nc" id="L174">            List&lt;String&gt; controllers = inputSystem.getControllerDevice().getControllers();</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">            for (String name : controllers) {</span>
+<span class="nc" id="L176">                ControllerInfo cfg = inputDeviceConfiguration.getController(name);</span>
+<span class="nc" id="L177">                addInputSection(mainLayout, name, cfg);</span>
+<span class="nc" id="L178">            }</span>
+        }
+
+<span class="nc" id="L181">        WidgetUtil.trySubscribe(this, &quot;reset&quot;, button -&gt; {</span>
+<span class="nc" id="L182">            inputDeviceConfiguration.reset();</span>
+<span class="nc" id="L183">            bindsManager.getBindsConfig().setBinds(bindsManager.getDefaultBindsConfig());</span>
+<span class="nc" id="L184">        });</span>
+<span class="nc" id="L185">        WidgetUtil.trySubscribe(this, &quot;back&quot;, button -&gt; triggerBackAnimation());</span>
+<span class="nc" id="L186">    }</span>
+
+    /**
+     * Binds button to key while ensuring visual feedback on the user interface
+     *
+     * @param key    one constant from the {@link KeyId}s.
+     * @param bindId the uri for the binding, e.g. &lt;code&gt;engine:forwards&lt;/code&gt;.
+     */
+    private void setPrimaryBind(int key, SimpleUri bindId) {
+<span class="nc" id="L195">        final BindsConfig bindConfig = bindsManager.getBindsConfig();</span>
+<span class="nc" id="L196">        new InputConfigBinding(bindConfig, bindId, PRIMARY_BIND_INDEX).set(InputType.KEY.getInput(key));</span>
+<span class="nc" id="L197">    }</span>
+
+    private void addInputSection(InputCategory category, ColumnLayout layout, Map&lt;SimpleUri, RegisterBindButton&gt; inputsById) {
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        if (category != null) {</span>
+<span class="nc" id="L201">            layout.addWidget(new UISpace(new Vector2i(0, 16)));</span>
+
+<span class="nc" id="L203">            UILabel categoryHeader = new UILabel(translationSystem.translate(category.displayName()));</span>
+<span class="nc" id="L204">            categoryHeader.setFamily(&quot;subheading&quot;);</span>
+<span class="nc" id="L205">            layout.addWidget(categoryHeader);</span>
+
+<span class="nc" id="L207">            Set&lt;SimpleUri&gt; processedBinds = Sets.newHashSet();</span>
+
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            for (String bindId : category.ordering()) {</span>
+<span class="nc" id="L210">                SimpleUri bindUri = new SimpleUri(bindId);</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                if (bindUri.isValid()) {</span>
+<span class="nc" id="L212">                    RegisterBindButton bind = inputsById.get(new SimpleUri(bindId));</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">                    if (bind != null) {</span>
+<span class="nc" id="L214">                        addInputBindRow(bindUri, bind, layout);</span>
+<span class="nc" id="L215">                        processedBinds.add(bindUri);</span>
+                    }
+                }
+            }
+
+<span class="nc" id="L220">            List&lt;ExtensionBind&gt; extensionBindList = Lists.newArrayList();</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">            for (Map.Entry&lt;SimpleUri, RegisterBindButton&gt; bind : inputsById.entrySet()) {</span>
+<span class="nc bnc" id="L222" title="All 4 branches missed.">                if (bind.getValue().category().equals(category.id()) &amp;&amp; !processedBinds.contains(bind.getKey())) {</span>
+<span class="nc" id="L223">                    extensionBindList.add(new ExtensionBind(bind.getKey(), bind.getValue()));</span>
+                }
+<span class="nc" id="L225">            }</span>
+<span class="nc" id="L226">            Collections.sort(extensionBindList);</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">            for (ExtensionBind extension : extensionBindList) {</span>
+<span class="nc" id="L228">                addInputBindRow(extension.uri, extension.bind, layout);</span>
+<span class="nc" id="L229">            }</span>
+        }
+<span class="nc" id="L231">    }</span>
+
+    private void addInputSection(ColumnLayout layout, String name, ControllerInfo info) {
+<span class="nc" id="L234">        UILabel categoryHeader = new UILabel(name);</span>
+<span class="nc" id="L235">        categoryHeader.setFamily(&quot;subheading&quot;);</span>
+<span class="nc" id="L236">        layout.addWidget(categoryHeader);</span>
+
+<span class="nc" id="L238">        float columnRatio = 0.4f;</span>
+
+<span class="nc" id="L240">        UICheckbox invertX = new UICheckbox();</span>
+<span class="nc" id="L241">        invertX.bindChecked(BindHelper.bindBeanProperty(&quot;invertX&quot;, info, Boolean.TYPE));</span>
+<span class="nc" id="L242">        layout.addWidget(new RowLayout(new UILabel(translationSystem.translate(&quot;${engine:menu#invert-x}&quot;)), invertX)</span>
+<span class="nc" id="L243">                .setColumnRatios(columnRatio)</span>
+<span class="nc" id="L244">                .setHorizontalSpacing(horizontalSpacing));</span>
+
+<span class="nc" id="L246">        UICheckbox invertY = new UICheckbox();</span>
+<span class="nc" id="L247">        invertY.bindChecked(BindHelper.bindBeanProperty(&quot;invertY&quot;, info, Boolean.TYPE));</span>
+<span class="nc" id="L248">        layout.addWidget(new RowLayout(new UILabel(translationSystem.translate(&quot;${engine:menu#invert-y}&quot;)), invertY)</span>
+<span class="nc" id="L249">                .setColumnRatios(columnRatio)</span>
+<span class="nc" id="L250">                .setHorizontalSpacing(horizontalSpacing));</span>
+
+<span class="nc" id="L252">        UICheckbox invertZ = new UICheckbox();</span>
+<span class="nc" id="L253">        invertZ.bindChecked(BindHelper.bindBeanProperty(&quot;invertZ&quot;, info, Boolean.TYPE));</span>
+<span class="nc" id="L254">        layout.addWidget(new RowLayout(new UILabel(translationSystem.translate(&quot;${engine:menu#invert-z}&quot;)), invertZ)</span>
+<span class="nc" id="L255">                .setColumnRatios(columnRatio)</span>
+<span class="nc" id="L256">                .setHorizontalSpacing(horizontalSpacing));</span>
+
+<span class="nc" id="L258">        UISlider mvmtDeadZone = new UISlider();</span>
+<span class="nc" id="L259">        mvmtDeadZone.setIncrement(0.01f);</span>
+<span class="nc" id="L260">        mvmtDeadZone.setMinimum(0);</span>
+<span class="nc" id="L261">        mvmtDeadZone.setRange(1);</span>
+<span class="nc" id="L262">        mvmtDeadZone.setPrecision(2);</span>
+<span class="nc" id="L263">        mvmtDeadZone.bindValue(BindHelper.bindBeanProperty(&quot;movementDeadZone&quot;, info, Float.TYPE));</span>
+<span class="nc" id="L264">        layout.addWidget(new RowLayout(new UILabel(translationSystem.translate(&quot;${engine:menu#movement-dead-zone}&quot;)), mvmtDeadZone)</span>
+<span class="nc" id="L265">                .setColumnRatios(columnRatio)</span>
+<span class="nc" id="L266">                .setHorizontalSpacing(horizontalSpacing));</span>
+
+<span class="nc" id="L268">        UISlider rotDeadZone = new UISlider();</span>
+<span class="nc" id="L269">        rotDeadZone.setIncrement(0.01f);</span>
+<span class="nc" id="L270">        rotDeadZone.setMinimum(0);</span>
+<span class="nc" id="L271">        rotDeadZone.setRange(1);</span>
+<span class="nc" id="L272">        rotDeadZone.setPrecision(2);</span>
+<span class="nc" id="L273">        rotDeadZone.bindValue(BindHelper.bindBeanProperty(&quot;rotationDeadZone&quot;, info, Float.TYPE));</span>
+
+<span class="nc" id="L275">        layout.addWidget(new RowLayout(new UILabel(translationSystem.translate(&quot;${engine:menu#rotation-dead-zone}&quot;)), rotDeadZone)</span>
+<span class="nc" id="L276">                .setColumnRatios(columnRatio)</span>
+<span class="nc" id="L277">                .setHorizontalSpacing(horizontalSpacing));</span>
+
+<span class="nc" id="L279">        layout.addWidget(new UISpace(new Vector2i(0, 16)));</span>
+<span class="nc" id="L280">    }</span>
+
+    private void addInputBindRow(SimpleUri uri, RegisterBindButton bind, ColumnLayout layout) {
+<span class="nc" id="L283">        BindsConfig bindConfig = bindsManager.getBindsConfig();</span>
+<span class="nc" id="L284">        List&lt;Input&gt; binds = bindConfig.getBinds(uri);</span>
+<span class="nc" id="L285">        UIButton primaryInputBind = makeInputBindButton(uri, bind, binds, PRIMARY_BIND_INDEX);</span>
+<span class="nc" id="L286">        UIButton secondaryInputBind = makeInputBindButton(uri, bind, binds, SECONDARY_BIND_INDEX);</span>
+
+<span class="nc" id="L288">        layout.addWidget(new RowLayout(new UILabel(translationSystem.translate(bind.description())), primaryInputBind, secondaryInputBind)</span>
+<span class="nc" id="L289">                .setColumnRatios(0.4f)</span>
+<span class="nc" id="L290">                .setHorizontalSpacing(horizontalSpacing));</span>
+<span class="nc" id="L291">    }</span>
+
+    private UIButton makeInputBindButton(SimpleUri uri, RegisterBindButton bind, List&lt;Input&gt; binds, int index) {
+<span class="nc" id="L294">        UIButton inputBind = new UIButton();</span>
+<span class="nc" id="L295">        inputBind.bindText(new BindingText(binds, index));</span>
+<span class="nc" id="L296">        inputBind.subscribe(event -&gt; {</span>
+<span class="nc" id="L297">            ChangeBindingPopup popup = getManager().pushScreen(ChangeBindingPopup.ASSET_URI, ChangeBindingPopup.class);</span>
+<span class="nc" id="L298">            popup.setBindingData(uri, bind, index);</span>
+<span class="nc" id="L299">        });</span>
+<span class="nc" id="L300">        return inputBind;</span>
+    }
+
+    @Override
+    public void onClosed() {
+<span class="nc" id="L305">        super.onClosed();</span>
+<span class="nc" id="L306">        bindsManager.registerBinds();</span>
+<span class="nc" id="L307">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L311">        return false;</span>
+    }
+
+    private final class BindingText extends ReadOnlyBinding&lt;String&gt; {
+
+        private List&lt;Input&gt; binds;
+        private int index;
+
+<span class="nc" id="L319">        BindingText(List&lt;Input&gt; binds, int index) {</span>
+<span class="nc" id="L320">            this.binds = binds;</span>
+<span class="nc" id="L321">            this.index = index;</span>
+<span class="nc" id="L322">        }</span>
+
+        @Override
+        public String get() {
+<span class="nc bnc" id="L326" title="All 2 branches missed.">            if (binds.size() &gt; index) {</span>
+<span class="nc" id="L327">                Input input = binds.get(index);</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">                if (input != null) {</span>
+<span class="nc" id="L329">                    return input.getDisplayName();</span>
+                }
+            }
+<span class="nc" id="L332">            return &quot;&lt;&quot; + translationSystem.translate(&quot;${engine:menu#not-bound}&quot;) + &quot;&gt;&quot;;</span>
+        }
+    }
+
+    private static final class ExtensionBind implements Comparable&lt;ExtensionBind&gt; {
+        private SimpleUri uri;
+        private RegisterBindButton bind;
+
+<span class="nc" id="L340">        private ExtensionBind(SimpleUri uri, RegisterBindButton bind) {</span>
+<span class="nc" id="L341">            this.uri = uri;</span>
+<span class="nc" id="L342">            this.bind = bind;</span>
+<span class="nc" id="L343">        }</span>
+
+        @Override
+        public int compareTo(ExtensionBind o) {
+<span class="nc" id="L347">            int descriptionOrder = bind.description().compareTo(o.bind.description());</span>
+<span class="nc bnc" id="L348" title="All 2 branches missed.">            if (descriptionOrder == 0) {</span>
+<span class="nc" id="L349">                return uri.compareTo(o.uri);</span>
+            }
+<span class="nc" id="L351">            return descriptionOrder;</span>
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+<span class="nc bnc" id="L356" title="All 2 branches missed.">            if (obj == this) {</span>
+<span class="nc" id="L357">                return true;</span>
+            }
+<span class="nc bnc" id="L359" title="All 2 branches missed.">            if (obj instanceof ExtensionBind) {</span>
+<span class="nc" id="L360">                ExtensionBind other = (ExtensionBind) obj;</span>
+<span class="nc bnc" id="L361" title="All 4 branches missed.">                return Objects.equals(bind.description(), other.bind.description()) &amp;&amp; Objects.equals(uri, other.uri);</span>
+            }
+<span class="nc" id="L363">            return false;</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="nc" id="L368">            return Objects.hash(uri, bind.description());</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

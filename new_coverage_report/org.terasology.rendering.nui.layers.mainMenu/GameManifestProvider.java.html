@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GameManifestProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">GameManifestProvider.java</span></div><h1>GameManifestProvider.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import org.codehaus.plexus.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.game.GameManifest;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.module.ResolutionResult;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameProvider;
+import org.terasology.world.internal.WorldInfo;
+import org.terasology.world.time.WorldTime;
+
+
+/**
+ * Generates new games manifest according to input data.
+ */
+public class GameManifestProvider {
+
+<span class="nc" id="L40">    private static final Logger logger = LoggerFactory.getLogger(GameManifestProvider.class);</span>
+
+    @In
+    private Config config;
+
+    private GameManifestProvider() {
+    }
+
+    /**
+     * Generates game manifest with default settings (title, seed) if not specified.
+     * Uses default world generator, and modules selection.
+     * @TODO: rewrite/fix it when code will be more stable
+     *
+     * @param universeWrapper  contains the universe level properties
+     * @param moduleManager    resolves modules
+     * @param config           provides default module selection, world generator
+     * @return                 game manifest with default settings
+     */
+    public static GameManifest createGameManifest(final UniverseWrapper universeWrapper, final ModuleManager moduleManager, final Config config) {
+<span class="nc" id="L59">        GameManifest gameManifest = new GameManifest();</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        if (StringUtils.isNotBlank(universeWrapper.getGameName())) {</span>
+<span class="nc" id="L61">            gameManifest.setTitle(universeWrapper.getGameName());</span>
+        } else {
+<span class="nc" id="L63">            gameManifest.setTitle(GameProvider.getNextGameName());</span>
+        }
+
+
+<span class="nc" id="L67">        DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());</span>
+<span class="nc" id="L68">        ResolutionResult result = resolver.resolve(config.getDefaultModSelection().listModules());</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (!result.isSuccess()) {</span>
+<span class="nc" id="L70">            logger.error(&quot;Can't resolve dependencies&quot;);</span>
+<span class="nc" id="L71">            return null;</span>
+        }
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        for (Module module : result.getModules()) {</span>
+<span class="nc" id="L74">            gameManifest.addModule(module.getId(), module.getVersion());</span>
+<span class="nc" id="L75">        }</span>
+
+        SimpleUri uri;
+        String seed;
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if (universeWrapper.getTargetWorld() != null) {</span>
+<span class="nc" id="L80">            uri = universeWrapper.getTargetWorld().getWorldGenerator().getUri();</span>
+<span class="nc" id="L81">            seed = universeWrapper.getTargetWorld().getWorldGenerator().getWorldSeed();</span>
+<span class="nc" id="L82">            gameManifest.setSeed(seed);</span>
+        } else {
+<span class="nc" id="L84">            uri = config.getWorldGeneration().getDefaultGenerator();</span>
+<span class="nc" id="L85">            seed = universeWrapper.getSeed();</span>
+        }
+<span class="nc" id="L87">        String targetWorldName = &quot;&quot;;</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (universeWrapper.getTargetWorld() != null) {</span>
+<span class="nc" id="L89">            targetWorldName = universeWrapper.getTargetWorld().getWorldName().toString();</span>
+        }
+        // This is multiplied by the number of seconds in a day (86400000) to determine the exact  millisecond at which the game will start.
+<span class="nc" id="L92">        WorldInfo worldInfo = new WorldInfo(TerasologyConstants.MAIN_WORLD, targetWorldName, seed,</span>
+                (long) (WorldTime.DAY_LENGTH * WorldTime.NOON_OFFSET), uri);
+
+<span class="nc" id="L95">        gameManifest.addWorld(worldInfo);</span>
+<span class="nc" id="L96">        config.getUniverseConfig().addWorldManager(worldInfo);</span>
+<span class="nc" id="L97">        config.getUniverseConfig().setSpawnWorldTitle(worldInfo.getTitle());</span>
+<span class="nc" id="L98">        config.getUniverseConfig().setUniverseSeed(universeWrapper.getSeed());</span>
+<span class="nc" id="L99">        return gameManifest;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

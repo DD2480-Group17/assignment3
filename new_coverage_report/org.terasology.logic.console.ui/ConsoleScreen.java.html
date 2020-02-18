@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConsoleScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.console.ui</a> &gt; <span class="el_source">ConsoleScreen.java</span></div><h1>ConsoleScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.console.ui;
+
+import org.codehaus.plexus.util.StringUtils;
+import org.terasology.input.MouseInput;
+import org.terasology.logic.console.Console;
+import org.terasology.logic.console.Message;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.registry.In;
+import org.terasology.rendering.FontColor;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.animation.SwipeMenuAnimationSystem;
+import org.terasology.rendering.nui.animation.SwipeMenuAnimationSystem.Direction;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.layouts.ScrollableArea;
+import org.terasology.rendering.nui.widgets.UIText;
+
+import java.util.List;
+
+<span class="nc" id="L37">public class ConsoleScreen extends CoreScreenLayer {</span>
+
+    @In
+    private Console console;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    private UICommandEntry commandLine;
+
+    private boolean welcomePrinted;
+
+<span class="nc" id="L49">    private InteractionListener screenListener = new BaseInteractionListener() {</span>
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L52" title="All 4 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT &amp;&amp; commandLine != null) {</span>
+<span class="nc" id="L53">                getManager().setFocus(commandLine);</span>
+            }
+<span class="nc" id="L55">            return true;</span>
+        }
+    };
+
+    @Override
+    public void initialise() {
+
+<span class="nc" id="L62">        setAnimationSystem(new SwipeMenuAnimationSystem(0.2f, Direction.TOP_TO_BOTTOM));</span>
+
+<span class="nc" id="L64">        final ScrollableArea scrollArea = find(&quot;scrollArea&quot;, ScrollableArea.class);</span>
+<span class="nc" id="L65">        scrollArea.moveToBottom();</span>
+
+<span class="nc" id="L67">        commandLine = find(&quot;commandLine&quot;, UICommandEntry.class);</span>
+<span class="nc" id="L68">        getManager().setFocus(commandLine);</span>
+<span class="nc" id="L69">        commandLine.setTabCompletionEngine(new CyclingTabCompletionEngine(console, localPlayer));</span>
+<span class="nc" id="L70">        commandLine.bindCommandHistory(new ReadOnlyBinding&lt;List&lt;String&gt;&gt;() {</span>
+            @Override
+            public List&lt;String&gt; get() {
+<span class="nc" id="L73">                return console.getPreviousCommands();</span>
+            }
+        });
+<span class="nc" id="L76">        commandLine.subscribe(widget -&gt; {</span>
+<span class="nc" id="L77">            String text = commandLine.getText();</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if (StringUtils.isNotBlank(text)) {</span>
+<span class="nc" id="L79">                console.execute(text, localPlayer.getClientEntity());</span>
+            }
+<span class="nc" id="L81">            scrollArea.moveToBottom();</span>
+<span class="nc" id="L82">        });</span>
+
+<span class="nc" id="L84">        final UIText history = find(&quot;messageHistory&quot;, UIText.class);</span>
+<span class="nc" id="L85">        history.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc" id="L88">                StringBuilder messageList = new StringBuilder();</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                for (Message message : console.getMessages()) {</span>
+<span class="nc" id="L90">                    messageList.append(FontColor.getColored(message.getMessage(), message.getType().getColor()));</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                    if (message.hasNewLine()) {</span>
+<span class="nc" id="L92">                        messageList.append(Console.NEW_LINE);</span>
+                    }
+<span class="nc" id="L94">                }</span>
+<span class="nc" id="L95">                return messageList.toString();</span>
+            }
+        });
+<span class="nc" id="L98">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L102">        super.onOpened();</span>
+<span class="nc" id="L103">        getManager().setFocus(commandLine);</span>
+
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        if (!welcomePrinted) {</span>
+<span class="nc" id="L106">            console.addMessage(&quot;Welcome to the wonderful world of Terasology!&quot; + Console.NEW_LINE +</span>
+                    Console.NEW_LINE +
+                    &quot;Type 'help' to see a list with available commands or 'help &lt;commandName&gt;' for command details.&quot; + Console.NEW_LINE +
+                    &quot;Text parameters do not need quotes, unless containing spaces. No commas between parameters.&quot; + Console.NEW_LINE +
+                    &quot;You can use auto-completion by typing a partial command then hitting [tab] - examples:&quot; + Console.NEW_LINE + Console.NEW_LINE +
+                    &quot;gh + [tab] =&gt; 'ghost'&quot; + Console.NEW_LINE +
+                    &quot;help gh + [tab] =&gt; 'help ghost' (can auto complete commands fed to help)&quot; + Console.NEW_LINE +
+                    &quot;giv + [tab] =&gt; 'give givePermission' (use [tab] again to cycle between choices)&quot; + Console.NEW_LINE +
+                    &quot;lS + [tab] =&gt; 'listShapes' (camel casing abbreviated commands)&quot; + Console.NEW_LINE);
+<span class="nc" id="L115">            welcomePrinted = true;</span>
+        }
+<span class="nc" id="L117">    }</span>
+
+    @Override
+    protected InteractionListener getScreenListener() {
+<span class="nc" id="L121">        return screenListener;</span>
+    }
+
+    @Override
+    public boolean canBeFocus() {
+<span class="nc" id="L126">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

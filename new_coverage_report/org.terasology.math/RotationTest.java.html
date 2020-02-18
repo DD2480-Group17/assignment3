@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RotationTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.math</a> &gt; <span class="el_source">RotationTest.java</span></div><h1>RotationTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.math;
+
+import com.google.common.collect.Iterables;
+import org.junit.jupiter.api.Test;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ */
+<span class="fc" id="L27">public class RotationTest {</span>
+
+    @Test
+    public void testRotateSideNone() {
+<span class="fc" id="L31">        assertEquals(Side.LEFT, Rotation.none().rotate(Side.LEFT));</span>
+<span class="fc" id="L32">    }</span>
+
+    @Test
+    public void testRotateSideYaw() {
+<span class="fc" id="L36">        Rotation rotation = Rotation.rotate(Yaw.CLOCKWISE_90);</span>
+<span class="fc" id="L37">        Quat4f rot = rotation.getQuat4f();</span>
+<span class="fc" id="L38">        Vector3f dir = rot.rotate(Side.FRONT.toDirection().getVector3f(), new Vector3f());</span>
+<span class="fc" id="L39">        assertEquals(Direction.inDirection(dir).toSide(), rotation.rotate(Side.FRONT));</span>
+
+<span class="fc" id="L41">        assertEquals(Side.LEFT, Rotation.rotate(Yaw.CLOCKWISE_90).rotate(Side.FRONT));</span>
+<span class="fc" id="L42">        assertEquals(Side.TOP, Rotation.rotate(Yaw.CLOCKWISE_90).rotate(Side.TOP));</span>
+<span class="fc" id="L43">    }</span>
+
+    @Test
+    public void testRotateSidePitch() {
+<span class="fc" id="L47">        Rotation rotation = Rotation.rotate(Pitch.CLOCKWISE_90);</span>
+<span class="fc" id="L48">        Quat4f rot = rotation.getQuat4f();</span>
+<span class="fc" id="L49">        Vector3f dir = rot.rotate(Side.FRONT.toDirection().getVector3f(), new Vector3f());</span>
+<span class="fc" id="L50">        assertEquals(Direction.inDirection(dir).toSide(), rotation.rotate(Side.FRONT));</span>
+
+<span class="fc" id="L52">        assertEquals(Side.TOP, Rotation.rotate(Pitch.CLOCKWISE_90).rotate(Side.FRONT));</span>
+<span class="fc" id="L53">        assertEquals(Side.RIGHT, Rotation.rotate(Pitch.CLOCKWISE_90).rotate(Side.RIGHT));</span>
+<span class="fc" id="L54">    }</span>
+
+    @Test
+    public void testRotateSideRoll() {
+<span class="fc" id="L58">        Rotation rotation = Rotation.rotate(Roll.CLOCKWISE_90);</span>
+<span class="fc" id="L59">        Quat4f rot = rotation.getQuat4f();</span>
+<span class="fc" id="L60">        Vector3f dir = rot.rotate(Side.TOP.toDirection().getVector3f(), new Vector3f());</span>
+<span class="fc" id="L61">        assertEquals(Direction.inDirection(dir).toSide(), rotation.rotate(Side.TOP));</span>
+
+<span class="fc" id="L63">        assertEquals(Side.LEFT, Rotation.rotate(Roll.CLOCKWISE_90).rotate(Side.TOP));</span>
+<span class="fc" id="L64">        assertEquals(Side.FRONT, Rotation.rotate(Roll.CLOCKWISE_90).rotate(Side.FRONT));</span>
+<span class="fc" id="L65">    }</span>
+
+    @Test
+    public void testRotateMixed() {
+<span class="fc" id="L69">        Rotation rotation = Rotation.rotate(Yaw.CLOCKWISE_180, Pitch.CLOCKWISE_90, Roll.CLOCKWISE_90);</span>
+<span class="fc" id="L70">        Quat4f rot = rotation.getQuat4f();</span>
+<span class="fc" id="L71">        Vector3f dir = rot.rotate(Side.FRONT.toDirection().getVector3f(), new Vector3f());</span>
+<span class="fc" id="L72">        assertEquals(Direction.inDirection(dir).toSide(), rotation.rotate(Side.FRONT));</span>
+<span class="fc" id="L73">    }</span>
+
+    @Test
+    public void testAllRotations() {
+<span class="fc" id="L77">        assertEquals(24, Iterables.size(Rotation.values()));</span>
+<span class="fc" id="L78">        assertEquals(64, Iterables.size(Rotation.allValues()));</span>
+<span class="fc" id="L79">    }</span>
+
+    @Test
+    public void testReverseRotation() {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        for (Rotation rotation : Rotation.allValues()) {</span>
+<span class="fc" id="L84">            Rotation reverseRotation = Rotation.findReverse(rotation);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">            for (Side side : Side.getAllSides()) {</span>
+<span class="fc" id="L86">                assertEquals(side, reverseRotation.rotate(rotation.rotate(side)));</span>
+<span class="fc" id="L87">            }</span>
+<span class="fc" id="L88">        }</span>
+<span class="fc" id="L89">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

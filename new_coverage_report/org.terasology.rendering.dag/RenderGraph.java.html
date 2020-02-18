@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RenderGraph.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag</a> &gt; <span class="el_source">RenderGraph.java</span></div><h1>RenderGraph.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.graph.GraphBuilder;
+import com.google.common.graph.MutableGraph;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.SimpleUri;
+
+/**
+ * TODO: Add javadocs
+ */
+public class RenderGraph {
+<span class="nc" id="L34">    private static final Logger logger = LoggerFactory.getLogger(RenderGraph.class);</span>
+
+    private Map&lt;SimpleUri, Node&gt; nodeMap;
+    private MutableGraph&lt;Node&gt; graph;
+
+<span class="nc" id="L39">    public RenderGraph() {</span>
+<span class="nc" id="L40">        nodeMap = Maps.newHashMap();</span>
+<span class="nc" id="L41">        graph = GraphBuilder.directed().build();</span>
+<span class="nc" id="L42">    }</span>
+
+    public void addNode(Node node) {
+<span class="nc" id="L45">        Preconditions.checkNotNull(node, &quot;node cannot be null!&quot;);</span>
+
+<span class="nc" id="L47">        SimpleUri nodeUri = node.getUri();</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (nodeMap.containsKey(nodeUri)) {</span>
+<span class="nc" id="L49">            throw new RuntimeException(&quot;A node with uri &quot; + nodeUri + &quot; already exists!&quot;);</span>
+        }
+
+<span class="nc" id="L52">        nodeMap.put(nodeUri, node);</span>
+<span class="nc" id="L53">        graph.addNode(node);</span>
+<span class="nc" id="L54">    }</span>
+
+    public Node removeNode(SimpleUri nodeUri) {
+<span class="nc" id="L57">        Preconditions.checkNotNull(nodeUri, &quot;nodeUri cannot be null!&quot;);</span>
+
+<span class="nc" id="L59">        Node node = findNode(nodeUri);</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        if (node == null) {</span>
+<span class="nc" id="L61">            throw new RuntimeException(&quot;Node removal failure: there is no '&quot; + nodeUri + &quot;' in the render graph!&quot;);</span>
+        }
+
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        if (graph.adjacentNodes(node).size() != 0) {</span>
+<span class="nc" id="L65">            throw new RuntimeException(&quot;Node removal failure: node '&quot; + nodeUri + &quot;' is still connected to other nodes in the render graph!&quot;);</span>
+        }
+
+<span class="nc" id="L68">        nodeMap.remove(nodeUri);</span>
+<span class="nc" id="L69">        return nodeMap.remove(nodeUri);</span>
+    }
+
+    public Node findNode(SimpleUri nodeUri) {
+<span class="nc" id="L73">        Preconditions.checkNotNull(nodeUri, &quot;nodeUri cannot be null!&quot;);</span>
+
+<span class="nc" id="L75">        return nodeMap.get(nodeUri);</span>
+    }
+
+    public Node findNode(String simpleUri) {
+<span class="nc" id="L79">        return findNode(new SimpleUri(simpleUri));</span>
+    }
+
+    public void connect(Node ... nodeList) {
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        Preconditions.checkArgument(nodeList.length &gt; 1, &quot;Expected at least 2 nodes as arguments to connect() - found &quot; + nodeList.length);</span>
+
+<span class="nc" id="L85">        Node fromNode = null;</span>
+
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        for (Node toNode : nodeList) {</span>
+<span class="nc" id="L88">            Preconditions.checkNotNull(toNode, &quot;toNode cannot be null!&quot;);</span>
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            if (fromNode != null) {</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                if (!graph.hasEdgeConnecting(fromNode, toNode)) {</span>
+<span class="nc" id="L92">                    graph.putEdge(fromNode, toNode);</span>
+                } else {
+<span class="nc" id="L94">                    logger.warn(&quot;Trying to connect two already connected nodes, &quot; + fromNode.getUri() + &quot; and &quot; + toNode.getUri());</span>
+                }
+            }
+
+<span class="nc" id="L98">            fromNode = toNode;</span>
+        }
+<span class="nc" id="L100">    }</span>
+
+    public void disconnect(Node fromNode, Node toNode) {
+<span class="nc" id="L103">        Preconditions.checkNotNull(fromNode, &quot;fromNode cannot be null!&quot;);</span>
+<span class="nc" id="L104">        Preconditions.checkNotNull(toNode, &quot;toNode cannot be null!&quot;);</span>
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        if (!graph.hasEdgeConnecting(fromNode, toNode)) {</span>
+<span class="nc" id="L107">            logger.warn(&quot;Trying to disconnect two nodes that aren't connected, &quot; + fromNode.getUri() + &quot; and &quot; + toNode.getUri());</span>
+        }
+
+<span class="nc" id="L110">        graph.removeEdge(fromNode, toNode);</span>
+<span class="nc" id="L111">    }</span>
+
+    // TODO: Add `boolean isFullyFunctional(Node node)`
+
+    // TODO: Add handler methods which the graph uses to communicate changes to a node.
+
+    public List&lt;Node&gt; getNodesInTopologicalOrder() {
+        // This implementation of Kahn's Algorithm is adapted from the algorithm described at
+        // https://www.geeksforgeeks.org/topological-sorting-indegree-based-solution/
+
+<span class="nc" id="L121">        List&lt;Node&gt; topologicalList = new ArrayList&lt;&gt;();</span>
+
+        // In-degree (or incoming-degree) is the number of incoming edges of a particular node.
+<span class="nc" id="L124">        Map&lt;Node, Integer&gt; inDegreeMap = Maps.newHashMap();</span>
+<span class="nc" id="L125">        List&lt;Node&gt; nodesToExamine = Lists.newArrayList();</span>
+<span class="nc" id="L126">        int visitedNodes = 0;</span>
+
+        // Calculate the in-degree for each node, and mark all nodes with no incoming edges for examination.
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        for (Node node : graph.nodes()) {</span>
+<span class="nc" id="L130">            int inDegree = graph.inDegree(node);</span>
+<span class="nc" id="L131">            inDegreeMap.put(node, inDegree);</span>
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">            if (inDegree == 0) {</span>
+<span class="nc" id="L134">                nodesToExamine.add(node);</span>
+            }
+<span class="nc" id="L136">        }</span>
+
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        while (!nodesToExamine.isEmpty()) {</span>
+<span class="nc" id="L139">            Node currentNode = nodesToExamine.remove(0);</span>
+
+<span class="nc bnc" id="L141" title="All 2 branches missed.">            for (Node adjacentNode : graph.successors(currentNode)) {</span>
+<span class="nc" id="L142">                int updatedInDegree = inDegreeMap.get(adjacentNode) - 1;</span>
+<span class="nc" id="L143">                inDegreeMap.put(adjacentNode, updatedInDegree);</span>
+
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                if (updatedInDegree == 0) {</span>
+<span class="nc" id="L146">                    nodesToExamine.add(adjacentNode);</span>
+                }
+<span class="nc" id="L148">            }</span>
+
+<span class="nc" id="L150">            topologicalList.add(currentNode);</span>
+
+<span class="nc" id="L152">            visitedNodes++;</span>
+<span class="nc" id="L153">        }</span>
+
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (visitedNodes != nodeMap.size()) {</span>
+<span class="nc" id="L156">            throw new RuntimeException(&quot;Cycle detected in the DAG: topological sorting not possible!&quot;);</span>
+        }
+
+<span class="nc" id="L159">        return topologicalList;</span>
+    }
+
+    public void dispose() {
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        for (Node node : nodeMap.values()) {</span>
+<span class="nc" id="L164">            graph.removeNode(node);</span>
+<span class="nc" id="L165">            node.dispose();</span>
+<span class="nc" id="L166">        }</span>
+<span class="nc" id="L167">        nodeMap.clear();</span>
+<span class="nc" id="L168">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

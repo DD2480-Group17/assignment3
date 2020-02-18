@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScreenGrabber.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.opengl</a> &gt; <span class="el_source">ScreenGrabber.java</span></div><h1>ScreenGrabber.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.opengl;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.engine.subsystem.common.ThreadManager;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.persistence.internal.GamePreviewImageProvider;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import static org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs.FINAL_BUFFER;
+
+// TODO: Future work should not only &quot;think&quot; in terms of a DAG-like rendering pipeline
+// TODO: but actually implement one, see https://github.com/MovingBlocks/Terasology/issues/1741
+public class ScreenGrabber {
+<span class="nc" id="L45">    private static final Logger logger = LoggerFactory.getLogger(ScreenGrabber.class);</span>
+
+<span class="nc" id="L47">    private static final SimpleDateFormat SIMPLE_DATE_FORMAT = new SimpleDateFormat(&quot;yyMMddHHmmss&quot;);</span>
+    private static final String SCREENSHOT_FILENAME_PATTERN = &quot;Terasology-%s-%dx%d.%s&quot;;
+
+    private RenderingConfig renderingConfig;
+    private ThreadManager threadManager;
+    private float currentExposure;
+    private boolean isTakingScreenshot;
+    private DisplayResolutionDependentFBOs displayResolutionDependentFBOs;
+    private Path savedGamePath;
+    private boolean savingGamePreview;
+
+    /**
+     * @param context
+     */
+<span class="nc" id="L61">    public ScreenGrabber(Context context) {</span>
+<span class="nc" id="L62">        threadManager = CoreRegistry.get(ThreadManager.class);</span>
+<span class="nc" id="L63">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L64">    }</span>
+
+    /**
+     * Returns the current exposure value (set in downsampleSceneAndUpdateExposure()).
+     *
+     * @return a float representing the current exposure value.
+     */
+    public float getExposure() {
+<span class="nc" id="L72">        return currentExposure;</span>
+    }
+
+    // TODO: Remove this method, temporarily here for DownSampleSceneAndUpdateExposure
+    public void setExposure(float exposure) {
+<span class="nc" id="L77">        this.currentExposure = exposure;</span>
+<span class="nc" id="L78">    }</span>
+
+    /**
+     * Triggers a screenshot.
+     *
+     * Notice that this method just starts the process: screenshot data is captured and written to file
+     * as soon as possible but not necessarily immediately after the trigger.
+     */
+    public void takeScreenshot() {
+<span class="nc" id="L87">        isTakingScreenshot = true;</span>
+<span class="nc" id="L88">    }</span>
+
+    /**
+     * Schedules the saving of screenshot data to file.
+     *
+     * Screenshot data from the GPU is obtained as soon as this method executes. However, the data is only scheduled
+     * to be written to file, by submitting a task to the ThreadManager. The task is then executed as soon as possible
+     * but not necessarily immediately.
+     *
+     * The file is then saved in the designated screenshot folder, or if it's a game preview image, it'll be placed in the save game folder.
+     *
+     * If no screenshot data is available an error is logged and the method returns doing nothing.
+     */
+    public void saveScreenshot() {
+        // Since ScreenGrabber is initialized before DisplayResolutionDependentFBOs (because the latter contains a reference to the former)
+        // on first call on saveScreenshot() displayResolutionDependentFBOs will be null.
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        if (displayResolutionDependentFBOs == null) {</span>
+<span class="nc" id="L105">            displayResolutionDependentFBOs = CoreRegistry.get(DisplayResolutionDependentFBOs.class);</span>
+        }
+
+<span class="nc" id="L108">        FBO sceneFinalFbo = displayResolutionDependentFBOs.get(FINAL_BUFFER);</span>
+
+<span class="nc" id="L110">        final ByteBuffer buffer = sceneFinalFbo.getColorBufferRawData();</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (buffer == null) {</span>
+<span class="nc" id="L112">            logger.error(&quot;No screenshot data available. No screenshot will be saved.&quot;);</span>
+<span class="nc" id="L113">            return;</span>
+        }
+
+<span class="nc" id="L116">        int width = sceneFinalFbo.width();</span>
+<span class="nc" id="L117">        int height = sceneFinalFbo.height();</span>
+
+        Runnable task;
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (savingGamePreview) {</span>
+<span class="nc" id="L121">            task = () -&gt; saveGamePreviewTask(buffer, width, height);</span>
+<span class="nc" id="L122">            this.savingGamePreview = false;</span>
+        } else {
+<span class="nc" id="L124">            task = () -&gt; saveScreenshotTask(buffer, width, height);</span>
+        }
+
+<span class="nc" id="L127">        threadManager.submitTask(&quot;Write screenshot&quot;, task);</span>
+<span class="nc" id="L128">        isTakingScreenshot = false;</span>
+<span class="nc" id="L129">    }</span>
+
+    /**
+     * Saves given screenshot data to file.
+     *
+     * The file is then saved in the designated screenshot folder with a filename in the form:
+     *
+     *     Terasology-[yyMMddHHmmss]-[width]x[height].[format]
+     */
+    private void saveScreenshotTask(ByteBuffer buffer, int width, int height) {
+<span class="nc" id="L139">        final String format = renderingConfig.getScreenshotFormat();</span>
+<span class="nc" id="L140">        final Path screenshotPath = getScreenshotPath(width, height, format);</span>
+<span class="nc" id="L141">        final BufferedImage image = convertByteBufferToBufferedImage(buffer, width, height);</span>
+<span class="nc" id="L142">        writeImageToFile(image, screenshotPath, format);</span>
+<span class="nc" id="L143">    }</span>
+
+    /**
+     *  Saves given image data to file in save game folder.
+     */
+    private void saveGamePreviewTask(ByteBuffer buffer, int width, int height) {
+<span class="nc" id="L149">        BufferedImage image = convertByteBufferToBufferedImage(buffer, width, height);</span>
+<span class="nc" id="L150">        writeImageToFile(image, savedGamePath, &quot;jpg&quot;);</span>
+<span class="nc" id="L151">    }</span>
+
+    private void writeImageToFile(BufferedImage image, Path path, String format) {
+<span class="nc" id="L154">        try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(path))) {</span>
+<span class="nc" id="L155">            ImageIO.write(image, format, out);</span>
+<span class="nc" id="L156">            logger.info(&quot;Screenshot saved to {}! &quot;, path);</span>
+<span class="nc" id="L157">        } catch (IOException e) {</span>
+<span class="nc" id="L158">            logger.warn(&quot;Failed to save screenshot!&quot;, e);</span>
+<span class="nc" id="L159">        }</span>
+<span class="nc" id="L160">    }</span>
+
+    /**
+     * Transforms ByteBuffer into BufferedImage with specified width and height.
+     */
+    private BufferedImage convertByteBufferToBufferedImage(ByteBuffer buffer, int width, int height) {
+<span class="nc" id="L166">        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        for (int x = 0; x &lt; width; x++) {</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">            for (int y = 0; y &lt; height; y++) {</span>
+<span class="nc" id="L169">                int i = (x + width * y) * 4;</span>
+<span class="nc" id="L170">                int r = buffer.get(i) &amp; 0xFF;</span>
+<span class="nc" id="L171">                int g = buffer.get(i + 1) &amp; 0xFF;</span>
+<span class="nc" id="L172">                int b = buffer.get(i + 2) &amp; 0xFF;</span>
+<span class="nc" id="L173">                image.setRGB(x, height - (y + 1), (0xFF &lt;&lt; 24) | (r &lt;&lt; 16) | (g &lt;&lt; 8) | b);</span>
+            }
+        }
+<span class="nc" id="L176">        return image;</span>
+    }
+
+    private Path getScreenshotPath(final int width, final int height, final String format) {
+<span class="nc" id="L180">        final String fileName = String.format(</span>
+<span class="nc" id="L181">          SCREENSHOT_FILENAME_PATTERN, SIMPLE_DATE_FORMAT.format(new Date()), width, height, format);</span>
+<span class="nc" id="L182">        return PathManager.getInstance().getScreenshotPath().resolve(fileName);</span>
+    }
+
+    /**
+     * Returns true if the rendering engine is in the process of taking a screenshot.
+     * Returns false if a screenshot is not being taken.
+     *
+     * @return true if a screenshot is being taken, false otherwise
+     */
+    public boolean isTakingScreenshot() {
+<span class="nc" id="L192">        return isTakingScreenshot;</span>
+    }
+
+    /**
+     * Schedules the saving of game preview screenshot.
+     *
+     * @param saveDirPath to save folder
+     */
+    public void takeGamePreview(final Path saveDirPath)
+    {
+<span class="nc" id="L202">        this.savingGamePreview = true;</span>
+<span class="nc" id="L203">        this.savedGamePath = GamePreviewImageProvider.getNextGamePreviewImagePath(saveDirPath);</span>
+<span class="nc" id="L204">        this.saveScreenshot();</span>
+<span class="nc" id="L205">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

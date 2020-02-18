@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntityStorer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.internal</a> &gt; <span class="el_source">EntityStorer.java</span></div><h1>EntityStorer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.internal;
+
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.entity.internal.OwnershipHelper;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
+import org.terasology.persistence.serializers.EntitySerializer;
+import org.terasology.persistence.serializers.FieldSerializeCheck;
+import org.terasology.protobuf.EntityData;
+
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Utility class for the construction of a EntityData.EntityStore structure for storing the entities on disk..
+ *
+ */
+final class EntityStorer {
+
+    private final EntitySerializer serializer;
+    private final EntityData.EntityStore.Builder entityStoreBuilder;
+    private final OwnershipHelper helper;
+<span class="fc" id="L41">    private Set&lt;EntityRef&gt; storedEntities = Sets.newHashSet();</span>
+
+<span class="fc" id="L43">    EntityStorer(EngineEntityManager entityManager) {</span>
+<span class="fc" id="L44">        this.entityStoreBuilder = EntityData.EntityStore.newBuilder();</span>
+<span class="fc" id="L45">        this.serializer = new EntitySerializer(entityManager);</span>
+<span class="fc" id="L46">        this.helper = new OwnershipHelper(entityManager.getComponentLibrary());</span>
+
+<span class="fc" id="L48">        Map&lt;Class&lt;? extends Component&gt;, Integer&gt; componentIds = Maps.newHashMap();</span>
+
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        for (ComponentMetadata&lt;?&gt; componentMetadata : entityManager.getComponentLibrary().iterateComponentMetadata()) {</span>
+<span class="fc" id="L51">            entityStoreBuilder.addComponentClass(componentMetadata.getUri().toString());</span>
+<span class="fc" id="L52">            componentIds.put(componentMetadata.getType(), componentIds.size());</span>
+<span class="fc" id="L53">        }</span>
+<span class="fc" id="L54">        serializer.setComponentIdMapping(componentIds);</span>
+<span class="fc" id="L55">    }</span>
+    public void store(EntityRef entity) {
+<span class="fc" id="L57">        store(entity, &quot;&quot;);</span>
+<span class="fc" id="L58">    }</span>
+
+    public void store(EntityRef entity, String name) {
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if (entity.isActive()) {</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">            for (EntityRef ownedEntity : helper.listOwnedEntities(entity)) {</span>
+<span class="nc bnc" id="L63" title="All 4 branches missed.">                if (!ownedEntity.isAlwaysRelevant() &amp;&amp; ownedEntity.isPersistent()) {</span>
+<span class="nc" id="L64">                    store(ownedEntity);</span>
+                }
+<span class="nc" id="L66">            }</span>
+<span class="fc" id="L67">            EntityData.Entity entityData = serializer.serialize(entity, true, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance());</span>
+<span class="fc" id="L68">            entityStoreBuilder.addEntity(entityData);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">            if (!name.isEmpty()) {</span>
+<span class="fc" id="L70">                entityStoreBuilder.addEntityName(name);</span>
+<span class="fc" id="L71">                entityStoreBuilder.addEntityNamed(entityData.getId());</span>
+            }
+<span class="fc" id="L73">            storedEntities.add(entity);</span>
+        }
+<span class="fc" id="L75">    }</span>
+
+    public EntityData.EntityStore finaliseStore() {
+<span class="fc" id="L78">        return entityStoreBuilder.build();</span>
+    }
+
+    /**
+     *
+     * @return all entities stored directly or indirectly (owned entities) via the store methods.
+     */
+    public Set&lt;EntityRef&gt; getStoredEntities() {
+<span class="fc" id="L86">        return storedEntities;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SimpleBlendMaterialsNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">SimpleBlendMaterialsNode.java</span></div><h1>SimpleBlendMaterialsNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.context.Context;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.entitySystem.systems.RenderSystem;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.DisableDepthWriting;
+import org.terasology.rendering.dag.stateChanges.EnableBlending;
+import org.terasology.rendering.dag.stateChanges.LookThrough;
+import org.terasology.rendering.dag.stateChanges.SetBlendFunction;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.world.WorldRenderer;
+
+import static org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA;
+import static org.lwjgl.opengl.GL11.GL_SRC_ALPHA;
+
+/**
+ * An instance of this class renders and blends semi-transparent objects into the content of the existing g-buffer.
+ *
+ * Notice that this is handled in the process() method by calling the renderAlphaBlend() method of registered
+ * instances implementing the RenderSystem interface.
+ *
+ * Theoretically the same results could be achieved by rendering all meshes in one go, keeping blending
+ * always enabled and relying on the alpha channel of the textures associated with a given mesh. In practice
+ * blending is an expensive operation and it wouldn't be good performance-wise to keep it always enabled.
+ *
+ * Also, a number of previous nodes rely on unambiguous meaning for the depth values in the gbuffers,
+ * but this node temporarily disable writing to the depth buffer - what value should be written to it,
+ * the distance to the semi-transparent surface or what's already stored in the depth buffer? As such
+ * semi-transparent objects are handled here, after nodes relying on the depth buffer have done their job.
+ */
+public class SimpleBlendMaterialsNode extends AbstractNode {
+    private ComponentSystemManager componentSystemManager;
+
+    public SimpleBlendMaterialsNode(String nodeUri, Context context) {
+<span class="nc" id="L54">        super(nodeUri, context);</span>
+
+<span class="nc" id="L56">        componentSystemManager = context.get(ComponentSystemManager.class);</span>
+
+<span class="nc" id="L58">        Camera playerCamera = context.get(WorldRenderer.class).getActiveCamera();</span>
+<span class="nc" id="L59">        addDesiredStateChange(new LookThrough(playerCamera));</span>
+
+<span class="nc" id="L61">        addDesiredStateChange(new BindFbo(context.get(DisplayResolutionDependentFBOs.class).getGBufferPair().getLastUpdatedFbo()));</span>
+
+        // Sets the state for the rendering of objects or portions of objects having some degree of transparency.
+        // Generally speaking objects drawn with this state will have their color blended with the background
+        // color, depending on their opacity. I.e. a 25% opaque foreground object will provide 25% of its
+        // color while the background will provide the remaining 75%. The sum of the two RGBA vectors gets
+        // written onto the output buffer.
+<span class="nc" id="L68">        addDesiredStateChange(new EnableBlending());</span>
+
+        // (*) In this context SRC is Foreground. This effectively says:
+        // Resulting RGB = ForegroundRGB * ForegroundAlpha + BackgroundRGB * (1 - ForegroundAlpha)
+        // Which might still look complicated, but it's actually the most typical alpha-driven composite.
+        // A neat tool to play with this settings can be found here: http://www.andersriggelsen.dk/glblendfunc.php
+<span class="nc" id="L74">        addDesiredStateChange(new SetBlendFunction(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));</span>
+
+        // Important note: the following disables writing to the Depth Buffer. This is why filters relying on
+        // depth information (i.e. DoF) have problems with transparent objects: the depth of their pixels is
+        // found to be that of the background rather than that of the transparent's object surface.
+        // This is an unresolved (unresolv-able?) issue that would only be reversed, not eliminated,
+        // by re-enabling writing to the Depth Buffer.
+<span class="nc" id="L81">        addDesiredStateChange(new DisableDepthWriting());</span>
+<span class="nc" id="L82">    }</span>
+
+    /**
+     * Iterates over registered RenderSystem instances and call their renderAlphaBlend() method.
+     *
+     * This leaves great freedom to RenderSystem implementations, but also the responsibility to
+     * leave the OpenGL state in the way they found it - otherwise the next system or the next
+     * render node might not be able to function properly.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L93">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        for (RenderSystem renderer : componentSystemManager.iterateRenderSubscribers()) {</span>
+<span class="nc" id="L96">            renderer.renderAlphaBlend();</span>
+<span class="nc" id="L97">        }</span>
+
+<span class="nc" id="L99">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L100">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Zone.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.zones</a> &gt; <span class="el_source">Zone.java</span></div><h1>Zone.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.zones;
+
+import org.terasology.math.geom.BaseVector3i;
+import org.terasology.math.geom.ImmutableVector3i;
+import org.terasology.module.sandbox.API;
+import org.terasology.rendering.nui.layers.mainMenu.preview.FacetLayerPreview;
+import org.terasology.rendering.nui.layers.mainMenu.preview.PreviewGenerator;
+import org.terasology.world.block.Block;
+import org.terasology.world.chunks.CoreChunk;
+import org.terasology.world.generation.EntityBuffer;
+import org.terasology.world.generation.EntityProvider;
+import org.terasology.world.generation.FacetProvider;
+import org.terasology.world.generation.Region;
+import org.terasology.world.generation.WorldBuilder;
+import org.terasology.world.generation.WorldRasterizer;
+import org.terasology.world.generator.WorldGenerator;
+import org.terasology.world.viewer.layers.FacetLayer;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+import static org.terasology.world.chunks.ChunkConstants.SIZE_X;
+import static org.terasology.world.chunks.ChunkConstants.SIZE_Y;
+import static org.terasology.world.chunks.ChunkConstants.SIZE_Z;
+
+/**
+ * A region in the world with its own rasterization and world preview properties.
+ *
+ * Each top-level zone (those directly added to the {@link WorldBuilder}) with one or more preview layers added to it
+ * will show up in the drop-down list of zones on the world preview screen, allowing it to be previewed separately.
+ *
+ * A zone affects a certain region, given by the {@link #regionFunction}. Only blocks that are present in this region
+ * will be rasterized, so zones can be combined together and, unless their regions overlap, they will not be able to
+ * affect each other.
+ *
+ * Zones can also be nested, with the inner zones only being able to affect areas that are also included in their parent
+ * zone. Preview layers on the inner zones also get added to their parent zone.
+ */
+@API
+public class Zone extends ProviderStore implements WorldRasterizer, EntityProvider {
+
+<span class="fc" id="L61">    private final List&lt;FacetProvider&gt; facetProviders = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L62">    private final List&lt;WorldRasterizer&gt; rasterizers = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L63">    private final List&lt;EntityProvider&gt; entityProviders = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L64">    private final List&lt;FacetLayer&gt; facetLayers = new ArrayList&lt;&gt;();</span>
+
+    /**
+     * This zone's parent. This is either the base {@link WorldBuilder}, or another zone.
+     */
+    private ProviderStore parent;
+
+    private final ZoneRegionFunction regionFunction;
+    private final String name;
+
+
+    public Zone(String name, BooleanSupplier regionFunction) {
+<span class="pc" id="L76">        this(name, (pos, region) -&gt; regionFunction.getAsBoolean());</span>
+<span class="fc" id="L77">    }</span>
+
+    public Zone(String name, Predicate&lt;BaseVector3i&gt; regionFunction) {
+<span class="nc" id="L80">        this(name, (pos, region) -&gt; regionFunction.test(pos));</span>
+<span class="nc" id="L81">    }</span>
+
+    public Zone(String name, BiPredicate&lt;BaseVector3i, Region&gt; regionFunction) {
+<span class="pc" id="L84">        this(name, (x, y, z, region) -&gt; regionFunction.test(new ImmutableVector3i(x, y, z), region));</span>
+<span class="fc" id="L85">    }</span>
+
+    /**
+     * @param name the name of this zone
+     * @param regionFunction the region function to use
+     */
+<span class="fc" id="L91">    public Zone(String name, ZoneRegionFunction regionFunction) {</span>
+<span class="fc" id="L92">        this.regionFunction = regionFunction;</span>
+<span class="fc" id="L93">        this.name = name;</span>
+<span class="fc" id="L94">    }</span>
+
+
+    /* WorldRasterizer methods */
+
+
+    @Override
+    public void initialize() {
+        //TODO: this gets called twice (WorldRasterizer and EntityProvider)
+<span class="fc" id="L103">        regionFunction.initialize(this);</span>
+<span class="fc" id="L104">        rasterizers.forEach(WorldRasterizer::initialize);</span>
+<span class="fc" id="L105">    }</span>
+
+    /**
+     * Process the EntityProviders.
+     *
+     * @see EntityProvider#process(Region, EntityBuffer)
+     */
+    @Override
+    public void process(Region region, EntityBuffer buffer) {
+<span class="nc" id="L114">        entityProviders.forEach(EntityProvider::initialize);</span>
+<span class="nc" id="L115">        entityProviders.forEach(provider -&gt; provider.process(region, buffer));</span>
+<span class="nc" id="L116">    }</span>
+
+    /**
+     * Generate the chunk for this zone, based on the rasterizers and nested zones that have been added.
+     *
+     * This will only change blocks for which {@link #containsBlock(int, int, int, Region)} returns true.
+     *
+     * @see WorldRasterizer#generateChunk(CoreChunk, Region)
+     */
+    @Override
+    public void generateChunk(CoreChunk chunk, Region chunkRegion) {
+<span class="nc" id="L127">        Block[][][] savedBlocks = new Block[SIZE_X][SIZE_Y][SIZE_Z];</span>
+<span class="nc" id="L128">        boolean changeAllBlocks = true;</span>
+<span class="nc" id="L129">        boolean saveAllBlocks = true;</span>
+
+<span class="nc" id="L131">        int offsetX = chunk.getChunkWorldOffsetX();</span>
+<span class="nc" id="L132">        int offsetY = chunk.getChunkWorldOffsetY();</span>
+<span class="nc" id="L133">        int offsetZ = chunk.getChunkWorldOffsetZ();</span>
+
+        //Save the blocks that aren't in the zone
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        for (int x = 0; x &lt; SIZE_X; x++) {</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            for (int y = 0; y &lt; SIZE_Y; y++) {</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                for (int z = 0; z &lt; SIZE_Z; z++) {</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                    if (!containsBlock(x + offsetX, y + offsetY, z + offsetZ, chunkRegion)) {</span>
+<span class="nc" id="L140">                        savedBlocks[x][y][z] = chunk.getBlock(x, y, z);</span>
+<span class="nc" id="L141">                        changeAllBlocks = false;</span>
+                    } else {
+<span class="nc" id="L143">                        saveAllBlocks = false;</span>
+                    }
+                }
+            }
+        }
+
+        //If none of the blocks are in the zone, it doesn't need to be rasterized
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        if (!saveAllBlocks) {</span>
+            //Rasterize the zone
+<span class="nc" id="L152">            rasterizers.forEach(r -&gt; r.generateChunk(chunk, chunkRegion));</span>
+
+            //Replace any blocks that aren't in the zone
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            if (!changeAllBlocks) {</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                for (int x = 0; x &lt; SIZE_X; x++) {</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                    for (int y = 0; y &lt; SIZE_Y; y++) {</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                        for (int z = 0; z &lt; SIZE_Z; z++) {</span>
+<span class="nc" id="L159">                            Block block = savedBlocks[x][y][z];</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                            if (block != null) {</span>
+<span class="nc" id="L161">                                chunk.setBlock(x, y, z, block);</span>
+                            }
+                        }
+                    }
+                }
+            }
+        }
+<span class="nc" id="L168">    }</span>
+
+
+    /* Preview features */
+
+
+    /**
+     * Add a preview layer to this zone, which will be used when the preview is generated.
+     *
+     *
+     * @param facetLayer
+     * @return
+     */
+    public Zone addPreviewLayer(FacetLayer facetLayer) {
+<span class="nc" id="L182">        facetLayers.add(facetLayer);</span>
+<span class="nc" id="L183">        return this;</span>
+    }
+
+    /**
+     * @return the list of added preview layers
+     */
+    public List&lt;FacetLayer&gt; getPreviewLayers() {
+<span class="fc" id="L190">        return facetLayers;</span>
+    }
+
+    /**
+     * Generate a preview screen for this zone, using the added preview layers.
+     *
+     * @param generator the world generator that is in use
+     * @return a PreviewGenerator for this zone
+     */
+    public PreviewGenerator preview(WorldGenerator generator) {
+<span class="nc" id="L200">        return new FacetLayerPreview(generator, facetLayers);</span>
+    }
+
+
+    /* General utility */
+
+
+    /**
+     * Test whether this zone contains the block at the given world position.
+     *
+     * @param x the world x position of the block
+     * @param y the world y position of the block
+     * @param z the world z position of the block
+     * @param chunkRegion the Region corresponding to that position
+     * @return true if the zone contains the given block; false otherwise
+     */
+    public boolean containsBlock(int x, int y, int z, Region chunkRegion) {
+<span class="fc" id="L217">        return regionFunction.apply(x, y, z, chunkRegion);</span>
+    }
+
+    /**
+     * @return the region function that this zone is using
+     */
+    public ZoneRegionFunction getRegionFunction() {
+<span class="fc" id="L224">        return regionFunction;</span>
+    }
+
+    /**
+     * @return the list of facet providers attached to this zone
+     */
+    public List&lt;FacetProvider&gt; getFacetProviders() {
+<span class="fc" id="L231">        return facetProviders;</span>
+    }
+
+    /**
+     * @return the list of rasterizers attached to this zone
+     */
+    public List&lt;WorldRasterizer&gt; getRasterizers() {
+<span class="nc" id="L238">        return rasterizers;</span>
+    }
+
+    /**
+     * Set the parent of this zone.
+     *
+     * @see #getParent()
+     *
+     * @param parent the parent of this zone
+     */
+    public void setParent(ProviderStore parent) {
+<span class="fc" id="L249">        this.parent = parent;</span>
+<span class="fc" id="L250">    }</span>
+
+    /**
+     * The parent is the ProviderStore that this zone is attached to (via the {@link ProviderStore#addZone(Zone)}
+     * method)
+     *
+     * @return the parent of this zone
+     */
+    public ProviderStore getParent() {
+<span class="fc" id="L259">        return parent;</span>
+    }
+
+    public String getName() {
+<span class="fc" id="L263">        return name;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L268">        return getName();</span>
+    }
+
+    /**
+     * Get the region functions of all zones which are siblings of the given zone (including the given zone).
+     *
+     * Sibling zones are zones that have the same parent.
+     *
+     * @param zone the zone to find the siblings of
+     * @return the region functions of the given zone's siblings
+     */
+    static List&lt;ZoneRegionFunction&gt; getSiblingRegionFunctions(Zone zone) {
+<span class="fc" id="L280">        return zone.getParent().getChildZones().stream()</span>
+<span class="fc" id="L281">                .map(Zone::getRegionFunction)</span>
+<span class="fc" id="L282">                .collect(Collectors.toList());</span>
+    }
+
+
+    /* BuilderZone methods */
+
+
+    @Override
+    public Zone addProvider(FacetProvider facet) {
+<span class="nc" id="L291">        facetProviders.add(facet);</span>
+<span class="nc" id="L292">        return this;</span>
+    }
+
+    @Override
+    public Zone addEntities(EntityProvider entityProvider) {
+<span class="fc" id="L297">        entityProviders.add(entityProvider);</span>
+<span class="fc" id="L298">        return this;</span>
+    }
+
+    @Override
+    public Zone addRasterizer(WorldRasterizer rasterizer) {
+<span class="fc" id="L303">        rasterizers.add(rasterizer);</span>
+<span class="fc" id="L304">        return this;</span>
+    }
+
+    @Override
+    public Zone addZone(Zone zone) {
+<span class="fc" id="L309">        super.addZone(zone);</span>
+<span class="fc" id="L310">        zone.getPreviewLayers().forEach(this::addPreviewLayer);</span>
+<span class="fc" id="L311">        return this;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HUDScreenLayer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.hud</a> &gt; <span class="el_source">HUDScreenLayer.java</span></div><h1>HUDScreenLayer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.hud;
+
+import com.google.common.collect.Maps;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.math.geom.Rect2f;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.registry.In;
+import org.terasology.registry.InjectionHelper;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.ControlWidget;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.asset.UIElement;
+
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ */
+<span class="fc" id="L40">public class HUDScreenLayer extends CoreScreenLayer {</span>
+
+<span class="fc" id="L42">    private Map&lt;ResourceUrn, HUDElement&gt; elementsLookup = Maps.newLinkedHashMap();</span>
+
+    @In
+    private AssetManager assetManager;
+
+    private NUIManager manager;
+
+    public ControlWidget addHUDElement(String uri) {
+<span class="nc" id="L50">        return addHUDElement(uri, ControlWidget.class, Rect2f.createFromMinAndSize(0, 0, 1, 1));</span>
+    }
+
+    public &lt;T extends ControlWidget&gt; T addHUDElement(String urn, Class&lt;T&gt; type, Rect2f region) {
+<span class="nc" id="L54">        Optional&lt;? extends UIElement&gt; data = assetManager.getAsset(urn, UIElement.class);</span>
+<span class="nc bnc" id="L55" title="All 4 branches missed.">        if (data.isPresent() &amp;&amp; type.isInstance(data.get().getRootWidget())) {</span>
+<span class="nc" id="L56">            return addHUDElement(data.get().getUrn(), type.cast(data.get().getRootWidget()), region);</span>
+        }
+<span class="nc" id="L58">        return null;</span>
+    }
+
+    public &lt;T extends ControlWidget&gt; T addHUDElement(ResourceUrn urn, Class&lt;T&gt; type, Rect2f region) {
+<span class="nc" id="L62">        Optional&lt;? extends UIElement&gt; data = assetManager.getAsset(urn, UIElement.class);</span>
+<span class="nc bnc" id="L63" title="All 4 branches missed.">        if (data.isPresent() &amp;&amp; type.isInstance(data.get().getRootWidget())) {</span>
+<span class="nc" id="L64">            return addHUDElement(urn, type.cast(data.get().getRootWidget()), region);</span>
+        }
+<span class="nc" id="L66">        return null;</span>
+    }
+
+    public &lt;T extends ControlWidget&gt; T addHUDElement(ResourceUrn urn, T widget, Rect2f region) {
+<span class="nc" id="L70">        InjectionHelper.inject(widget);</span>
+<span class="nc" id="L71">        widget.onOpened();</span>
+<span class="nc" id="L72">        elementsLookup.put(urn, new HUDElement(widget, region));</span>
+<span class="nc" id="L73">        return widget;</span>
+    }
+
+    public ControlWidget getHUDElement(String urn) {
+<span class="nc" id="L77">        return getHUDElement(new ResourceUrn(urn));</span>
+    }
+
+    public ControlWidget getHUDElement(ResourceUrn urn) {
+<span class="nc" id="L81">        HUDElement element = elementsLookup.get(urn);</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        if (element != null) {</span>
+<span class="nc" id="L83">            return element.widget;</span>
+        }
+<span class="nc" id="L85">        return null;</span>
+    }
+
+    public &lt;T extends ControlWidget&gt; T getHUDElement(String uri, Class&lt;T&gt; type) {
+<span class="nc" id="L89">        return getHUDElement(new ResourceUrn(uri), type);</span>
+    }
+
+    public &lt;T extends ControlWidget&gt; T getHUDElement(ResourceUrn urn, Class&lt;T&gt; type) {
+<span class="nc" id="L93">        ControlWidget widget = getHUDElement(urn);</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">        if (widget != null &amp;&amp; type.isInstance(widget)) {</span>
+<span class="nc" id="L95">            return type.cast(widget);</span>
+        }
+<span class="nc" id="L97">        return null;</span>
+    }
+
+    public boolean removeHUDElement(ResourceUrn uri) {
+<span class="nc" id="L101">        HUDElement removed = elementsLookup.remove(uri);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (removed != null) {</span>
+<span class="nc" id="L103">            removed.widget.onClosed();</span>
+<span class="nc" id="L104">            return true;</span>
+        }
+<span class="nc" id="L106">        return false;</span>
+    }
+
+    public boolean removeHUDElement(ControlWidget element) {
+<span class="nc" id="L110">        Iterator&lt;Map.Entry&lt;ResourceUrn, HUDElement&gt;&gt; iterator = elementsLookup.entrySet().iterator();</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        while (iterator.hasNext()) {</span>
+<span class="nc" id="L112">            Map.Entry&lt;ResourceUrn, HUDElement&gt; item = iterator.next();</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">            if (item.getValue().widget.equals(element)) {</span>
+<span class="nc" id="L114">                iterator.remove();</span>
+<span class="nc" id="L115">                item.getValue().widget.onClosed();</span>
+<span class="nc" id="L116">                return true;</span>
+            }
+<span class="nc" id="L118">        }</span>
+<span class="nc" id="L119">        return false;</span>
+    }
+
+    public void clear() {
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        for (HUDElement value : elementsLookup.values()) {</span>
+<span class="nc" id="L124">            value.widget.onClosed();</span>
+<span class="nc" id="L125">        }</span>
+<span class="nc" id="L126">        elementsLookup.clear();</span>
+<span class="nc" id="L127">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L131">        return false;</span>
+    }
+
+    @Override
+    public boolean isReleasingMouse() {
+<span class="nc" id="L136">        return false;</span>
+    }
+
+    @Override
+    protected boolean isEscapeToCloseAllowed() {
+<span class="nc" id="L141">        return false;</span>
+    }
+
+    @Override
+    public NUIManager getManager() {
+<span class="nc" id="L146">        return manager;</span>
+    }
+
+    @Override
+    public void setManager(NUIManager manager) {
+<span class="nc" id="L151">        this.manager = manager;</span>
+<span class="nc" id="L152">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        for (HUDElement element : elementsLookup.values()) {</span>
+<span class="nc" id="L157">            int minX = TeraMath.floorToInt(element.region.minX() * canvas.size().x);</span>
+<span class="nc" id="L158">            int minY = TeraMath.floorToInt(element.region.minY() * canvas.size().y);</span>
+<span class="nc" id="L159">            int sizeX = TeraMath.floorToInt(element.region.width() * canvas.size().x);</span>
+<span class="nc" id="L160">            int sizeY = TeraMath.floorToInt(element.region.height() * canvas.size().y);</span>
+<span class="nc" id="L161">            Rect2i region = Rect2i.createFromMinAndSize(minX, minY, sizeX, sizeY);</span>
+<span class="nc" id="L162">            canvas.drawWidget(element.widget, region);</span>
+<span class="nc" id="L163">        }</span>
+<span class="nc" id="L164">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc" id="L168">        return sizeHint;</span>
+    }
+
+    @Override
+    public Iterator&lt;UIWidget&gt; iterator() {
+<span class="nc" id="L173">        return new Iterator&lt;UIWidget&gt;() {</span>
+<span class="nc" id="L174">            private Iterator&lt;HUDElement&gt; elementIterator = elementsLookup.values().iterator();</span>
+
+            @Override
+            public boolean hasNext() {
+<span class="nc" id="L178">                return elementIterator.hasNext();</span>
+            }
+
+            @Override
+            public UIWidget next() {
+<span class="nc" id="L183">                return elementIterator.next().widget;</span>
+            }
+
+            @Override
+            public void remove() {
+<span class="nc" id="L188">                throw new UnsupportedOperationException();</span>
+            }
+        };
+    }
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L195">    }</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L199">    }</span>
+
+    @Override
+    public boolean isModal() {
+<span class="nc" id="L203">        return false;</span>
+    }
+
+    private static final class HUDElement {
+        ControlWidget widget;
+        Rect2f region;
+
+<span class="nc" id="L210">        private HUDElement(ControlWidget widget, Rect2f region) {</span>
+<span class="nc" id="L211">            this.widget = widget;</span>
+<span class="nc" id="L212">            this.region = region;</span>
+<span class="nc" id="L213">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModuleOutputStream.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.module</a> &gt; <span class="el_source">ModuleOutputStream.java</span></div><h1>ModuleOutputStream.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.module;
+
+import org.terasology.module.sandbox.API;
+
+import java.io.IOException;
+import java.io.OutputStream;
+
+/**
+ * This class is a wrapper for {@link OutputStream} which should be used by modules.
+ * &lt;p&gt;
+ * By using this class, the caller is not allowed to close the stream at all.
+ * For security reasons, only {@link SandboxFileManager} have the permissions to close it,
+ * since the caller may completely forget to do so.
+ */
+@API
+public class ModuleOutputStream extends OutputStream {
+
+    private OutputStream outputStream;
+
+<span class="nc" id="L35">    public ModuleOutputStream(OutputStream outputStream) {</span>
+<span class="nc" id="L36">        this.outputStream = outputStream;</span>
+<span class="nc" id="L37">    }</span>
+
+    @Override
+    public void write(int b) throws IOException {
+<span class="nc" id="L41">        outputStream.write(b);</span>
+<span class="nc" id="L42">    }</span>
+
+    @Override
+    public void write(byte[] b) throws IOException {
+<span class="nc" id="L46">        outputStream.write(b);</span>
+<span class="nc" id="L47">    }</span>
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+<span class="nc" id="L51">        outputStream.write(b, off, len);</span>
+<span class="nc" id="L52">    }</span>
+
+    @Override
+    public void flush() throws IOException {
+<span class="nc" id="L56">        outputStream.flush();</span>
+<span class="nc" id="L57">    }</span>
+
+    @Override
+    public void close() throws IOException {
+<span class="nc" id="L61">        throw new IOException(&quot;You must not close the stream. &quot; +</span>
+                &quot;The SandboxFileManager will do it automatically.&quot;);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

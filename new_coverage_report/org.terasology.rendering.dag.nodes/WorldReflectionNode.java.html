@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldReflectionNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">WorldReflectionNode.java</span></div><h1>WorldReflectionNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.ConditionDependentNode;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableFaceCulling;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.LookThrough;
+import org.terasology.rendering.dag.stateChanges.ReflectedCamera;
+import org.terasology.rendering.dag.stateChanges.SetFacesToCull;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture2D;
+import org.terasology.rendering.dag.stateChanges.SetViewportToSizeOf;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.primitives.ChunkMesh;
+import org.terasology.rendering.world.RenderQueuesHelper;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.chunks.RenderableChunk;
+
+import java.beans.PropertyChangeEvent;
+
+import static org.lwjgl.opengl.GL11.GL_FRONT;
+import static org.terasology.rendering.dag.nodes.BackdropReflectionNode.REFLECTED_FBO_URI;
+import static org.terasology.rendering.opengl.ScalingFactors.HALF_SCALE;
+import static org.terasology.rendering.primitives.ChunkMesh.RenderPhase.OPAQUE;
+
+/**
+ * An instance of this class is responsible for rendering a reflected landscape into the
+ * &quot;engine:sceneReflected&quot; buffer. This buffer is then used to produce the reflection
+ * of the landscape on the water surface.
+ *
+ * It could potentially be used also for other reflecting surfaces, i.e. metal, but it only works
+ * for horizontal surfaces.
+ *
+ * An instance of this class is enabled or disabled depending on the reflections setting in the rendering config.
+ *
+ * Diagram of this node can be viewed from:
+ * TODO: move diagram to the wiki when this part of the code is stable
+ * - https://docs.google.com/drawings/d/1Iz7MA8Y5q7yjxxcgZW-0antv5kgx6NYkvoInielbwGU/edit?usp=sharing
+ */
+public class WorldReflectionNode extends ConditionDependentNode {
+<span class="nc" id="L69">    private static final ResourceUrn CHUNK_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.chunk&quot;);</span>
+
+    private RenderQueuesHelper renderQueues;
+    private BackdropProvider backdropProvider;
+    private WorldProvider worldProvider;
+
+    private Material chunkMaterial;
+    private RenderingConfig renderingConfig;
+
+    private SubmersibleCamera activeCamera;
+
+    private boolean isNormalMapping;
+    private boolean isParallaxMapping;
+
+    private StateChange setNormalTerrain;
+    private StateChange setHeightTerrain;
+
+<span class="nc" id="L86">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.5f)
+    private float parallaxBias = 0.25f;
+<span class="nc" id="L89">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.50f)
+    private float parallaxScale = 0.5f;
+
+    /**
+     * Constructs an instance of this class.
+     *
+     * Internally requires the &quot;engine:sceneReflected&quot; buffer, stored in the (display) resolution-dependent FBO manager.
+     * This is a default, half-scale buffer inclusive of a depth buffer FBO. See FBOConfig and ScalingFactors for details
+     * on possible FBO configurations.
+     *
+     * This method also requests the material using the &quot;chunk&quot; shaders (vertex, fragment) to be enabled.
+     */
+    public WorldReflectionNode(String nodeUri, Context context) {
+<span class="nc" id="L103">        super(nodeUri, context);</span>
+
+<span class="nc" id="L105">        renderQueues = context.get(RenderQueuesHelper.class);</span>
+<span class="nc" id="L106">        backdropProvider = context.get(BackdropProvider.class);</span>
+<span class="nc" id="L107">        worldProvider = context.get(WorldProvider.class);</span>
+
+<span class="nc" id="L109">        activeCamera = worldRenderer.getActiveCamera();</span>
+<span class="nc" id="L110">        addDesiredStateChange(new ReflectedCamera(activeCamera)); // this has to go before the LookThrough state change</span>
+<span class="nc" id="L111">        addDesiredStateChange(new LookThrough(activeCamera));</span>
+
+<span class="nc" id="L113">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L114">        FBO reflectedFbo = requiresFBO(new FBOConfig(REFLECTED_FBO_URI, HALF_SCALE, FBO.Type.DEFAULT).useDepthBuffer(), displayResolutionDependentFBOs);</span>
+<span class="nc" id="L115">        addDesiredStateChange(new BindFbo(reflectedFbo));</span>
+<span class="nc" id="L116">        addDesiredStateChange(new SetViewportToSizeOf(reflectedFbo));</span>
+<span class="nc" id="L117">        addDesiredStateChange(new EnableFaceCulling());</span>
+<span class="nc" id="L118">        addDesiredStateChange(new SetFacesToCull(GL_FRONT));</span>
+<span class="nc" id="L119">        addDesiredStateChange(new EnableMaterial(CHUNK_MATERIAL_URN));</span>
+
+        // TODO: improve EnableMaterial to take advantage of shader feature bitmasks.
+<span class="nc" id="L122">        chunkMaterial = getMaterial(CHUNK_MATERIAL_URN);</span>
+
+<span class="nc" id="L124">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L125">        requiresCondition(() -&gt; renderingConfig.isReflectiveWater());</span>
+<span class="nc" id="L126">        renderingConfig.subscribe(RenderingConfig.REFLECTIVE_WATER, this);</span>
+<span class="nc" id="L127">        isNormalMapping = renderingConfig.isNormalMapping();</span>
+<span class="nc" id="L128">        renderingConfig.subscribe(RenderingConfig.NORMAL_MAPPING, this);</span>
+<span class="nc" id="L129">        isParallaxMapping = renderingConfig.isParallaxMapping();</span>
+<span class="nc" id="L130">        renderingConfig.subscribe(RenderingConfig.PARALLAX_MAPPING, this);</span>
+
+<span class="nc" id="L132">        int textureSlot = 0;</span>
+<span class="nc" id="L133">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:terrain&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlas&quot;));</span>
+<span class="nc" id="L134">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:effects&quot;, CHUNK_MATERIAL_URN, &quot;textureEffects&quot;));</span>
+<span class="nc" id="L135">        setNormalTerrain = new SetInputTexture2D(textureSlot++, &quot;engine:terrainNormal&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlasNormal&quot;);</span>
+<span class="nc" id="L136">        setHeightTerrain = new SetInputTexture2D(textureSlot, &quot;engine:terrainHeight&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlasHeight&quot;);</span>
+
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        if (isNormalMapping) {</span>
+<span class="nc" id="L139">            addDesiredStateChange(setNormalTerrain);</span>
+
+<span class="nc bnc" id="L141" title="All 2 branches missed.">            if (isParallaxMapping) {</span>
+<span class="nc" id="L142">                addDesiredStateChange(setHeightTerrain);</span>
+            }
+        }
+<span class="nc" id="L145">    }</span>
+
+    /**
+     * Renders the landscape, reflected, into the buffers attached to the &quot;engine:sceneReflected&quot; FBO. It is used later,
+     * to render horizontal reflective surfaces, i.e. water.
+     *
+     * Notice that this method -does not- clear the FBO. The rendering takes advantage of the depth buffer to decide
+     * which pixel is in front of the one already stored in the buffer.
+     *
+     * See: https://en.wikipedia.org/wiki/Deep_image_compositing
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L158">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+<span class="nc" id="L160">        chunkMaterial.activateFeature(ShaderProgramFeature.FEATURE_USE_FORWARD_LIGHTING);</span>
+
+        // Common Shader Parameters
+
+<span class="nc" id="L164">        chunkMaterial.setFloat(&quot;daylight&quot;, backdropProvider.getDaylight(), true);</span>
+<span class="nc" id="L165">        chunkMaterial.setFloat(&quot;time&quot;, worldProvider.getTime().getDays(), true);</span>
+
+        // Specific Shader Parameters
+
+        // TODO: This is necessary right now because activateFeature removes all material parameters.
+        // TODO: Remove this explicit binding once we get rid of activateFeature, or find a way to retain parameters through it.
+<span class="nc" id="L171">        chunkMaterial.setInt(&quot;textureAtlas&quot;, 0, true);</span>
+<span class="nc" id="L172">        chunkMaterial.setInt(&quot;textureEffects&quot;, 1, true);</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (isNormalMapping) {</span>
+<span class="nc" id="L174">            chunkMaterial.setInt(&quot;textureAtlasNormal&quot;, 2, true);</span>
+        }
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        if (isParallaxMapping) {</span>
+<span class="nc" id="L177">            chunkMaterial.setInt(&quot;textureAtlasHeight&quot;, 3, true);</span>
+<span class="nc" id="L178">            chunkMaterial.setFloat4(&quot;parallaxProperties&quot;, parallaxBias, parallaxScale, 0.0f, 0.0f, true);</span>
+        }
+
+<span class="nc" id="L181">        chunkMaterial.setFloat(&quot;clip&quot;, activeCamera.getReflectionHeight(), true);</span>
+
+        // Actual Node Processing
+
+<span class="nc" id="L185">        int numberOfRenderedTriangles = 0;</span>
+<span class="nc" id="L186">        int numberOfChunksThatAreNotReadyYet = 0;</span>
+
+<span class="nc" id="L188">        final Vector3f cameraPosition = activeCamera.getPosition();</span>
+
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        while (renderQueues.chunksOpaqueReflection.size() &gt; 0) {</span>
+<span class="nc" id="L191">            RenderableChunk chunk = renderQueues.chunksOpaqueReflection.poll();</span>
+
+<span class="nc bnc" id="L193" title="All 2 branches missed.">            if (chunk.hasMesh()) {</span>
+<span class="nc" id="L194">                final ChunkMesh chunkMesh = chunk.getMesh();</span>
+<span class="nc" id="L195">                final Vector3f chunkPosition = chunk.getPosition().toVector3f();</span>
+
+<span class="nc" id="L197">                chunkMesh.updateMaterial(chunkMaterial, chunkPosition, chunk.isAnimated());</span>
+<span class="nc" id="L198">                numberOfRenderedTriangles += chunkMesh.render(OPAQUE, chunkPosition, cameraPosition);</span>
+
+<span class="nc" id="L200">            } else {</span>
+<span class="nc" id="L201">                numberOfChunksThatAreNotReadyYet++;</span>
+            }
+<span class="nc" id="L203">        }</span>
+
+<span class="nc" id="L205">        chunkMaterial.deactivateFeature(ShaderProgramFeature.FEATURE_USE_FORWARD_LIGHTING);</span>
+
+<span class="nc" id="L207">        worldRenderer.increaseTrianglesCount(numberOfRenderedTriangles);</span>
+<span class="nc" id="L208">        worldRenderer.increaseNotReadyChunkCount(numberOfChunksThatAreNotReadyYet);</span>
+
+<span class="nc" id="L210">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L211">    }</span>
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+<span class="nc" id="L215">        String propertyName = event.getPropertyName();</span>
+
+<span class="nc bnc" id="L217" title="All 4 branches missed.">        switch (propertyName) {</span>
+            case RenderingConfig.REFLECTIVE_WATER:
+<span class="nc" id="L219">                break;</span>
+
+            case RenderingConfig.NORMAL_MAPPING:
+<span class="nc" id="L222">                isNormalMapping = renderingConfig.isNormalMapping();</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                if (isNormalMapping) {</span>
+<span class="nc" id="L224">                    addDesiredStateChange(setNormalTerrain);</span>
+                } else {
+<span class="nc" id="L226">                    removeDesiredStateChange(setNormalTerrain);</span>
+                }
+<span class="nc" id="L228">                break;</span>
+
+            case RenderingConfig.PARALLAX_MAPPING:
+<span class="nc" id="L231">                isParallaxMapping = renderingConfig.isParallaxMapping();</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                if (isParallaxMapping) {</span>
+<span class="nc" id="L233">                    addDesiredStateChange(setHeightTerrain);</span>
+                } else {
+<span class="nc" id="L235">                    removeDesiredStateChange(setHeightTerrain);</span>
+                }
+                break;
+
+            // default: no other cases are possible - see subscribe operations in initialize().
+        }
+
+<span class="nc" id="L242">        super.propertyChange(event);</span>
+<span class="nc" id="L243">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

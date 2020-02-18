@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Color.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui</a> &gt; <span class="el_source">Color.java</span></div><h1>Color.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui;
+
+import com.google.common.base.Preconditions;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.module.sandbox.API;
+
+import java.nio.ByteBuffer;
+import java.util.Locale;
+import java.util.Objects;
+
+/**
+ * Color is a representation of a RGBA color. Color components can be set and accessed via floats ranging from 0-1, or ints ranging from 0-255.
+ * Color is immutable and thread safe.
+ * &lt;br&gt;&lt;br&gt;
+ * There are a plethora of Color classes, but none that are quite suitable IMO:
+ * &lt;ul&gt;
+ * &lt;li&gt;vecmaths - doesn't access with r/g/b/a, separation by representation is awkward, feature bland.&lt;/li&gt;
+ * &lt;li&gt;Slick2D - ideally will lose dependency on slick utils. Also ties to lwjgl&lt;/li&gt;
+ * &lt;li&gt;Lwjgl - don't want to be graphics implementation dependant&lt;/li&gt;
+ * &lt;li&gt;javafx - ew&lt;/li&gt;
+ * &lt;li&gt;com.sun.prism - double ew. Shouldn't use com.sun classes at all&lt;/li&gt;
+ * &lt;li&gt;awt - tempting, certainly feature-rich. Has some strange awt-specific functionality though (createContext) and native links&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ */
+@API
+public class Color {
+
+<span class="fc" id="L46">    public static final Color BLACK = new Color(0x000000FF);</span>
+<span class="fc" id="L47">    public static final Color WHITE = new Color(0xFFFFFFFF);</span>
+<span class="fc" id="L48">    public static final Color BLUE = new Color(0x0000FFFF);</span>
+<span class="fc" id="L49">    public static final Color GREEN = new Color(0x00FF00FF);</span>
+<span class="fc" id="L50">    public static final Color RED = new Color(0xFF0000FF);</span>
+<span class="fc" id="L51">    public static final Color GREY = new Color(0x888888FF);</span>
+<span class="fc" id="L52">    public static final Color TRANSPARENT = new Color(0x00000000);</span>
+<span class="fc" id="L53">    public static final Color YELLOW = new Color(0xFFFF00FF);</span>
+<span class="fc" id="L54">    public static final Color CYAN = new Color(0x00FFFFFF);</span>
+<span class="fc" id="L55">    public static final Color MAGENTA = new Color(0xFF00FFFF);</span>
+
+    private static final int MAX = 255;
+    private static final int RED_OFFSET = 24;
+    private static final int GREEN_OFFSET = 16;
+    private static final int BLUE_OFFSET = 8;
+    private static final int RED_FILTER = 0x00FFFFFF;
+    private static final int GREEN_FILTER = 0xFF00FFFF;
+    private static final int BLUE_FILTER = 0xFFFF00FF;
+    private static final int ALPHA_FILTER = 0xFFFFFF00;
+
+    private final int representation;
+
+    /**
+     * Creates a color that is black with full alpha.
+     */
+<span class="nc" id="L71">    public Color() {</span>
+<span class="nc" id="L72">        representation = 0x000000FF;</span>
+<span class="nc" id="L73">    }</span>
+
+<span class="fc" id="L75">    public Color(int representation) {</span>
+<span class="fc" id="L76">        this.representation = representation;</span>
+<span class="fc" id="L77">    }</span>
+
+    /**
+     * Create a color with the given red/green/blue values. Alpha is initialised as max.
+     *
+     * @param r
+     * @param g
+     * @param b
+     */
+    public Color(float r, float g, float b) {
+<span class="nc" id="L87">        this((int) (r * MAX), (int) (g * MAX), (int) (b * MAX));</span>
+<span class="nc" id="L88">    }</span>
+
+    /**
+     * Creates a color with the given red/green/blue/alpha values.
+     *
+     * @param r
+     * @param g
+     * @param b
+     * @param a
+     */
+    public Color(float r, float g, float b, float a) {
+<span class="nc" id="L99">        this((int) (r * MAX), (int) (g * MAX), (int) (b * MAX), (int) (a * MAX));</span>
+<span class="nc" id="L100">    }</span>
+
+    /**
+     * Creates a color with the given red/green/blue values. Alpha is initialised as max.
+     *
+     * @param r
+     * @param g
+     * @param b
+     */
+    public Color(int r, int g, int b) {
+<span class="fc" id="L110">        this(r, g, b, 0xFF);</span>
+<span class="fc" id="L111">    }</span>
+
+    /**
+     * Creates a color with the given red/green/blue/alpha values.
+     *
+     * @param r
+     * @param g
+     * @param b
+     * @param a
+     */
+<span class="fc" id="L121">    public Color(int r, int g, int b, int a) {</span>
+<span class="pc bpc" id="L122" title="2 of 4 branches missed.">        Preconditions.checkArgument(r &gt;= 0 &amp;&amp; r &lt;= MAX, &quot;Color values must be in range 0-255&quot;);</span>
+<span class="pc bpc" id="L123" title="2 of 4 branches missed.">        Preconditions.checkArgument(g &gt;= 0 &amp;&amp; g &lt;= MAX, &quot;Color values must be in range 0-255&quot;);</span>
+<span class="pc bpc" id="L124" title="2 of 4 branches missed.">        Preconditions.checkArgument(b &gt;= 0 &amp;&amp; b &lt;= MAX, &quot;Color values must be in range 0-255&quot;);</span>
+<span class="pc bpc" id="L125" title="2 of 4 branches missed.">        Preconditions.checkArgument(a &gt;= 0 &amp;&amp; a &lt;= MAX, &quot;Color values must be in range 0-255&quot;);</span>
+<span class="fc" id="L126">        representation = r &lt;&lt; RED_OFFSET | g &lt;&lt; GREEN_OFFSET | b &lt;&lt; BLUE_OFFSET | a;</span>
+<span class="fc" id="L127">    }</span>
+
+    /**
+     * @return The red component, between 0 and 255
+     */
+    public int r() {
+<span class="fc" id="L133">        return (representation &gt;&gt; RED_OFFSET) &amp; MAX;</span>
+    }
+
+    /**
+     * @return The green component, between 0 and 255
+     */
+    public int g() {
+<span class="fc" id="L140">        return (representation &gt;&gt; GREEN_OFFSET) &amp; MAX;</span>
+    }
+
+    /**
+     * @return The blue component, between 0 and 255
+     */
+    public int b() {
+<span class="fc" id="L147">        return (representation &gt;&gt; BLUE_OFFSET) &amp; MAX;</span>
+    }
+
+    /**
+     * @return The alpha component, between 0 and 255
+     */
+    public int a() {
+<span class="fc" id="L154">        return representation &amp; MAX;</span>
+    }
+
+    public float rf() {
+<span class="nc" id="L158">        return r() / 255.f;</span>
+    }
+
+    public float bf() {
+<span class="nc" id="L162">        return b() / 255.f;</span>
+    }
+
+    public float gf() {
+<span class="nc" id="L166">        return g() / 255.f;</span>
+    }
+
+    public float af() {
+<span class="nc" id="L170">        return a() / 255.f;</span>
+    }
+
+    public Color alterRed(int value) {
+<span class="fc bfc" id="L174" title="All 4 branches covered.">        Preconditions.checkArgument(value &gt;= 0 &amp;&amp; value &lt;= MAX, &quot;Color values must be in range 0-255&quot;);</span>
+<span class="fc" id="L175">        return new Color(value &lt;&lt; RED_OFFSET | (representation &amp; RED_FILTER));</span>
+    }
+
+    public Color alterBlue(int value) {
+<span class="fc bfc" id="L179" title="All 4 branches covered.">        Preconditions.checkArgument(value &gt;= 0 &amp;&amp; value &lt;= MAX, &quot;Color values must be in range 0-255&quot;);</span>
+<span class="fc" id="L180">        return new Color(value &lt;&lt; BLUE_OFFSET | (representation &amp; BLUE_FILTER));</span>
+    }
+
+    public Color alterGreen(int value) {
+<span class="fc bfc" id="L184" title="All 4 branches covered.">        Preconditions.checkArgument(value &gt;= 0 &amp;&amp; value &lt;= MAX, &quot;Color values must be in range 0-255&quot;);</span>
+<span class="fc" id="L185">        return new Color(value &lt;&lt; GREEN_OFFSET | (representation &amp; GREEN_FILTER));</span>
+    }
+
+    public Color alterAlpha(int value) {
+<span class="fc bfc" id="L189" title="All 4 branches covered.">        Preconditions.checkArgument(value &gt;= 0 &amp;&amp; value &lt;= MAX, &quot;Color values must be in range 0-255&quot;);</span>
+<span class="fc" id="L190">        return new Color(value | (representation &amp; ALPHA_FILTER));</span>
+    }
+
+    public Color inverse() {
+<span class="nc" id="L194">        return new Color((~representation &amp; ALPHA_FILTER) | a());</span>
+    }
+
+    public int rgba() {
+<span class="fc" id="L198">        return representation;</span>
+    }
+
+    public Vector4f toVector4f() {
+<span class="nc" id="L202">        return new Vector4f(rf(), gf(), bf(), af());</span>
+    }
+
+    public Vector3f toVector3f() {
+<span class="nc" id="L206">        return new Vector3f(rf(), gf(), bf());</span>
+    }
+
+    public Vector3i toVector3i() {
+<span class="nc" id="L210">        return new Vector3i(r(), g(), b());</span>
+    }
+
+    public void addToBuffer(ByteBuffer buffer) {
+<span class="nc" id="L214">        buffer.putInt(representation);</span>
+<span class="nc" id="L215">    }</span>
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">        if (obj == this) {</span>
+<span class="nc" id="L220">            return true;</span>
+        }
+<span class="fc bfc" id="L222" title="All 2 branches covered.">        if (obj instanceof Color) {</span>
+<span class="fc" id="L223">            Color other = (Color) obj;</span>
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">            return representation == other.representation;</span>
+        }
+<span class="fc" id="L226">        return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="fc" id="L231">        return Objects.hash(representation);</span>
+    }
+
+    public String toHex() {
+<span class="fc" id="L235">        StringBuilder builder = new StringBuilder();</span>
+<span class="fc" id="L236">        String hexString = Integer.toHexString(representation);</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">        for (int i = 0; i &lt; 8 - hexString.length(); ++i) {</span>
+<span class="fc" id="L238">            builder.append('0');</span>
+        }
+<span class="fc" id="L240">        builder.append(hexString.toUpperCase(Locale.ENGLISH));</span>
+<span class="fc" id="L241">        return builder.toString();</span>
+    }
+
+    /**
+     * @param color
+     * @return Slick.Color format representation used in old GUI colorStrings.
+     * Remove after Slick.Color is removed or after colorString format changes.
+     */
+    // TODO: Remove
+    public static String toColorString(Color color) {
+<span class="nc" id="L251">        String hex = color.toHex();</span>
+<span class="nc" id="L252">        String rString = hex.substring(0, 2);</span>
+<span class="nc" id="L253">        String gString = hex.substring(2, 4);</span>
+<span class="nc" id="L254">        String bString = hex.substring(4, 6);</span>
+<span class="nc" id="L255">        String aString = hex.substring(6);</span>
+<span class="nc" id="L256">        return &quot;#&quot; + aString + rString + gString + bString;</span>
+    }
+
+
+    @Override
+    public String toString() {
+<span class="nc" id="L262">        return toHex();</span>
+    }
+
+    public int getRepresentation() {
+<span class="nc" id="L266">        return representation;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

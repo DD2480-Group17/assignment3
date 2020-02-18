@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseEntityRef.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem.entity.internal</a> &gt; <span class="el_source">BaseEntityRef.java</span></div><h1>BaseEntityRef.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem.entity.internal;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.LowLevelEntityManager;
+import org.terasology.entitySystem.event.Event;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.sectors.SectorSimulationComponent;
+import org.terasology.network.NetworkComponent;
+import org.terasology.persistence.serializers.EntityDataJSONFormat;
+import org.terasology.persistence.serializers.EntitySerializer;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Collections;
+import java.util.List;
+
+import static org.terasology.entitySystem.entity.internal.EntityScope.CHUNK;
+import static org.terasology.entitySystem.entity.internal.EntityScope.GLOBAL;
+import static org.terasology.entitySystem.entity.internal.EntityScope.SECTOR;
+
+/**
+ */
+public abstract class BaseEntityRef extends EntityRef {
+
+<span class="fc" id="L43">    private static final Logger logger = LoggerFactory.getLogger(BaseEntityRef.class);</span>
+    protected LowLevelEntityManager entityManager;
+
+<span class="fc" id="L46">    public BaseEntityRef(LowLevelEntityManager entityManager) {</span>
+<span class="fc" id="L47">        this.entityManager = entityManager;</span>
+<span class="fc" id="L48">    }</span>
+
+    @Override
+    public boolean isPersistent() {
+<span class="pc bpc" id="L52" title="2 of 6 branches missed.">        return exists() &amp;&amp; (!isActive() || getEntityInfo().persisted);</span>
+    }
+
+    @Override
+    public boolean isAlwaysRelevant() {
+<span class="pc bpc" id="L57" title="1 of 4 branches missed.">        return isActive() &amp;&amp; getScope().getAlwaysRelevant();</span>
+    }
+
+    @Override
+    public void setAlwaysRelevant(boolean alwaysRelevant) {
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (exists()) {</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            if (alwaysRelevant != isAlwaysRelevant()) {</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">                setScope(alwaysRelevant ? GLOBAL : CHUNK);</span>
+            }
+        }
+<span class="nc" id="L67">    }</span>
+
+    @Override
+    public EntityRef getOwner() {
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (exists()) {</span>
+<span class="fc" id="L72">            return getEntityInfo().owner;</span>
+        }
+<span class="nc" id="L74">        return EntityRef.NULL;</span>
+    }
+
+    @Override
+    public void setOwner(EntityRef owner) {
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">        if (exists()) {</span>
+<span class="fc" id="L80">            EntityInfoComponent info = getEntityInfo();</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">            if (!info.owner.equals(owner)) {</span>
+<span class="fc" id="L82">                info.owner = owner;</span>
+<span class="fc" id="L83">                saveComponent(info);</span>
+            }
+        }
+<span class="fc" id="L86">    }</span>
+
+    @Override
+    public EntityScope getScope() {
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">        if (exists()) {</span>
+<span class="fc" id="L91">            return getEntityInfo().scope;</span>
+        }
+<span class="nc" id="L93">        return null;</span>
+    }
+
+    @Override
+    public void setScope(EntityScope scope) {
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        if (exists()) {</span>
+<span class="fc" id="L99">            EntityInfoComponent info = getEntityInfo();</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">            if (!info.scope.equals(scope)) {</span>
+
+                EngineEntityPool newPool;
+<span class="pc bpc" id="L103" title="1 of 3 branches missed.">                switch (scope) {</span>
+                    case GLOBAL:
+                    case CHUNK:
+<span class="fc" id="L106">                        newPool = entityManager.getGlobalPool();</span>
+<span class="fc" id="L107">                        removeComponent(SectorSimulationComponent.class);</span>
+<span class="fc" id="L108">                        break;</span>
+                    case SECTOR:
+<span class="fc" id="L110">                        newPool = entityManager.getSectorManager();</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                        if (!hasComponent(SectorSimulationComponent.class)) {</span>
+<span class="fc" id="L112">                            addComponent(new SectorSimulationComponent());</span>
+                        }
+                        break;
+                    default:
+<span class="nc" id="L116">                        logger.error(&quot;Unrecognised scope {}.&quot;, scope);</span>
+<span class="nc" id="L117">                        return;</span>
+                }
+
+<span class="fc" id="L120">                entityManager.moveToPool(getId(), newPool);</span>
+<span class="fc" id="L121">                info.scope = scope;</span>
+<span class="fc" id="L122">                saveComponent(info);</span>
+            }
+        }
+<span class="fc" id="L125">    }</span>
+
+    @Override
+    public void setSectorScope(long maxDelta) {
+<span class="nc" id="L129">        setSectorScope(maxDelta, maxDelta);</span>
+<span class="nc" id="L130">    }</span>
+
+    @Override
+    public void setSectorScope(long unloadedMaxDelta, long loadedMaxDelta) {
+<span class="nc" id="L134">        setScope(SECTOR);</span>
+<span class="nc" id="L135">        SectorSimulationComponent simulationComponent = getComponent(SectorSimulationComponent.class);</span>
+<span class="nc" id="L136">        simulationComponent.unloadedMaxDelta = unloadedMaxDelta;</span>
+<span class="nc" id="L137">        simulationComponent.loadedMaxDelta = loadedMaxDelta;</span>
+<span class="nc" id="L138">        saveComponent(simulationComponent);</span>
+<span class="nc" id="L139">    }</span>
+
+    @Override
+    public Prefab getParentPrefab() {
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">        if (exists()) {</span>
+<span class="fc" id="L144">            EntityInfoComponent info = getComponent(EntityInfoComponent.class);</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">            if (info != null) {</span>
+<span class="fc" id="L146">                return info.parentPrefab;</span>
+            }
+        }
+<span class="nc" id="L149">        return null;</span>
+    }
+
+    @Override
+    public boolean isActive() {
+<span class="fc bfc" id="L154" title="All 4 branches covered.">        return exists() &amp;&amp; entityManager.isActiveEntity(getId());</span>
+    }
+
+    @Override
+    public &lt;T extends Component&gt; T getComponent(Class&lt;T&gt; componentClass) {
+<span class="fc bfc" id="L159" title="All 2 branches covered.">        if (exists()) {</span>
+<span class="fc" id="L160">            return entityManager.getComponent(getId(), componentClass);</span>
+        }
+<span class="fc" id="L162">        return null;</span>
+    }
+
+    @Override
+    public &lt;T extends Component&gt; T addComponent(T component) {
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">        if (isActive()) {</span>
+<span class="fc" id="L168">            return entityManager.addComponent(getId(), component);</span>
+        }
+<span class="nc" id="L170">        return component;</span>
+    }
+
+    @Override
+    public void removeComponent(Class&lt;? extends Component&gt; componentClass) {
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        if (isActive()) {</span>
+<span class="fc" id="L176">            entityManager.removeComponent(getId(), componentClass);</span>
+        }
+<span class="fc" id="L178">    }</span>
+
+    @Override
+    public void saveComponent(Component component) {
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">        if (isActive()) {</span>
+<span class="fc" id="L183">            entityManager.saveComponent(getId(), component);</span>
+        }
+<span class="fc" id="L185">    }</span>
+
+    @Override
+    public Iterable&lt;Component&gt; iterateComponents() {
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">        if (exists()) {</span>
+<span class="fc" id="L190">            return entityManager.iterateComponents(getId());</span>
+        }
+<span class="nc" id="L192">        return Collections.emptyList();</span>
+    }
+
+    @Override
+    public void destroy() {
+<span class="fc bfc" id="L197" title="All 2 branches covered.">        if (isActive()) {</span>
+<span class="fc" id="L198">            entityManager.destroy(getId());</span>
+        }
+<span class="fc" id="L200">    }</span>
+
+    @Override
+    public &lt;T extends Event&gt; T send(T event) {
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        if (exists()) {</span>
+<span class="fc" id="L205">            entityManager.getEventSystem().send(this, event);</span>
+        }
+<span class="fc" id="L207">        return event;</span>
+    }
+
+    @Override
+    public boolean hasComponent(Class&lt;? extends Component&gt; component) {
+<span class="pc bpc" id="L212" title="1 of 4 branches missed.">        return exists() &amp;&amp; entityManager.hasComponent(getId(), component);</span>
+    }
+
+    @Override
+    public boolean hasAnyComponents(List&lt;Class&lt;? extends Component&gt;&gt; filterComponents) {
+<span class="nc" id="L217">        boolean hasComponents = false;</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        for (Class&lt;? extends Component&gt; component : filterComponents) {</span>
+<span class="nc" id="L219">            hasComponents |= entityManager.hasComponent(getId(), component);</span>
+<span class="nc" id="L220">        }</span>
+<span class="nc bnc" id="L221" title="All 4 branches missed.">        return exists() &amp;&amp; hasComponents;</span>
+    }
+
+    @Override
+    public boolean hasAllComponents(List&lt;Class&lt;? extends Component&gt;&gt; filterComponents) {
+<span class="nc" id="L226">        int numPosessedComponents = 0;</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">        for (Class&lt;? extends Component&gt; component : filterComponents) {</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">            numPosessedComponents += entityManager.hasComponent(getId(), component) ? 1 : 0;</span>
+<span class="nc" id="L229">        }</span>
+<span class="nc bnc" id="L230" title="All 4 branches missed.">        return exists() &amp;&amp; (numPosessedComponents == filterComponents.size());</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L235">        Prefab parent = getParentPrefab();</span>
+<span class="nc" id="L236">        StringBuilder builder = new StringBuilder();</span>
+<span class="nc" id="L237">        builder.append(&quot;EntityRef{id = &quot;);</span>
+<span class="nc" id="L238">        builder.append(getId());</span>
+<span class="nc" id="L239">        NetworkComponent networkComponent = getComponent(NetworkComponent.class);</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        if (networkComponent != null) {</span>
+<span class="nc" id="L241">            builder.append(&quot;, netId = &quot;);</span>
+<span class="nc" id="L242">            builder.append(networkComponent.getNetworkId());</span>
+        }
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        if (parent != null) {</span>
+<span class="nc" id="L245">            builder.append(&quot;, prefab = '&quot;);</span>
+<span class="nc" id="L246">            builder.append(parent.getUrn());</span>
+<span class="nc" id="L247">            builder.append(&quot;'&quot;);</span>
+        }
+<span class="nc" id="L249">        builder.append(&quot;}&quot;);</span>
+<span class="nc" id="L250">        return builder.toString();</span>
+    }
+
+    @Override
+    public void invalidate() {
+<span class="fc" id="L255">        entityManager = null;</span>
+<span class="fc" id="L256">    }</span>
+
+    private EntityInfoComponent getEntityInfo() {
+<span class="fc" id="L259">        EntityInfoComponent entityInfo = getComponent(EntityInfoComponent.class);</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">        if (entityInfo == null) {</span>
+<span class="fc" id="L261">            entityInfo = addComponent(new EntityInfoComponent());</span>
+        }
+<span class="fc" id="L263">        return entityInfo;</span>
+    }
+
+    @Override
+    public String toFullDescription() {
+<span class="nc" id="L268">        EntitySerializer serializer = new EntitySerializer((EngineEntityManager) entityManager);</span>
+<span class="nc" id="L269">        serializer.setUsingFieldIds(false);</span>
+<span class="nc" id="L270">        return AccessController.doPrivileged((PrivilegedAction&lt;String&gt;) () -&gt;</span>
+<span class="nc" id="L271">               EntityDataJSONFormat.write(serializer.serialize(this)));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

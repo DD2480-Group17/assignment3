@@ -1,0 +1,568 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SimplexNoise.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.procedural</a> &gt; <span class="el_source">SimplexNoise.java</span></div><h1>SimplexNoise.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.utilities.procedural;
+
+import org.terasology.AdHoc.AdHocSimplexNoise;
+import org.terasology.math.TeraMath;
+import org.terasology.utilities.random.FastRandom;
+import static org.terasology.utilities.procedural.BranchCoverageSimplesNoiseNoiseMethod.*;
+
+/**
+ * A speed-improved simplex noise algorithm for Simplex noise in 2D, 3D and 4D.
+ * &lt;br&gt;&lt;br&gt;
+ * Based on example code by Stefan Gustavson (stegu@itn.liu.se).
+ * Optimisations by Peter Eastman (peastman@drizzle.stanford.edu).
+ * Better rank ordering method by Stefan Gustavson in 2012.
+ * &lt;br&gt;&lt;br&gt;
+ * This could be speeded up even further, but it's useful as it is.
+ * &lt;br&gt;&lt;br&gt;
+ * Version 2012-03-09
+ * &lt;br&gt;&lt;br&gt;
+ * This code was placed in the public domain by its original author,
+ * Stefan Gustavson. You may use it as you see fit, but
+ * attribution is appreciated.
+ * &lt;br&gt;&lt;br&gt;
+ * See http://staffwww.itn.liu.se/~stegu/
+ * &lt;br&gt;&lt;br&gt;
+ * msteiger: Introduced seed value
+ */
+public class SimplexNoise extends AbstractNoise implements Noise2D, Noise3D {
+
+<span class="fc" id="L44">    private static Grad[] grad3 = {</span>
+            new Grad(1, 1, 0), new Grad(-1, 1, 0), new Grad(1, -1, 0), new Grad(-1, -1, 0),
+            new Grad(1, 0, 1), new Grad(-1, 0, 1), new Grad(1, 0, -1), new Grad(-1, 0, -1),
+            new Grad(0, 1, 1), new Grad(0, -1, 1), new Grad(0, 1, -1), new Grad(0, -1, -1)};
+
+<span class="fc" id="L49">    private static Grad[] grad4 = {</span>
+            new Grad(0, 1, 1, 1), new Grad(0, 1, 1, -1), new Grad(0, 1, -1, 1), new Grad(0, 1, -1, -1),
+            new Grad(0, -1, 1, 1), new Grad(0, -1, 1, -1), new Grad(0, -1, -1, 1), new Grad(0, -1, -1, -1),
+            new Grad(1, 0, 1, 1), new Grad(1, 0, 1, -1), new Grad(1, 0, -1, 1), new Grad(1, 0, -1, -1),
+            new Grad(-1, 0, 1, 1), new Grad(-1, 0, 1, -1), new Grad(-1, 0, -1, 1), new Grad(-1, 0, -1, -1),
+            new Grad(1, 1, 0, 1), new Grad(1, 1, 0, -1), new Grad(1, -1, 0, 1), new Grad(1, -1, 0, -1),
+            new Grad(-1, 1, 0, 1), new Grad(-1, 1, 0, -1), new Grad(-1, -1, 0, 1), new Grad(-1, -1, 0, -1),
+            new Grad(1, 1, 1, 0), new Grad(1, 1, -1, 0), new Grad(1, -1, 1, 0), new Grad(1, -1, -1, 0),
+            new Grad(-1, 1, 1, 0), new Grad(-1, 1, -1, 0), new Grad(-1, -1, 1, 0), new Grad(-1, -1, -1, 0)};
+
+    // Skewing and unskewing factors for 2, 3, and 4 dimensions
+<span class="fc" id="L60">    private static final float F2 = 0.5f * (float) (Math.sqrt(3.0f) - 1.0f);</span>
+<span class="fc" id="L61">    private static final float G2 = (3.0f - (float) Math.sqrt(3.0f)) / 6.0f;</span>
+    private static final float F3 = 1.0f / 3.0f;
+    private static final float G3 = 1.0f / 6.0f;
+<span class="fc" id="L64">    private static final float F4 = ((float) Math.sqrt(5.0f) - 1.0f) / 4.0f;</span>
+<span class="fc" id="L65">    private static final float G4 = (5.0f - (float) Math.sqrt(5.0f)) / 20.0f;</span>
+
+<span class="fc" id="L67">    private final short[] perm = new short[512];</span>
+<span class="fc" id="L68">    private final short[] permMod12 = new short[512];</span>
+
+    /**
+     * Initialize permutations with a given seed
+     *
+     * @param seed a seed value used for permutation shuffling
+     */
+<span class="fc" id="L75">    public SimplexNoise(long seed) {</span>
+<span class="fc" id="L76">        FastRandom rand = new FastRandom(seed);</span>
+
+<span class="fc" id="L78">        short[] p = new short[256];</span>
+
+        // Initialize with all values [0..255]
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        for (short i = 0; i &lt; 256; i++) {</span>
+<span class="fc" id="L82">            p[i] = i;</span>
+        }
+
+        // Shuffle the array
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        for (int i = 0; i &lt; 256; i++) {</span>
+<span class="fc" id="L87">            int j = rand.nextInt(256);</span>
+
+<span class="fc" id="L89">            short swap = p[i];</span>
+<span class="fc" id="L90">            p[i] = p[j];</span>
+<span class="fc" id="L91">            p[j] = swap;</span>
+        }
+
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        for (int i = 0; i &lt; 512; i++) {</span>
+<span class="fc" id="L95">            perm[i] = p[i &amp; 255];</span>
+<span class="fc" id="L96">            permMod12[i] = (short) (perm[i] % 12);</span>
+        }
+<span class="fc" id="L98">    }</span>
+
+    // This method is a *lot* faster than using (int)Math.floor(x)
+
+
+    private static float dot(Grad g, float x, float y) {
+<span class="fc" id="L104">        return g.x * x + g.y * y;</span>
+    }
+
+    private static float dot(Grad g, float x, float y, float z) {
+<span class="fc" id="L108">        return g.x * x + g.y * y + g.z * z;</span>
+    }
+
+    private static float dot(Grad g, float x, float y, float z, float w) {
+<span class="fc" id="L112">        return g.x * x + g.y * y + g.z * z + g.w * w;</span>
+    }
+
+    /**
+     * 2D simplex noise
+     *
+     * @param xin the x input coordinate
+     * @param yin the y input coordinate
+     * @return a noise value in the interval [-1,1]
+     */
+    @Override
+    public float noise(float xin, float yin) {
+        float n0;
+        float n1;
+        float n2; // Noise contributions from the three corners
+
+        // Skew the input space to determine which simplex cell we're in
+<span class="fc" id="L129">        float s = (xin + yin) * F2; // Hairy factor for 2D</span>
+<span class="fc" id="L130">        int i = TeraMath.floorToInt(xin + s);</span>
+<span class="fc" id="L131">        int j = TeraMath.floorToInt(yin + s);</span>
+<span class="fc" id="L132">        float t = (i + j) * G2;</span>
+<span class="fc" id="L133">        float xo0 = i - t; // Unskew the cell origin back to (x,y) space</span>
+<span class="fc" id="L134">        float yo0 = j - t;</span>
+<span class="fc" id="L135">        float x0 = xin - xo0; // The x,y distances from the cell origin</span>
+<span class="fc" id="L136">        float y0 = yin - yo0;</span>
+
+        // For the 2D case, the simplex shape is an equilateral triangle.
+        // Determine which simplex we are in.
+        int i1; // Offsets for second (middle) corner of simplex in (i,j) coords
+        int j1;
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">        if (x0 &gt; y0) { // lower triangle, XY order: (0,0)-&gt;(1,0)-&gt;(1,1)</span>
+<span class="nc" id="L143">            i1 = 1;</span>
+<span class="nc" id="L144">            j1 = 0;</span>
+        } else { // upper triangle, YX order: (0,0)-&gt;(0,1)-&gt;(1,1)
+<span class="fc" id="L146">            i1 = 0;</span>
+<span class="fc" id="L147">            j1 = 1;</span>
+        }
+
+        // A step of (1,0) in (i,j) means a step of (1-c,-c) in (x,y), and
+        // a step of (0,1) in (i,j) means a step of (-c,1-c) in (x,y), where
+        // c = (3-sqrt(3))/6
+<span class="fc" id="L153">        float x1 = x0 - i1 + G2; // Offsets for middle corner in (x,y) unskewed coords</span>
+<span class="fc" id="L154">        float y1 = y0 - j1 + G2;</span>
+<span class="fc" id="L155">        float x2 = x0 - 1.0f + 2.0f * G2; // Offsets for last corner in (x,y) unskewed coords</span>
+<span class="fc" id="L156">        float y2 = y0 - 1.0f + 2.0f * G2;</span>
+
+        // Work out the hashed gradient indices of the three simplex corners
+<span class="fc" id="L159">        int ii = i &amp; 255;</span>
+<span class="fc" id="L160">        int jj = j &amp; 255;</span>
+<span class="fc" id="L161">        int gi0 = permMod12[ii + perm[jj]];</span>
+<span class="fc" id="L162">        int gi1 = permMod12[ii + i1 + perm[jj + j1]];</span>
+<span class="fc" id="L163">        int gi2 = permMod12[ii + 1 + perm[jj + 1]];</span>
+
+        // Calculate the contribution from the three corners
+<span class="fc" id="L166">        float t0 = 0.5f - x0 * x0 - y0 * y0;</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">        if (t0 &lt; 0) {</span>
+<span class="nc" id="L168">            n0 = 0.0f;</span>
+        } else {
+<span class="fc" id="L170">            t0 *= t0;</span>
+<span class="fc" id="L171">            n0 = t0 * t0 * dot(grad3[gi0], x0, y0); // (x,y) of grad3 used for 2D gradient</span>
+        }
+<span class="fc" id="L173">        float t1 = 0.5f - x1 * x1 - y1 * y1;</span>
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (t1 &lt; 0) {</span>
+<span class="fc" id="L175">            n1 = 0.0f;</span>
+        } else {
+<span class="nc" id="L177">            t1 *= t1;</span>
+<span class="nc" id="L178">            n1 = t1 * t1 * dot(grad3[gi1], x1, y1);</span>
+        }
+<span class="fc" id="L180">        float t2 = 0.5f - x2 * x2 - y2 * y2;</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        if (t2 &lt; 0) {</span>
+<span class="fc" id="L182">            n2 = 0.0f;</span>
+        } else {
+<span class="nc" id="L184">            t2 *= t2;</span>
+<span class="nc" id="L185">            n2 = t2 * t2 * dot(grad3[gi2], x2, y2);</span>
+        }
+
+        // Add contributions from each corner to get the final noise value.
+        // The result is scaled to return values in the interval [-1,1].
+<span class="fc" id="L190">        return 70.0f * (n0 + n1 + n2);</span>
+    }
+
+    /**
+     * 3D simplex noise
+     *
+     * @param xin the x input coordinate
+     * @param yin the y input coordinate
+     * @param zin the z input coordinate
+     * @return a noise value in the interval [-1,1]
+     */
+    @Override
+    public float noise(float xin, float yin, float zin) {
+        float n0;
+        float n1;
+        float n2;
+        float n3; // Noise contributions from the four corners
+
+        // Skew the input space to determine which simplex cell we're in
+<span class="fc" id="L209">        float s = (xin + yin + zin) * F3; // Very nice and simple skew factor for 3D</span>
+<span class="fc" id="L210">        int i = TeraMath.floorToInt(xin + s);</span>
+<span class="fc" id="L211">        int j = TeraMath.floorToInt(yin + s);</span>
+<span class="fc" id="L212">        int k = TeraMath.floorToInt(zin + s);</span>
+<span class="fc" id="L213">        float t = (i + j + k) * G3;</span>
+<span class="fc" id="L214">        float xo0 = i - t; // Unskew the cell origin back to (x,y,z) space</span>
+<span class="fc" id="L215">        float yo0 = j - t;</span>
+<span class="fc" id="L216">        float zo0 = k - t;</span>
+<span class="fc" id="L217">        float x0 = xin - xo0; // The x,y,z distances from the cell origin</span>
+<span class="fc" id="L218">        float y0 = yin - yo0;</span>
+<span class="fc" id="L219">        float z0 = zin - zo0;</span>
+
+        // For the 3D case, the simplex shape is a slightly irregular tetrahedron.
+        // Determine which simplex we are in.
+        int i1;
+        int j1;
+        int k1; // Offsets for second corner of simplex in (i,j,k) coords
+
+        int i2;
+        int j2;
+        int k2; // Offsets for third corner of simplex in (i,j,k) coords
+
+<span class="fc bfc" id="L231" title="All 2 branches covered.">        if (x0 &gt;= y0) {</span>
+<span class="fc" id="L232">            AdHocSimplexNoise.visitBranch(0);</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">            if (y0 &gt;= z0) {         // X Y Z order</span>
+<span class="fc" id="L234">                AdHocSimplexNoise.visitBranch(1);</span>
+<span class="fc" id="L235">                i1 = 1;</span>
+<span class="fc" id="L236">                j1 = 0;</span>
+<span class="fc" id="L237">                k1 = 0;</span>
+<span class="fc" id="L238">                i2 = 1;</span>
+<span class="fc" id="L239">                j2 = 1;</span>
+<span class="fc" id="L240">                k2 = 0;</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">            } else if (x0 &gt;= z0) {  // X Z Y order</span>
+<span class="fc" id="L242">                AdHocSimplexNoise.visitBranch(2);</span>
+<span class="fc" id="L243">                i1 = 1;</span>
+<span class="fc" id="L244">                j1 = 0;</span>
+<span class="fc" id="L245">                k1 = 0;</span>
+<span class="fc" id="L246">                i2 = 1;</span>
+<span class="fc" id="L247">                j2 = 0;</span>
+<span class="fc" id="L248">                k2 = 1;</span>
+            } else {                // Z X Y order
+<span class="fc" id="L250">                i1 = 0;</span>
+<span class="fc" id="L251">                j1 = 0;</span>
+<span class="fc" id="L252">                k1 = 1;</span>
+<span class="fc" id="L253">                i2 = 1;</span>
+<span class="fc" id="L254">                j2 = 0;</span>
+<span class="fc" id="L255">                k2 = 1;</span>
+            }
+        } else { // x0&lt;y0
+<span class="fc bfc" id="L258" title="All 2 branches covered.">            if (y0 &lt; z0) {          // Z Y X order</span>
+<span class="fc" id="L259">                AdHocSimplexNoise.visitBranch(3);</span>
+<span class="fc" id="L260">                i1 = 0;</span>
+<span class="fc" id="L261">                j1 = 0;</span>
+<span class="fc" id="L262">                k1 = 1;</span>
+<span class="fc" id="L263">                i2 = 0;</span>
+<span class="fc" id="L264">                j2 = 1;</span>
+<span class="fc" id="L265">                k2 = 1;</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">            } else if (x0 &lt; z0) {   // Y Z X order</span>
+<span class="fc" id="L267">                AdHocSimplexNoise.visitBranch(4);</span>
+<span class="fc" id="L268">                i1 = 0;</span>
+<span class="fc" id="L269">                j1 = 1;</span>
+<span class="fc" id="L270">                k1 = 0;</span>
+<span class="fc" id="L271">                i2 = 0;</span>
+<span class="fc" id="L272">                j2 = 1;</span>
+<span class="fc" id="L273">                k2 = 1;</span>
+            } else {                // Y X Z order
+<span class="fc" id="L275">                i1 = 0;</span>
+<span class="fc" id="L276">                j1 = 1;</span>
+<span class="fc" id="L277">                k1 = 0;</span>
+<span class="fc" id="L278">                i2 = 1;</span>
+<span class="fc" id="L279">                j2 = 1;</span>
+<span class="fc" id="L280">                k2 = 0;</span>
+            }
+        }
+        // A step of (1,0,0) in (i,j,k) means a step of (1-c,-c,-c) in (x,y,z),
+        // a step of (0,1,0) in (i,j,k) means a step of (-c,1-c,-c) in (x,y,z), and
+        // a step of (0,0,1) in (i,j,k) means a step of (-c,-c,1-c) in (x,y,z), where
+        // c = 1/6.
+<span class="fc" id="L287">        float x1 = x0 - i1 + G3; // Offsets for second corner in (x,y,z) coords</span>
+<span class="fc" id="L288">        float y1 = y0 - j1 + G3;</span>
+<span class="fc" id="L289">        float z1 = z0 - k1 + G3;</span>
+<span class="fc" id="L290">        float x2 = x0 - i2 + 2.0f * G3; // Offsets for third corner in (x,y,z) coords</span>
+<span class="fc" id="L291">        float y2 = y0 - j2 + 2.0f * G3;</span>
+<span class="fc" id="L292">        float z2 = z0 - k2 + 2.0f * G3;</span>
+<span class="fc" id="L293">        float x3 = x0 - 1.0f + 3.0f * G3; // Offsets for last corner in (x,y,z) coords</span>
+<span class="fc" id="L294">        float y3 = y0 - 1.0f + 3.0f * G3;</span>
+<span class="fc" id="L295">        float z3 = z0 - 1.0f + 3.0f * G3;</span>
+
+        // Work out the hashed gradient indices of the four simplex corners
+<span class="fc" id="L298">        int ii = i &amp; 255;</span>
+<span class="fc" id="L299">        int jj = j &amp; 255;</span>
+<span class="fc" id="L300">        int kk = k &amp; 255;</span>
+<span class="fc" id="L301">        int gi0 = permMod12[ii + perm[jj + perm[kk]]];</span>
+<span class="fc" id="L302">        int gi1 = permMod12[ii + i1 + perm[jj + j1 + perm[kk + k1]]];</span>
+<span class="fc" id="L303">        int gi2 = permMod12[ii + i2 + perm[jj + j2 + perm[kk + k2]]];</span>
+<span class="fc" id="L304">        int gi3 = permMod12[ii + 1 + perm[jj + 1 + perm[kk + 1]]];</span>
+
+        // Calculate the contribution from the four corners
+<span class="fc" id="L307">        float t0 = 0.6f - x0 * x0 - y0 * y0 - z0 * z0;</span>
+<span class="fc bfc" id="L308" title="All 2 branches covered.">        if (t0 &lt; 0) {</span>
+<span class="fc" id="L309">            AdHocSimplexNoise.visitBranch(5);</span>
+<span class="fc" id="L310">            n0 = 0.0f;</span>
+        } else {
+<span class="fc" id="L312">            t0 *= t0;</span>
+<span class="fc" id="L313">            n0 = t0 * t0 * dot(grad3[gi0], x0, y0, z0);</span>
+        }
+<span class="fc" id="L315">        float t1 = 0.6f - x1 * x1 - y1 * y1 - z1 * z1;</span>
+<span class="fc bfc" id="L316" title="All 2 branches covered.">        if (t1 &lt; 0) {</span>
+<span class="fc" id="L317">            AdHocSimplexNoise.visitBranch(6);</span>
+<span class="fc" id="L318">            n1 = 0.0f;</span>
+        } else {
+<span class="fc" id="L320">            t1 *= t1;</span>
+<span class="fc" id="L321">            n1 = t1 * t1 * dot(grad3[gi1], x1, y1, z1);</span>
+        }
+<span class="fc" id="L323">        float t2 = 0.6f - x2 * x2 - y2 * y2 - z2 * z2;</span>
+<span class="fc bfc" id="L324" title="All 2 branches covered.">        if (t2 &lt; 0) {</span>
+<span class="fc" id="L325">            AdHocSimplexNoise.visitBranch(7);</span>
+<span class="fc" id="L326">            n2 = 0.0f;</span>
+        } else {
+
+<span class="fc" id="L329">            t2 *= t2;</span>
+<span class="fc" id="L330">            n2 = t2 * t2 * dot(grad3[gi2], x2, y2, z2);</span>
+        }
+<span class="fc" id="L332">        float t3 = 0.6f - x3 * x3 - y3 * y3 - z3 * z3;</span>
+<span class="fc bfc" id="L333" title="All 2 branches covered.">        if (t3 &lt; 0) {</span>
+<span class="fc" id="L334">            AdHocSimplexNoise.visitBranch(8);</span>
+<span class="fc" id="L335">            n3 = 0.0f;</span>
+        } else {
+<span class="fc" id="L337">            t3 *= t3;</span>
+<span class="fc" id="L338">            n3 = t3 * t3 * dot(grad3[gi3], x3, y3, z3);</span>
+        }
+
+        // Add contributions from each corner to get the final noise value.
+        // The result is scaled to stay just inside [-1,1]
+<span class="fc" id="L343">        return 32.0f * (n0 + n1 + n2 + n3);</span>
+    }
+
+
+    /**
+     * 4D simplex noise, better simplex rank ordering method 2012-03-09
+     *
+     * @param xin the x input coordinate
+     * @param yin the y input coordinate
+     * @param zin the z input coordinate
+     * @return a noise value in the interval [-1,1]
+     */
+    public float noise(float xin, float yin, float zin, float win) {
+
+        float n0;
+        float n1;
+        float n2;
+        float n3;
+        float n4; // Noise contributions from the five corners
+
+        // Skew the (x,y,z,w) space to determine which cell of 24 simplices we're in
+<span class="fc" id="L364">        float s = (xin + yin + zin + win) * F4; // Factor for 4D skewing</span>
+<span class="fc" id="L365">        int i = TeraMath.floorToInt(xin + s);</span>
+<span class="fc" id="L366">        int j = TeraMath.floorToInt(yin + s);</span>
+<span class="fc" id="L367">        int k = TeraMath.floorToInt(zin + s);</span>
+<span class="fc" id="L368">        int l = TeraMath.floorToInt(win + s);</span>
+<span class="fc" id="L369">        float t = (i + j + k + l) * G4; // Factor for 4D unskewing</span>
+<span class="fc" id="L370">        float xo0 = i - t; // Unskew the cell origin back to (x,y,z,w) space</span>
+<span class="fc" id="L371">        float yo0 = j - t;</span>
+<span class="fc" id="L372">        float zo0 = k - t;</span>
+<span class="fc" id="L373">        float wo0 = l - t;</span>
+<span class="fc" id="L374">        float x0 = xin - xo0;  // The x,y,z,w distances from the cell origin</span>
+<span class="fc" id="L375">        float y0 = yin - yo0;</span>
+<span class="fc" id="L376">        float z0 = zin - zo0;</span>
+<span class="fc" id="L377">        float w0 = win - wo0;</span>
+        // For the 4D case, the simplex is a 4D shape I won't even try to describe.
+        // To find out which of the 24 possible simplices we're in, we need to
+        // determine the magnitude ordering of x0, y0, z0 and w0.
+        // Six pair-wise comparisons are performed between each possible pair
+        // of the four coordinates, and the results are used to rank the numbers.
+<span class="fc" id="L383">        int rankx = 0;</span>
+<span class="fc" id="L384">        int ranky = 0;</span>
+<span class="fc" id="L385">        int rankz = 0;</span>
+<span class="fc" id="L386">        int rankw = 0;</span>
+<span class="fc bfc" id="L387" title="All 2 branches covered.">        if (x0 &gt; y0) {</span>
+<span class="fc" id="L388">            branchCovered[0] = true;</span>
+<span class="fc" id="L389">            rankx++;</span>
+        } else {
+<span class="fc" id="L391">            branchCovered[1] = true;</span>
+<span class="fc" id="L392">            ranky++;</span>
+        }
+<span class="pc bpc" id="L394" title="1 of 2 branches missed.">        if (x0 &gt; z0) {</span>
+<span class="nc" id="L395">            branchCovered[2] = true;</span>
+<span class="nc" id="L396">            rankx++;</span>
+        } else {
+<span class="fc" id="L398">            branchCovered[3] = true;</span>
+<span class="fc" id="L399">            rankz++;</span>
+        }
+<span class="fc bfc" id="L401" title="All 2 branches covered.">        if (x0 &gt; w0) {</span>
+<span class="fc" id="L402">            branchCovered[4] = true;</span>
+<span class="fc" id="L403">            rankx++;</span>
+        } else {
+<span class="fc" id="L405">            branchCovered[5] = true;</span>
+<span class="fc" id="L406">            rankw++;</span>
+        }
+<span class="pc bpc" id="L408" title="1 of 2 branches missed.">        if (y0 &gt; z0) {</span>
+<span class="nc" id="L409">            branchCovered[6] = true;</span>
+<span class="nc" id="L410">            ranky++;</span>
+        } else {
+<span class="fc" id="L412">            branchCovered[7] = true;</span>
+<span class="fc" id="L413">            rankz++;</span>
+        }
+<span class="fc bfc" id="L415" title="All 2 branches covered.">        if (y0 &gt; w0) {</span>
+<span class="fc" id="L416">            branchCovered[8] = true;</span>
+<span class="fc" id="L417">            ranky++;</span>
+        } else {
+<span class="fc" id="L419">            branchCovered[9] = true;</span>
+<span class="fc" id="L420">            rankw++;</span>
+        }
+<span class="fc bfc" id="L422" title="All 2 branches covered.">        if (z0 &gt; w0) {</span>
+<span class="fc" id="L423">            branchCovered[10] = true;</span>
+<span class="fc" id="L424">            rankz++;</span>
+        } else {
+<span class="fc" id="L426">            branchCovered[11] = true;</span>
+<span class="fc" id="L427">            rankw++;</span>
+        }
+
+        int i1;
+        int j1;
+        int k1;
+        int l1; // The integer offsets for the second simplex corner
+        int i2;
+        int j2;
+        int k2;
+        int l2; // The integer offsets for the third simplex corner
+        int i3;
+        int j3;
+        int k3;
+        int l3; // The integer offsets for the fourth simplex corner
+
+        // simplex[c] is a 4-vector with the numbers 0, 1, 2 and 3 in some order.
+        // Many values of c will never occur, since e.g. x&gt;y&gt;z&gt;w makes x&lt;z, y&lt;w and x&lt;w
+        // impossible. Only the 24 indices which have non-zero entries make any sense.
+        // We use a thresholding to set the coordinates in turn from the largest magnitude.
+
+        // Rank 3 denotes the largest coordinate.
+<span class="pc bpc" id="L449" title="1 of 2 branches missed.">        i1 = rankx &gt;= 3 ? 1 : 0;</span>
+<span class="pc bpc" id="L450" title="1 of 2 branches missed.">        j1 = ranky &gt;= 3 ? 1 : 0;</span>
+<span class="fc bfc" id="L451" title="All 2 branches covered.">        k1 = rankz &gt;= 3 ? 1 : 0;</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">        l1 = rankw &gt;= 3 ? 1 : 0;</span>
+
+        // Rank 2 denotes the second largest coordinate.
+<span class="fc bfc" id="L455" title="All 2 branches covered.">        i2 = rankx &gt;= 2 ? 1 : 0;</span>
+<span class="fc bfc" id="L456" title="All 2 branches covered.">        j2 = ranky &gt;= 2 ? 1 : 0;</span>
+<span class="pc bpc" id="L457" title="1 of 2 branches missed.">        k2 = rankz &gt;= 2 ? 1 : 0;</span>
+<span class="fc bfc" id="L458" title="All 2 branches covered.">        l2 = rankw &gt;= 2 ? 1 : 0;</span>
+
+        // Rank 1 denotes the second smallest coordinate.
+<span class="fc bfc" id="L461" title="All 2 branches covered.">        i3 = rankx &gt;= 1 ? 1 : 0;</span>
+<span class="fc bfc" id="L462" title="All 2 branches covered.">        j3 = ranky &gt;= 1 ? 1 : 0;</span>
+<span class="pc bpc" id="L463" title="1 of 2 branches missed.">        k3 = rankz &gt;= 1 ? 1 : 0;</span>
+<span class="fc bfc" id="L464" title="All 2 branches covered.">        l3 = rankw &gt;= 1 ? 1 : 0;</span>
+
+        // The fifth corner has all coordinate offsets = 1, so no need to compute that.
+<span class="fc" id="L467">        float x1 = x0 - i1 + G4; // Offsets for second corner in (x,y,z,w) coords</span>
+<span class="fc" id="L468">        float y1 = y0 - j1 + G4;</span>
+<span class="fc" id="L469">        float z1 = z0 - k1 + G4;</span>
+<span class="fc" id="L470">        float w1 = w0 - l1 + G4;</span>
+<span class="fc" id="L471">        float x2 = x0 - i2 + 2.0f * G4; // Offsets for third corner in (x,y,z,w) coords</span>
+<span class="fc" id="L472">        float y2 = y0 - j2 + 2.0f * G4;</span>
+<span class="fc" id="L473">        float z2 = z0 - k2 + 2.0f * G4;</span>
+<span class="fc" id="L474">        float w2 = w0 - l2 + 2.0f * G4;</span>
+<span class="fc" id="L475">        float x3 = x0 - i3 + 3.0f * G4; // Offsets for fourth corner in (x,y,z,w) coords</span>
+<span class="fc" id="L476">        float y3 = y0 - j3 + 3.0f * G4;</span>
+<span class="fc" id="L477">        float z3 = z0 - k3 + 3.0f * G4;</span>
+<span class="fc" id="L478">        float w3 = w0 - l3 + 3.0f * G4;</span>
+<span class="fc" id="L479">        float x4 = x0 - 1.0f + 4.0f * G4; // Offsets for last corner in (x,y,z,w) coords</span>
+<span class="fc" id="L480">        float y4 = y0 - 1.0f + 4.0f * G4;</span>
+<span class="fc" id="L481">        float z4 = z0 - 1.0f + 4.0f * G4;</span>
+<span class="fc" id="L482">        float w4 = w0 - 1.0f + 4.0f * G4;</span>
+
+        // Work out the hashed gradient indices of the five simplex corners
+<span class="fc" id="L485">        int ii = i &amp; 255;</span>
+<span class="fc" id="L486">        int jj = j &amp; 255;</span>
+<span class="fc" id="L487">        int kk = k &amp; 255;</span>
+<span class="fc" id="L488">        int ll = l &amp; 255;</span>
+<span class="fc" id="L489">        int gi0 = perm[ii + perm[jj + perm[kk + perm[ll]]]] % 32;</span>
+<span class="fc" id="L490">        int gi1 = perm[ii + i1 + perm[jj + j1 + perm[kk + k1 + perm[ll + l1]]]] % 32;</span>
+<span class="fc" id="L491">        int gi2 = perm[ii + i2 + perm[jj + j2 + perm[kk + k2 + perm[ll + l2]]]] % 32;</span>
+<span class="fc" id="L492">        int gi3 = perm[ii + i3 + perm[jj + j3 + perm[kk + k3 + perm[ll + l3]]]] % 32;</span>
+<span class="fc" id="L493">        int gi4 = perm[ii + 1 + perm[jj + 1 + perm[kk + 1 + perm[ll + 1]]]] % 32;</span>
+
+        // Calculate the contribution from the five corners
+<span class="fc" id="L496">        float t0 = 0.6f - x0 * x0 - y0 * y0 - z0 * z0 - w0 * w0;</span>
+<span class="fc bfc" id="L497" title="All 2 branches covered.">        if (t0 &lt; 0) {</span>
+<span class="fc" id="L498">            branchCovered[12] = true;</span>
+<span class="fc" id="L499">            n0 = 0.0f;</span>
+        } else {
+<span class="fc" id="L501">            branchCovered[13] = true;</span>
+<span class="fc" id="L502">            t0 *= t0;</span>
+<span class="fc" id="L503">            n0 = t0 * t0 * dot(grad4[gi0], x0, y0, z0, w0);</span>
+        }
+<span class="fc" id="L505">        float t1 = 0.6f - x1 * x1 - y1 * y1 - z1 * z1 - w1 * w1;</span>
+<span class="pc bpc" id="L506" title="1 of 2 branches missed.">        if (t1 &lt; 0) {</span>
+<span class="fc" id="L507">            branchCovered[14] = true;</span>
+<span class="fc" id="L508">            n1 = 0.0f;</span>
+        } else {
+<span class="nc" id="L510">            branchCovered[15] = true;</span>
+<span class="nc" id="L511">            t1 *= t1;</span>
+<span class="nc" id="L512">            n1 = t1 * t1 * dot(grad4[gi1], x1, y1, z1, w1);</span>
+        }
+<span class="fc" id="L514">        float t2 = 0.6f - x2 * x2 - y2 * y2 - z2 * z2 - w2 * w2;</span>
+<span class="pc bpc" id="L515" title="1 of 2 branches missed.">        if (t2 &lt; 0) {</span>
+<span class="fc" id="L516">            branchCovered[16] = true;</span>
+<span class="fc" id="L517">            n2 = 0.f;</span>
+        } else {
+<span class="nc" id="L519">            branchCovered[17] = true;</span>
+<span class="nc" id="L520">            t2 *= t2;</span>
+<span class="nc" id="L521">            n2 = t2 * t2 * dot(grad4[gi2], x2, y2, z2, w2);</span>
+        }
+<span class="fc" id="L523">        float t3 = 0.6f - x3 * x3 - y3 * y3 - z3 * z3 - w3 * w3;</span>
+<span class="pc bpc" id="L524" title="1 of 2 branches missed.">        if (t3 &lt; 0) {</span>
+<span class="fc" id="L525">            branchCovered[18] = true;</span>
+<span class="fc" id="L526">            n3 = 0.0f;</span>
+        } else {
+<span class="nc" id="L528">            branchCovered[19] = true;</span>
+<span class="nc" id="L529">            t3 *= t3;</span>
+<span class="nc" id="L530">            n3 = t3 * t3 * dot(grad4[gi3], x3, y3, z3, w3);</span>
+        }
+<span class="fc" id="L532">        float t4 = 0.6f - x4 * x4 - y4 * y4 - z4 * z4 - w4 * w4;</span>
+<span class="pc bpc" id="L533" title="1 of 2 branches missed.">        if (t4 &lt; 0) {</span>
+<span class="fc" id="L534">            branchCovered[20] = true;</span>
+<span class="fc" id="L535">            n4 = 0.0f;</span>
+        } else {
+<span class="nc" id="L537">            branchCovered[21] = true;</span>
+<span class="nc" id="L538">            t4 *= t4;</span>
+<span class="nc" id="L539">            n4 = t4 * t4 * dot(grad4[gi4], x4, y4, z4, w4);</span>
+        }
+
+        // Sum up and scale the result to cover the range [-1,1]
+<span class="fc" id="L543">        return 27.0f * (n0 + n1 + n2 + n3 + n4);</span>
+    }
+
+    // Inner class to speed up gradient computations
+    // (array access is a lot slower than member access)
+    private static class Grad {
+        float x;
+        float y;
+        float z;
+        float w;
+
+<span class="fc" id="L554">        Grad(float x, float y, float z) {</span>
+<span class="fc" id="L555">            this.x = x;</span>
+<span class="fc" id="L556">            this.y = y;</span>
+<span class="fc" id="L557">            this.z = z;</span>
+<span class="fc" id="L558">        }</span>
+
+<span class="fc" id="L560">        Grad(float x, float y, float z, float w) {</span>
+<span class="fc" id="L561">            this.x = x;</span>
+<span class="fc" id="L562">            this.y = y;</span>
+<span class="fc" id="L563">            this.z = z;</span>
+<span class="fc" id="L564">            this.w = w;</span>
+<span class="fc" id="L565">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RefractiveReflectiveBlocksNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">RefractiveReflectiveBlocksNode.java</span></div><h1>RefractiveReflectiveBlocksNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.LookThrough;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture2D;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.primitives.ChunkMesh;
+import org.terasology.rendering.world.RenderQueuesHelper;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.chunks.RenderableChunk;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+
+import static org.terasology.rendering.dag.nodes.BackdropReflectionNode.REFLECTED_FBO_URI;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.ColorTexture;
+import static org.terasology.rendering.opengl.ScalingFactors.FULL_SCALE;
+import static org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs.POST_FBO_REGENERATION;
+import static org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs.PRE_FBO_REGENERATION;
+import static org.terasology.rendering.primitives.ChunkMesh.RenderPhase.REFRACTIVE;
+
+/**
+ * This node renders refractive/reflective blocks, i.e. water blocks.
+ *
+ * Reflections always include the sky but may or may not include the landscape,
+ * depending on the &quot;Reflections&quot; video setting. Any other object currently
+ * reflected is an artifact.
+ *
+ * Refractions distort the blocks behind the refracting surface, i.e. the bottom
+ * of a lake seen from above water or the landscape above water when the player is underwater.
+ * Refractions are currently always enabled.
+ *
+ * Note: a third &quot;Reflections&quot; video setting enables Screen-space Reflections (SSR),
+ * an experimental feature. It produces initially appealing reflections but rotating the
+ * camera partially spoils the effect showing its limits.
+ */
+public class RefractiveReflectiveBlocksNode extends AbstractNode implements PropertyChangeListener {
+<span class="nc" id="L72">    public static final SimpleUri REFRACTIVE_REFLECTIVE_FBO_URI = new SimpleUri(&quot;engine:fbo.sceneReflectiveRefractive&quot;);</span>
+
+    // TODO: rename to more meaningful/precise variable names, like waveAmplitude or waveHeight.
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    @Range(min = 0.0f, max = 2.0f)
+<span class="nc" id="L77">    public static float waveIntensity = 2.0f;</span>
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    @Range(min = 0.0f, max = 2.0f)
+<span class="nc" id="L80">    public static float waveIntensityFalloff = 0.85f;</span>
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    @Range(min = 0.0f, max = 2.0f)
+<span class="nc" id="L83">    public static float waveSize = 0.1f;</span>
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    @Range(min = 0.0f, max = 2.0f)
+<span class="nc" id="L86">    public static float waveSizeFalloff = 1.25f;</span>
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    @Range(min = 0.0f, max = 2.0f)
+<span class="nc" id="L89">    public static float waveSpeed = 0.1f;</span>
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    @Range(min = 0.0f, max = 2.0f)
+<span class="nc" id="L92">    public static float waveSpeedFalloff = 0.95f;</span>
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    @Range(min = 0.0f, max = 5.0f)
+    public static float waterOffsetY;
+
+<span class="nc" id="L97">    private static final ResourceUrn CHUNK_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.chunk&quot;);</span>
+    
+    private RenderQueuesHelper renderQueues;
+    private WorldRenderer worldRenderer;
+    private BackdropProvider backdropProvider;
+    private RenderingConfig renderingConfig;
+    private WorldProvider worldProvider;
+
+    private Material chunkMaterial;
+
+    private FBO lastUpdatedGBuffer;
+    private FBO refractiveReflectiveFbo;
+
+    private SubmersibleCamera activeCamera;
+
+    private boolean normalMappingIsEnabled;
+    private boolean parallaxMappingIsEnabled;
+    private boolean animatedWaterIsEnabled;
+
+    private StateChange setTerrainNormalsInputTexture;
+    private StateChange setTerrainHeightInputTexture;
+
+<span class="nc" id="L119">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 2.0f)
+    private float waveOverallScale = 1.0f;
+<span class="nc" id="L122">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 1.0f)
+    private float waterRefraction = 0.04f;
+<span class="nc" id="L125">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.1f)
+    private float waterFresnelBias = 0.01f;
+<span class="nc" id="L128">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 10.0f)
+    private float waterFresnelPow = 2.5f;
+<span class="nc" id="L131">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 1.0f, max = 100.0f)
+    private float waterNormalBias = 10.0f;
+<span class="nc" id="L134">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 1.0f)
+    private float waterTint = 0.24f;
+<span class="nc" id="L137">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 1024.0f)
+    private float waterSpecExp = 200.0f;
+
+<span class="nc" id="L141">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.5f)
+    private float parallaxBias = 0.25f;
+<span class="nc" id="L144">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.50f)
+    private float parallaxScale = 0.5f;
+
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    private Vector3f sunDirection;
+
+    public RefractiveReflectiveBlocksNode(String nodeUri, Context context) {
+<span class="nc" id="L152">        super(nodeUri, context);</span>
+
+<span class="nc" id="L154">        renderQueues = context.get(RenderQueuesHelper.class);</span>
+<span class="nc" id="L155">        backdropProvider = context.get(BackdropProvider.class);</span>
+<span class="nc" id="L156">        worldProvider = context.get(WorldProvider.class);</span>
+
+<span class="nc" id="L158">        worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L159">        activeCamera = worldRenderer.getActiveCamera();</span>
+<span class="nc" id="L160">        addDesiredStateChange(new LookThrough(activeCamera));</span>
+
+<span class="nc" id="L162">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L163">        lastUpdatedGBuffer = displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo();</span>
+<span class="nc" id="L164">        refractiveReflectiveFbo = requiresFBO(new FBOConfig(REFRACTIVE_REFLECTIVE_FBO_URI, FULL_SCALE, FBO.Type.HDR).useNormalBuffer(), displayResolutionDependentFBOs);</span>
+<span class="nc" id="L165">        addDesiredStateChange(new BindFbo(refractiveReflectiveFbo));</span>
+<span class="nc" id="L166">        lastUpdatedGBuffer.attachDepthBufferTo(refractiveReflectiveFbo);</span>
+<span class="nc" id="L167">        displayResolutionDependentFBOs.subscribe(PRE_FBO_REGENERATION, this);</span>
+<span class="nc" id="L168">        displayResolutionDependentFBOs.subscribe(POST_FBO_REGENERATION, this);</span>
+
+<span class="nc" id="L170">        addDesiredStateChange(new EnableMaterial(CHUNK_MATERIAL_URN));</span>
+
+<span class="nc" id="L172">        chunkMaterial = getMaterial(CHUNK_MATERIAL_URN);</span>
+
+<span class="nc" id="L174">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L175">        normalMappingIsEnabled = renderingConfig.isNormalMapping();</span>
+<span class="nc" id="L176">        renderingConfig.subscribe(RenderingConfig.NORMAL_MAPPING, this);</span>
+<span class="nc" id="L177">        parallaxMappingIsEnabled = renderingConfig.isParallaxMapping();</span>
+<span class="nc" id="L178">        renderingConfig.subscribe(RenderingConfig.PARALLAX_MAPPING, this);</span>
+<span class="nc" id="L179">        animatedWaterIsEnabled = renderingConfig.isAnimateWater();</span>
+<span class="nc" id="L180">        renderingConfig.subscribe(RenderingConfig.ANIMATE_WATER, this);</span>
+
+<span class="nc" id="L182">        int textureSlot = 0;</span>
+<span class="nc" id="L183">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:terrain&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlas&quot;));</span>
+<span class="nc" id="L184">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:effects&quot;, CHUNK_MATERIAL_URN, &quot;textureEffects&quot;));</span>
+<span class="nc" id="L185">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:waterStill&quot;, CHUNK_MATERIAL_URN, &quot;textureWater&quot;));</span>
+<span class="nc" id="L186">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:waterNormal&quot;, CHUNK_MATERIAL_URN, &quot;textureWaterNormal&quot;));</span>
+<span class="nc" id="L187">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:waterNormalAlt&quot;, CHUNK_MATERIAL_URN, &quot;textureWaterNormalAlt&quot;));</span>
+<span class="nc" id="L188">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, REFLECTED_FBO_URI, ColorTexture, displayResolutionDependentFBOs, CHUNK_MATERIAL_URN, &quot;textureWaterReflection&quot;));</span>
+<span class="nc" id="L189">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, ColorTexture, displayResolutionDependentFBOs, CHUNK_MATERIAL_URN, &quot;texSceneOpaque&quot;));</span>
+<span class="nc" id="L190">        setTerrainNormalsInputTexture = new SetInputTexture2D(textureSlot++, &quot;engine:terrainNormal&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlasNormal&quot;);</span>
+<span class="nc" id="L191">        setTerrainHeightInputTexture = new SetInputTexture2D(textureSlot, &quot;engine:terrainHeight&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlasHeight&quot;);</span>
+
+<span class="nc bnc" id="L193" title="All 2 branches missed.">        if (normalMappingIsEnabled) {</span>
+<span class="nc" id="L194">            addDesiredStateChange(setTerrainNormalsInputTexture);</span>
+        }
+
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        if (parallaxMappingIsEnabled) {</span>
+<span class="nc" id="L198">            addDesiredStateChange(setTerrainHeightInputTexture);</span>
+        }
+<span class="nc" id="L200">    }</span>
+
+    /**
+     * This method is where the actual rendering of refractive/reflective blocks takes place.
+     *
+     * Also takes advantage of the two methods
+     *
+     * - WorldRenderer.increaseTrianglesCount(int)
+     * - WorldRenderer.increaseNotReadyChunkCount(int)
+     *
+     * to publish some statistics over its own activity.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L214">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+<span class="nc" id="L216">        chunkMaterial.activateFeature(ShaderProgramFeature.FEATURE_REFRACTIVE_PASS);</span>
+
+        // Common Shader Parameters
+
+<span class="nc" id="L220">        sunDirection = backdropProvider.getSunDirection(false);</span>
+
+<span class="nc" id="L222">        chunkMaterial.setFloat(&quot;daylight&quot;, backdropProvider.getDaylight(), true);</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        chunkMaterial.setFloat(&quot;swimming&quot;, activeCamera.isUnderWater() ? 1.0f : 0.0f, true);</span>
+<span class="nc" id="L224">        chunkMaterial.setFloat(&quot;time&quot;, worldProvider.getTime().getDays(), true);</span>
+<span class="nc" id="L225">        chunkMaterial.setFloat3(&quot;sunVec&quot;, sunDirection, true);</span>
+
+        // Specific Shader Parameters
+
+        // TODO: This is necessary right now because activateFeature removes all material parameters.
+        // TODO: Remove this explicit binding once we get rid of activateFeature, or find a way to retain parameters through it.
+<span class="nc" id="L231">        chunkMaterial.setInt(&quot;textureAtlas&quot;, 0, true);</span>
+<span class="nc" id="L232">        chunkMaterial.setInt(&quot;textureEffects&quot;, 1, true);</span>
+<span class="nc" id="L233">        chunkMaterial.setInt(&quot;textureWater&quot;, 2, true);</span>
+<span class="nc" id="L234">        chunkMaterial.setInt(&quot;textureWaterNormal&quot;, 3, true);</span>
+<span class="nc" id="L235">        chunkMaterial.setInt(&quot;textureWaterNormalAlt&quot;, 4, true);</span>
+<span class="nc" id="L236">        chunkMaterial.setInt(&quot;textureWaterReflection&quot;, 5, true);</span>
+<span class="nc" id="L237">        chunkMaterial.setInt(&quot;texSceneOpaque&quot;, 6, true);</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">        if (normalMappingIsEnabled) {</span>
+<span class="nc" id="L239">            chunkMaterial.setInt(&quot;textureAtlasNormal&quot;, 7, true);</span>
+        }
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        if (parallaxMappingIsEnabled) {</span>
+<span class="nc" id="L242">            chunkMaterial.setInt(&quot;textureAtlasHeight&quot;, 8, true);</span>
+<span class="nc" id="L243">            chunkMaterial.setFloat4(&quot;parallaxProperties&quot;, parallaxBias, parallaxScale, 0.0f, 0.0f, true);</span>
+        }
+
+<span class="nc" id="L246">        chunkMaterial.setFloat4(&quot;lightingSettingsFrag&quot;, 0, 0, waterSpecExp, 0, true);</span>
+<span class="nc" id="L247">        chunkMaterial.setFloat4(&quot;waterSettingsFrag&quot;, waterNormalBias, waterRefraction, waterFresnelBias, waterFresnelPow, true);</span>
+<span class="nc" id="L248">        chunkMaterial.setFloat4(&quot;alternativeWaterSettingsFrag&quot;, waterTint, 0, 0, 0, true);</span>
+
+<span class="nc bnc" id="L250" title="All 2 branches missed.">        if (animatedWaterIsEnabled) {</span>
+<span class="nc" id="L251">            chunkMaterial.setFloat(&quot;waveIntensityFalloff&quot;, waveIntensityFalloff, true);</span>
+<span class="nc" id="L252">            chunkMaterial.setFloat(&quot;waveSizeFalloff&quot;, waveSizeFalloff, true);</span>
+<span class="nc" id="L253">            chunkMaterial.setFloat(&quot;waveSize&quot;, waveSize, true);</span>
+<span class="nc" id="L254">            chunkMaterial.setFloat(&quot;waveSpeedFalloff&quot;, waveSpeedFalloff, true);</span>
+<span class="nc" id="L255">            chunkMaterial.setFloat(&quot;waveSpeed&quot;, waveSpeed, true);</span>
+<span class="nc" id="L256">            chunkMaterial.setFloat(&quot;waveIntensity&quot;, waveIntensity, true);</span>
+<span class="nc" id="L257">            chunkMaterial.setFloat(&quot;waterOffsetY&quot;, waterOffsetY, true);</span>
+<span class="nc" id="L258">            chunkMaterial.setFloat(&quot;waveOverallScale&quot;, waveOverallScale, true);</span>
+        }
+
+        // Actual Node Processing
+
+<span class="nc" id="L263">        int numberOfRenderedTriangles = 0;</span>
+<span class="nc" id="L264">        int numberOfChunksThatAreNotReadyYet = 0;</span>
+
+<span class="nc" id="L266">        final Vector3f cameraPosition = activeCamera.getPosition();</span>
+
+<span class="nc bnc" id="L268" title="All 2 branches missed.">        while (renderQueues.chunksAlphaBlend.size() &gt; 0) {</span>
+<span class="nc" id="L269">            RenderableChunk chunk = renderQueues.chunksAlphaBlend.poll();</span>
+
+<span class="nc bnc" id="L271" title="All 2 branches missed.">            if (chunk.hasMesh()) {</span>
+<span class="nc" id="L272">                final ChunkMesh chunkMesh = chunk.getMesh();</span>
+<span class="nc" id="L273">                final Vector3f chunkPosition = chunk.getPosition().toVector3f();</span>
+
+<span class="nc" id="L275">                chunkMesh.updateMaterial(chunkMaterial, chunkPosition, chunk.isAnimated());</span>
+<span class="nc" id="L276">                numberOfRenderedTriangles += chunkMesh.render(REFRACTIVE, chunkPosition, cameraPosition);</span>
+
+<span class="nc" id="L278">            } else {</span>
+<span class="nc" id="L279">                numberOfChunksThatAreNotReadyYet++;</span>
+            }
+<span class="nc" id="L281">        }</span>
+
+<span class="nc" id="L283">        worldRenderer.increaseTrianglesCount(numberOfRenderedTriangles);</span>
+<span class="nc" id="L284">        worldRenderer.increaseNotReadyChunkCount(numberOfChunksThatAreNotReadyYet);</span>
+
+<span class="nc" id="L286">        chunkMaterial.deactivateFeature(ShaderProgramFeature.FEATURE_REFRACTIVE_PASS);</span>
+
+<span class="nc" id="L288">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L289">    }</span>
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+<span class="nc" id="L293">        String propertyName = event.getPropertyName();</span>
+
+<span class="nc bnc" id="L295" title="All 6 branches missed.">        switch (propertyName) {</span>
+            case PRE_FBO_REGENERATION:
+<span class="nc" id="L297">                refractiveReflectiveFbo.detachDepthBuffer();</span>
+<span class="nc" id="L298">                return;</span>
+
+            case POST_FBO_REGENERATION:
+<span class="nc" id="L301">                lastUpdatedGBuffer.attachDepthBufferTo(refractiveReflectiveFbo);</span>
+<span class="nc" id="L302">                return;</span>
+
+            case RenderingConfig.NORMAL_MAPPING:
+<span class="nc" id="L305">                normalMappingIsEnabled = renderingConfig.isNormalMapping();</span>
+<span class="nc bnc" id="L306" title="All 2 branches missed.">                if (normalMappingIsEnabled) {</span>
+<span class="nc" id="L307">                    addDesiredStateChange(setTerrainNormalsInputTexture);</span>
+                } else {
+<span class="nc" id="L309">                    removeDesiredStateChange(setTerrainNormalsInputTexture);</span>
+                }
+<span class="nc" id="L311">                break;</span>
+
+            case RenderingConfig.PARALLAX_MAPPING:
+<span class="nc" id="L314">                parallaxMappingIsEnabled = renderingConfig.isParallaxMapping();</span>
+<span class="nc bnc" id="L315" title="All 2 branches missed.">                if (parallaxMappingIsEnabled) {</span>
+<span class="nc" id="L316">                    addDesiredStateChange(setTerrainHeightInputTexture);</span>
+                } else {
+<span class="nc" id="L318">                    removeDesiredStateChange(setTerrainHeightInputTexture);</span>
+                }
+<span class="nc" id="L320">                break;</span>
+
+            case RenderingConfig.ANIMATE_WATER:
+<span class="nc" id="L323">                animatedWaterIsEnabled = renderingConfig.isAnimateWater();</span>
+                break;
+
+            // default: no other cases are possible - see subscribe operations in initialize().
+        }
+
+<span class="nc" id="L329">        worldRenderer.requestTaskListRefresh();</span>
+<span class="nc" id="L330">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

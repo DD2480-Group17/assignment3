@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PortList.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.nui</a> &gt; <span class="el_source">PortList.java</span></div><h1>PortList.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.nui;
+
+import com.google.common.collect.Lists;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.rendering.nui.Canvas;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ */
+public class PortList implements TreeAccessor&lt;RenderableNode&gt; {
+<span class="nc" id="L29">    private List&lt;Port&gt; ports = Lists.newLinkedList();</span>
+    private Port.InputPort inputPort;
+    private RenderableNode node;
+
+<span class="nc" id="L33">    public PortList(RenderableNode node) {</span>
+<span class="nc" id="L34">        inputPort = new Port.InputPort(node);</span>
+<span class="nc" id="L35">        Port.InsertOutputPort addLastPortIns = new Port.InsertOutputPort(node);</span>
+<span class="nc" id="L36">        ports.add(addLastPortIns);</span>
+<span class="nc" id="L37">        this.node = node;</span>
+<span class="nc" id="L38">    }</span>
+
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L41">        Rect2i region = canvas.getRegion();</span>
+<span class="nc" id="L42">        inputPort.updateRect();</span>
+<span class="nc" id="L43">        canvas.drawWidget(inputPort, Rect2i.createFromMinAndMax(</span>
+<span class="nc" id="L44">                (int) (inputPort.rect.minX() / 10.f * region.width()),</span>
+<span class="nc" id="L45">                (int) (inputPort.rect.minY() / 5.f * region.height()),</span>
+<span class="nc" id="L46">                (int) (inputPort.rect.maxX() / 10.f * region.width()),</span>
+<span class="nc" id="L47">                (int) (inputPort.rect.maxY() / 5.f * region.height())));</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        for (Port port : ports) {</span>
+<span class="nc" id="L49">            port.updateRect();</span>
+<span class="nc" id="L50">            canvas.drawWidget(port, Rect2i.createFromMinAndMax(</span>
+<span class="nc" id="L51">                    (int) (port.rect.minX() / 10.f * region.width()),</span>
+<span class="nc" id="L52">                    (int) (port.rect.minY() / 5.f * region.height()),</span>
+<span class="nc" id="L53">                    (int) (port.rect.maxX() / 10.f * region.width()),</span>
+<span class="nc" id="L54">                    (int) (port.rect.maxY() / 5.f * region.height())));</span>
+<span class="nc" id="L55">        }</span>
+<span class="nc" id="L56">    }</span>
+
+    public Port.InputPort getInputPort() {
+<span class="nc" id="L59">        return inputPort;</span>
+    }
+
+    public List&lt;Port&gt; ports() {
+<span class="nc" id="L63">        return ports.stream().filter(Port::isVisible).collect(Collectors.toCollection(ArrayList::new));</span>
+    }
+
+    int indexOfPort(Port port) {
+<span class="nc" id="L67">        return ports.indexOf(port) / 2;</span>
+    }
+
+    @Override
+    public void insertChild(int index, RenderableNode child) {
+<span class="nc" id="L72">        Port.OutputPort outputPort = new Port.OutputPort(node);</span>
+<span class="nc" id="L73">        Port.InsertOutputPort insertOutputPort = new Port.InsertOutputPort(node);</span>
+<span class="nc" id="L74">        child.getInputPort().setTarget(outputPort);</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (index == -1) {</span>
+<span class="nc" id="L76">            ports.add(ports.size() - 1, insertOutputPort);</span>
+<span class="nc" id="L77">            ports.add(ports.size() - 1, outputPort);</span>
+        } else {
+<span class="nc" id="L79">            ports.add(index * 2, insertOutputPort);</span>
+<span class="nc" id="L80">            ports.add(index * 2 + 1, outputPort);</span>
+        }
+<span class="nc" id="L82">    }</span>
+
+    @Override
+    public void setChild(int index, RenderableNode child) {
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (ports.size() == index * 2 + 1) {</span>
+<span class="nc" id="L87">            Port.OutputPort outputPort = new Port.OutputPort(node);</span>
+<span class="nc" id="L88">            Port.InsertOutputPort insertOutputPort = new Port.InsertOutputPort(node);</span>
+<span class="nc" id="L89">            ports.add(ports.size() - 1, insertOutputPort);</span>
+<span class="nc" id="L90">            ports.add(ports.size() - 1, outputPort);</span>
+        }
+<span class="nc" id="L92">        child.getInputPort().setTarget((Port.OutputPort) ports.get(index * 2 + 1));</span>
+<span class="nc" id="L93">    }</span>
+
+    @Override
+    public RenderableNode removeChild(int index) {
+<span class="nc" id="L97">        ports.remove(index * 2);</span>
+<span class="nc" id="L98">        Port output = ports.remove(index * 2);</span>
+<span class="nc" id="L99">        output.getSourceNode().getInputPort().setTarget(null);</span>
+<span class="nc" id="L100">        return output.getSourceNode();</span>
+    }
+
+    @Override
+    public RenderableNode getChild(int index) {
+<span class="nc" id="L105">        return ports.get(index * 2 + 1).getTargetNode();</span>
+    }
+
+    @Override
+    public int getChildrenCount() {
+<span class="nc" id="L110">        return ports.size() / 2;</span>
+    }
+
+    @Override
+    public int getMaxChildren() {
+<span class="nc" id="L115">        return Integer.MAX_VALUE;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

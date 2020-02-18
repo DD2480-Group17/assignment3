@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InjectionHelperTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.registry</a> &gt; <span class="el_source">InjectionHelperTest.java</span></div><h1>InjectionHelperTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.registry;
+
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+
+import java.util.NoSuchElementException;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
+<span class="fc" id="L29">public class InjectionHelperTest {</span>
+
+    private ServiceA serviceA;
+    private ServiceB serviceB;
+
+    @BeforeEach
+    public void setUp() {
+<span class="fc" id="L36">        serviceA = new ServiceAImpl();</span>
+<span class="fc" id="L37">        serviceB = new ServiceBImpl();</span>
+        //injection helper uses the core registry, 
+        //make sure the shared classes are not used over multiple tests
+<span class="fc" id="L40">        CoreRegistry.setContext(new ContextImpl());</span>
+<span class="fc" id="L41">    }</span>
+
+    @Test
+    public void testSharePopulatesCoreRegistry() {
+<span class="fc" id="L45">        assertNull(CoreRegistry.get(ServiceA.class));</span>
+
+<span class="fc" id="L47">        InjectionHelper.share(serviceA);</span>
+
+<span class="fc" id="L49">        assertEquals(CoreRegistry.get(ServiceA.class), serviceA);</span>
+<span class="fc" id="L50">    }</span>
+
+    @Test
+    public void testShareRequiresShareAnnotation() {
+<span class="fc" id="L54">        InjectionHelper.share(new ServiceAImplNoAnnotation());</span>
+
+<span class="fc" id="L56">        assertNull(CoreRegistry.get(ServiceA.class));</span>
+<span class="fc" id="L57">    }</span>
+
+    @Test
+    public void testDefaultFieldInjection() {
+<span class="fc" id="L61">        InjectionHelper.share(serviceA);</span>
+<span class="fc" id="L62">        InjectionHelper.share(serviceB);</span>
+
+        //no default constructor required
+<span class="fc" id="L65">        FieldInjectionAB fieldInjectionAB = new FieldInjectionAB();</span>
+<span class="fc" id="L66">        InjectionHelper.inject(fieldInjectionAB);</span>
+
+<span class="fc" id="L68">        assertEquals(fieldInjectionAB.getServiceA(), serviceA);</span>
+<span class="fc" id="L69">        assertEquals(fieldInjectionAB.getServiceB(), serviceB);</span>
+<span class="fc" id="L70">    }</span>
+
+    @Test
+    public void testInjectUnavailableObject() {
+<span class="fc" id="L74">        InjectionHelper.share(serviceA);</span>
+        //  InjectionHelper.share(serviceB);
+
+<span class="fc" id="L77">        FieldInjectionAB fieldInjectionAB = new FieldInjectionAB();</span>
+<span class="fc" id="L78">        InjectionHelper.inject(fieldInjectionAB);</span>
+
+<span class="fc" id="L80">        assertEquals(fieldInjectionAB.getServiceA(), serviceA);</span>
+<span class="fc" id="L81">        assertNull(fieldInjectionAB.getServiceB());</span>
+<span class="fc" id="L82">    }</span>
+
+    @Test
+    public void testDefaultConstructorInjection() {
+<span class="fc" id="L86">        Context context = new ContextImpl();</span>
+<span class="fc" id="L87">        context.put(ServiceA.class, serviceA);</span>
+<span class="fc" id="L88">        context.put(ServiceB.class, serviceB);</span>
+
+<span class="fc" id="L90">        ConstructorAB constructorAB = InjectionHelper.createWithConstructorInjection(ConstructorAB.class, context);</span>
+
+        //the two-arg constructor should be used as it has the most parameters and all can be populated
+<span class="fc" id="L93">        assertEquals(constructorAB.getServiceA(), serviceA);</span>
+<span class="fc" id="L94">        assertEquals(constructorAB.getServiceB(), serviceB);</span>
+<span class="fc" id="L95">    }</span>
+
+    @Test
+    public void testConstructorInjectionNotAllParametersPopulated() {
+<span class="fc" id="L99">        Context context = new ContextImpl();</span>
+<span class="fc" id="L100">        context.put(ServiceA.class, serviceA);</span>
+        //context.put(ServiceB.class, serviceB);
+
+<span class="fc" id="L103">        ConstructorAB constructorAB = InjectionHelper.createWithConstructorInjection(ConstructorAB.class, context);</span>
+
+        //the two-arg constructor can't be populated because serviceB is not available
+        //there is no fallback for a constructor with only serviceA, so the default constructor is called
+<span class="fc" id="L107">        assertNull(constructorAB.getServiceA());</span>
+<span class="fc" id="L108">        assertNull(constructorAB.getServiceB());</span>
+<span class="fc" id="L109">    }</span>
+
+    @Test
+    public void testConstructorInjectionNotAllParametersPopulatedFallback() {
+<span class="fc" id="L113">        Context context = new ContextImpl();</span>
+<span class="fc" id="L114">        context.put(ServiceA.class, serviceA);</span>
+        //context.put(ServiceB.class, serviceB);
+
+<span class="fc" id="L117">        ConstructorA_AB constructorA_AB = InjectionHelper.createWithConstructorInjection(ConstructorA_AB.class, context);</span>
+
+        //the one-arg constructor is used as it can be populated  with serviceA which is available
+<span class="fc" id="L120">        assertEquals(constructorA_AB.getServiceA(), serviceA);</span>
+<span class="fc" id="L121">        assertNull(constructorA_AB.getServiceB());</span>
+<span class="fc" id="L122">    }</span>
+
+    @Test
+    public void testConstructorInjectionNoDefaultConstructorForFallback() {
+<span class="fc" id="L126">        Context context = new ContextImpl();</span>
+<span class="fc" id="L127">        context.put(ServiceA.class, serviceA);</span>
+        //context.put(ServiceB.class, serviceB);
+
+        //there is only one constructor for serviceB which is not present on the context.
+        //a default constructor is not available, so the injection fails.
+<span class="fc" id="L132">        Assertions.assertThrows(NoSuchElementException.class,</span>
+<span class="nc" id="L133">                () -&gt; InjectionHelper.createWithConstructorInjection(ConstructorB.class, context));</span>
+<span class="fc" id="L134">    }</span>
+
+    //test classes and interfaces for injection
+
+    private interface ServiceA {
+
+    }
+
+    private interface ServiceB {
+
+    }
+
+    @Share(ServiceA.class)
+    private static class ServiceAImpl implements ServiceA {
+
+    }
+
+    private static class ServiceAImplNoAnnotation implements ServiceA {
+
+    }
+
+    @Share(ServiceB.class)
+    private static class ServiceBImpl implements ServiceB {
+
+    }
+
+    private static class FieldInjectionAB {
+        @In
+        private ServiceA serviceA;
+
+        @In
+        private ServiceB serviceB;
+
+        public ServiceA getServiceA() {
+<span class="fc" id="L168">            return serviceA;</span>
+        }
+
+        public ServiceB getServiceB() {
+<span class="fc" id="L172">            return serviceB;</span>
+        }
+
+    }
+
+    public static class ConstructorAB {
+        private ServiceA serviceA;
+
+        private ServiceB serviceB;
+
+<span class="fc" id="L182">        public ConstructorAB() {</span>
+
+<span class="fc" id="L184">        }</span>
+
+<span class="fc" id="L186">        public ConstructorAB(ServiceA serviceA, ServiceB serviceB) {</span>
+<span class="fc" id="L187">            this.serviceA = serviceA;</span>
+<span class="fc" id="L188">            this.serviceB = serviceB;</span>
+<span class="fc" id="L189">        }</span>
+
+        public ServiceA getServiceA() {
+<span class="fc" id="L192">            return serviceA;</span>
+        }
+
+        public ServiceB getServiceB() {
+<span class="fc" id="L196">            return serviceB;</span>
+        }
+    }
+
+    public static class ConstructorA_AB {
+        private ServiceA serviceA;
+
+        private ServiceB serviceB;
+
+<span class="nc" id="L205">        public ConstructorA_AB() {</span>
+
+<span class="nc" id="L207">        }</span>
+
+<span class="fc" id="L209">        public ConstructorA_AB(ServiceA serviceA) {</span>
+<span class="fc" id="L210">            this.serviceA = serviceA;</span>
+<span class="fc" id="L211">        }</span>
+
+<span class="nc" id="L213">        public ConstructorA_AB(ServiceA serviceA, ServiceB serviceB) {</span>
+<span class="nc" id="L214">            this.serviceA = serviceA;</span>
+<span class="nc" id="L215">            this.serviceB = serviceB;</span>
+<span class="nc" id="L216">        }</span>
+
+        public ServiceA getServiceA() {
+<span class="fc" id="L219">            return serviceA;</span>
+        }
+
+        public ServiceB getServiceB() {
+<span class="fc" id="L223">            return serviceB;</span>
+        }
+    }
+
+    public static class ConstructorB {
+        private ServiceB serviceB;
+
+<span class="nc" id="L230">        public ConstructorB(ServiceB serviceB) {</span>
+<span class="nc" id="L231">            this.serviceB = serviceB;</span>
+<span class="nc" id="L232">        }</span>
+
+        public ServiceB getServiceB() {
+<span class="nc" id="L235">            return serviceB;</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

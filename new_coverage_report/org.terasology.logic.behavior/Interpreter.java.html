@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Interpreter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior</a> &gt; <span class="el_source">Interpreter.java</span></div><h1>Interpreter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior;
+
+import org.terasology.logic.behavior.asset.BehaviorTree;
+import org.terasology.logic.behavior.core.Actor;
+import org.terasology.logic.behavior.core.BehaviorTreeRunner;
+import org.terasology.logic.common.DisplayNameComponent;
+import org.terasology.module.sandbox.API;
+
+/**
+ * An interpreter evaluates a behavior tree. Uses BehaviorTreeRunner to actually evaluate the tree. The runner
+ * is kept up to date when there are modifications at the tree.
+ *
+ */
+@API
+public class Interpreter {
+
+    private Actor actor;
+    private BehaviorTreeRunner treeRunner;
+    private BehaviorTree tree;
+    private DefaultBehaviorTreeRunner.Callback callback;
+
+<span class="nc" id="L37">    public Interpreter(Actor actor) {</span>
+<span class="nc" id="L38">        this.actor = actor;</span>
+<span class="nc" id="L39">    }</span>
+
+    /**
+     * Copy constructor to save BT execution state
+     * @param interpreter
+     */
+<span class="nc" id="L45">    public Interpreter(Interpreter interpreter) {</span>
+<span class="nc" id="L46">        this.actor = interpreter.actor;</span>
+<span class="nc" id="L47">        this.treeRunner = interpreter.treeRunner;</span>
+<span class="nc" id="L48">        this.tree = interpreter.tree;</span>
+<span class="nc" id="L49">        this.callback = interpreter.callback;</span>
+<span class="nc" id="L50">    }</span>
+
+    public void setCallback(DefaultBehaviorTreeRunner.Callback callback) {
+<span class="nc" id="L53">        this.callback = callback;</span>
+<span class="nc" id="L54">        reset();</span>
+<span class="nc" id="L55">    }</span>
+
+    public Actor actor() {
+<span class="nc" id="L58">        return actor;</span>
+    }
+
+    public void reset() {
+<span class="nc" id="L62">        treeRunner = null;</span>
+<span class="nc" id="L63">    }</span>
+
+    public void tick(float delta) {
+<span class="nc" id="L66">        actor.setDelta(delta);</span>
+<span class="nc bnc" id="L67" title="All 4 branches missed.">        if (treeRunner == null &amp;&amp; tree != null) {</span>
+<span class="nc" id="L68">            treeRunner = new DefaultBehaviorTreeRunner(tree, actor, callback);</span>
+            //        Assembler assembler = new Assembler(&quot;Test&quot;, tree.getRoot());
+            //        treeRunner = assembler.createInstance(actor);
+        }
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        if (treeRunner != null) {</span>
+<span class="nc" id="L73">            treeRunner.step();</span>
+        }
+<span class="nc" id="L75">    }</span>
+
+    public void run() {
+<span class="nc" id="L78">    }</span>
+
+    public void setTree(BehaviorTree tree) {
+<span class="nc" id="L81">        this.tree = tree;</span>
+<span class="nc" id="L82">        reset();</span>
+<span class="nc" id="L83">    }</span>
+
+    public BehaviorTree getTree() {
+<span class="nc" id="L86">        return tree;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (actor.hasComponent(DisplayNameComponent.class)) {</span>
+<span class="nc" id="L92">            return actor.getComponent(DisplayNameComponent.class).name;</span>
+        }
+<span class="nc" id="L94">        return &quot;unnamed &quot; + actor.getEntity().getParentPrefab().getName();</span>
+    }
+
+    public void pause() {
+
+<span class="nc" id="L99">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

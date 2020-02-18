@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TranslationSystemImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.i18n</a> &gt; <span class="el_source">TranslationSystemImpl.java</span></div><h1>TranslationSystemImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.i18n;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.config.Config;
+import org.terasology.config.SystemConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.Uri;
+import org.terasology.i18n.assets.Translation;
+import org.terasology.persistence.TemplateEngine;
+import org.terasology.persistence.TemplateEngineImpl;
+
+/**
+ * A translation system that uses {@link Translation} data assets to
+ * perform the lookup.
+ */
+public class TranslationSystemImpl implements TranslationSystem {
+
+<span class="fc" id="L47">    private static final Logger logger = LoggerFactory.getLogger(TranslationSystemImpl.class);</span>
+
+<span class="fc" id="L49">    private final List&lt;Consumer&lt;TranslationProject&gt;&gt; changeListeners = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L50">    private final Map&lt;Uri, TranslationProject&gt; projects = new HashMap&lt;&gt;();</span>
+
+    private final SystemConfig config;
+
+    private AssetManager assetManager;
+
+    /**
+     * @param context the context to use
+     */
+<span class="fc" id="L59">    public TranslationSystemImpl(Context context) {</span>
+
+<span class="fc" id="L61">        config = context.get(Config.class).getSystem();</span>
+<span class="fc" id="L62">        assetManager = context.get(AssetManager.class);</span>
+
+<span class="fc" id="L64">        refresh();</span>
+<span class="fc" id="L65">    }</span>
+
+    @Override
+    public void refresh() {
+<span class="fc" id="L69">        Set&lt;ResourceUrn&gt; urns = assetManager.getAvailableAssets(Translation.class);</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        for (ResourceUrn urn : urns) {</span>
+<span class="nc" id="L71">            Optional&lt;Translation&gt; asset = assetManager.getAsset(urn, Translation.class);</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            if (asset.isPresent()) {</span>
+<span class="nc" id="L73">                Translation trans = asset.get();</span>
+<span class="nc" id="L74">                Uri uri = trans.getProjectUri();</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                if (uri.isValid()) {</span>
+<span class="nc" id="L76">                    TranslationProject proj = projects.computeIfAbsent(uri, e -&gt; new StandardTranslationProject());</span>
+<span class="nc" id="L77">                    proj.add(trans);</span>
+<span class="nc" id="L78">                    trans.subscribe(this::onAssetChanged);</span>
+<span class="nc" id="L79">                    logger.info(&quot;Discovered &quot; + trans);</span>
+<span class="nc" id="L80">                } else {</span>
+<span class="nc" id="L81">                    logger.warn(&quot;Ignoring invalid project uri: {}&quot;, uri);</span>
+                }
+            }
+<span class="nc" id="L84">        }</span>
+<span class="fc" id="L85">    }</span>
+
+    @Override
+    public TranslationProject getProject(Uri name) {
+<span class="nc" id="L89">        return projects.get(name);</span>
+    }
+
+    @Override
+    public String translate(String id) {
+<span class="nc" id="L94">        return translate(id, config.getLocale());</span>
+    }
+
+    @Override
+    public String translate(String text, Locale otherLocale) {
+<span class="nc" id="L99">        TemplateEngine templateEngine = new TemplateEngineImpl(id -&gt; {</span>
+<span class="nc" id="L100">            ResourceUrn uri = new ResourceUrn(id);</span>
+<span class="nc" id="L101">            SimpleUri projectUri = new SimpleUri(uri.getModuleName(), uri.getResourceName());</span>
+<span class="nc" id="L102">            TranslationProject project = getProject(projectUri);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            if (project != null) {</span>
+<span class="nc" id="L104">                Optional&lt;String&gt; opt = project.translate(uri.getFragmentName(), otherLocale);</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                if (opt.isPresent()) {</span>
+<span class="nc" id="L106">                    return opt.get();</span>
+                } else {
+<span class="nc" id="L108">                    logger.warn(&quot;No translation for '{}'&quot;, id);</span>
+<span class="nc" id="L109">                    return &quot;?&quot; + uri.getFragmentName() + &quot;?&quot;;</span>
+                }
+            } else {
+<span class="nc" id="L112">                logger.warn(&quot;Invalid project id '{}'&quot;, id);</span>
+<span class="nc" id="L113">                return &quot;?&quot; + uri.getFragmentName() + &quot;?&quot;;</span>
+            }
+        });
+
+<span class="nc" id="L117">        return templateEngine.transform(text);</span>
+    }
+
+    @Override
+    public void subscribe(Consumer&lt;TranslationProject&gt; reloadListener) {
+<span class="fc" id="L122">        changeListeners.add(reloadListener);</span>
+<span class="fc" id="L123">    }</span>
+
+    @Override
+    public void unsubscribe(Consumer&lt;TranslationProject&gt; reloadListener) {
+<span class="nc" id="L127">        changeListeners.remove(reloadListener);</span>
+<span class="nc" id="L128">    }</span>
+
+    private void onAssetChanged(Translation trans) {
+<span class="nc" id="L131">        Uri uri = trans.getProjectUri();</span>
+<span class="nc" id="L132">        TranslationProject project = projects.get(uri);</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (trans.isDisposed()) {</span>
+<span class="nc" id="L134">            project.remove(trans);</span>
+        }
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        for (Consumer&lt;TranslationProject&gt; listener : changeListeners) {</span>
+<span class="nc" id="L137">            listener.accept(project);</span>
+<span class="nc" id="L138">        }</span>
+<span class="nc" id="L139">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

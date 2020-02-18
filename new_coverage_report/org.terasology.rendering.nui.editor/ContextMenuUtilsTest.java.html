@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContextMenuUtilsTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.editor</a> &gt; <span class="el_source">ContextMenuUtilsTest.java</span></div><h1>ContextMenuUtilsTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.editor;
+
+import com.google.common.base.Charsets;
+import com.google.common.io.Files;
+import com.google.gson.JsonParser;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.engine.subsystem.headless.renderer.HeadlessCanvasRenderer;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.i18n.TranslationSystemImpl;
+import org.terasology.input.InputSystem;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.editor.layers.PlaceholderScreen;
+import org.terasology.rendering.nui.editor.utils.NUIEditorNodeUtils;
+import org.terasology.rendering.nui.internal.CanvasRenderer;
+import org.terasology.rendering.nui.internal.NUIManagerInternal;
+import org.terasology.rendering.nui.layouts.RowLayout;
+import org.terasology.rendering.nui.layouts.RowLayoutHint;
+import org.terasology.rendering.nui.layouts.relative.HorizontalInfo;
+import org.terasology.rendering.nui.layouts.relative.RelativeLayout;
+import org.terasology.rendering.nui.layouts.relative.RelativeLayoutHint;
+import org.terasology.rendering.nui.layouts.relative.VerticalInfo;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.treeView.JsonTree;
+import org.terasology.rendering.nui.widgets.treeView.JsonTreeConverter;
+
+import java.io.File;
+import java.io.IOException;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
+
+<span class="fc" id="L50">public class ContextMenuUtilsTest extends TerasologyTestingEnvironment {</span>
+    private static JsonTree inputTree;
+
+    @BeforeAll
+    public static void setupInput() {
+<span class="fc" id="L55">        context.put(InputSystem.class, new InputSystem());</span>
+<span class="fc" id="L56">        context.put(TranslationSystem.class, new TranslationSystemImpl(context));</span>
+<span class="fc" id="L57">        context.put(CanvasRenderer.class, new HeadlessCanvasRenderer());</span>
+<span class="fc" id="L58">        context.put(NUIManager.class, new NUIManagerInternal(context.get(CanvasRenderer.class), context));</span>
+
+<span class="fc" id="L60">        File file = new File(ContextMenuUtilsTest.class.getClassLoader().getResource(&quot;contextMenuBuilderInput.ui&quot;).getFile());</span>
+<span class="fc" id="L61">        String content = null;</span>
+        try {
+<span class="fc" id="L63">            content = Files.toString(file, Charsets.UTF_8);</span>
+<span class="nc" id="L64">        } catch (IOException e) {</span>
+<span class="nc" id="L65">            fail(&quot;Could not load input file&quot;);</span>
+<span class="fc" id="L66">        }</span>
+<span class="fc" id="L67">        inputTree = JsonTreeConverter.serialize(new JsonParser().parse(content));</span>
+<span class="fc" id="L68">    }</span>
+
+    @Test
+    public void testNodeTypes() {
+<span class="fc" id="L72">        JsonTree currentNode = inputTree;</span>
+
+<span class="fc" id="L74">        assertEquals(PlaceholderScreen.class, getNodeType(currentNode));</span>
+<span class="fc" id="L75">        currentNode = currentNode.getChildWithKey(&quot;contents&quot;);</span>
+<span class="fc" id="L76">        assertEquals(RelativeLayout.class, getNodeType(currentNode));</span>
+<span class="fc" id="L77">        currentNode = currentNode.getChildWithKey(&quot;contents&quot;);</span>
+<span class="fc" id="L78">        assertEquals(UIButton.class, getNodeType(currentNode.getChildAt(0)));</span>
+<span class="fc" id="L79">        assertEquals(RelativeLayoutHint.class, getNodeType(currentNode.getChildAt(0).getChildWithKey(&quot;layoutInfo&quot;)));</span>
+<span class="fc" id="L80">        assertEquals(VerticalInfo.class, getNodeType(currentNode.getChildAt(0)</span>
+<span class="fc" id="L81">            .getChildWithKey(&quot;layoutInfo&quot;).getChildWithKey(&quot;position-top&quot;)));</span>
+<span class="fc" id="L82">        assertEquals(HorizontalInfo.class, getNodeType(currentNode.getChildAt(0)</span>
+<span class="fc" id="L83">            .getChildWithKey(&quot;layoutInfo&quot;).getChildWithKey(&quot;position-horizontal-center&quot;)));</span>
+<span class="fc" id="L84">        currentNode = currentNode.getChildAt(1);</span>
+<span class="fc" id="L85">        assertEquals(RowLayout.class, getNodeType(currentNode));</span>
+<span class="fc" id="L86">        assertEquals(RelativeLayoutHint.class, getNodeType(currentNode.getChildWithKey(&quot;layoutInfo&quot;)));</span>
+<span class="fc" id="L87">        currentNode = currentNode.getChildWithKey(&quot;contents&quot;).getChildAt(0);</span>
+<span class="fc" id="L88">        assertEquals(UILabel.class, getNodeType(currentNode));</span>
+<span class="fc" id="L89">        assertEquals(RowLayoutHint.class, getNodeType(currentNode.getChildWithKey(&quot;layoutInfo&quot;)));</span>
+<span class="fc" id="L90">    }</span>
+
+    private Class getNodeType(JsonTree node) {
+<span class="fc" id="L93">        return NUIEditorNodeUtils.getNodeInfo(node, context.get(NUIManager.class)).getNodeClass();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

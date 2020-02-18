@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ColorBlenderRgba.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.viewer.color</a> &gt; <span class="el_source">ColorBlenderRgba.java</span></div><h1>ColorBlenderRgba.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.viewer.color;
+
+
+
+/**
+ * Blends RGBA colors using the RGBA color model
+ */
+<span class="nc" id="L24">class ColorBlenderRgba implements ColorBlender {</span>
+    @Override
+    public int get(int src) {
+<span class="nc" id="L27">        return src;</span>
+    }
+
+    @Override
+    public int add(int src, int dst) {
+<span class="nc" id="L32">        int mix = 0x000000FF;</span>
+<span class="nc" id="L33">        mix |= Math.min(0x0000FF00, (dst &amp; 0x0000FF00) + (src &amp; 0x0000FF00));</span>
+<span class="nc" id="L34">        mix |= Math.min(0x00FF0000, (dst &amp; 0x00FF0000) + (src &amp; 0x00FF0000));</span>
+
+        // casting to long avoids an integer overflow for the red channel
+<span class="nc" id="L37">        mix |= Math.min(0xFF000000L, (dst &amp; 0xFF000000L) + (src &amp; 0xFF000000L));</span>
+
+<span class="nc" id="L39">        return mix;</span>
+    }
+
+    /**
+     * @param src in RGBA
+     * @param dst in RGBA
+     * @return the blended color in RGBx
+     */
+    @Override
+    public int blend(int src, int dst) {
+<span class="nc" id="L49">        int sr = (src &gt;&gt; 24) &amp; 0xFF;</span>
+<span class="nc" id="L50">        int sg = (src &gt;&gt; 16) &amp; 0xFF;</span>
+<span class="nc" id="L51">        int sb = (src &gt;&gt; 8) &amp; 0xFF;</span>
+<span class="nc" id="L52">        int a = src &amp; 0xFF;</span>
+
+<span class="nc" id="L54">        int dr = (dst &gt;&gt; 24) &amp; 0xFF;</span>
+<span class="nc" id="L55">        int dg = (dst &gt;&gt; 16) &amp; 0xFF;</span>
+<span class="nc" id="L56">        int db = (dst &gt;&gt; 8) &amp; 0xFF;</span>
+
+<span class="nc" id="L58">        int mb = (a * sb + (0xFF - a) * db) / 0xFF;</span>
+<span class="nc" id="L59">        int mg = (a * sg + (0xFF - a) * dg) / 0xFF;</span>
+<span class="nc" id="L60">        int mr = (a * sr + (0xFF - a) * dr) / 0xFF;</span>
+
+<span class="nc" id="L62">        int mix = (mb &lt;&lt; 8) | (mg &lt;&lt; 16) | (mr &lt;&lt; 24) | 0xFF;</span>
+<span class="nc" id="L63">        return mix;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

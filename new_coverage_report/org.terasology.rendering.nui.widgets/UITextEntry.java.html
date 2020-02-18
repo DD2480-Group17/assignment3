@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UITextEntry.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UITextEntry.java</span></div><h1>UITextEntry.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+
+import java.util.Objects;
+
+/**
+ * A widget allowing for simple text entry
+ */
+public class UITextEntry&lt;T&gt; extends UIText {
+<span class="nc" id="L30">    private static final Logger logger = LoggerFactory.getLogger(UITextEntry.class);</span>
+
+<span class="nc" id="L32">    private Binding&lt;T&gt; value = new DefaultBinding&lt;&gt;();</span>
+<span class="nc" id="L33">    private Binding&lt;String&gt; stringValue = new DefaultBinding&lt;&gt;(&quot;&quot;);</span>
+    private Parser&lt;T&gt; parser;
+<span class="nc" id="L35">    private Formatter&lt;T&gt; formatter = new ToStringFormatter&lt;&gt;();</span>
+
+<span class="nc" id="L37">    public UITextEntry() {</span>
+<span class="nc" id="L38">        bindText(stringValue);</span>
+<span class="nc" id="L39">    }</span>
+
+    public UITextEntry(String id) {
+<span class="nc" id="L42">        super(id);</span>
+<span class="nc" id="L43">        bindText(stringValue);</span>
+<span class="nc" id="L44">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (!isFocused()) {</span>
+<span class="nc" id="L49">            resetValue();</span>
+        }
+<span class="nc" id="L51">        super.onDraw(canvas);</span>
+<span class="nc" id="L52">    }</span>
+
+    @Override
+    public void onLoseFocus() {
+<span class="nc" id="L56">        super.onLoseFocus();</span>
+        try {
+<span class="nc" id="L58">            T result = parser.parse(stringValue.get());</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">            if (result != null) {</span>
+<span class="nc" id="L60">                value.set(result);</span>
+            }
+<span class="nc" id="L62">        } catch (IllegalArgumentException e) {</span>
+            // ignore
+<span class="nc" id="L64">            logger.debug(&quot;Failed to parse text value&quot;, e);</span>
+<span class="nc" id="L65">        }</span>
+<span class="nc" id="L66">    }</span>
+
+    public void resetValue() {
+<span class="nc" id="L69">        stringValue.set(formatter.toString(value.get()));</span>
+<span class="nc" id="L70">    }</span>
+
+    public void bindValue(Binding&lt;T&gt; binding) {
+<span class="nc" id="L73">        value = binding;</span>
+<span class="nc" id="L74">        stringValue.set(formatter.toString(value.get()));</span>
+<span class="nc" id="L75">    }</span>
+
+    /**
+     * @return The current value of the widget
+     */
+    public T getValue() {
+<span class="nc" id="L81">        return value.get();</span>
+    }
+
+    /**
+     * @param val The new text to display
+     */
+    public void setValue(T val) {
+<span class="nc" id="L88">        value.set(val);</span>
+<span class="nc" id="L89">    }</span>
+
+    /**
+     * @param parser The parser to use on the input
+     */
+    public void setParser(Parser&lt;T&gt; parser) {
+<span class="nc" id="L95">        this.parser = parser;</span>
+<span class="nc" id="L96">    }</span>
+
+    /**
+     * @param formatter The formatter to use
+     */
+    public void setFormatter(Formatter&lt;T&gt; formatter) {
+<span class="nc" id="L102">        this.formatter = formatter;</span>
+<span class="nc" id="L103">    }</span>
+
+    public interface Formatter&lt;T&gt; {
+
+        String toString(T value);
+    }
+
+    public interface Parser&lt;T&gt; {
+
+        T parse(String value);
+    }
+
+<span class="nc" id="L115">    public static class ToStringFormatter&lt;T&gt; implements Formatter&lt;T&gt; {</span>
+
+        @Override
+        public String toString(T value) {
+<span class="nc" id="L119">            return Objects.toString(value);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LwjglDisplayDevice.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.subsystem.lwjgl</a> &gt; <span class="el_source">LwjglDisplayDevice.java</span></div><h1>LwjglDisplayDevice.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.subsystem.lwjgl;
+
+import com.google.common.base.Suppliers;
+import org.lwjgl.LWJGLException;
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.DisplayMode;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.engine.subsystem.Resolution;
+import org.terasology.rendering.nui.layers.mainMenu.videoSettings.DisplayModeSetting;
+import org.terasology.utilities.subscribables.AbstractSubscribable;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
+import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
+import static org.lwjgl.opengl.GL11.glClear;
+import static org.lwjgl.opengl.GL11.glLoadIdentity;
+import static org.lwjgl.opengl.GL11.glViewport;
+
+public class LwjglDisplayDevice extends AbstractSubscribable implements DisplayDevice {
+    public static final String DISPLAY_RESOLUTION_CHANGE = &quot;displayResolutionChange&quot;;
+
+<span class="nc" id="L45">    private final Supplier&lt;Resolution&gt; desktopResolution = createDesktopResolutionSupplier();</span>
+<span class="nc" id="L46">    private final Supplier&lt;List&lt;Resolution&gt;&gt; availableResolutions = createAvailableResolutionSupplier();</span>
+
+    private RenderingConfig config;
+
+<span class="nc" id="L50">    public LwjglDisplayDevice(Context context) {</span>
+<span class="nc" id="L51">        this.config = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L52">    }</span>
+
+    @Override
+    public boolean hasFocus() {
+<span class="nc" id="L56">        return Display.isActive();</span>
+    }
+
+    @Override
+    public boolean isCloseRequested() {
+<span class="nc" id="L61">        return Display.isCloseRequested();</span>
+    }
+
+    @Override
+    public boolean isFullscreen() {
+<span class="nc" id="L66">        return Display.isFullscreen();</span>
+    }
+
+    @Override
+    public void setFullscreen(boolean state) {
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        if (state) {</span>
+<span class="nc" id="L72">            setDisplayModeSetting(DisplayModeSetting.FULLSCREEN, true);</span>
+        } else {
+<span class="nc" id="L74">            setDisplayModeSetting(DisplayModeSetting.WINDOWED, true);</span>
+        }
+<span class="nc" id="L76">    }</span>
+
+    @Override
+    public DisplayModeSetting getDisplayModeSetting() {
+<span class="nc" id="L80">        return config.getDisplayModeSetting();</span>
+    }
+
+    @Override
+    public void setDisplayModeSetting(DisplayModeSetting displayModeSetting) {
+<span class="nc" id="L85">        setDisplayModeSetting(displayModeSetting, true);</span>
+<span class="nc" id="L86">    }</span>
+
+    public void setDisplayModeSetting(DisplayModeSetting displayModeSetting, boolean resize) {
+        try {
+<span class="nc bnc" id="L90" title="All 4 branches missed.">            switch (displayModeSetting) {</span>
+                case FULLSCREEN:
+<span class="nc" id="L92">                    updateFullScreenDisplay();</span>
+<span class="nc" id="L93">                    config.setDisplayModeSetting(displayModeSetting);</span>
+<span class="nc" id="L94">                    config.setFullscreen(true);</span>
+<span class="nc" id="L95">                    break;</span>
+                case WINDOWED_FULLSCREEN:
+<span class="nc" id="L97">                    System.setProperty(&quot;org.lwjgl.opengl.Window.undecorated&quot;, &quot;true&quot;);</span>
+<span class="nc" id="L98">                    Display.setDisplayMode(Display.getDesktopDisplayMode());</span>
+<span class="nc" id="L99">                    Display.setLocation(0, 0);</span>
+<span class="nc" id="L100">                    Display.setFullscreen(false);</span>
+<span class="nc" id="L101">                    config.setDisplayModeSetting(displayModeSetting);</span>
+<span class="nc" id="L102">                    config.setWindowedFullscreen(true);</span>
+<span class="nc" id="L103">                    break;</span>
+                case WINDOWED:
+<span class="nc" id="L105">                    System.setProperty(&quot;org.lwjgl.opengl.Window.undecorated&quot;, &quot;false&quot;);</span>
+<span class="nc" id="L106">                    Display.setDisplayMode(config.getDisplayMode());</span>
+<span class="nc" id="L107">                    Display.setLocation(config.getWindowPosX(), config.getWindowPosY());</span>
+<span class="nc" id="L108">                    Display.setFullscreen(false);</span>
+<span class="nc" id="L109">                    Display.setResizable(true);</span>
+<span class="nc" id="L110">                    config.setDisplayModeSetting(displayModeSetting);</span>
+<span class="nc" id="L111">                    config.setFullscreen(false);</span>
+                    break;
+            }
+<span class="nc bnc" id="L114" title="All 2 branches missed.">            if (resize) {</span>
+<span class="nc" id="L115">                glViewport(0, 0, Display.getWidth(), Display.getHeight());</span>
+            }
+<span class="nc" id="L117">        } catch (LWJGLException e) {</span>
+<span class="nc" id="L118">            throw new RuntimeException(&quot;Can not initialize graphics device.&quot;, e);</span>
+<span class="nc" id="L119">        }</span>
+<span class="nc" id="L120">    }</span>
+
+    @Override
+    public Resolution getResolution() {
+<span class="nc" id="L124">        Resolution resolution = config.getResolution();</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        if (resolution != null) {</span>
+<span class="nc" id="L126">            return resolution;</span>
+        }
+<span class="nc" id="L128">        return desktopResolution.get();</span>
+    }
+
+    @Override
+    public List&lt;Resolution&gt; getResolutions() {
+<span class="nc" id="L133">        return availableResolutions.get();</span>
+    }
+
+    @Override
+    public int getDisplayWidth() {
+<span class="nc" id="L138">        return Display.getWidth();</span>
+    }
+
+    @Override
+    public int getDisplayHeight() {
+<span class="nc" id="L143">        return Display.getHeight();</span>
+    }
+
+    @Override
+    public void setResolution(Resolution resolution) {
+<span class="nc" id="L148">        config.setResolution(resolution);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        if (DisplayModeSetting.FULLSCREEN == config.getDisplayModeSetting()) {</span>
+            try {
+<span class="nc" id="L151">                updateFullScreenDisplay();</span>
+<span class="nc" id="L152">                updateViewport();</span>
+<span class="nc" id="L153">            } catch (LWJGLException e) {</span>
+<span class="nc" id="L154">                throw new RuntimeException(&quot;Can not set resolution&quot;, e);</span>
+<span class="nc" id="L155">            }</span>
+        }
+<span class="nc" id="L157">    }</span>
+
+    @Override
+    public void processMessages() {
+<span class="nc" id="L161">        Display.processMessages();</span>
+<span class="nc" id="L162">    }</span>
+
+    @Override
+    public boolean isHeadless() {
+<span class="nc" id="L166">        return false;</span>
+    }
+
+    @Override
+    public void prepareToRender() {
+<span class="nc" id="L171">        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);</span>
+<span class="nc" id="L172">        glLoadIdentity();</span>
+<span class="nc" id="L173">    }</span>
+
+    public void update() {
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        if (Display.wasResized()) {</span>
+<span class="nc" id="L177">            updateViewport();</span>
+            // Note that the &quot;old&quot; and &quot;new&quot; values (0 and 1) in the above call aren't actually
+            // used: they are only necessary to ensure that the event is fired up correctly.
+        }
+<span class="nc" id="L181">    }</span>
+
+    private void updateViewport() {
+<span class="nc" id="L184">        glViewport(0, 0, Display.getWidth(), Display.getHeight());</span>
+<span class="nc" id="L185">        propertyChangeSupport.firePropertyChange(DISPLAY_RESOLUTION_CHANGE, 0, 1);</span>
+<span class="nc" id="L186">    }</span>
+
+    private DisplayMode getFullScreenDisplayMode() {
+<span class="nc" id="L189">        Resolution resolution = config.getResolution();</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if (resolution instanceof LwjglResolution) {</span>
+<span class="nc" id="L191">            return ((LwjglResolution) resolution).getDisplayMode();</span>
+        }
+<span class="nc" id="L193">        return Display.getDesktopDisplayMode();</span>
+    }
+
+    private void updateFullScreenDisplay() throws LWJGLException {
+<span class="nc" id="L197">        Display.setDisplayMode(getFullScreenDisplayMode());</span>
+<span class="nc" id="L198">        Display.setFullscreen(true);</span>
+<span class="nc" id="L199">        Display.setLocation(0, 0);</span>
+<span class="nc" id="L200">    }</span>
+
+    private static Supplier&lt;Resolution&gt; createDesktopResolutionSupplier() {
+<span class="nc" id="L203">        return Suppliers.memoize(() -&gt; new LwjglResolution(Display.getDesktopDisplayMode()));</span>
+    }
+
+    private static Supplier&lt;List&lt;Resolution&gt;&gt; createAvailableResolutionSupplier() {
+<span class="nc" id="L207">        return Suppliers.memoize(() -&gt; {</span>
+            try {
+<span class="nc" id="L209">                return Stream</span>
+<span class="nc" id="L210">                        .of(Display.getAvailableDisplayModes())</span>
+<span class="nc" id="L211">                        .filter(DisplayMode::isFullscreenCapable)</span>
+<span class="nc" id="L212">                        .sorted(Comparator</span>
+<span class="nc" id="L213">                                .comparing(DisplayMode::getWidth)</span>
+<span class="nc" id="L214">                                .thenComparing(DisplayMode::getHeight)</span>
+<span class="nc" id="L215">                                .thenComparing(DisplayMode::getBitsPerPixel)</span>
+<span class="nc" id="L216">                                .thenComparing(DisplayMode::getFrequency)</span>
+                        )
+<span class="nc" id="L218">                        .map(LwjglResolution::new)</span>
+<span class="nc" id="L219">                        .collect(Collectors.toList());</span>
+<span class="nc" id="L220">            } catch (LWJGLException e) {</span>
+<span class="nc" id="L221">                throw new RuntimeException(&quot;Can not get available resolutions.&quot;, e);</span>
+            }
+        });
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

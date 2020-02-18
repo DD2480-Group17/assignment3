@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Tessellator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.primitives</a> &gt; <span class="el_source">Tessellator.java</span></div><h1>Tessellator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.primitives;
+
+import com.google.common.base.Preconditions;
+import org.terasology.utilities.Assets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.module.sandbox.API;
+import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.rendering.assets.mesh.MeshData;
+import org.terasology.world.block.shapes.BlockMeshPart;
+
+@API
+public class Tessellator {
+
+<span class="nc" id="L32">    private MeshData meshData = new MeshData();</span>
+
+    private int nextIndex;
+
+<span class="nc" id="L36">    private Vector4f activeColor = new Vector4f();</span>
+<span class="nc" id="L37">    private Vector3f activeNormal = new Vector3f();</span>
+<span class="nc" id="L38">    private Vector2f activeTex = new Vector2f();</span>
+<span class="nc" id="L39">    private Vector3f lighting = new Vector3f();</span>
+
+<span class="nc" id="L41">    private boolean useLighting = true;</span>
+<span class="nc" id="L42">    private boolean useNormals = true;</span>
+
+
+<span class="nc" id="L45">    public Tessellator() {</span>
+<span class="nc" id="L46">        resetParams();</span>
+<span class="nc" id="L47">    }</span>
+
+    public void setUseLighting(boolean enable) {
+<span class="nc" id="L50">        this.useLighting = enable;</span>
+<span class="nc" id="L51">    }</span>
+
+    public void setUseNormals(boolean enable) {
+<span class="nc" id="L54">        this.useNormals = enable;</span>
+<span class="nc" id="L55">    }</span>
+
+    public void resetParams() {
+<span class="nc" id="L58">        activeColor.set(1, 1, 1, 1);</span>
+<span class="nc" id="L59">        activeTex.set(0, 0);</span>
+<span class="nc" id="L60">        lighting.set(1, 1, 1);</span>
+<span class="nc" id="L61">        activeNormal.set(0, 1, 0);</span>
+<span class="nc" id="L62">    }</span>
+
+    public void addPoly(Vector3f[] vertices, Vector2f[] texCoords) {
+<span class="nc bnc" id="L65" title="All 4 branches missed.">        if (vertices.length != texCoords.length || vertices.length &lt; 3) {</span>
+<span class="nc" id="L66">            throw new IllegalArgumentException(&quot;addPoly expected vertices.length == texCoords.length &gt; 2&quot;);</span>
+        }
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        for (int i = 0; i &lt; vertices.length; ++i) {</span>
+<span class="nc" id="L70">            meshData.getVertices().add(vertices[i].x);</span>
+<span class="nc" id="L71">            meshData.getVertices().add(vertices[i].y);</span>
+<span class="nc" id="L72">            meshData.getVertices().add(vertices[i].z);</span>
+
+<span class="nc" id="L74">            meshData.getColors().add(activeColor.x);</span>
+<span class="nc" id="L75">            meshData.getColors().add(activeColor.y);</span>
+<span class="nc" id="L76">            meshData.getColors().add(activeColor.z);</span>
+<span class="nc" id="L77">            meshData.getColors().add(activeColor.w);</span>
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            if (useNormals) {</span>
+<span class="nc" id="L80">                meshData.getNormals().add(activeNormal.x);</span>
+<span class="nc" id="L81">                meshData.getNormals().add(activeNormal.y);</span>
+<span class="nc" id="L82">                meshData.getNormals().add(activeNormal.z);</span>
+            }
+
+<span class="nc" id="L85">            meshData.getTexCoord0().add(texCoords[i].x);</span>
+<span class="nc" id="L86">            meshData.getTexCoord0().add(texCoords[i].y);</span>
+
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if (useLighting) {</span>
+<span class="nc" id="L89">                meshData.getTexCoord1().add(lighting.x);</span>
+<span class="nc" id="L90">                meshData.getTexCoord1().add(lighting.y);</span>
+<span class="nc" id="L91">                meshData.getTexCoord1().add(lighting.z);</span>
+            }
+        }
+
+        // Standard fan
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        for (int i = 0; i &lt; vertices.length - 2; i++) {</span>
+<span class="nc" id="L97">            meshData.getIndices().add(nextIndex);</span>
+<span class="nc" id="L98">            meshData.getIndices().add(nextIndex + i + 1);</span>
+<span class="nc" id="L99">            meshData.getIndices().add(nextIndex + i + 2);</span>
+        }
+<span class="nc" id="L101">        nextIndex += vertices.length;</span>
+<span class="nc" id="L102">    }</span>
+
+    public void addMeshPartDoubleSided(BlockMeshPart part) {
+<span class="nc" id="L105">        addMeshPart(part, true);</span>
+<span class="nc" id="L106">    }</span>
+
+    public void addMeshPart(BlockMeshPart part) {
+<span class="nc" id="L109">        addMeshPart(part, false);</span>
+<span class="nc" id="L110">    }</span>
+
+    private void addMeshPart(BlockMeshPart part, boolean doubleSided) {
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        for (int i = 0; i &lt; part.size(); ++i) {</span>
+<span class="nc" id="L114">            Vector3f vertex = part.getVertex(i);</span>
+<span class="nc" id="L115">            meshData.getVertices().add(vertex.x);</span>
+<span class="nc" id="L116">            meshData.getVertices().add(vertex.y);</span>
+<span class="nc" id="L117">            meshData.getVertices().add(vertex.z);</span>
+
+<span class="nc" id="L119">            meshData.getColors().add(activeColor.x);</span>
+<span class="nc" id="L120">            meshData.getColors().add(activeColor.y);</span>
+<span class="nc" id="L121">            meshData.getColors().add(activeColor.z);</span>
+<span class="nc" id="L122">            meshData.getColors().add(activeColor.w);</span>
+
+<span class="nc" id="L124">            Vector3f normal = part.getNormal(i);</span>
+<span class="nc" id="L125">            meshData.getNormals().add(normal.x);</span>
+<span class="nc" id="L126">            meshData.getNormals().add(normal.y);</span>
+<span class="nc" id="L127">            meshData.getNormals().add(normal.z);</span>
+
+<span class="nc" id="L129">            Vector2f uv = part.getTexCoord(i);</span>
+<span class="nc" id="L130">            meshData.getTexCoord0().add(uv.x);</span>
+<span class="nc" id="L131">            meshData.getTexCoord0().add(uv.y);</span>
+
+<span class="nc" id="L133">            meshData.getTexCoord1().add(lighting.x);</span>
+<span class="nc" id="L134">            meshData.getTexCoord1().add(lighting.y);</span>
+<span class="nc" id="L135">            meshData.getTexCoord1().add(lighting.z);</span>
+        }
+
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        for (int i = 0; i &lt; part.indicesSize(); ++i) {</span>
+<span class="nc" id="L139">            meshData.getIndices().add(nextIndex + part.getIndex(i));</span>
+        }
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if (doubleSided) {</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">            for (int i = 0; i &lt; part.indicesSize(); i += 3) {</span>
+<span class="nc" id="L143">                int i1 = nextIndex + part.getIndex(i);</span>
+<span class="nc" id="L144">                int i2 = nextIndex + part.getIndex(i + 1);</span>
+<span class="nc" id="L145">                int i3 = nextIndex + part.getIndex(i + 2);</span>
+<span class="nc" id="L146">                meshData.getIndices().add(i1);</span>
+<span class="nc" id="L147">                meshData.getIndices().add(i3);</span>
+<span class="nc" id="L148">                meshData.getIndices().add(i2);</span>
+            }
+        }
+
+<span class="nc" id="L152">        nextIndex += part.size();</span>
+<span class="nc" id="L153">    }</span>
+
+    public void setColor(Vector4f v) {
+<span class="nc" id="L156">        activeColor.set(v);</span>
+<span class="nc" id="L157">    }</span>
+
+    public void setNormal(Vector3f v) {
+<span class="nc" id="L160">        activeNormal.set(v);</span>
+<span class="nc" id="L161">    }</span>
+
+    public void setTex(Vector2f v) {
+<span class="nc" id="L164">        activeTex.set(v);</span>
+<span class="nc" id="L165">    }</span>
+
+    public void setLighting(Vector3f v) {
+<span class="nc" id="L168">        lighting.set(v);</span>
+<span class="nc" id="L169">    }</span>
+
+    public MeshData generateMeshData() {
+<span class="nc" id="L172">        MeshData result = meshData;</span>
+<span class="nc" id="L173">        meshData = new MeshData();</span>
+<span class="nc" id="L174">        return result;</span>
+    }
+
+    public Mesh generateMesh(ResourceUrn urn) {
+<span class="nc" id="L178">        Preconditions.checkNotNull(urn);</span>
+<span class="nc" id="L179">        Mesh result = Assets.generateAsset(urn, meshData, Mesh.class);</span>
+<span class="nc" id="L180">        meshData = new MeshData();</span>
+<span class="nc" id="L181">        return result;</span>
+    }
+
+    public Mesh generateMesh() {
+<span class="nc" id="L185">        Mesh result = Assets.generateAsset(meshData, Mesh.class);</span>
+<span class="nc" id="L186">        meshData = new MeshData();</span>
+<span class="nc" id="L187">        return result;</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

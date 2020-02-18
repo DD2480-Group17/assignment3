@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockFamilyDefinitionFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.loader</a> &gt; <span class="el_source">BlockFamilyDefinitionFormat.java</span></div><h1>BlockFamilyDefinitionFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.loader;
+
+import com.google.common.base.Charsets;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.TypeAdapter;
+import com.google.gson.TypeAdapterFactory;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
+import org.terasology.assets.Asset;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.utilities.gson.CaseInsensitiveEnumTypeAdapterFactory;
+import org.terasology.utilities.gson.Vector3fTypeAdapter;
+import org.terasology.utilities.gson.Vector4fTypeAdapter;
+import org.terasology.world.block.BlockPart;
+import org.terasology.world.block.DefaultColorSource;
+import org.terasology.world.block.family.BlockFamily;
+import org.terasology.world.block.family.BlockFamilyLibrary;
+import org.terasology.world.block.family.FreeformFamily;
+import org.terasology.world.block.family.HorizontalFamily;
+import org.terasology.world.block.family.MultiSection;
+import org.terasology.world.block.family.SymmetricFamily;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.sounds.BlockSounds;
+import org.terasology.world.block.tiles.BlockTile;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Type;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
+/**
+ * Defines the format used to parse .block files.
+ */
+public class BlockFamilyDefinitionFormat extends AbstractAssetFileFormat&lt;BlockFamilyDefinitionData&gt; {
+
+<span class="fc" id="L73">    private static final ResourceUrn DEFAULT_SOUNDS = new ResourceUrn(&quot;engine&quot;, &quot;default&quot;);</span>
+
+    private final AssetManager assetManager;
+    private final Gson gson;
+
+    public BlockFamilyDefinitionFormat(AssetManager assetManager) {
+<span class="fc" id="L79">        super(&quot;block&quot;);</span>
+<span class="fc" id="L80">        this.assetManager = assetManager;</span>
+<span class="fc" id="L81">        gson = new GsonBuilder()</span>
+<span class="fc" id="L82">                .registerTypeAdapterFactory(new CaseInsensitiveEnumTypeAdapterFactory())</span>
+<span class="fc" id="L83">                .registerTypeAdapterFactory(new AssetTypeAdapterFactory(assetManager))</span>
+<span class="fc" id="L84">                .registerTypeAdapter(BlockFamilyDefinitionData.class, new BlockFamilyDefinitionDataHandler())</span>
+<span class="fc" id="L85">                .registerTypeAdapter(Vector3f.class, new Vector3fTypeAdapter())</span>
+<span class="fc" id="L86">                .registerTypeAdapter(Vector4f.class, new Vector4fTypeAdapter())</span>
+<span class="fc" id="L87">                .registerTypeAdapter(Class.class, new BlockFamilyHandler())</span>
+<span class="fc" id="L88">                .create();</span>
+<span class="fc" id="L89">    }</span>
+
+    @Override
+    public BlockFamilyDefinitionData load(ResourceUrn resourceUrn, List&lt;AssetDataFile&gt; input) throws IOException {
+<span class="fc" id="L93">        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input.get(0).openStream(), Charsets.UTF_8))) {</span>
+<span class="fc" id="L94">            BlockFamilyDefinitionData data = gson.fromJson(reader, BlockFamilyDefinitionData.class);</span>
+
+<span class="fc" id="L96">            applyDefaults(resourceUrn, data.getBaseSection());</span>
+<span class="pc" id="L97">            data.getSections().values().stream().forEach(section -&gt; applyDefaults(resourceUrn, section));</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">            if (!data.isTemplate()) {</span>
+<span class="pc bpc" id="L99" title="3 of 4 branches missed.">                if (data.getBlockFamily() == null &amp;&amp; data.getBaseSection().getShape() != null) {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                    if (data.getBaseSection().getShape().isCollisionYawSymmetric()) {</span>
+<span class="nc" id="L101">                        data.setBlockFamily(SymmetricFamily.class);</span>
+                    } else {
+<span class="nc" id="L103">                        data.setBlockFamily(HorizontalFamily.class);</span>
+                    }
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">                } else if (data.getBlockFamily() == null) {</span>
+<span class="nc" id="L106">                    data.setBlockFamily(FreeformFamily.class);</span>
+                }
+            }
+
+<span class="fc" id="L110">            return data;</span>
+        }
+    }
+
+    private void applyDefaults(ResourceUrn resourceUrn, SectionDefinitionData section) {
+<span class="fc" id="L115">        Optional&lt;BlockTile&gt; defaultTile = assetManager.getAsset(resourceUrn, BlockTile.class);</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (defaultTile.isPresent()) {</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">            for (BlockPart part : BlockPart.values()) {</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">                if (section.getBlockTiles().get(part) == null) {</span>
+<span class="nc" id="L119">                    section.getBlockTiles().put(part, defaultTile.get());</span>
+                }
+            }
+        }
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        if (section.getSounds() == null) {</span>
+<span class="nc" id="L124">            section.setSounds(assetManager.getAsset(DEFAULT_SOUNDS, BlockSounds.class).get());</span>
+        }
+
+<span class="fc" id="L127">    }</span>
+
+<span class="fc" id="L129">    private class BlockFamilyDefinitionDataHandler implements JsonDeserializer&lt;BlockFamilyDefinitionData&gt; {</span>
+
+<span class="fc" id="L131">        private Type listOfStringType = new TypeToken&lt;List&lt;String&gt;&gt;() {</span>
+<span class="fc" id="L132">        }.getType();</span>
+
+
+        @Override
+        public BlockFamilyDefinitionData deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="fc" id="L137">            JsonObject jsonObject = json.getAsJsonObject();</span>
+<span class="fc" id="L138">            BlockFamilyDefinitionData base = createBaseData(jsonObject);</span>
+
+            // Deserialize everything
+<span class="fc" id="L141">            BlockFamilyDefinitionData result = new BlockFamilyDefinitionData(base);</span>
+<span class="fc" id="L142">            setBoolean(result::setTemplate, jsonObject, &quot;template&quot;);</span>
+<span class="fc" id="L143">            setObject(result::setBlockFamily, jsonObject, &quot;family&quot;, Class.class, context);</span>
+<span class="fc" id="L144">            setObject(result::setCategories, jsonObject, &quot;categories&quot;, listOfStringType, context);</span>
+
+<span class="fc" id="L146">            deserializeSectionDefinitionData(result.getBaseSection(), jsonObject, context);</span>
+
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">            if (result.getBlockFamily() != null) {</span>
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">                for (MultiSection multiSection : BlockFamilyLibrary.getMultiSections(result.getBlockFamily())) {</span>
+<span class="nc bnc" id="L151" title="All 4 branches missed.">                    if (jsonObject.has(multiSection.name()) &amp;&amp; jsonObject.get(multiSection.name()).isJsonObject()) {</span>
+<span class="nc" id="L152">                        JsonObject jsonMultiSection = jsonObject.getAsJsonObject(multiSection.name());</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                        for (String section : multiSection.appliesToSections()) {</span>
+<span class="nc" id="L154">                            SectionDefinitionData sectionData = result.getSections().get(section);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                            if (sectionData == null) {</span>
+<span class="nc" id="L156">                                sectionData = new SectionDefinitionData(base.getSection(section));</span>
+<span class="nc" id="L157">                                deserializeSectionDefinitionData(sectionData, jsonObject, context);</span>
+<span class="nc" id="L158">                                result.getSections().put(section, sectionData);</span>
+                            }
+<span class="nc" id="L160">                            deserializeSectionDefinitionData(sectionData, jsonMultiSection, context);</span>
+                        }
+                    }
+                }
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">                for (String section : BlockFamilyLibrary.getSections(result.getBlockFamily())) {</span>
+<span class="nc bnc" id="L165" title="All 4 branches missed.">                    if (jsonObject.has(section) &amp;&amp; jsonObject.get(section).isJsonObject()) {</span>
+<span class="nc" id="L166">                        SectionDefinitionData sectionData = result.getSections().get(section);</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">                        if (sectionData == null) {</span>
+<span class="nc" id="L168">                            sectionData = new SectionDefinitionData(base.getSection(section));</span>
+<span class="nc" id="L169">                            deserializeSectionDefinitionData(sectionData, jsonObject, context);</span>
+<span class="nc" id="L170">                            result.getSections().put(section, sectionData);</span>
+                        }
+<span class="nc" id="L172">                        deserializeSectionDefinitionData(sectionData, jsonObject.getAsJsonObject(section), context);</span>
+                    }
+                }
+            }
+
+<span class="fc" id="L177">            return result;</span>
+        }
+
+        private void deserializeSectionDefinitionData(SectionDefinitionData data, JsonObject jsonObject, JsonDeserializationContext context) {
+<span class="fc" id="L181">            setString(data::setDisplayName, jsonObject, &quot;displayName&quot;);</span>
+<span class="fc" id="L182">            setBoolean(data::setLiquid, jsonObject, &quot;liquid&quot;);</span>
+<span class="fc" id="L183">            setInt(data::setHardness, jsonObject, &quot;hardness&quot;);</span>
+<span class="fc" id="L184">            setBoolean(data::setAttachmentAllowed, jsonObject, &quot;attachmentAllowed&quot;);</span>
+<span class="fc" id="L185">            setBoolean(data::setReplacementAllowed, jsonObject, &quot;replacementAllowed&quot;);</span>
+<span class="fc" id="L186">            setBoolean(data::setSupportRequired, jsonObject, &quot;supportRequired&quot;);</span>
+<span class="fc" id="L187">            setBoolean(data::setPenetrable, jsonObject, &quot;penetrable&quot;);</span>
+<span class="fc" id="L188">            setBoolean(data::setTargetable, jsonObject, &quot;targetable&quot;);</span>
+<span class="fc" id="L189">            setBoolean(data::setClimbable, jsonObject, &quot;climbable&quot;);</span>
+<span class="fc" id="L190">            setBoolean(data::setInvisible, jsonObject, &quot;invisible&quot;);</span>
+<span class="fc" id="L191">            setBoolean(data::setTranslucent, jsonObject, &quot;translucent&quot;);</span>
+<span class="fc" id="L192">            setBoolean(data::setDoubleSided, jsonObject, &quot;doubleSided&quot;);</span>
+<span class="fc" id="L193">            setBoolean(data::setShadowCasting, jsonObject, &quot;shadowCasting&quot;);</span>
+<span class="fc" id="L194">            setBoolean(data::setWaving, jsonObject, &quot;waving&quot;);</span>
+<span class="fc" id="L195">            setObject(data::setSounds, jsonObject, &quot;sounds&quot;, BlockSounds.class, context);</span>
+<span class="fc" id="L196">            setByte(data::setLuminance, jsonObject, &quot;luminance&quot;);</span>
+<span class="fc" id="L197">            setObject(data::setTint, jsonObject, &quot;tint&quot;, Vector3f.class, context);</span>
+
+<span class="fc" id="L199">            readBlockPartMap(jsonObject, &quot;tile&quot;, &quot;tiles&quot;, data::getBlockTiles, BlockTile.class, context);</span>
+<span class="fc" id="L200">            readBlockPartMap(jsonObject, &quot;colorSource&quot;, &quot;colorSources&quot;, data::getColorSources, DefaultColorSource.class, context);</span>
+<span class="fc" id="L201">            readBlockPartMap(jsonObject, &quot;colorOffset&quot;, &quot;colorOffsets&quot;, data::getColorOffsets, Vector4f.class, context);</span>
+
+<span class="fc" id="L203">            setFloat(data::setMass, jsonObject, &quot;mass&quot;);</span>
+<span class="fc" id="L204">            setBoolean(data::setDebrisOnDestroy, jsonObject, &quot;debrisOnDestroy&quot;);</span>
+<span class="fc" id="L205">            setFloat(data::setFriction, jsonObject, &quot;friction&quot;);</span>
+<span class="fc" id="L206">            setFloat(data::setRestitution, jsonObject, &quot;restitution&quot;);</span>
+
+<span class="pc bpc" id="L208" title="3 of 4 branches missed.">            if (jsonObject.has(&quot;entity&quot;) &amp;&amp; jsonObject.get(&quot;entity&quot;).isJsonObject()) {</span>
+<span class="nc" id="L209">                JsonObject entityObject = jsonObject.getAsJsonObject(&quot;entity&quot;);</span>
+<span class="nc" id="L210">                setObject(data.getEntity()::setPrefab, entityObject, &quot;prefab&quot;, Prefab.class, context);</span>
+<span class="nc" id="L211">                setBoolean(data.getEntity()::setKeepActive, entityObject, &quot;keepActive&quot;);</span>
+            }
+
+<span class="pc bpc" id="L214" title="3 of 4 branches missed.">            if (jsonObject.has(&quot;inventory&quot;) &amp;&amp; jsonObject.get(&quot;inventory&quot;).isJsonObject()) {</span>
+<span class="nc" id="L215">                JsonObject inventoryObject = jsonObject.getAsJsonObject(&quot;inventory&quot;);</span>
+<span class="nc" id="L216">                setBoolean(data.getInventory()::setDirectPickup, inventoryObject, &quot;directPickup&quot;);</span>
+<span class="nc" id="L217">                setBoolean(data.getInventory()::setStackable, inventoryObject, &quot;stackable&quot;);</span>
+            }
+
+<span class="fc" id="L220">            setObject(data::setShape, jsonObject, &quot;shape&quot;, BlockShape.class, context);</span>
+<span class="fc" id="L221">            setBoolean(data::setWater, jsonObject, &quot;water&quot;);</span>
+<span class="fc" id="L222">            setBoolean(data::setGrass, jsonObject, &quot;grass&quot;);</span>
+<span class="fc" id="L223">            setBoolean(data::setIce, jsonObject, &quot;ice&quot;);</span>
+<span class="fc" id="L224">        }</span>
+
+        private &lt;T&gt; void readBlockPartMap(JsonObject jsonObject, String singleName,
+                                          String partsName, Supplier&lt;EnumMap&lt;BlockPart, T&gt;&gt; supplier, Class&lt;T&gt; type, JsonDeserializationContext context) {
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">            if (jsonObject.has(singleName)) {</span>
+<span class="nc" id="L229">                T value = context.deserialize(jsonObject.get(singleName), type);</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">                for (BlockPart blockPart : BlockPart.values()) {</span>
+<span class="nc" id="L231">                    supplier.get().put(blockPart, value);</span>
+                }
+            }
+<span class="pc bpc" id="L234" title="3 of 4 branches missed.">            if (jsonObject.has(partsName) &amp;&amp; jsonObject.get(partsName).isJsonObject()) {</span>
+<span class="nc" id="L235">                JsonObject partsObject = jsonObject.getAsJsonObject(partsName);</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">                if (partsObject.has(&quot;all&quot;)) {</span>
+<span class="nc" id="L237">                    T value = context.deserialize(partsObject.get(&quot;all&quot;), type);</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">                    for (BlockPart blockPart : BlockPart.values()) {</span>
+<span class="nc" id="L239">                        supplier.get().put(blockPart, value);</span>
+                    }
+                }
+<span class="nc bnc" id="L242" title="All 2 branches missed.">                if (partsObject.has(&quot;sides&quot;)) {</span>
+<span class="nc" id="L243">                    T value = context.deserialize(partsObject.get(&quot;sides&quot;), type);</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">                    for (BlockPart blockPart : BlockPart.horizontalSides()) {</span>
+<span class="nc" id="L245">                        supplier.get().put(blockPart, value);</span>
+<span class="nc" id="L246">                    }</span>
+                }
+<span class="nc bnc" id="L248" title="All 2 branches missed.">                if (partsObject.has(&quot;topBottom&quot;)) {</span>
+<span class="nc" id="L249">                    T value = context.deserialize(partsObject.get(&quot;topBottom&quot;), type);</span>
+<span class="nc" id="L250">                    supplier.get().put(BlockPart.TOP, value);</span>
+<span class="nc" id="L251">                    supplier.get().put(BlockPart.BOTTOM, value);</span>
+                }
+<span class="nc bnc" id="L253" title="All 2 branches missed.">                for (BlockPart part : BlockPart.values()) {</span>
+<span class="nc" id="L254">                    String partName = part.toString().toLowerCase(Locale.ENGLISH);</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">                    if (partsObject.has(partName)) {</span>
+<span class="nc" id="L256">                        T value = context.deserialize(partsObject.get(partName), type);</span>
+<span class="nc" id="L257">                        supplier.get().put(part, value);</span>
+                    }
+                }
+            }
+<span class="fc" id="L261">        }</span>
+
+        private void setString(Consumer&lt;String&gt; setter, JsonObject jsonObject, String name) {
+<span class="fc" id="L264">            JsonPrimitive primitive = jsonObject.getAsJsonPrimitive(name);</span>
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">            if (primitive != null) {</span>
+<span class="fc" id="L266">                setter.accept(primitive.getAsString());</span>
+            }
+<span class="fc" id="L268">        }</span>
+
+        private void setBoolean(Consumer&lt;Boolean&gt; setter, JsonObject jsonObject, String name) {
+<span class="fc" id="L271">            JsonPrimitive primitive = jsonObject.getAsJsonPrimitive(name);</span>
+<span class="pc bpc" id="L272" title="1 of 4 branches missed.">            if (primitive != null &amp;&amp; primitive.isBoolean()) {</span>
+<span class="fc" id="L273">                setter.accept(primitive.getAsBoolean());</span>
+            }
+<span class="fc" id="L275">        }</span>
+
+        private void setInt(Consumer&lt;Integer&gt; setter, JsonObject jsonObject, String name) {
+<span class="fc" id="L278">            JsonPrimitive primitive = jsonObject.getAsJsonPrimitive(name);</span>
+<span class="pc bpc" id="L279" title="2 of 4 branches missed.">            if (primitive != null &amp;&amp; primitive.isNumber()) {</span>
+<span class="fc" id="L280">                setter.accept(primitive.getAsInt());</span>
+            }
+<span class="fc" id="L282">        }</span>
+
+        private void setFloat(Consumer&lt;Float&gt; setter, JsonObject jsonObject, String name) {
+<span class="fc" id="L285">            JsonPrimitive primitive = jsonObject.getAsJsonPrimitive(name);</span>
+<span class="pc bpc" id="L286" title="3 of 4 branches missed.">            if (primitive != null &amp;&amp; primitive.isNumber()) {</span>
+<span class="nc" id="L287">                setter.accept(primitive.getAsFloat());</span>
+            }
+<span class="fc" id="L289">        }</span>
+
+        private void setByte(Consumer&lt;Byte&gt; setter, JsonObject jsonObject, String name) {
+<span class="fc" id="L292">            JsonPrimitive primitive = jsonObject.getAsJsonPrimitive(name);</span>
+<span class="pc bpc" id="L293" title="3 of 4 branches missed.">            if (primitive != null &amp;&amp; primitive.isNumber()) {</span>
+<span class="nc" id="L294">                setter.accept(primitive.getAsByte());</span>
+            }
+<span class="fc" id="L296">        }</span>
+
+        @SuppressWarnings(&quot;unchecked&quot;)
+        private &lt;T&gt; void setObject(Consumer&lt;T&gt; setter, JsonObject jsonObject, String name, Type type, JsonDeserializationContext context) {
+<span class="fc" id="L300">            JsonElement object = jsonObject.get(name);</span>
+<span class="fc bfc" id="L301" title="All 2 branches covered.">            if (object != null) {</span>
+<span class="fc" id="L302">                setter.accept(context.deserialize(object, type));</span>
+            }
+<span class="fc" id="L304">        }</span>
+
+        private BlockFamilyDefinitionData createBaseData(JsonObject jsonObject) {
+<span class="fc" id="L307">            JsonPrimitive basedOn = jsonObject.getAsJsonPrimitive(&quot;basedOn&quot;);</span>
+<span class="pc bpc" id="L308" title="3 of 4 branches missed.">            if (basedOn != null &amp;&amp; !basedOn.getAsString().isEmpty()) {</span>
+<span class="nc" id="L309">                Optional&lt;BlockFamilyDefinition&gt; baseDef = assetManager.getAsset(basedOn.getAsString(), BlockFamilyDefinition.class);</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">                if (baseDef.isPresent()) {</span>
+<span class="nc" id="L311">                    BlockFamilyDefinitionData data = baseDef.get().getData();</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                    if (data.getBlockFamily() == FreeformFamily.class) {</span>
+<span class="nc" id="L313">                        data.setBlockFamily(null);</span>
+                    }
+<span class="nc" id="L315">                    return data;</span>
+                } else {
+<span class="nc" id="L317">                    throw new JsonParseException(&quot;Unable to resolve based block definition '&quot; + basedOn.getAsString() + &quot;'&quot;);</span>
+                }
+            }
+<span class="fc" id="L320">            BlockFamilyDefinitionData data = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L321">            data.getBaseSection().setSounds(assetManager.getAsset(&quot;engine:default&quot;, BlockSounds.class).get());</span>
+<span class="fc" id="L322">            return data;</span>
+        }
+    }
+
+    private static class BlockFamilyHandler implements JsonDeserializer&lt;Class&lt;? extends BlockFamily&gt;&gt; {
+<span class="fc" id="L327">        BlockFamilyHandler() {</span>
+<span class="fc" id="L328">        }</span>
+
+        @Override
+        public Class&lt;? extends BlockFamily&gt; deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+
+<span class="fc" id="L333">            BlockFamilyLibrary library = CoreRegistry.get(BlockFamilyLibrary.class);</span>
+<span class="fc" id="L334">            return library.getBlockFamily(json.getAsString());</span>
+        }
+    }
+
+    private static class AssetTypeAdapterFactory implements TypeAdapterFactory {
+
+        private final AssetManager assetManager;
+
+<span class="fc" id="L342">        AssetTypeAdapterFactory(AssetManager assetManager) {</span>
+<span class="fc" id="L343">            this.assetManager = assetManager;</span>
+<span class="fc" id="L344">        }</span>
+
+        @Override
+        @SuppressWarnings(&quot;unchecked&quot;)
+        public &lt;T&gt; TypeAdapter&lt;T&gt; create(Gson gson, TypeToken&lt;T&gt; type) {
+<span class="fc" id="L349">            Class&lt;T&gt; rawType = (Class&lt;T&gt;) type.getRawType();</span>
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">            if (Asset.class.isAssignableFrom(rawType)) {</span>
+<span class="fc" id="L351">                final Class&lt;? extends Asset&gt; assetClass = (Class&lt;? extends Asset&gt;) rawType;</span>
+<span class="fc" id="L352">                return (TypeAdapter) new TypeAdapter&lt;Asset&gt;() {</span>
+                    @Override
+                    public void write(JsonWriter out, Asset value) throws IOException {
+<span class="nc bnc" id="L355" title="All 2 branches missed.">                        if (value == null) {</span>
+<span class="nc" id="L356">                            out.nullValue();</span>
+                        } else {
+<span class="nc" id="L358">                            out.value(value.getUrn().toString());</span>
+                        }
+<span class="nc" id="L360">                    }</span>
+
+                    @Override
+                    public Asset read(JsonReader in) throws IOException {
+<span class="pc bpc" id="L364" title="1 of 2 branches missed.">                        if (in.peek() == JsonToken.NULL) {</span>
+<span class="nc" id="L365">                            in.nextNull();</span>
+<span class="nc" id="L366">                            return null;</span>
+                        } else {
+<span class="fc" id="L368">                            String value = in.nextString();</span>
+<span class="fc" id="L369">                            Optional&lt;? extends Asset&gt; asset = assetManager.getAsset(value, assetClass);</span>
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">                            if (asset.isPresent()) {</span>
+<span class="fc" id="L371">                                return asset.get();</span>
+                            }
+                        }
+<span class="nc" id="L374">                        return null;</span>
+                    }
+                };
+            }
+<span class="nc" id="L378">            return null;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

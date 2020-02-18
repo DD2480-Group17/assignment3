@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChunkMath.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.math</a> &gt; <span class="el_source">ChunkMath.java</span></div><h1>ChunkMath.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.math;
+
+import java.math.RoundingMode;
+
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.chunks.ChunkConstants;
+
+/**
+ * Collection of math functions.
+ *
+ */
+public final class ChunkMath {
+
+    private ChunkMath() {
+    }
+
+    /**
+     * Returns the chunk position of a given coordinate.
+     *
+     * @param x The X-coordinate of the block
+     * @return The X-coordinate of the chunk
+     */
+    public static int calcChunkPosX(int x, int chunkPowerX) {
+<span class="fc" id="L41">        return (x &gt;&gt; chunkPowerX);</span>
+    }
+
+    /**
+     * Returns the chunk position of a given coordinate.
+     *
+     * @param y The Y-coordinate of the block
+     * @return The Y-coordinate of the chunk
+     */
+    public static int calcChunkPosY(int y, int chunkPowerY) {
+<span class="fc" id="L51">        return (y &gt;&gt; chunkPowerY);</span>
+    }
+
+    /**
+     * Returns the chunk position of a given coordinate.
+     *
+     * @param z The Z-coordinate of the block
+     * @return The Z-coordinate of the chunk
+     */
+    public static int calcChunkPosZ(int z, int chunkPowerZ) {
+<span class="fc" id="L61">        return (z &gt;&gt; chunkPowerZ);</span>
+    }
+
+    public static int calcChunkPosX(int x) {
+<span class="nc" id="L65">        return calcChunkPosX(x, ChunkConstants.CHUNK_POWER.x);</span>
+    }
+    public static int calcChunkPosY(int y) {
+<span class="nc" id="L68">        return calcChunkPosY(y, ChunkConstants.CHUNK_POWER.y);</span>
+    }
+    public static int calcChunkPosZ(int z) {
+<span class="nc" id="L71">        return calcChunkPosZ(z, ChunkConstants.CHUNK_POWER.z);</span>
+    }
+
+    public static Vector3i calcChunkPos(Vector3i pos, Vector3i chunkPower) {
+<span class="nc" id="L75">        return calcChunkPos(pos.x, pos.y, pos.z, chunkPower);</span>
+    }
+
+    public static Vector3i calcChunkPos(Vector3f pos) {
+<span class="nc" id="L79">        return calcChunkPos(new Vector3i(pos, RoundingMode.HALF_UP));</span>
+    }
+
+    public static Vector3i calcChunkPos(Vector3i pos) {
+<span class="fc" id="L83">        return calcChunkPos(pos.x, pos.y, pos.z);</span>
+    }
+
+    public static Vector3i calcChunkPos(int x, int y, int z) {
+<span class="fc" id="L87">        return calcChunkPos(x, y, z, ChunkConstants.CHUNK_POWER);</span>
+    }
+
+    public static Vector3i[] calcChunkPos(Region3i region) {
+<span class="fc" id="L91">        return calcChunkPos(region, ChunkConstants.CHUNK_POWER);</span>
+    }
+
+    public static Vector3i calcChunkPos(int x, int y, int z, Vector3i chunkPower) {
+<span class="fc" id="L95">        return new Vector3i(calcChunkPosX(x, chunkPower.x), calcChunkPosY(y, chunkPower.y), calcChunkPosZ(z, chunkPower.z));</span>
+    }
+
+    public static Vector3i[] calcChunkPos(Region3i region, Vector3i chunkPower) {
+<span class="fc" id="L99">        int minX = calcChunkPosX(region.minX(), chunkPower.x);</span>
+<span class="fc" id="L100">        int minY = calcChunkPosY(region.minY(), chunkPower.y);</span>
+<span class="fc" id="L101">        int minZ = calcChunkPosZ(region.minZ(), chunkPower.z);</span>
+
+<span class="fc" id="L103">        int maxX = calcChunkPosX(region.maxX(), chunkPower.x);</span>
+<span class="fc" id="L104">        int maxY = calcChunkPosY(region.maxY(), chunkPower.y);</span>
+<span class="fc" id="L105">        int maxZ = calcChunkPosZ(region.maxZ(), chunkPower.z);</span>
+
+<span class="fc" id="L107">        int size = (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);</span>
+
+<span class="fc" id="L109">        Vector3i[] result = new Vector3i[size];</span>
+<span class="fc" id="L110">        int index = 0;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        for (int x = minX; x &lt;= maxX; x++) {</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            for (int y = minY; y &lt;= maxY; y++) {</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">                for (int z = minZ; z &lt;= maxZ; z++) {</span>
+<span class="fc" id="L114">                    result[index++] = new Vector3i(x, y, z);</span>
+                }
+            }
+        }
+<span class="fc" id="L118">        return result;</span>
+    }
+
+    /**
+     * Returns the internal position of a block within a chunk.
+     *
+     * @param blockX The X-coordinate of the block in the world
+     * @return The X-coordinate of the block within the chunk
+     */
+    public static int calcBlockPosX(int blockX, int chunkPosFilterX) {
+<span class="fc" id="L128">        return blockX &amp; chunkPosFilterX;</span>
+    }
+
+    public static int calcBlockPosY(int blockY, int chunkPosFilterY) {
+<span class="fc" id="L132">        return blockY &amp; chunkPosFilterY;</span>
+    }
+
+    /**
+     * Returns the internal position of a block within a chunk.
+     *
+     * @param blockZ The Z-coordinate of the block in the world
+     * @return The Z-coordinate of the block within the chunk
+     */
+    public static int calcBlockPosZ(int blockZ, int chunkPosFilterZ) {
+<span class="fc" id="L142">        return blockZ &amp; chunkPosFilterZ;</span>
+    }
+
+    public static int calcBlockPosX(int blockX) {
+<span class="nc" id="L146">        return calcBlockPosX(blockX, ChunkConstants.INNER_CHUNK_POS_FILTER.x);</span>
+    }
+
+    public static int calcBlockPosY(int blockY) {
+<span class="nc" id="L150">        return calcBlockPosY(blockY, ChunkConstants.INNER_CHUNK_POS_FILTER.y);</span>
+    }
+
+    public static int calcBlockPosZ(int blockZ) {
+<span class="nc" id="L154">        return calcBlockPosZ(blockZ, ChunkConstants.INNER_CHUNK_POS_FILTER.z);</span>
+    }
+
+    public static Vector3i calcBlockPos(Vector3i worldPos) {
+<span class="fc" id="L158">        return calcBlockPos(worldPos.x, worldPos.y, worldPos.z, ChunkConstants.INNER_CHUNK_POS_FILTER);</span>
+    }
+
+    public static Vector3i calcBlockPos(int x, int y, int z) {
+<span class="fc" id="L162">        return calcBlockPos(x, y, z, ChunkConstants.INNER_CHUNK_POS_FILTER);</span>
+    }
+
+    public static Vector3i calcBlockPos(int x, int y, int z, Vector3i chunkFilterSize) {
+<span class="fc" id="L166">        return new Vector3i(calcBlockPosX(x, chunkFilterSize.x), calcBlockPosY(y, chunkFilterSize.y), calcBlockPosZ(z, chunkFilterSize.z));</span>
+    }
+
+    public static Region3i getChunkRegionAroundWorldPos(Vector3i pos, int extent) {
+<span class="fc" id="L170">        Vector3i minPos = new Vector3i(-extent, -extent, -extent);</span>
+<span class="fc" id="L171">        minPos.add(pos);</span>
+<span class="fc" id="L172">        Vector3i maxPos = new Vector3i(extent, extent, extent);</span>
+<span class="fc" id="L173">        maxPos.add(pos);</span>
+
+<span class="fc" id="L175">        Vector3i minChunk = calcChunkPos(minPos);</span>
+<span class="fc" id="L176">        Vector3i maxChunk = calcChunkPos(maxPos);</span>
+
+<span class="fc" id="L178">        return Region3i.createFromMinMax(minChunk, maxChunk);</span>
+    }
+
+    // TODO: This doesn't belong in this class, move it.
+    public static Side getSecondaryPlacementDirection(Vector3f direction, Vector3f normal) {
+<span class="nc" id="L183">        Side surfaceDir = Side.inDirection(normal);</span>
+<span class="nc" id="L184">        Vector3f attachDir = surfaceDir.reverse().getVector3i().toVector3f();</span>
+<span class="nc" id="L185">        Vector3f rawDirection = new Vector3f(direction);</span>
+<span class="nc" id="L186">        float dot = rawDirection.dot(attachDir);</span>
+<span class="nc" id="L187">        rawDirection.sub(new Vector3f(dot * attachDir.x, dot * attachDir.y, dot * attachDir.z));</span>
+<span class="nc" id="L188">        return Side.inDirection(rawDirection.x, rawDirection.y, rawDirection.z).reverse();</span>
+    }
+
+    /**
+     * Produces a region containing the region touching the side of the given region, both in and outside the region.
+     *
+     * @param region
+     * @param side
+     * @return
+     */
+    public static Region3i getEdgeRegion(Region3i region, Side side) {
+<span class="fc" id="L199">        Vector3i sideDir = side.getVector3i();</span>
+<span class="fc" id="L200">        Vector3i min = region.min();</span>
+<span class="fc" id="L201">        Vector3i max = region.max();</span>
+<span class="fc" id="L202">        Vector3i edgeMin = new Vector3i(min);</span>
+<span class="fc" id="L203">        Vector3i edgeMax = new Vector3i(max);</span>
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        if (sideDir.x &lt; 0) {</span>
+<span class="fc" id="L205">            edgeMin.x = min.x;</span>
+<span class="fc" id="L206">            edgeMax.x = min.x;</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        } else if (sideDir.x &gt; 0) {</span>
+<span class="nc" id="L208">            edgeMin.x = max.x;</span>
+<span class="nc" id="L209">            edgeMax.x = max.x;</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">        } else if (sideDir.y &lt; 0) {</span>
+<span class="nc" id="L211">            edgeMin.y = min.y;</span>
+<span class="nc" id="L212">            edgeMax.y = min.y;</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        } else if (sideDir.y &gt; 0) {</span>
+<span class="nc" id="L214">            edgeMin.y = max.y;</span>
+<span class="nc" id="L215">            edgeMax.y = max.y;</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        } else if (sideDir.z &lt; 0) {</span>
+<span class="nc" id="L217">            edgeMin.z = min.z;</span>
+<span class="nc" id="L218">            edgeMax.z = min.z;</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        } else if (sideDir.z &gt; 0) {</span>
+<span class="nc" id="L220">            edgeMin.z = max.z;</span>
+<span class="nc" id="L221">            edgeMax.z = max.z;</span>
+        }
+<span class="fc" id="L223">        return Region3i.createFromMinMax(edgeMin, edgeMax);</span>
+    }
+
+    /**
+     * Populates a target array with the minimum value adjacent to each location, including the location itself.
+     * TODO: this is too specific for a general class like this. Move to a new class AbstractBatchPropagator
+     *
+     * @param source
+     * @param target
+     * @param populateMargins Whether to populate the edges of the target array
+     */
+    public static void populateMinAdjacent2D(int[] source, int[] target, int dimX, int dimY, boolean populateMargins) {
+<span class="fc" id="L235">        System.arraycopy(source, 0, target, 0, target.length);</span>
+
+        // 0 &lt; x &lt; dimX - 1; 0 &lt; y &lt; dimY - 1
+<span class="fc bfc" id="L238" title="All 2 branches covered.">        for (int y = 1; y &lt; dimY - 1; ++y) {</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">            for (int x = 1; x &lt; dimX - 1; ++x) {</span>
+<span class="fc" id="L240">                target[x + y * dimX] = Math.min(Math.min(source[x + (y - 1) * dimX], source[x + (y + 1) * dimX]),</span>
+<span class="fc" id="L241">                        Math.min(source[x + 1 + y * dimX], source[x - 1 + y * dimX]));</span>
+            }
+        }
+
+<span class="fc bfc" id="L245" title="All 2 branches covered.">        if (populateMargins) {</span>
+            // x == 0, y == 0
+<span class="fc" id="L247">            target[0] = Math.min(source[1], source[dimX]);</span>
+
+            // 0 &lt; x &lt; dimX - 1, y == 0
+<span class="fc bfc" id="L250" title="All 2 branches covered.">            for (int x = 1; x &lt; dimX - 1; ++x) {</span>
+<span class="fc" id="L251">                target[x] = Math.min(source[x - 1], Math.min(source[x + 1], source[x + dimX]));</span>
+            }
+
+            // x == dimX - 1, y == 0
+<span class="fc" id="L255">            target[dimX - 1] = Math.min(source[2 * dimX - 1], source[dimX - 2]);</span>
+
+            // 0 &lt; y &lt; dimY - 1
+<span class="fc bfc" id="L258" title="All 2 branches covered.">            for (int y = 1; y &lt; dimY - 1; ++y) {</span>
+                // x == 0
+<span class="fc" id="L260">                target[y * dimX] = Math.min(source[dimX * (y - 1)], Math.min(source[dimX * (y + 1)], source[1 + dimX * y]));</span>
+                // x == dimX - 1
+<span class="fc" id="L262">                target[dimX - 1 + y * dimX] = Math.min(source[dimX - 1 + dimX * (y - 1)], Math.min(source[dimX - 1 + dimX * (y + 1)], source[dimX - 2 + dimX * y]));</span>
+            }
+            // x == 0, y == dimY - 1
+<span class="fc" id="L265">            target[dimX * (dimY - 1)] = Math.min(source[1 + dimX * (dimY - 1)], source[dimX * (dimY - 2)]);</span>
+
+            // 0 &lt; x &lt; dimX - 1; y == dimY - 1
+<span class="fc bfc" id="L268" title="All 2 branches covered.">            for (int x = 1; x &lt; dimX - 1; ++x) {</span>
+<span class="fc" id="L269">                target[x + dimX * (dimY - 1)] = Math.min(source[x - 1 + dimX * (dimY - 1)], Math.min(source[x + 1 + dimX * (dimY - 1)], source[x + dimX * (dimY - 2)]));</span>
+            }
+
+            // x == dimX - 1; y == dimY - 1
+<span class="fc" id="L273">            target[dimX - 1 + dimX * (dimY - 1)] = Math.min(source[dimX - 2 + dimX * (dimY - 1)], source[dimX - 1 + dimX * (dimY - 2)]);</span>
+        }
+<span class="fc" id="L275">    }</span>
+
+    /**
+     * Works out whether the given block resides inside the given chunk.
+     *
+     * Both positions must be given as world position, not local position. In addition, the chunk position must be
+     * given in chunk coordinates, not in block coordinates.
+     *
+     * For example, using chunks of width 32, a block with x coordinate of 33 will be counted as inside a chunk with x
+     * coordinate of 1.
+     *
+     * @param blockWorldPos the block to check for
+     * @param chunkWorldPos the chunk to check in
+     * @return whether the block is inside the chunk
+     */
+    public static boolean blockInChunk(Vector3i blockWorldPos, Vector3i chunkWorldPos) {
+<span class="nc" id="L291">        return calcChunkPos(blockWorldPos).equals(chunkWorldPos);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

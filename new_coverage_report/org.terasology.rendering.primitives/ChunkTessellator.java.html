@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChunkTessellator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.primitives</a> &gt; <span class="el_source">ChunkTessellator.java</span></div><h1>ChunkTessellator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.primitives;
+
+import com.google.common.base.Stopwatch;
+import gnu.trove.iterator.TIntIterator;
+import org.lwjgl.BufferUtils;
+import org.terasology.engine.subsystem.lwjgl.GLBufferPool;
+import org.terasology.math.Direction;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.RenderMath;
+import org.terasology.world.ChunkView;
+import org.terasology.world.block.Block;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.generation.Region;
+
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Generates tessellated chunk meshes from chunks.
+ *
+ */
+public final class ChunkTessellator {
+
+    private static int statVertexArrayUpdateCount;
+
+    private GLBufferPool bufferPool;
+
+<span class="nc" id="L44">    public ChunkTessellator(GLBufferPool bufferPool) {</span>
+<span class="nc" id="L45">        this.bufferPool = bufferPool;</span>
+<span class="nc" id="L46">    }</span>
+
+    public ChunkMesh generateMesh(ChunkView chunkView, Region worldData, int meshHeight, int verticalOffset) {
+<span class="nc" id="L49">        PerformanceMonitor.startActivity(&quot;GenerateMesh&quot;);</span>
+<span class="nc" id="L50">        ChunkMesh mesh = new ChunkMesh(bufferPool);</span>
+
+<span class="nc" id="L52">        final Stopwatch watch = Stopwatch.createStarted();</span>
+
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        for (int x = 0; x &lt; ChunkConstants.SIZE_X; x++) {</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">            for (int z = 0; z &lt; ChunkConstants.SIZE_Z; z++) {</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">                for (int y = verticalOffset; y &lt; verticalOffset + meshHeight; y++) {</span>
+<span class="nc" id="L57">                    Block block = chunkView.getBlock(x, y, z);</span>
+<span class="nc bnc" id="L58" title="All 4 branches missed.">                    if (block != null &amp;&amp; block.getMeshGenerator() != null) {</span>
+<span class="nc" id="L59">                        block.getMeshGenerator().generateChunkMesh(chunkView, mesh, worldData, x, y, z);</span>
+                    }
+                }
+            }
+        }
+<span class="nc" id="L64">        watch.stop();</span>
+
+<span class="nc" id="L66">        mesh.setTimeToGenerateBlockVertices((int) watch.elapsed(TimeUnit.MILLISECONDS));</span>
+
+<span class="nc" id="L68">        watch.reset().start();</span>
+<span class="nc" id="L69">        generateOptimizedBuffers(chunkView, mesh);</span>
+<span class="nc" id="L70">        watch.stop();</span>
+<span class="nc" id="L71">        mesh.setTimeToGenerateOptimizedBuffers((int) watch.elapsed(TimeUnit.MILLISECONDS));</span>
+<span class="nc" id="L72">        statVertexArrayUpdateCount++;</span>
+
+<span class="nc" id="L74">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L75">        return mesh;</span>
+    }
+
+    private void generateOptimizedBuffers(ChunkView chunkView, ChunkMesh mesh) {
+<span class="nc" id="L79">        PerformanceMonitor.startActivity(&quot;OptimizeBuffers&quot;);</span>
+
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        for (ChunkMesh.RenderType type : ChunkMesh.RenderType.values()) {</span>
+<span class="nc" id="L82">            ChunkMesh.VertexElements elements = mesh.getVertexElements(type);</span>
+            // Vertices double to account for light info
+<span class="nc" id="L84">            elements.finalVertices = BufferUtils.createIntBuffer(</span>
+<span class="nc" id="L85">                    elements.vertices.size() + /* POSITION */</span>
+<span class="nc" id="L86">                    elements.tex.size() + /* TEX0.xy (texture coords) */</span>
+<span class="nc" id="L87">                    elements.flags.size() + /* TEX0.z (flags) */</span>
+<span class="nc" id="L88">                    elements.frames.size() + /* TEX0.w (animation frame counts) */</span>
+                    elements.vertexCount * 3 + /* TEX1 (lighting data) */
+<span class="nc" id="L90">                    elements.color.size() + /* COLOR */</span>
+<span class="nc" id="L91">                    elements.normals.size() /* NORMALS */</span>
+            );
+
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            for (int i = 0; i &lt; elements.vertexCount; i++) {</span>
+<span class="nc" id="L95">                Vector3f vertexPos = new Vector3f(</span>
+<span class="nc" id="L96">                        elements.vertices.get(i * 3),</span>
+<span class="nc" id="L97">                        elements.vertices.get(i * 3 + 1),</span>
+<span class="nc" id="L98">                        elements.vertices.get(i * 3 + 2));</span>
+
+                /* POSITION */
+<span class="nc" id="L101">                elements.finalVertices.put(Float.floatToIntBits(vertexPos.x));</span>
+<span class="nc" id="L102">                elements.finalVertices.put(Float.floatToIntBits(vertexPos.y));</span>
+<span class="nc" id="L103">                elements.finalVertices.put(Float.floatToIntBits(vertexPos.z));</span>
+
+                /* UV0 - TEX DATA 0.xy */
+<span class="nc" id="L106">                elements.finalVertices.put(Float.floatToIntBits(elements.tex.get(i * 2)));</span>
+<span class="nc" id="L107">                elements.finalVertices.put(Float.floatToIntBits(elements.tex.get(i * 2 + 1)));</span>
+
+                /* FLAGS - TEX DATA 0.z */
+<span class="nc" id="L110">                elements.finalVertices.put(Float.floatToIntBits(elements.flags.get(i)));</span>
+                
+                /* ANIMATION FRAME COUNT - TEX DATA 0.w*/
+<span class="nc" id="L113">                elements.finalVertices.put(Float.floatToIntBits(elements.frames.get(i)));</span>
+
+<span class="nc" id="L115">                float[] result = new float[3];</span>
+<span class="nc" id="L116">                Vector3f normal = new Vector3f(elements.normals.get(i * 3), elements.normals.get(i * 3 + 1), elements.normals.get(i * 3 + 2));</span>
+<span class="nc" id="L117">                calcLightingValuesForVertexPos(chunkView, vertexPos, result, normal);</span>
+
+                /* LIGHTING DATA / TEX DATA 1 */
+<span class="nc" id="L120">                elements.finalVertices.put(Float.floatToIntBits(result[0]));</span>
+<span class="nc" id="L121">                elements.finalVertices.put(Float.floatToIntBits(result[1]));</span>
+<span class="nc" id="L122">                elements.finalVertices.put(Float.floatToIntBits(result[2]));</span>
+
+                /* PACKED COLOR */
+<span class="nc" id="L125">                final int packedColor = RenderMath.packColor(</span>
+<span class="nc" id="L126">                        elements.color.get(i * 4),</span>
+<span class="nc" id="L127">                        elements.color.get(i * 4 + 1),</span>
+<span class="nc" id="L128">                        elements.color.get(i * 4 + 2),</span>
+<span class="nc" id="L129">                        elements.color.get(i * 4 + 3));</span>
+<span class="nc" id="L130">                elements.finalVertices.put(packedColor);</span>
+
+                /* NORMALS */
+<span class="nc" id="L133">                elements.finalVertices.put(Float.floatToIntBits(normal.x));</span>
+<span class="nc" id="L134">                elements.finalVertices.put(Float.floatToIntBits(normal.y));</span>
+<span class="nc" id="L135">                elements.finalVertices.put(Float.floatToIntBits(normal.z));</span>
+            }
+
+<span class="nc" id="L138">            elements.finalIndices = BufferUtils.createIntBuffer(elements.indices.size());</span>
+<span class="nc" id="L139">            TIntIterator indexIterator = elements.indices.iterator();</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            while (indexIterator.hasNext()) {</span>
+<span class="nc" id="L141">                elements.finalIndices.put(indexIterator.next());</span>
+            }
+
+<span class="nc" id="L144">            elements.finalVertices.flip();</span>
+<span class="nc" id="L145">            elements.finalIndices.flip();</span>
+        }
+<span class="nc" id="L147">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L148">    }</span>
+
+    private void calcLightingValuesForVertexPos(ChunkView chunkView, Vector3f vertexPos, float[] output, Vector3f normal) {
+<span class="nc" id="L151">        PerformanceMonitor.startActivity(&quot;calcLighting&quot;);</span>
+<span class="nc" id="L152">        float[] lights = new float[8];</span>
+<span class="nc" id="L153">        float[] blockLights = new float[8];</span>
+<span class="nc" id="L154">        Block[] blocks = new Block[4];</span>
+
+<span class="nc" id="L156">        PerformanceMonitor.startActivity(&quot;gatherLightInfo&quot;);</span>
+<span class="nc" id="L157">        Direction dir = Direction.inDirection(normal);</span>
+<span class="nc bnc" id="L158" title="All 3 branches missed.">        switch (dir) {</span>
+            case LEFT:
+            case RIGHT:
+<span class="nc" id="L161">                blocks[0] = chunkView.getBlock((vertexPos.x + 0.8f * normal.x), (vertexPos.y + 0.1f), (vertexPos.z + 0.1f));</span>
+<span class="nc" id="L162">                blocks[1] = chunkView.getBlock((vertexPos.x + 0.8f * normal.x), (vertexPos.y + 0.1f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L163">                blocks[2] = chunkView.getBlock((vertexPos.x + 0.8f * normal.x), (vertexPos.y - 0.1f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L164">                blocks[3] = chunkView.getBlock((vertexPos.x + 0.8f * normal.x), (vertexPos.y - 0.1f), (vertexPos.z + 0.1f));</span>
+<span class="nc" id="L165">                break;</span>
+            case FORWARD:
+            case BACKWARD:
+<span class="nc" id="L168">                blocks[0] = chunkView.getBlock((vertexPos.x + 0.1f), (vertexPos.y + 0.1f), (vertexPos.z + 0.8f * normal.z));</span>
+<span class="nc" id="L169">                blocks[1] = chunkView.getBlock((vertexPos.x + 0.1f), (vertexPos.y - 0.1f), (vertexPos.z + 0.8f * normal.z));</span>
+<span class="nc" id="L170">                blocks[2] = chunkView.getBlock((vertexPos.x - 0.1f), (vertexPos.y - 0.1f), (vertexPos.z + 0.8f * normal.z));</span>
+<span class="nc" id="L171">                blocks[3] = chunkView.getBlock((vertexPos.x - 0.1f), (vertexPos.y + 0.1f), (vertexPos.z + 0.8f * normal.z));</span>
+<span class="nc" id="L172">                break;</span>
+            default:
+<span class="nc" id="L174">                blocks[0] = chunkView.getBlock((vertexPos.x + 0.1f), (vertexPos.y + 0.8f * normal.y), (vertexPos.z + 0.1f));</span>
+<span class="nc" id="L175">                blocks[1] = chunkView.getBlock((vertexPos.x + 0.1f), (vertexPos.y + 0.8f * normal.y), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L176">                blocks[2] = chunkView.getBlock((vertexPos.x - 0.1f), (vertexPos.y + 0.8f * normal.y), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L177">                blocks[3] = chunkView.getBlock((vertexPos.x - 0.1f), (vertexPos.y + 0.8f * normal.y), (vertexPos.z + 0.1f));</span>
+        }
+
+<span class="nc" id="L180">        lights[0] = chunkView.getSunlight((vertexPos.x + 0.1f), (vertexPos.y + 0.8f), (vertexPos.z + 0.1f));</span>
+<span class="nc" id="L181">        lights[1] = chunkView.getSunlight((vertexPos.x + 0.1f), (vertexPos.y + 0.8f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L182">        lights[2] = chunkView.getSunlight((vertexPos.x - 0.1f), (vertexPos.y + 0.8f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L183">        lights[3] = chunkView.getSunlight((vertexPos.x - 0.1f), (vertexPos.y + 0.8f), (vertexPos.z + 0.1f));</span>
+
+<span class="nc" id="L185">        lights[4] = chunkView.getSunlight((vertexPos.x + 0.1f), (vertexPos.y - 0.1f), (vertexPos.z + 0.1f));</span>
+<span class="nc" id="L186">        lights[5] = chunkView.getSunlight((vertexPos.x + 0.1f), (vertexPos.y - 0.1f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L187">        lights[6] = chunkView.getSunlight((vertexPos.x - 0.1f), (vertexPos.y - 0.1f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L188">        lights[7] = chunkView.getSunlight((vertexPos.x - 0.1f), (vertexPos.y - 0.1f), (vertexPos.z + 0.1f));</span>
+
+<span class="nc" id="L190">        blockLights[0] = chunkView.getLight((vertexPos.x + 0.1f), (vertexPos.y + 0.8f), (vertexPos.z + 0.1f));</span>
+<span class="nc" id="L191">        blockLights[1] = chunkView.getLight((vertexPos.x + 0.1f), (vertexPos.y + 0.8f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L192">        blockLights[2] = chunkView.getLight((vertexPos.x - 0.1f), (vertexPos.y + 0.8f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L193">        blockLights[3] = chunkView.getLight((vertexPos.x - 0.1f), (vertexPos.y + 0.8f), (vertexPos.z + 0.1f));</span>
+
+<span class="nc" id="L195">        blockLights[4] = chunkView.getLight((vertexPos.x + 0.1f), (vertexPos.y - 0.1f), (vertexPos.z + 0.1f));</span>
+<span class="nc" id="L196">        blockLights[5] = chunkView.getLight((vertexPos.x + 0.1f), (vertexPos.y - 0.1f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L197">        blockLights[6] = chunkView.getLight((vertexPos.x - 0.1f), (vertexPos.y - 0.1f), (vertexPos.z - 0.1f));</span>
+<span class="nc" id="L198">        blockLights[7] = chunkView.getLight((vertexPos.x - 0.1f), (vertexPos.y - 0.1f), (vertexPos.z + 0.1f));</span>
+<span class="nc" id="L199">        PerformanceMonitor.endActivity();</span>
+
+<span class="nc" id="L201">        float resultLight = 0;</span>
+<span class="nc" id="L202">        float resultBlockLight = 0;</span>
+<span class="nc" id="L203">        int counterLight = 0;</span>
+<span class="nc" id="L204">        int counterBlockLight = 0;</span>
+
+<span class="nc" id="L206">        int occCounter = 0;</span>
+<span class="nc" id="L207">        int occCounterBillboard = 0;</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        for (int i = 0; i &lt; 8; i++) {</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            if (lights[i] &gt; 0) {</span>
+<span class="nc" id="L210">                resultLight += lights[i];</span>
+<span class="nc" id="L211">                counterLight++;</span>
+            }
+<span class="nc bnc" id="L213" title="All 2 branches missed.">            if (blockLights[i] &gt; 0) {</span>
+<span class="nc" id="L214">                resultBlockLight += blockLights[i];</span>
+<span class="nc" id="L215">                counterBlockLight++;</span>
+            }
+
+<span class="nc bnc" id="L218" title="All 2 branches missed.">            if (i &lt; 4) {</span>
+<span class="nc" id="L219">                Block b = blocks[i];</span>
+
+<span class="nc bnc" id="L221" title="All 4 branches missed.">                if (b.isShadowCasting() &amp;&amp; !b.isTranslucent()) {</span>
+<span class="nc" id="L222">                    occCounter++;</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                } else if (b.isShadowCasting()) {</span>
+<span class="nc" id="L224">                    occCounterBillboard++;</span>
+                }
+            }
+        }
+
+<span class="nc" id="L229">        double resultAmbientOcclusion = (TeraMath.pow(0.40, occCounter) + TeraMath.pow(0.80, occCounterBillboard)) / 2.0;</span>
+
+<span class="nc bnc" id="L231" title="All 2 branches missed.">        if (counterLight == 0) {</span>
+<span class="nc" id="L232">            output[0] = 0;</span>
+        } else {
+<span class="nc" id="L234">            output[0] = resultLight / counterLight / 15f;</span>
+        }
+
+<span class="nc bnc" id="L237" title="All 2 branches missed.">        if (counterBlockLight == 0) {</span>
+<span class="nc" id="L238">            output[1] = 0;</span>
+        } else {
+<span class="nc" id="L240">            output[1] = resultBlockLight / counterBlockLight / 15f;</span>
+        }
+
+<span class="nc" id="L243">        output[2] = (float) resultAmbientOcclusion;</span>
+<span class="nc" id="L244">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L245">    }</span>
+
+    public static int getVertexArrayUpdateCount() {
+<span class="nc" id="L248">        return statVertexArrayUpdateCount;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

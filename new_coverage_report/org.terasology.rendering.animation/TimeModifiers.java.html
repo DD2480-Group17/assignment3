@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TimeModifiers.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.animation</a> &gt; <span class="el_source">TimeModifiers.java</span></div><h1>TimeModifiers.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.animation;
+
+import com.google.common.base.Preconditions;
+import org.terasology.math.TeraMath;
+
+/**
+ * A collection of {@link TimeModifier} implementations
+ */
+public final class TimeModifiers {
+
+    private TimeModifiers() {
+        // no instances
+    }
+
+    /**
+     * Always returns the same constant value
+     * @param constant the constant value
+     * @return a mapping function
+     */
+    public static TimeModifier constant(float constant) {
+<span class="nc bnc" id="L37" title="All 4 branches missed.">        Preconditions.checkArgument(constant &gt;= 0 &amp;&amp; constant &lt;= 1);</span>
+<span class="nc" id="L38">        return v -&gt; constant;</span>
+    }
+
+    /**
+     * Always returns the value without transformation
+     * @return the identity function
+     */
+    public static TimeModifier linear() {
+<span class="fc" id="L46">        return v -&gt; v;</span>
+    }
+
+    /**
+     * Always the square of the the given value. Useful for constant accelerations.
+     * @return a mapping function
+     */
+    public static TimeModifier square() {
+<span class="nc" id="L54">        return v -&gt; v * v;</span>
+    }
+
+    /**
+     * Inverts the value, i.e returns one minus &lt;code&gt;v&lt;/code&gt;
+     * @return a mapping function
+     */
+    public static TimeModifier inverse() {
+<span class="nc" id="L62">        return v -&gt; (1 - v);</span>
+    }
+
+    /**
+     * Linear increase until v=0.5 and the returned value equals one and decreasing linearly until v=1.0.
+     * @return a mapping function
+     */
+    public static TimeModifier mirror() {
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        return v -&gt; (v &lt; 0.5f) ? v * 2f : (1 - v) * 2;</span>
+    }
+
+    /**
+     * Applies a constant offset to given value. Wraps around.
+     * @param delta the offset
+     * @return a mapping function
+     */
+    public static TimeModifier rotate(float delta) {
+<span class="nc" id="L79">        return v -&gt; (v + delta) % 1f;</span>
+    }
+
+    /**
+     * increases the speed by factor &lt;code&gt;times&lt;/codes&gt; and restarts from 0.
+     * @param times the (positive) multiplication factor
+     * @return a mapping function
+     */
+    public static TimeModifier multiply(float times) {
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        Preconditions.checkArgument(times &gt; 0f);</span>
+<span class="nc" id="L89">        return v -&gt; (v * times) % 1f;</span>
+    }
+
+    /**
+     * Maps to a sub-region of [0..1]
+     * @param min the lower bound
+     * @param max the upper bound
+     * @return a transformation from [0..1] to [min..max]
+     */
+    public static TimeModifier sub(float min, float max) {
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        Preconditions.checkArgument(min &gt;= 0f);</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        Preconditions.checkArgument(max &gt; min);</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        Preconditions.checkArgument(max &lt;= 1f);</span>
+
+<span class="nc" id="L103">        float range = max - min;</span>
+<span class="nc" id="L104">        return v -&gt; min + (v * range);</span>
+    }
+
+    /**
+     * Smooth start, fast in the middle, smooth end. Almost identical to sin^2, but faster
+     * @return a mapping function
+     */
+    public static TimeModifier smooth() {
+<span class="nc" id="L112">        return v -&gt; TeraMath.fadeHermite(v);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

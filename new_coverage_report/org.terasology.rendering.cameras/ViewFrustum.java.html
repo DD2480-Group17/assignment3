@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ViewFrustum.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.cameras</a> &gt; <span class="el_source">ViewFrustum.java</span></div><h1>ViewFrustum.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.cameras;
+
+import org.lwjgl.BufferUtils;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.math.AABB;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.registry.CoreRegistry;
+
+import java.nio.FloatBuffer;
+
+/**
+ * View frustum usable for frustum culling.
+ *
+ */
+public class ViewFrustum {
+
+<span class="fc" id="L32">    private final FrustumPlane[] planes = new FrustumPlane[6];</span>
+<span class="fc" id="L33">    private final FloatBuffer clip = BufferUtils.createFloatBuffer(16);</span>
+
+    /**
+     * Init. a new view frustum.
+     */
+<span class="fc" id="L38">    public ViewFrustum() {</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        for (int i = 0; i &lt; 6; i++) {</span>
+<span class="fc" id="L40">            planes[i] = new FrustumPlane();</span>
+        }
+<span class="fc" id="L42">    }</span>
+
+    /**
+     * Updates the view frustum using the currently active modelview and projection matrices.
+     */
+    public void updateFrustum(FloatBuffer modelViewMatrix, FloatBuffer projectionMatrix) {
+<span class="fc" id="L48">        clip.put(0, modelViewMatrix.get(0) * projectionMatrix.get(0) + modelViewMatrix.get(1) * projectionMatrix.get(4)</span>
+<span class="fc" id="L49">                + modelViewMatrix.get(2) * projectionMatrix.get(8) + modelViewMatrix.get(3) * projectionMatrix.get(12));</span>
+<span class="fc" id="L50">        clip.put(1, modelViewMatrix.get(0) * projectionMatrix.get(1) + modelViewMatrix.get(1) * projectionMatrix.get(5)</span>
+<span class="fc" id="L51">                + modelViewMatrix.get(2) * projectionMatrix.get(9) + modelViewMatrix.get(3) * projectionMatrix.get(13));</span>
+<span class="fc" id="L52">        clip.put(2, modelViewMatrix.get(0) * projectionMatrix.get(2) + modelViewMatrix.get(1) * projectionMatrix.get(6)</span>
+<span class="fc" id="L53">                + modelViewMatrix.get(2) * projectionMatrix.get(10) + modelViewMatrix.get(3) * projectionMatrix.get(14));</span>
+<span class="fc" id="L54">        clip.put(3, modelViewMatrix.get(0) * projectionMatrix.get(3) + modelViewMatrix.get(1) * projectionMatrix.get(7)</span>
+<span class="fc" id="L55">                + modelViewMatrix.get(2) * projectionMatrix.get(11) + modelViewMatrix.get(3) * projectionMatrix.get(15));</span>
+
+<span class="fc" id="L57">        clip.put(4, modelViewMatrix.get(4) * projectionMatrix.get(0) + modelViewMatrix.get(5) * projectionMatrix.get(4)</span>
+<span class="fc" id="L58">                + modelViewMatrix.get(6) * projectionMatrix.get(8) + modelViewMatrix.get(7) * projectionMatrix.get(12));</span>
+<span class="fc" id="L59">        clip.put(5, modelViewMatrix.get(4) * projectionMatrix.get(1) + modelViewMatrix.get(5) * projectionMatrix.get(5)</span>
+<span class="fc" id="L60">                + modelViewMatrix.get(6) * projectionMatrix.get(9) + modelViewMatrix.get(7) * projectionMatrix.get(13));</span>
+<span class="fc" id="L61">        clip.put(6, modelViewMatrix.get(4) * projectionMatrix.get(2) + modelViewMatrix.get(5) * projectionMatrix.get(6)</span>
+<span class="fc" id="L62">                + modelViewMatrix.get(6) * projectionMatrix.get(10) + modelViewMatrix.get(7) * projectionMatrix.get(14));</span>
+<span class="fc" id="L63">        clip.put(7, modelViewMatrix.get(4) * projectionMatrix.get(3) + modelViewMatrix.get(5) * projectionMatrix.get(7)</span>
+<span class="fc" id="L64">                + modelViewMatrix.get(6) * projectionMatrix.get(11) + modelViewMatrix.get(7) * projectionMatrix.get(15));</span>
+
+<span class="fc" id="L66">        clip.put(8, modelViewMatrix.get(8) * projectionMatrix.get(0) + modelViewMatrix.get(9) * projectionMatrix.get(4)</span>
+<span class="fc" id="L67">                + modelViewMatrix.get(10) * projectionMatrix.get(8) + modelViewMatrix.get(11) * projectionMatrix.get(12));</span>
+<span class="fc" id="L68">        clip.put(9, modelViewMatrix.get(8) * projectionMatrix.get(1) + modelViewMatrix.get(9) * projectionMatrix.get(5)</span>
+<span class="fc" id="L69">                + modelViewMatrix.get(10) * projectionMatrix.get(9) + modelViewMatrix.get(11) * projectionMatrix.get(13));</span>
+<span class="fc" id="L70">        clip.put(10, modelViewMatrix.get(8) * projectionMatrix.get(2) + modelViewMatrix.get(9) * projectionMatrix.get(6)</span>
+<span class="fc" id="L71">                + modelViewMatrix.get(10) * projectionMatrix.get(10) + modelViewMatrix.get(11) * projectionMatrix.get(14));</span>
+<span class="fc" id="L72">        clip.put(11, modelViewMatrix.get(8) * projectionMatrix.get(3) + modelViewMatrix.get(9) * projectionMatrix.get(7)</span>
+<span class="fc" id="L73">                + modelViewMatrix.get(10) * projectionMatrix.get(11) + modelViewMatrix.get(11) * projectionMatrix.get(15));</span>
+
+<span class="fc" id="L75">        clip.put(12, modelViewMatrix.get(12) * projectionMatrix.get(0) + modelViewMatrix.get(13) * projectionMatrix.get(4)</span>
+<span class="fc" id="L76">                + modelViewMatrix.get(14) * projectionMatrix.get(8) + modelViewMatrix.get(15) * projectionMatrix.get(12));</span>
+<span class="fc" id="L77">        clip.put(13, modelViewMatrix.get(12) * projectionMatrix.get(1) + modelViewMatrix.get(13) * projectionMatrix.get(5)</span>
+<span class="fc" id="L78">                + modelViewMatrix.get(14) * projectionMatrix.get(9) + modelViewMatrix.get(15) * projectionMatrix.get(13));</span>
+<span class="fc" id="L79">        clip.put(14, modelViewMatrix.get(12) * projectionMatrix.get(2) + modelViewMatrix.get(13) * projectionMatrix.get(6)</span>
+<span class="fc" id="L80">                + modelViewMatrix.get(14) * projectionMatrix.get(10) + modelViewMatrix.get(15) * projectionMatrix.get(14));</span>
+<span class="fc" id="L81">        clip.put(15, modelViewMatrix.get(12) * projectionMatrix.get(3) + modelViewMatrix.get(13) * projectionMatrix.get(7)</span>
+<span class="fc" id="L82">                + modelViewMatrix.get(14) * projectionMatrix.get(11) + modelViewMatrix.get(15) * projectionMatrix.get(15));</span>
+
+        // RIGHT
+<span class="fc" id="L85">        planes[0].setA(clip.get(3) - clip.get(0));</span>
+<span class="fc" id="L86">        planes[0].setB(clip.get(7) - clip.get(4));</span>
+<span class="fc" id="L87">        planes[0].setC(clip.get(11) - clip.get(8));</span>
+<span class="fc" id="L88">        planes[0].setD(clip.get(15) - clip.get(12));</span>
+<span class="fc" id="L89">        planes[0].normalize();</span>
+
+        // LEFT
+<span class="fc" id="L92">        planes[1].setA(clip.get(3) + clip.get(0));</span>
+<span class="fc" id="L93">        planes[1].setB(clip.get(7) + clip.get(4));</span>
+<span class="fc" id="L94">        planes[1].setC(clip.get(11) + clip.get(8));</span>
+<span class="fc" id="L95">        planes[1].setD(clip.get(15) + clip.get(12));</span>
+<span class="fc" id="L96">        planes[1].normalize();</span>
+
+        // BOTTOM
+<span class="fc" id="L99">        planes[2].setA(clip.get(3) + clip.get(1));</span>
+<span class="fc" id="L100">        planes[2].setB(clip.get(7) + clip.get(5));</span>
+<span class="fc" id="L101">        planes[2].setC(clip.get(11) + clip.get(9));</span>
+<span class="fc" id="L102">        planes[2].setD(clip.get(15) + clip.get(13));</span>
+<span class="fc" id="L103">        planes[2].normalize();</span>
+
+        // TOP
+<span class="fc" id="L106">        planes[3].setA(clip.get(3) - clip.get(1));</span>
+<span class="fc" id="L107">        planes[3].setB(clip.get(7) - clip.get(5));</span>
+<span class="fc" id="L108">        planes[3].setC(clip.get(11) - clip.get(9));</span>
+<span class="fc" id="L109">        planes[3].setD(clip.get(15) - clip.get(13));</span>
+<span class="fc" id="L110">        planes[3].normalize();</span>
+
+        // FAR
+<span class="fc" id="L113">        planes[4].setA(clip.get(3) - clip.get(2));</span>
+<span class="fc" id="L114">        planes[4].setB(clip.get(7) - clip.get(6));</span>
+<span class="fc" id="L115">        planes[4].setC(clip.get(11) - clip.get(10));</span>
+<span class="fc" id="L116">        planes[4].setD(clip.get(15) - clip.get(14));</span>
+<span class="fc" id="L117">        planes[4].normalize();</span>
+
+        // NEAR
+<span class="fc" id="L120">        planes[5].setA(clip.get(3) + clip.get(2));</span>
+<span class="fc" id="L121">        planes[5].setB(clip.get(7) + clip.get(6));</span>
+<span class="fc" id="L122">        planes[5].setC(clip.get(11) + clip.get(10));</span>
+<span class="fc" id="L123">        planes[5].setD(clip.get(15) + clip.get(14));</span>
+<span class="fc" id="L124">        planes[5].normalize();</span>
+<span class="fc" id="L125">    }</span>
+
+    /**
+     * Returns true if the given point intersects the view frustum.
+     */
+    public boolean intersects(double x, double y, double z) {
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        for (int i = 0; i &lt; 6; i++) {</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">            if (planes[i].getA() * x + planes[i].getB() * y + planes[i].getC() * z + planes[i].getD() &lt;= 0) {</span>
+<span class="nc" id="L133">                return false;</span>
+            }
+        }
+<span class="nc" id="L136">        return true;</span>
+    }
+
+    /**
+     * Returns true if this view frustum intersects the given AABB.
+     */
+    public boolean intersects(AABB aabb) {
+
+<span class="nc" id="L144">        Vector3f[] aabbVertices = aabb.getVertices();</span>
+
+<span class="nc" id="L146">        Vector3f cp = CoreRegistry.get(LocalPlayer.class).getViewPosition();</span>
+
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        for (int i = 0; i &lt; 6; i++) {</span>
+<span class="nc" id="L149">            if (planes[i].getA() * (aabbVertices[0].x - cp.x) + planes[i].getB() * (aabbVertices[0].y - cp.y)</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                    + planes[i].getC() * (aabbVertices[0].z - cp.z) + planes[i].getD() &gt; 0) {</span>
+<span class="nc" id="L151">                continue;</span>
+            }
+<span class="nc" id="L153">            if (planes[i].getA() * (aabbVertices[1].x - cp.x) + planes[i].getB() * (aabbVertices[1].y - cp.y)</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                    + planes[i].getC() * (aabbVertices[1].z - cp.z) + planes[i].getD() &gt; 0) {</span>
+<span class="nc" id="L155">                continue;</span>
+            }
+<span class="nc" id="L157">            if (planes[i].getA() * (aabbVertices[2].x - cp.x) + planes[i].getB() * (aabbVertices[2].y - cp.y)</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                    + planes[i].getC() * (aabbVertices[2].z - cp.z) + planes[i].getD() &gt; 0) {</span>
+<span class="nc" id="L159">                continue;</span>
+            }
+<span class="nc" id="L161">            if (planes[i].getA() * (aabbVertices[3].x - cp.x) + planes[i].getB() * (aabbVertices[3].y - cp.y)</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                    + planes[i].getC() * (aabbVertices[3].z - cp.z) + planes[i].getD() &gt; 0) {</span>
+<span class="nc" id="L163">                continue;</span>
+            }
+<span class="nc" id="L165">            if (planes[i].getA() * (aabbVertices[4].x - cp.x) + planes[i].getB() * (aabbVertices[4].y - cp.y)</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                    + planes[i].getC() * (aabbVertices[4].z - cp.z) + planes[i].getD() &gt; 0) {</span>
+<span class="nc" id="L167">                continue;</span>
+            }
+<span class="nc" id="L169">            if (planes[i].getA() * (aabbVertices[5].x - cp.x) + planes[i].getB() * (aabbVertices[5].y - cp.y)</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                    + planes[i].getC() * (aabbVertices[5].z - cp.z) + planes[i].getD() &gt; 0) {</span>
+<span class="nc" id="L171">                continue;</span>
+            }
+<span class="nc" id="L173">            if (planes[i].getA() * (aabbVertices[6].x - cp.x) + planes[i].getB() * (aabbVertices[6].y - cp.y)</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                    + planes[i].getC() * (aabbVertices[6].z - cp.z) + planes[i].getD() &gt; 0) {</span>
+<span class="nc" id="L175">                continue;</span>
+            }
+<span class="nc" id="L177">            if (planes[i].getA() * (aabbVertices[7].x - cp.x) + planes[i].getB() * (aabbVertices[7].y - cp.y)</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                    + planes[i].getC() * (aabbVertices[7].z - cp.z) + planes[i].getD() &gt; 0) {</span>
+<span class="nc" id="L179">                continue;</span>
+            }
+<span class="nc" id="L181">            return false;</span>
+        }
+
+<span class="nc" id="L184">        return true;</span>
+    }
+
+    /**
+     * Returns true if the given sphere intersects the given AABB.
+     */
+    public boolean intersects(Vector3f position, float radius) {
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        for (int i = 0; i &lt; 6; i++) {</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            if (planes[i].getA() * position.x + planes[i].getB() * position.y + planes[i].getC() * position.z + planes[i].getD() &lt;= -radius) {</span>
+<span class="nc" id="L193">                return false;</span>
+            }
+        }
+<span class="nc" id="L196">        return true;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

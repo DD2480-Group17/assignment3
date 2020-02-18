@@ -1,0 +1,546 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReadWriteStorageManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.internal</a> &gt; <span class="el_source">ReadWriteStorageManager.java</span></div><h1>ReadWriteStorageManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.internal;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.config.UniverseConfig;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.engine.Time;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.entity.internal.EntityChangeSubscriber;
+import org.terasology.entitySystem.entity.internal.EntityDestroySubscriber;
+import org.terasology.entitySystem.entity.internal.PojoEntityManager;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.systems.ComponentSystem;
+import org.terasology.game.Game;
+import org.terasology.game.GameManifest;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.network.Client;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.NetworkSystem;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.protobuf.EntityData;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.recording.RecordAndReplaySerializer;
+import org.terasology.recording.RecordAndReplayStatus;
+import org.terasology.recording.RecordAndReplayUtils;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.opengl.ScreenGrabber;
+import org.terasology.utilities.FilesUtil;
+import org.terasology.utilities.concurrency.ShutdownTask;
+import org.terasology.utilities.concurrency.Task;
+import org.terasology.utilities.concurrency.TaskMaster;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.family.BlockFamily;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkProvider;
+import org.terasology.world.chunks.ManagedChunk;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+import org.terasology.world.chunks.internal.ChunkImpl;
+import org.terasology.world.internal.WorldInfo;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+public final class ReadWriteStorageManager extends AbstractStorageManager implements EntityDestroySubscriber, EntityChangeSubscriber, DelayedEntityRefFactory {
+<span class="fc" id="L81">    private static final Logger logger = LoggerFactory.getLogger(ReadWriteStorageManager.class);</span>
+
+    private final TaskMaster&lt;Task&gt; saveThreadManager;
+    private final SaveTransactionHelper saveTransactionHelper;
+
+    /**
+     * This lock should be hold during read and write operation in the world directory. Currently it is being hold
+     * during reads of chunks or players as they are crruently the only data that needs to be loaded during the game.
+     * &lt;br&gt;&lt;br&gt;
+     * This lock ensures that reading threads can properly finish reading even when for example the ZIP file with the
+     * chunks got replaced with a newer version. Chunks that are getting saved get loaded from memory. It can however
+     * still be that a thread tries to load another chunk from the same ZIP file that contains the chunk that needs to
+     * be saved. Thus it can potentially happen that 2 threads want to read/write the same ZIP file with chunks.
+     */
+<span class="fc" id="L95">    private final ReadWriteLock worldDirectoryLock = new ReentrantReadWriteLock(true);</span>
+<span class="fc" id="L96">    private final Lock worldDirectoryReadLock = worldDirectoryLock.readLock();</span>
+<span class="fc" id="L97">    private final Lock worldDirectoryWriteLock = worldDirectoryLock.writeLock();</span>
+    private SaveTransaction saveTransaction;
+    private Config config;
+
+    /**
+     * Time of the next save in the format that {@link System#currentTimeMillis()} returns.
+     */
+    private Long nextAutoSave;
+    private boolean saveRequested;
+<span class="fc" id="L106">    private ConcurrentMap&lt;Vector3i, CompressedChunkBuilder&gt; unloadedAndUnsavedChunkMap = Maps.newConcurrentMap();</span>
+<span class="fc" id="L107">    private ConcurrentMap&lt;Vector3i, CompressedChunkBuilder&gt; unloadedAndSavingChunkMap = Maps.newConcurrentMap();</span>
+<span class="fc" id="L108">    private ConcurrentMap&lt;String, EntityData.PlayerStore&gt; unloadedAndUnsavedPlayerMap = Maps.newConcurrentMap();</span>
+<span class="fc" id="L109">    private ConcurrentMap&lt;String, EntityData.PlayerStore&gt; unloadedAndSavingPlayerMap = Maps.newConcurrentMap();</span>
+
+
+    private EngineEntityManager privateEntityManager;
+    private EntitySetDeltaRecorder entitySetDeltaRecorder;
+    private RecordAndReplaySerializer recordAndReplaySerializer;
+    private RecordAndReplayUtils recordAndReplayUtils;
+    private RecordAndReplayCurrentStatus recordAndReplayCurrentStatus;
+    /**
+     * A component library that provides a copy() method that replaces {@link EntityRef}s which {@link EntityRef}s
+     * that will use the privateEntityManager.
+     */
+    private ComponentLibrary entityRefReplacingComponentLibrary;
+
+    public ReadWriteStorageManager(Path savePath, ModuleEnvironment environment, EngineEntityManager entityManager, BlockManager blockManager
+            , ExtraBlockDataManager extraDataManager, RecordAndReplaySerializer recordAndReplaySerializer,
+                                   RecordAndReplayUtils recordAndReplayUtils, RecordAndReplayCurrentStatus recordAndReplayCurrentStatus) throws IOException {
+<span class="fc" id="L126">        this(savePath, environment, entityManager, blockManager, extraDataManager,</span>
+            true, recordAndReplaySerializer, recordAndReplayUtils, recordAndReplayCurrentStatus);
+<span class="fc" id="L128">    }</span>
+
+    ReadWriteStorageManager(Path savePath, ModuleEnvironment environment, EngineEntityManager entityManager,
+                                   BlockManager blockManager, ExtraBlockDataManager extraDataManager, boolean storeChunksInZips,
+                                   RecordAndReplaySerializer recordAndReplaySerializer, RecordAndReplayUtils recordAndReplayUtils,
+                            RecordAndReplayCurrentStatus recordAndReplayCurrentStatus) throws IOException {
+<span class="fc" id="L134">        super(savePath, environment, entityManager, blockManager, extraDataManager, storeChunksInZips);</span>
+
+<span class="fc" id="L136">        entityManager.subscribeForDestruction(this);</span>
+<span class="fc" id="L137">        entityManager.subscribeForChanges(this);</span>
+        // TODO Ensure that the component library and the type serializer library are thread save (e.g. immutable)
+<span class="fc" id="L139">        this.privateEntityManager = createPrivateEntityManager(entityManager.getComponentLibrary());</span>
+<span class="fc" id="L140">        Files.createDirectories(getStoragePathProvider().getStoragePathDirectory());</span>
+<span class="fc" id="L141">        this.saveTransactionHelper = new SaveTransactionHelper(getStoragePathProvider());</span>
+<span class="fc" id="L142">        this.saveThreadManager = TaskMaster.createFIFOTaskMaster(&quot;Saving&quot;, 1);</span>
+<span class="fc" id="L143">        this.config = CoreRegistry.get(Config.class);</span>
+<span class="fc" id="L144">        this.entityRefReplacingComponentLibrary = privateEntityManager.getComponentLibrary()</span>
+<span class="fc" id="L145">                .createCopyUsingCopyStrategy(EntityRef.class, new DelayedEntityRefCopyStrategy(this));</span>
+<span class="fc" id="L146">        this.entitySetDeltaRecorder = new EntitySetDeltaRecorder(this.entityRefReplacingComponentLibrary);</span>
+<span class="fc" id="L147">        this.recordAndReplaySerializer = recordAndReplaySerializer;</span>
+<span class="fc" id="L148">        this.recordAndReplayUtils = recordAndReplayUtils;</span>
+<span class="fc" id="L149">        this.recordAndReplayCurrentStatus = recordAndReplayCurrentStatus;</span>
+
+<span class="fc" id="L151">    }</span>
+
+    private static EngineEntityManager createPrivateEntityManager(ComponentLibrary componentLibrary) {
+<span class="fc" id="L154">        PojoEntityManager pojoEntityManager = new PojoEntityManager();</span>
+<span class="fc" id="L155">        pojoEntityManager.setComponentLibrary(componentLibrary);</span>
+<span class="fc" id="L156">        pojoEntityManager.setTypeSerializerLibrary(CoreRegistry.get(TypeHandlerLibrary.class));</span>
+<span class="fc" id="L157">        return pojoEntityManager;</span>
+    }
+
+    @Override
+    public void finishSavingAndShutdown() {
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        if (recordAndReplayCurrentStatus.getStatus() == RecordAndReplayStatus.RECORDING) {</span>
+<span class="nc" id="L163">            recordAndReplayUtils.setShutdownRequested(true);</span>
+        }
+<span class="fc" id="L165">        saveThreadManager.shutdown(new ShutdownTask(), true);</span>
+<span class="fc" id="L166">        checkSaveTransactionAndClearUpIfItIsDone();</span>
+<span class="fc" id="L167">    }</span>
+
+    private void checkSaveTransactionAndClearUpIfItIsDone() {
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        if (saveTransaction != null) {</span>
+<span class="fc" id="L171">            SaveTransactionResult result = saveTransaction.getResult();</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">            if (result != null) {</span>
+<span class="fc" id="L173">                Throwable t = saveTransaction.getResult().getCatchedThrowable();</span>
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">                if (t != null) {</span>
+<span class="nc" id="L175">                    throw new RuntimeException(&quot;Saving failed&quot;, t);</span>
+                }
+<span class="fc" id="L177">                saveTransaction = null;</span>
+            }
+<span class="fc" id="L179">            unloadedAndSavingChunkMap.clear();</span>
+        }
+<span class="fc" id="L181">    }</span>
+
+
+    private void addGlobalStoreBuilderToSaveTransaction(SaveTransactionBuilder transactionBuilder) {
+<span class="fc" id="L185">        GlobalStoreBuilder globalStoreBuilder = new GlobalStoreBuilder(getEntityManager(), getPrefabSerializer());</span>
+<span class="fc" id="L186">        transactionBuilder.setGlobalStoreBuilder(globalStoreBuilder);</span>
+<span class="fc" id="L187">    }</span>
+
+    @Override
+    public void deactivatePlayer(Client client) {
+<span class="nc" id="L191">        EntityRef character = client.getEntity().getComponent(ClientComponent.class).character;</span>
+<span class="nc" id="L192">        PlayerStoreBuilder playerStoreBuilder = createPlayerStore(client, character);</span>
+<span class="nc" id="L193">        EntityData.PlayerStore playerStore = playerStoreBuilder.build(getEntityManager());</span>
+<span class="nc" id="L194">        deactivateOrDestroyEntityRecursive(character);</span>
+<span class="nc" id="L195">        unloadedAndUnsavedPlayerMap.put(client.getId(), playerStore);</span>
+<span class="nc" id="L196">    }</span>
+
+    @Override
+    protected EntityData.PlayerStore loadPlayerStoreData(String playerId) {
+<span class="fc" id="L200">        EntityData.PlayerStore disposedUnsavedPlayer = unloadedAndUnsavedPlayerMap.get(playerId);</span>
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">        if (disposedUnsavedPlayer != null) {</span>
+<span class="nc" id="L202">            return disposedUnsavedPlayer;</span>
+        }
+<span class="fc" id="L204">        EntityData.PlayerStore disposedSavingPlayer = unloadedAndSavingPlayerMap.get(playerId);</span>
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (disposedSavingPlayer != null) {</span>
+<span class="nc" id="L206">            return disposedSavingPlayer;</span>
+        }
+<span class="fc" id="L208">        worldDirectoryReadLock.lock();</span>
+        try {
+<span class="fc" id="L210">            return super.loadPlayerStoreData(playerId);</span>
+        } finally {
+<span class="fc" id="L212">            worldDirectoryReadLock.unlock();</span>
+        }
+    }
+
+    private void addChunksToSaveTransaction(SaveTransactionBuilder saveTransactionBuilder,
+                                            ChunkProvider chunkProvider) {
+<span class="fc" id="L218">        unloadedAndSavingChunkMap.clear();</span>
+        /*
+         * New entries might be added concurrently. By using putAll + clear to transfer entries we might loose new
+         * ones added in between putAll and clear. Bz iterating we can make sure that all entires removed
+         * from unloadedAndUnsavedChunkMap get added to unloadedAndSavingChunkMap.
+         */
+<span class="fc" id="L224">        Iterator&lt;Map.Entry&lt;Vector3i, CompressedChunkBuilder&gt;&gt; unsavedEntryIterator = unloadedAndUnsavedChunkMap.entrySet().iterator();</span>
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">        while (unsavedEntryIterator.hasNext()) {</span>
+<span class="nc" id="L226">            Map.Entry&lt;Vector3i, CompressedChunkBuilder&gt; entry = unsavedEntryIterator.next();</span>
+<span class="nc" id="L227">            unloadedAndSavingChunkMap.put(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L228">            unsavedEntryIterator.remove();</span>
+<span class="nc" id="L229">        }</span>
+
+<span class="fc" id="L231">        chunkProvider.getAllChunks().stream().filter(ManagedChunk::isReady).forEach(chunk -&gt; {</span>
+            // If there is a newer undisposed version of the chunk,we don't need to save the disposed version:
+<span class="fc" id="L233">            unloadedAndSavingChunkMap.remove(chunk.getPosition());</span>
+<span class="fc" id="L234">            ChunkImpl chunkImpl = (ChunkImpl) chunk;  // this storage manager can only work with ChunkImpls</span>
+<span class="fc" id="L235">            saveTransactionBuilder.addLoadedChunk(chunk.getPosition(), chunkImpl);</span>
+<span class="fc" id="L236">        });</span>
+
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">        for (Map.Entry&lt;Vector3i, CompressedChunkBuilder&gt; entry : unloadedAndSavingChunkMap.entrySet()) {</span>
+<span class="nc" id="L239">            saveTransactionBuilder.addUnloadedChunk(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L240">        }</span>
+<span class="fc" id="L241">    }</span>
+
+    @Override
+    public void requestSaving() {
+<span class="nc" id="L245">        this.saveRequested = true;</span>
+<span class="nc" id="L246">    }</span>
+
+    @Override
+    public void waitForCompletionOfPreviousSaveAndStartSaving() {
+<span class="fc" id="L250">        waitForCompletionOfPreviousSave();</span>
+<span class="fc" id="L251">        startSaving();</span>
+<span class="fc" id="L252">    }</span>
+
+    private void waitForCompletionOfPreviousSave() {
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">        if (recordAndReplayCurrentStatus.getStatus() == RecordAndReplayStatus.REPLAY_FINISHED) {</span>
+<span class="nc" id="L256">            recordAndReplayUtils.setShutdownRequested(true); //Important to trigger complete serialization in a recording</span>
+        }
+<span class="pc bpc" id="L258" title="3 of 4 branches missed.">        if (saveTransaction != null &amp;&amp; saveTransaction.getResult() == null) {</span>
+<span class="nc" id="L259">            saveThreadManager.shutdown(new ShutdownTask(), true);</span>
+<span class="nc" id="L260">            saveThreadManager.restart();</span>
+        }
+<span class="fc" id="L262">        checkSaveTransactionAndClearUpIfItIsDone();</span>
+<span class="fc" id="L263">    }</span>
+
+    private SaveTransaction createSaveTransaction() {
+<span class="fc" id="L266">        SaveTransactionBuilder saveTransactionBuilder = new SaveTransactionBuilder(privateEntityManager,</span>
+<span class="fc" id="L267">                entitySetDeltaRecorder, isStoreChunksInZips(), getStoragePathProvider(), worldDirectoryWriteLock,</span>
+                recordAndReplaySerializer, recordAndReplayUtils, recordAndReplayCurrentStatus);
+
+<span class="fc" id="L270">        ChunkProvider chunkProvider = CoreRegistry.get(ChunkProvider.class);</span>
+<span class="fc" id="L271">        NetworkSystem networkSystem = CoreRegistry.get(NetworkSystem.class);</span>
+
+<span class="fc" id="L273">        addChunksToSaveTransaction(saveTransactionBuilder, chunkProvider);</span>
+<span class="fc" id="L274">        addPlayersToSaveTransaction(saveTransactionBuilder, networkSystem);</span>
+<span class="fc" id="L275">        addGlobalStoreBuilderToSaveTransaction(saveTransactionBuilder);</span>
+<span class="fc" id="L276">        addGameManifestToSaveTransaction(saveTransactionBuilder);</span>
+
+<span class="fc" id="L278">        return saveTransactionBuilder.build();</span>
+    }
+
+
+    private void addPlayersToSaveTransaction(SaveTransactionBuilder saveTransactionBuilder,
+                                             NetworkSystem networkSystem) {
+<span class="fc" id="L284">        unloadedAndSavingPlayerMap.clear();</span>
+        /*
+         * New entries might be added concurrently. By using putAll + clear to transfer entries we might loose new
+         * ones added in between putAll and clear. By iterating we can make sure that all entities removed
+         * from unloadedAndUnsavedPlayerMap get added to unloadedAndSavingPlayerMap.
+         */
+<span class="fc" id="L290">        Iterator&lt;Map.Entry&lt;String, EntityData.PlayerStore&gt;&gt; unsavedEntryIterator = unloadedAndUnsavedPlayerMap.entrySet().iterator();</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">        while (unsavedEntryIterator.hasNext()) {</span>
+<span class="nc" id="L292">            Map.Entry&lt;String, EntityData.PlayerStore&gt; entry = unsavedEntryIterator.next();</span>
+<span class="nc" id="L293">            unloadedAndSavingPlayerMap.put(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L294">            unsavedEntryIterator.remove();</span>
+<span class="nc" id="L295">        }</span>
+
+<span class="fc bfc" id="L297" title="All 2 branches covered.">        for (Client client : networkSystem.getPlayers()) {</span>
+            // If there is a newer undisposed version of the player,we don't need to save the disposed version:
+<span class="fc" id="L299">            unloadedAndSavingPlayerMap.remove(client.getId());</span>
+<span class="fc" id="L300">            EntityRef character = client.getEntity().getComponent(ClientComponent.class).character;</span>
+<span class="fc" id="L301">            saveTransactionBuilder.addLoadedPlayer(client.getId(), createPlayerStore(client, character));</span>
+<span class="fc" id="L302">        }</span>
+
+<span class="pc bpc" id="L304" title="1 of 2 branches missed.">        for (Map.Entry&lt;String, EntityData.PlayerStore&gt; entry : unloadedAndSavingPlayerMap.entrySet()) {</span>
+<span class="nc" id="L305">            saveTransactionBuilder.addUnloadedPlayer(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L306">        }</span>
+<span class="fc" id="L307">    }</span>
+
+    private PlayerStoreBuilder createPlayerStore(Client client, EntityRef character) {
+<span class="fc" id="L310">        LocationComponent location = character.getComponent(LocationComponent.class);</span>
+        Vector3f relevanceLocation;
+<span class="fc bfc" id="L312" title="All 2 branches covered.">        if (location != null) {</span>
+<span class="fc" id="L313">            relevanceLocation = location.getWorldPosition();</span>
+        } else {
+<span class="fc" id="L315">            relevanceLocation = new Vector3f();</span>
+        }
+        Long characterId;
+<span class="fc bfc" id="L318" title="All 2 branches covered.">        if (character.exists()) {</span>
+<span class="fc" id="L319">            characterId = character.getId();</span>
+        } else {
+<span class="fc" id="L321">            characterId = null;</span>
+        }
+<span class="fc" id="L323">        return new PlayerStoreBuilder(characterId, relevanceLocation);</span>
+    }
+
+    @Override
+    public void deactivateChunk(Chunk chunk) {
+<span class="nc" id="L328">        Collection&lt;EntityRef&gt; entitiesOfChunk = getEntitiesOfChunk(chunk);</span>
+<span class="nc" id="L329">        ChunkImpl chunkImpl = (ChunkImpl) chunk; // storage manager only works with ChunkImpl</span>
+<span class="nc" id="L330">        unloadedAndUnsavedChunkMap.put(chunk.getPosition(), new CompressedChunkBuilder(getEntityManager(), chunkImpl,</span>
+                entitiesOfChunk, true));
+
+<span class="nc" id="L333">        entitiesOfChunk.forEach(this::deactivateOrDestroyEntityRecursive);</span>
+<span class="nc" id="L334">    }</span>
+
+    @Override
+    protected byte[] loadCompressedChunk(Vector3i chunkPos) {
+<span class="fc" id="L338">        CompressedChunkBuilder disposedUnsavedChunk = unloadedAndUnsavedChunkMap.get(chunkPos);</span>
+<span class="pc bpc" id="L339" title="1 of 2 branches missed.">        if (disposedUnsavedChunk != null) {</span>
+<span class="nc" id="L340">            return disposedUnsavedChunk.buildEncodedChunk();</span>
+        }
+<span class="fc" id="L342">        CompressedChunkBuilder disposedSavingChunk = unloadedAndSavingChunkMap.get(chunkPos);</span>
+<span class="pc bpc" id="L343" title="1 of 2 branches missed.">        if (disposedSavingChunk != null) {</span>
+<span class="nc" id="L344">            return disposedSavingChunk.buildEncodedChunk();</span>
+        }
+
+<span class="fc" id="L347">        worldDirectoryReadLock.lock();</span>
+        try {
+<span class="fc" id="L349">            return super.loadCompressedChunk(chunkPos);</span>
+        } finally {
+<span class="fc" id="L351">            worldDirectoryReadLock.unlock();</span>
+        }
+    }
+
+    @Override
+    public void onEntityDestroyed(EntityRef entity) {
+<span class="fc" id="L357">        entitySetDeltaRecorder.onEntityDestroyed(entity);</span>
+<span class="fc" id="L358">    }</span>
+
+    private void addGameManifestToSaveTransaction(SaveTransactionBuilder saveTransactionBuilder) {
+<span class="fc" id="L361">        BlockManager blockManager = CoreRegistry.get(BlockManager.class);</span>
+<span class="fc" id="L362">        UniverseConfig universeConfig = config.getUniverseConfig();</span>
+<span class="fc" id="L363">        Time time = CoreRegistry.get(Time.class);</span>
+<span class="fc" id="L364">        Game game = CoreRegistry.get(Game.class);</span>
+
+<span class="fc" id="L366">        GameManifest gameManifest = new GameManifest(game.getName(), game.getSeed(), time.getGameTimeInMs());</span>
+<span class="fc bfc" id="L367" title="All 2 branches covered.">        for (Module module : CoreRegistry.get(ModuleManager.class).getEnvironment()) {</span>
+<span class="fc" id="L368">            gameManifest.addModule(module.getId(), module.getVersion());</span>
+<span class="fc" id="L369">        }</span>
+
+<span class="fc" id="L371">        List&lt;String&gt; registeredBlockFamilies = Lists.newArrayList();</span>
+<span class="fc bfc" id="L372" title="All 2 branches covered.">        for (BlockFamily family : blockManager.listRegisteredBlockFamilies()) {</span>
+<span class="fc" id="L373">            registeredBlockFamilies.add(family.getURI().toString());</span>
+<span class="fc" id="L374">        }</span>
+<span class="fc" id="L375">        gameManifest.setRegisteredBlockFamilies(registeredBlockFamilies);</span>
+<span class="fc" id="L376">        gameManifest.setBlockIdMap(blockManager.getBlockIdMap());</span>
+<span class="fc" id="L377">        List&lt;WorldInfo&gt; worlds = universeConfig.getWorlds();</span>
+<span class="pc bpc" id="L378" title="1 of 2 branches missed.">        for (WorldInfo worldInfo: worlds) {</span>
+<span class="nc" id="L379">            gameManifest.addWorld(worldInfo);</span>
+<span class="nc" id="L380">        }</span>
+<span class="fc" id="L381">        saveTransactionBuilder.setGameManifest(gameManifest);</span>
+<span class="fc" id="L382">    }</span>
+
+    @Override
+    public void update() {
+<span class="nc bnc" id="L386" title="All 2 branches missed.">        if (!isRunModeAllowSaving()) {</span>
+<span class="nc" id="L387">            return;</span>
+        }
+<span class="nc bnc" id="L389" title="All 2 branches missed.">        if (isSaving()) {</span>
+<span class="nc" id="L390">            return;</span>
+        }
+
+<span class="nc" id="L393">        checkSaveTransactionAndClearUpIfItIsDone();</span>
+<span class="nc bnc" id="L394" title="All 2 branches missed.">        if (saveRequested) {</span>
+<span class="nc" id="L395">            startSaving();</span>
+<span class="nc bnc" id="L396" title="All 2 branches missed.">        } else if (isSavingNecessary()) {</span>
+<span class="nc" id="L397">            startAutoSaving();</span>
+        }
+
+<span class="nc" id="L400">    }</span>
+
+    private boolean isRunModeAllowSaving() {
+<span class="nc" id="L403">        NetworkSystem networkSystem = CoreRegistry.get(NetworkSystem.class);</span>
+<span class="nc" id="L404">        return networkSystem.getMode().isAuthority();</span>
+    }
+
+    private void startSaving() {
+<span class="fc" id="L408">        logger.info(&quot;Saving - Creating game snapshot&quot;);</span>
+<span class="fc" id="L409">        PerformanceMonitor.startActivity(&quot;Saving&quot;);</span>
+<span class="fc" id="L410">        ComponentSystemManager componentSystemManager = CoreRegistry.get(ComponentSystemManager.class);</span>
+<span class="pc bpc" id="L411" title="1 of 2 branches missed.">        for (ComponentSystem sys : componentSystemManager.getAllSystems()) {</span>
+<span class="nc" id="L412">            sys.preSave();</span>
+<span class="nc" id="L413">        }</span>
+
+<span class="fc" id="L415">        saveRequested = false;</span>
+<span class="fc" id="L416">        saveTransaction = createSaveTransaction();</span>
+<span class="fc" id="L417">        saveThreadManager.offer(saveTransaction);</span>
+
+<span class="pc bpc" id="L419" title="1 of 2 branches missed.">        if (recordAndReplayCurrentStatus.getStatus() == RecordAndReplayStatus.NOT_ACTIVATED) {</span>
+<span class="fc" id="L420">            saveGamePreviewImage();</span>
+        }
+
+<span class="pc bpc" id="L423" title="1 of 2 branches missed.">        for (ComponentSystem sys : componentSystemManager.getAllSystems()) {</span>
+<span class="nc" id="L424">            sys.postSave();</span>
+<span class="nc" id="L425">        }</span>
+<span class="fc" id="L426">        PerformanceMonitor.endActivity();</span>
+<span class="fc" id="L427">        entitySetDeltaRecorder = new EntitySetDeltaRecorder(this.entityRefReplacingComponentLibrary);</span>
+<span class="fc" id="L428">        logger.info(&quot;Saving - Snapshot created: Writing phase starts&quot;);</span>
+<span class="fc" id="L429">    }</span>
+
+    private void startAutoSaving() {
+<span class="nc" id="L432">        logger.info(&quot;Auto Saving - Creating game snapshot&quot;);</span>
+<span class="nc" id="L433">        PerformanceMonitor.startActivity(&quot;Auto Saving&quot;);</span>
+<span class="nc" id="L434">        ComponentSystemManager componentSystemManager = CoreRegistry.get(ComponentSystemManager.class);</span>
+<span class="nc bnc" id="L435" title="All 2 branches missed.">        for (ComponentSystem sys : componentSystemManager.getAllSystems()) {</span>
+<span class="nc" id="L436">            sys.preAutoSave();</span>
+<span class="nc" id="L437">        }</span>
+
+<span class="nc" id="L439">        saveTransaction = createSaveTransaction();</span>
+<span class="nc" id="L440">        saveThreadManager.offer(saveTransaction);</span>
+
+<span class="nc bnc" id="L442" title="All 2 branches missed.">        for (ComponentSystem sys : componentSystemManager.getAllSystems()) {</span>
+<span class="nc" id="L443">            sys.postAutoSave();</span>
+<span class="nc" id="L444">        }</span>
+
+<span class="nc" id="L446">        scheduleNextAutoSave();</span>
+<span class="nc" id="L447">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L448">        entitySetDeltaRecorder = new EntitySetDeltaRecorder(this.entityRefReplacingComponentLibrary);</span>
+<span class="nc" id="L449">        logger.info(&quot;Auto Saving - Snapshot created: Writing phase starts&quot;);</span>
+<span class="nc" id="L450">    }</span>
+
+    private boolean isSavingNecessary() {
+<span class="nc" id="L453">        ChunkProvider chunkProvider = CoreRegistry.get(ChunkProvider.class);</span>
+<span class="nc" id="L454">        int unloadedChunkCount = unloadedAndUnsavedChunkMap.size();</span>
+<span class="nc" id="L455">        int loadedChunkCount = chunkProvider.getAllChunks().size();</span>
+<span class="nc" id="L456">        double totalChunkCount = unloadedChunkCount + loadedChunkCount;</span>
+<span class="nc" id="L457">        double percentageUnloaded = 100.0 * unloadedChunkCount / totalChunkCount;</span>
+<span class="nc bnc" id="L458" title="All 2 branches missed.">        if (percentageUnloaded &gt;= config.getSystem().getMaxUnloadedChunksPercentageTillSave()) {</span>
+<span class="nc" id="L459">            return true;</span>
+        }
+
+<span class="nc" id="L462">        long currentTime = System.currentTimeMillis();</span>
+<span class="nc bnc" id="L463" title="All 2 branches missed.">        if (nextAutoSave == null) {</span>
+<span class="nc" id="L464">            scheduleNextAutoSave();</span>
+<span class="nc" id="L465">            return false;</span>
+        }
+<span class="nc bnc" id="L467" title="All 2 branches missed.">        return currentTime &gt;= nextAutoSave;</span>
+    }
+
+    private void scheduleNextAutoSave() {
+<span class="nc" id="L471">        long msBetweenAutoSave = (long) config.getSystem().getMaxSecondsBetweenSaves() * 1000;</span>
+<span class="nc" id="L472">        nextAutoSave = System.currentTimeMillis() + msBetweenAutoSave;</span>
+<span class="nc" id="L473">    }</span>
+
+    private void saveGamePreviewImage() {
+<span class="fc" id="L476">        final ScreenGrabber screenGrabber = CoreRegistry.get(ScreenGrabber.class);</span>
+<span class="fc" id="L477">        final Game game = CoreRegistry.get(Game.class);</span>
+<span class="pc bpc" id="L478" title="3 of 4 branches missed.">        if (screenGrabber != null &amp;&amp; game != null) {</span>
+<span class="nc" id="L479">            screenGrabber.takeGamePreview(PathManager.getInstance().getSavePath(game.getName()));</span>
+        }
+<span class="fc" id="L481">    }</span>
+
+    @Override
+    public boolean isSaving() {
+<span class="nc bnc" id="L485" title="All 4 branches missed.">        return saveTransaction != null &amp;&amp; saveTransaction.getResult() == null;</span>
+    }
+
+    @Override
+    public void checkAndRepairSaveIfNecessary() throws IOException {
+<span class="nc" id="L490">        saveTransactionHelper.cleanupSaveTransactionDirectory();</span>
+<span class="nc bnc" id="L491" title="All 2 branches missed.">        if (Files.exists(getStoragePathProvider().getUnmergedChangesPath())) {</span>
+<span class="nc" id="L492">            saveTransactionHelper.mergeChanges();</span>
+        }
+<span class="nc" id="L494">    }</span>
+
+
+    @Override
+    public void deleteWorld() {
+<span class="nc" id="L499">        waitForCompletionOfPreviousSave();</span>
+<span class="nc" id="L500">        unloadedAndUnsavedChunkMap.clear();</span>
+<span class="nc" id="L501">        unloadedAndSavingChunkMap.clear();</span>
+<span class="nc" id="L502">        unloadedAndUnsavedPlayerMap.clear();</span>
+<span class="nc" id="L503">        unloadedAndSavingPlayerMap.clear();</span>
+
+        try {
+<span class="nc" id="L506">            FilesUtil.recursiveDelete(getStoragePathProvider().getWorldPath());</span>
+<span class="nc" id="L507">        } catch (IOException e) {</span>
+<span class="nc" id="L508">            logger.error(&quot;Failed to purge chunks&quot;, e);</span>
+<span class="nc" id="L509">        }</span>
+<span class="nc" id="L510">    }</span>
+
+    @Override
+    public void onEntityComponentAdded(EntityRef entity, Class&lt;? extends Component&gt; component) {
+<span class="fc" id="L514">        entitySetDeltaRecorder.onEntityComponentAdded(entity, component);</span>
+<span class="fc" id="L515">    }</span>
+
+    @Override
+    public void onEntityComponentChange(EntityRef entity, Class&lt;? extends Component&gt; component) {
+<span class="fc" id="L519">        entitySetDeltaRecorder.onEntityComponentChange(entity, component);</span>
+<span class="fc" id="L520">    }</span>
+
+    @Override
+    public void onEntityComponentRemoved(EntityRef entity, Class&lt;? extends Component&gt; component) {
+<span class="fc" id="L524">        entitySetDeltaRecorder.onEntityComponentRemoved(entity, component);</span>
+<span class="fc" id="L525">    }</span>
+
+    @Override
+    public void onReactivation(EntityRef entity, Collection&lt;Component&gt; components) {
+<span class="nc" id="L529">        entitySetDeltaRecorder.onReactivation(entity, components);</span>
+
+<span class="nc" id="L531">    }</span>
+
+    @Override
+    public void onBeforeDeactivation(EntityRef entity, Collection&lt;Component&gt; components) {
+<span class="nc" id="L535">        entitySetDeltaRecorder.onBeforeDeactivation(entity, components);</span>
+
+<span class="nc" id="L537">    }</span>
+
+    @Override
+    public DelayedEntityRef createDelayedEntityRef(long id) {
+<span class="fc" id="L541">        DelayedEntityRef delayedEntityRef = new DelayedEntityRef(id);</span>
+<span class="fc" id="L542">        entitySetDeltaRecorder.registerDelayedEntityRef(delayedEntityRef);</span>
+<span class="fc" id="L543">        return delayedEntityRef;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

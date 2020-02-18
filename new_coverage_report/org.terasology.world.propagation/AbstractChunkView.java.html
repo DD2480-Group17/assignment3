@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractChunkView.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.propagation</a> &gt; <span class="el_source">AbstractChunkView.java</span></div><h1>AbstractChunkView.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.propagation;
+
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.block.Block;
+import org.terasology.world.internal.ChunkViewCore;
+
+/**
+ * Intermediate abstract class for the propagater world view that handles common functionality.
+ * &lt;p&gt;
+ * Only provides a view for a single chunk
+ *
+ * @see AbstractFullWorldView
+ */
+public abstract class AbstractChunkView implements PropagatorWorldView {
+
+    private ChunkViewCore chunkView;
+
+<span class="nc" id="L33">    public AbstractChunkView(ChunkViewCore chunkView) {</span>
+<span class="nc" id="L34">        this.chunkView = chunkView;</span>
+<span class="nc" id="L35">    }</span>
+
+    @Override
+    public byte getValueAt(Vector3i pos) {
+<span class="nc bnc" id="L39" title="All 2 branches missed.">        if (isInBounds(pos)) {</span>
+<span class="nc" id="L40">            return getValueAt(chunkView, pos);</span>
+        }
+<span class="nc" id="L42">        return UNAVAILABLE;</span>
+    }
+
+    /**
+     * Equivalent to {@link #getValueAt(Vector3i)}
+     *
+     * @param view The chunk the position is within
+     * @param pos  The position of to get the value at
+     * @return The value of the propagating data at the given position
+     */
+    protected abstract byte getValueAt(ChunkViewCore view, Vector3i pos);
+
+    @Override
+    public void setValueAt(Vector3i pos, byte value) {
+<span class="nc" id="L56">        setValueAt(chunkView, pos, value);</span>
+<span class="nc" id="L57">    }</span>
+
+    /**
+     * Equivalent to {@link #setValueAt(Vector3i, byte)}
+     *
+     * @param view  The chunk the position is in
+     * @param pos   The position to set the value at
+     * @param value The value to set the position to
+     */
+    protected abstract void setValueAt(ChunkViewCore view, Vector3i pos, byte value);
+
+    @Override
+    public Block getBlockAt(Vector3i pos) {
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        if (isInBounds(pos)) {</span>
+<span class="nc" id="L71">            return chunkView.getBlock(pos);</span>
+        }
+<span class="nc" id="L73">        return null;</span>
+    }
+
+    /**
+     * Checks if the position is within the boundaries of the chunk represented by this class
+     *
+     * @param pos The position to check, in world coordinates
+     */
+    public boolean isInBounds(Vector3i pos) {
+<span class="nc" id="L82">        return chunkView.getWorldRegion().encompasses(pos);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

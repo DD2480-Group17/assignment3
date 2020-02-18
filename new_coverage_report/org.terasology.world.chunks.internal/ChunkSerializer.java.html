@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChunkSerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.internal</a> &gt; <span class="el_source">ChunkSerializer.java</span></div><h1>ChunkSerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.chunks.internal;
+
+import com.google.common.base.Preconditions;
+import com.google.protobuf.ByteString;
+import gnu.trove.list.TByteList;
+import gnu.trove.list.array.TByteArrayList;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.protobuf.EntityData;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+import org.terasology.world.chunks.blockdata.TeraArray;
+import org.terasology.world.chunks.blockdata.TeraDenseArray16Bit;
+import org.terasology.world.chunks.blockdata.TeraDenseArray8Bit;
+
+/**
+ */
+public final class ChunkSerializer {
+
+    private ChunkSerializer() {
+    }
+
+    public static EntityData.ChunkStore.Builder encode(Vector3i pos, TeraArray blockData, TeraArray[] extraData) {
+<span class="fc" id="L40">        final EntityData.ChunkStore.Builder b = EntityData.ChunkStore.newBuilder()</span>
+<span class="fc" id="L41">                .setX(pos.x).setY(pos.y).setZ(pos.z);</span>
+<span class="fc" id="L42">        b.setBlockData(runLengthEncode16(blockData));</span>
+<span class="pc bpc" id="L43" title="1 of 2 branches missed.">        for (int i = 0; i &lt; extraData.length; i++) {</span>
+<span class="nc" id="L44">            b.addExtraData(runLengthEncode16(extraData[i]));</span>
+        }
+
+<span class="fc" id="L47">        return b;</span>
+    }
+
+    public static Chunk decode(EntityData.ChunkStore message, BlockManager blockManager, ExtraBlockDataManager extraDataManager) {
+<span class="fc" id="L51">        Preconditions.checkNotNull(message, &quot;The parameter 'message' must not be null&quot;);</span>
+<span class="pc bpc" id="L52" title="3 of 6 branches missed.">        if (!message.hasX() || !message.hasY() || !message.hasZ()) {</span>
+<span class="nc" id="L53">            throw new IllegalArgumentException(&quot;Ill-formed protobuf message. Missing chunk position.&quot;);</span>
+        }
+<span class="fc" id="L55">        Vector3i pos = new Vector3i(message.getX(), message.getY(), message.getZ());</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        if (!message.hasBlockData()) {</span>
+<span class="nc" id="L57">            throw new IllegalArgumentException(&quot;Ill-formed protobuf message. Missing block data.&quot;);</span>
+        }
+
+<span class="fc" id="L60">        final TeraArray blockData = runLengthDecode(message.getBlockData());</span>
+<span class="fc" id="L61">        final TeraArray[] extraData = extraDataManager.makeDataArrays(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">        for (int i = 0; i &lt; extraData.length; i++) {</span>
+<span class="nc" id="L63">            runLengthDecode(message.getExtraData(i), extraData[i]);</span>
+        }
+<span class="fc" id="L65">        return new ChunkImpl(pos, blockData, extraData, blockManager);</span>
+    }
+
+    private static EntityData.RunLengthEncoding16 runLengthEncode16(TeraArray array) {
+<span class="fc" id="L69">        EntityData.RunLengthEncoding16.Builder builder = EntityData.RunLengthEncoding16.newBuilder();</span>
+<span class="fc" id="L70">        short lastItem = (short) array.get(0, 0, 0);</span>
+<span class="fc" id="L71">        int counter = 0;</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        for (int y = 0; y &lt; array.getSizeY(); ++y) {</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">            for (int z = 0; z &lt; array.getSizeZ(); ++z) {</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">                for (int x = 0; x &lt; array.getSizeX(); ++x) {</span>
+<span class="fc" id="L75">                    short item = (short) array.get(x, y, z);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">                    if (lastItem != item) {</span>
+<span class="fc" id="L77">                        builder.addRunLengths(counter);</span>
+<span class="fc" id="L78">                        builder.addValues(lastItem &amp; 0xFFFF);</span>
+<span class="fc" id="L79">                        lastItem = item;</span>
+<span class="fc" id="L80">                        counter = 1;</span>
+                    } else {
+<span class="fc" id="L82">                        counter++;</span>
+                    }
+                }
+            }
+        }
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        if (lastItem != 0) {</span>
+<span class="nc" id="L88">            builder.addRunLengths(counter);</span>
+<span class="nc" id="L89">            builder.addValues(lastItem &amp; 0xFFFF);</span>
+        }
+<span class="fc" id="L91">        return builder.build();</span>
+    }
+
+    private static EntityData.RunLengthEncoding8 runLengthEncode8(TeraArray array) {
+<span class="nc" id="L95">        EntityData.RunLengthEncoding8.Builder builder = EntityData.RunLengthEncoding8.newBuilder();</span>
+<span class="nc" id="L96">        TByteList values = new TByteArrayList(16384);</span>
+<span class="nc" id="L97">        byte lastItem = (byte) array.get(0, 0, 0);</span>
+<span class="nc" id="L98">        int counter = 0;</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        for (int y = 0; y &lt; array.getSizeY(); ++y) {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            for (int z = 0; z &lt; array.getSizeZ(); ++z) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                for (int x = 0; x &lt; array.getSizeX(); ++x) {</span>
+<span class="nc" id="L102">                    byte item = (byte) array.get(x, y, z);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                    if (lastItem != item) {</span>
+<span class="nc" id="L104">                        builder.addRunLengths(counter);</span>
+<span class="nc" id="L105">                        values.add(lastItem);</span>
+<span class="nc" id="L106">                        lastItem = item;</span>
+<span class="nc" id="L107">                        counter = 1;</span>
+                    } else {
+<span class="nc" id="L109">                        counter++;</span>
+                    }
+                }
+            }
+        }
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (lastItem != 0) {</span>
+<span class="nc" id="L115">            builder.addRunLengths(counter);</span>
+<span class="nc" id="L116">            values.add(lastItem);</span>
+        }
+<span class="nc" id="L118">        builder.setValues(ByteString.copyFrom(values.toArray()));</span>
+<span class="nc" id="L119">        return builder.build();</span>
+    }
+
+    private static TeraArray runLengthDecode(EntityData.RunLengthEncoding16 data) {
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        Preconditions.checkState(data.getValuesCount() == data.getRunLengthsCount(), &quot;Expected same number of values as runs&quot;);</span>
+<span class="fc" id="L124">        short[] decodedData = new short[ChunkConstants.SIZE_X * ChunkConstants.SIZE_Y * ChunkConstants.SIZE_Z];</span>
+<span class="fc" id="L125">        int index = 0;</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        for (int pos = 0; pos &lt; data.getValuesCount(); ++pos) {</span>
+<span class="fc" id="L127">            int length = data.getRunLengths(pos);</span>
+<span class="fc" id="L128">            short value = (short) data.getValues(pos);</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">            for (int i = 0; i &lt; length; ++i) {</span>
+<span class="fc" id="L130">                decodedData[index++] = value;</span>
+            }
+        }
+<span class="fc" id="L133">        return new TeraDenseArray16Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z, decodedData);</span>
+    }
+
+    private static TeraArray runLengthDecode(EntityData.RunLengthEncoding8 data) {
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        Preconditions.checkState(data.getValues().size() == data.getRunLengthsCount(), &quot;Expected same number of values as runs&quot;);</span>
+<span class="nc" id="L138">        byte[] decodedData = new byte[ChunkConstants.SIZE_X * ChunkConstants.SIZE_Y * ChunkConstants.SIZE_Z];</span>
+<span class="nc" id="L139">        int index = 0;</span>
+<span class="nc" id="L140">        ByteString.ByteIterator valueSource = data.getValues().iterator();</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        for (int pos = 0; pos &lt; data.getRunLengthsCount(); ++pos) {</span>
+<span class="nc" id="L142">            int length = data.getRunLengths(pos);</span>
+<span class="nc" id="L143">            byte value = valueSource.nextByte();</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            for (int i = 0; i &lt; length; ++i) {</span>
+<span class="nc" id="L145">                decodedData[index++] = value;</span>
+            }
+        }
+<span class="nc" id="L148">        return new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z, decodedData);</span>
+    }
+    
+    /**
+     * Decode compressed data into an existing TeraArray.
+     * Generic w.r.t. TeraArray subclasses, allowing the data to be used for any type of TeraArray.
+     */
+    private static void runLengthDecode(EntityData.RunLengthEncoding16 data, TeraArray array) {
+<span class="nc" id="L156">        int index = 0;</span>
+<span class="nc" id="L157">        int count = 0;</span>
+<span class="nc" id="L158">        int value = 0;</span>
+        outer:
+<span class="nc bnc" id="L160" title="All 2 branches missed.">        for (int y = 0; y &lt; array.getSizeY(); ++y) {</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">            for (int z = 0; z &lt; array.getSizeZ(); ++z) {</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                for (int x = 0; x &lt; array.getSizeX(); ++x) {</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                    if (count == 0) {</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                        if (index &gt;= data.getRunLengthsCount()) {</span>
+<span class="nc" id="L165">                            break outer;</span>
+                        }
+<span class="nc" id="L167">                        count = data.getRunLengths(index);</span>
+<span class="nc" id="L168">                        value = data.getValues(index);</span>
+<span class="nc" id="L169">                        index++;</span>
+                    }
+<span class="nc" id="L171">                    count--;</span>
+<span class="nc" id="L172">                    array.set(x, y, z, value);</span>
+                }
+            }
+        }
+<span class="nc" id="L176">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

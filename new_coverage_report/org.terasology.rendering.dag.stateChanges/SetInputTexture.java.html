@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SetInputTexture.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.stateChanges</a> &gt; <span class="el_source">SetInputTexture.java</span></div><h1>SetInputTexture.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.stateChanges;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.utilities.Assets;
+
+import java.util.Objects;
+import java.util.Optional;
+
+import static org.lwjgl.opengl.GL11.glBindTexture;
+import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
+import static org.lwjgl.opengl.GL13.glActiveTexture;
+import static org.terasology.rendering.dag.AbstractNode.getMaterial;
+
+// TODO: split this class into two - one for opengl's global state change and one for the specific material state change.
+
+/**
+ * Sets a texture asset as the input for a material.
+ *
+ * Input textures are assigned to a texture unit and this is then communicated to the shader.
+ * This StateChange and the underlying task only handles textures of type GL_TEXTURE_2D.
+ *
+ * Instances of this class bind a texture to a texture unit. The integer identifying the texture unit is then
+ * passed to a shader program using the material/parameter pair provided on construction. This allow for a
+ * texture asset to be used by a shader program as an input.
+ *
+ * See the source of the process() method for the nitty gritty details.
+ *
+ * It is recommended to use one of the children classes (SetInputTexture2D / SetInputTexture3D) to make the code clearer.
+ */
+public class SetInputTexture implements StateChange {
+    private final int textureType;
+    private final int textureSlot;
+    private final int textureId;
+    private final ResourceUrn materialUrn;
+    private final String materialParameter;
+    private Material material;
+
+    private SetInputTexture defaultInstance;
+
+    /**
+     * The constructor, to be used in the initialise method of a node.
+     *
+     * Sample use:
+     *      addDesiredStateChange(new SetInputTexture(GL_TEXTURE_2D, 0, water.getId(), &quot;engine:prog.chunk&quot;, &quot;textureWater&quot;));
+     *
+     * @param textureType an opengl constant, can be GL_TEXTURE_2D, GL_TEXTURE_3D and any other texture type listed in https://www.khronos.org/opengl/wiki/Texture#Theory     * @param textureSlot a 0-based integer. Notice that textureUnit = GL_TEXTURE0 + textureSlot. See OpenGL spects for maximum allowed values.
+     * @param textureSlot a 0-based integer. Notice that textureUnit = GL_TEXTURE0 + textureSlot. See OpenGL spects for maximum allowed values.
+     * @param textureId an integer representing the opengl name of a texture. This is usually the return value of glGenTexture().
+     * @param materialUrn a ResourceURN object uniquely identifying a Material asset.
+     * @param materialParameter a String representing the variable within the shader holding the texture.
+     */
+<span class="nc" id="L70">    protected SetInputTexture(int textureType, int textureSlot, int textureId, ResourceUrn materialUrn, String materialParameter) {</span>
+<span class="nc" id="L71">        this.textureType = textureType;</span>
+<span class="nc" id="L72">        this.textureSlot = textureSlot;</span>
+<span class="nc" id="L73">        this.textureId = textureId;</span>
+<span class="nc" id="L74">        this.materialUrn = materialUrn;</span>
+<span class="nc" id="L75">        this.materialParameter = materialParameter;</span>
+
+<span class="nc" id="L77">        this.material = getMaterial(materialUrn);</span>
+
+        // TODO: take advantage of Texture.subscribeToDisposal(Runnable) to reobtain the asset if necessary
+<span class="nc" id="L80">    }</span>
+
+    /**
+     * The constructor, to be used in the initialise method of a node.
+     *
+     * Sample use:
+     *      addDesiredStateChange(new SetInputTexture(GL_TEXTURE_2D, 0, &quot;engine:water&quot;, &quot;engine:prog.chunk&quot;, &quot;textureWater&quot;));
+     *
+     * @param textureType an opengl constant, can be GL_TEXTURE_2D, GL_TEXTURE_3D and any other texture type listed in https://www.khronos.org/opengl/wiki/Texture#Theory     * @param textureSlot a 0-based integer. Notice that textureUnit = GL_TEXTURE0 + textureSlot. See OpenGL spects for maximum allowed values.
+     * @param textureUrn a String identifying a loaded texture, whose id will then be used by this StateChange.
+     * @param materialUrn a ResourceURN object uniquely identifying a Material asset.
+     * @param materialParameter a String representing the variable within the shader holding the texture.
+     */
+<span class="nc" id="L93">    protected SetInputTexture(int textureType, int textureSlot, String textureUrn, ResourceUrn materialUrn, String materialParameter) {</span>
+<span class="nc" id="L94">        this.textureType = textureType;</span>
+<span class="nc" id="L95">        this.textureSlot = textureSlot;</span>
+<span class="nc" id="L96">        this.materialUrn = materialUrn;</span>
+<span class="nc" id="L97">        this.materialParameter = materialParameter;</span>
+
+<span class="nc" id="L99">        this.material = getMaterial(materialUrn);</span>
+
+<span class="nc" id="L101">        Optional&lt;Texture&gt; optionalTexture = Assets.getTexture(textureUrn);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (optionalTexture.isPresent()) {</span>
+<span class="nc" id="L103">            this.textureId = optionalTexture.get().getId();</span>
+        } else {
+<span class="nc" id="L105">            this.textureId = 0;</span>
+            // TODO: Maybe throw some exception or use Logger.error()?
+        }
+
+        // TODO: take advantage of Texture.subscribeToDisposal(Runnable) to reobtain the asset if necessary
+<span class="nc" id="L110">    }</span>
+
+<span class="nc" id="L112">    private SetInputTexture(int textureType, int textureSlot, ResourceUrn materialUrn, String materialParameter) {</span>
+<span class="nc" id="L113">        this.textureType = textureType;</span>
+<span class="nc" id="L114">        this.textureSlot = textureSlot;</span>
+<span class="nc" id="L115">        this.textureId = 0;</span>
+<span class="nc" id="L116">        this.materialUrn = materialUrn;</span>
+<span class="nc" id="L117">        this.materialParameter = materialParameter;</span>
+
+<span class="nc" id="L119">        this.material = getMaterial(materialUrn);</span>
+
+<span class="nc" id="L121">        defaultInstance = this;</span>
+<span class="nc" id="L122">    }</span>
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L126">        return Objects.hash(textureSlot, textureId, materialUrn, materialParameter);</span>
+    }
+
+    @Override
+    public boolean equals(Object other) {
+<span class="nc bnc" id="L131" title="All 6 branches missed.">        return (other instanceof SetInputTexture)</span>
+                &amp;&amp; this.textureSlot == ((SetInputTexture) other).textureSlot
+                &amp;&amp; this.textureId == ((SetInputTexture) other).textureId
+<span class="nc bnc" id="L134" title="All 2 branches missed.">                &amp;&amp; this.materialUrn.equals(((SetInputTexture) other).materialUrn)</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                &amp;&amp; this.materialParameter.equals(((SetInputTexture) other).materialParameter);</span>
+    }
+
+    /**
+     * Returns a StateChange instance useful to disconnect the given texture from its assigned texture slot.
+     * Also disconnects the texture from the shader program.
+     *
+     * @return the default instance for the particular slot/material/parameter combination held by this
+     * SetInputTexture object, cast as a StateChange instance.
+     */
+    @Override
+    public StateChange getDefaultInstance() {
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        if (defaultInstance == null) {</span>
+<span class="nc" id="L148">            defaultInstance = new SetInputTexture(textureType, textureSlot, materialUrn, materialParameter);</span>
+        }
+<span class="nc" id="L150">        return defaultInstance;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L155">        return String.format(&quot;%30s: slot %s, texture %s, material %s, parameter %s&quot;, this.getClass().getSimpleName(),</span>
+<span class="nc" id="L156">                textureSlot, textureId, material.getUrn().toString(), materialParameter);</span>
+    }
+
+    @Override
+    public void process() {
+<span class="nc" id="L161">        glActiveTexture(GL_TEXTURE0 + textureSlot);</span>
+<span class="nc" id="L162">        glBindTexture(textureType, textureId);</span>
+<span class="nc" id="L163">        material.setInt(materialParameter, textureSlot, true);</span>
+<span class="nc" id="L164">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

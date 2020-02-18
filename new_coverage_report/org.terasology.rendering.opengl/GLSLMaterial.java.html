@@ -1,0 +1,659 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GLSLMaterial.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.opengl</a> &gt; <span class="el_source">GLSLMaterial.java</span></div><h1>GLSLMaterial.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.opengl;
+
+import com.google.common.base.Objects;
+import com.google.common.collect.Sets;
+import gnu.trove.iterator.TIntIntIterator;
+import gnu.trove.map.TIntIntMap;
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.TObjectIntMap;
+import gnu.trove.map.hash.TIntIntHashMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
+import gnu.trove.map.hash.TObjectIntHashMap;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL20;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.engine.GameThread;
+import org.terasology.math.MatrixUtils;
+import org.terasology.math.geom.Matrix3f;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.ShaderManager;
+import org.terasology.rendering.assets.material.BaseMaterial;
+import org.terasology.rendering.assets.material.MaterialData;
+import org.terasology.rendering.assets.shader.ShaderParameterMetadata;
+import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.assets.texture.Texture;
+
+import java.nio.FloatBuffer;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Map;
+import java.util.Set;
+
+public class GLSLMaterial extends BaseMaterial {
+
+<span class="nc" id="L55">    private static final Logger logger = LoggerFactory.getLogger(GLSLMaterial.class);</span>
+
+    private int textureIndex;
+
+<span class="nc" id="L59">    private TObjectIntMap&lt;String&gt; bindMap = new TObjectIntHashMap&lt;&gt;();</span>
+<span class="nc" id="L60">    private TIntObjectMap&lt;Texture&gt; textureMap = new TIntObjectHashMap&lt;&gt;();</span>
+
+    private GLSLShader shader;
+    private boolean activeFeaturesChanged;
+<span class="nc" id="L64">    private TObjectIntMap&lt;UniformId&gt; uniformLocationMap = new TObjectIntHashMap&lt;&gt;();</span>
+
+<span class="nc" id="L66">    private EnumSet&lt;ShaderProgramFeature&gt; activeFeatures = Sets.newEnumSet(Collections.emptyList(), ShaderProgramFeature.class);</span>
+    private int activeFeaturesMask;
+
+    private final ShaderManager shaderManager;
+
+    private DisposalAction disposalAction;
+    private MaterialData materialData;
+
+    public GLSLMaterial(ResourceUrn urn, AssetType&lt;?, MaterialData&gt; assetType, MaterialData data) {
+<span class="nc" id="L75">        super(urn, assetType);</span>
+<span class="nc" id="L76">        disposalAction = new DisposalAction(urn);</span>
+<span class="nc" id="L77">        getDisposalHook().setDisposeAction(disposalAction);</span>
+<span class="nc" id="L78">        this.materialData = data;</span>
+<span class="nc" id="L79">        shaderManager = CoreRegistry.get(ShaderManager.class);</span>
+<span class="nc" id="L80">        reload(data);</span>
+<span class="nc" id="L81">    }</span>
+
+    @Override
+    public void enable() {
+<span class="nc bnc" id="L85" title="All 4 branches missed.">        if (shaderManager.getActiveMaterial() != this || activeFeaturesChanged) {</span>
+<span class="nc" id="L86">            GL13.glActiveTexture(GL13.GL_TEXTURE0);</span>
+<span class="nc" id="L87">            GL20.glUseProgram(getActiveShaderProgramId());</span>
+
+            // Make sure the shader manager knows that this program is currently active
+<span class="nc" id="L90">            shaderManager.setActiveMaterial(this);</span>
+<span class="nc" id="L91">            activeFeaturesChanged = false;</span>
+        }
+<span class="nc" id="L93">    }</span>
+
+    @Override
+    public void bindTextures() {
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L98">            return;</span>
+        }
+
+<span class="nc" id="L101">        enable();</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        for (int slot : textureMap.keys()) {</span>
+<span class="nc" id="L103">            Texture texture = textureMap.get(slot);</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">            if (texture.isDisposed()) {</span>
+<span class="nc" id="L105">                logger.error(&quot;Attempted to bind disposed texture {}&quot;, texture);</span>
+            } else {
+<span class="nc" id="L107">                shaderManager.bindTexture(slot, texture);</span>
+            }
+        }
+<span class="nc" id="L110">    }</span>
+
+    @Override
+    public boolean isRenderable() {
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        for (Texture texture : textureMap.valueCollection()) {</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            if (!texture.isLoaded()) {</span>
+<span class="nc" id="L116">                return false;</span>
+            }
+<span class="nc" id="L118">        }</span>
+<span class="nc" id="L119">        return true;</span>
+    }
+
+    @Override
+    public void recompile() {
+<span class="nc" id="L124">        TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        while (it.hasNext()) {</span>
+<span class="nc" id="L126">            it.advance();</span>
+<span class="nc" id="L127">            GL20.glDeleteProgram(it.value());</span>
+        }
+<span class="nc" id="L129">        disposalAction.shaderPrograms.clear();</span>
+<span class="nc" id="L130">        uniformLocationMap.clear();</span>
+<span class="nc" id="L131">        bindMap.clear();</span>
+
+<span class="nc" id="L133">        disposalAction.shaderPrograms.put(0, shader.linkShaderProgram(0));</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        for (Set&lt;ShaderProgramFeature&gt; permutation : Sets.powerSet(shader.getAvailableFeatures())) {</span>
+<span class="nc" id="L135">            int featureMask = ShaderProgramFeature.getBitset(permutation);</span>
+<span class="nc" id="L136">            disposalAction.shaderPrograms.put(featureMask, shader.linkShaderProgram(featureMask));</span>
+<span class="nc" id="L137">        }</span>
+
+        //resolves #966
+        //Some of the uniforms are not updated constantly between frames
+        //this function will rebind any uniforms that are not bound
+<span class="nc" id="L142">        rebindVariables(materialData);</span>
+
+<span class="nc" id="L144">    }</span>
+
+    @Override
+    public final void doReload(MaterialData data) {
+        try {
+<span class="nc" id="L149">            GameThread.synch(() -&gt; {</span>
+<span class="nc" id="L150">                disposalAction.run();</span>
+<span class="nc" id="L151">                uniformLocationMap.clear();</span>
+
+<span class="nc" id="L153">                shader = (GLSLShader) data.getShader();</span>
+<span class="nc" id="L154">                recompile();</span>
+<span class="nc" id="L155">                rebindVariables(data);</span>
+
+<span class="nc" id="L157">            });</span>
+<span class="nc" id="L158">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L159">            logger.error(&quot;Failed to reload {}&quot;, getUrn(), e);</span>
+<span class="nc" id="L160">        }</span>
+<span class="nc" id="L161">    }</span>
+
+    private void rebindVariables(MaterialData data) {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        for (Map.Entry&lt;String, Texture&gt; entry : data.getTextures().entrySet()) {</span>
+<span class="nc" id="L165">            setTexture(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L166">        }</span>
+
+<span class="nc bnc" id="L168" title="All 2 branches missed.">        for (Map.Entry&lt;String, Float&gt; entry : data.getFloatParams().entrySet()) {</span>
+<span class="nc" id="L169">            setFloat(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L170">        }</span>
+
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        for (Map.Entry&lt;String, Integer&gt; entry : data.getIntegerParams().entrySet()) {</span>
+<span class="nc" id="L173">            setInt(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L174">        }</span>
+
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        for (Map.Entry&lt;String, float[]&gt; entry : data.getFloatArrayParams().entrySet()) {</span>
+<span class="nc" id="L177">            float[] value = entry.getValue();</span>
+<span class="nc bnc" id="L178" title="All 5 branches missed.">            switch (value.length) {</span>
+                case 1:
+<span class="nc" id="L180">                    setFloat(entry.getKey(), value[0]);</span>
+<span class="nc" id="L181">                    break;</span>
+                case 2:
+<span class="nc" id="L183">                    setFloat2(entry.getKey(), value[0], value[1]);</span>
+<span class="nc" id="L184">                    break;</span>
+                case 3:
+<span class="nc" id="L186">                    setFloat3(entry.getKey(), value[0], value[1], value[2]);</span>
+<span class="nc" id="L187">                    break;</span>
+                case 4:
+<span class="nc" id="L189">                    setFloat4(entry.getKey(), value[0], value[1], value[2], value[3]);</span>
+<span class="nc" id="L190">                    break;</span>
+                default:
+<span class="nc" id="L192">                    logger.error(&quot;MaterialData contains float array entry of size &gt; 4&quot;);</span>
+                    break;
+            }
+<span class="nc" id="L195">        }</span>
+<span class="nc" id="L196">    }</span>
+
+    @Override
+    public void setTexture(String desc, Texture texture) {
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L201">            return;</span>
+        }
+
+        int texId;
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        if (bindMap.containsKey(desc)) {</span>
+<span class="nc" id="L206">            texId = bindMap.get(desc);</span>
+        } else {
+            // TODO: do this initially, and try and have similar textures in similar slots for all materials.
+<span class="nc" id="L209">            ShaderParameterMetadata metadata = shader.getParameter(desc);</span>
+<span class="nc bnc" id="L210" title="All 4 branches missed.">            if (metadata == null || !metadata.getType().isTexture()) {</span>
+<span class="nc" id="L211">                return;</span>
+            }
+<span class="nc" id="L213">            texId = textureIndex++;</span>
+
+            // Make sure to bind the texture for all permutations
+<span class="nc" id="L216">            setInt(desc, texId);</span>
+
+<span class="nc" id="L218">            bindMap.put(desc, texId);</span>
+        }
+
+<span class="nc" id="L221">        textureMap.put(texId, texture);</span>
+<span class="nc" id="L222">    }</span>
+
+    @Override
+    public void activateFeature(ShaderProgramFeature feature) {
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        if (shader.getAvailableFeatures().contains(feature)) {</span>
+<span class="nc" id="L227">            activeFeatures.add(feature);</span>
+<span class="nc" id="L228">            activeFeaturesMask = ShaderProgramFeature.getBitset(activeFeatures);</span>
+<span class="nc" id="L229">            activeFeaturesChanged = true;</span>
+        } else {
+<span class="nc" id="L231">            logger.error(&quot;Attempt to activate unsupported feature {} for material {} using shader {}&quot;, feature, getUrn(), shader.getUrn());</span>
+        }
+<span class="nc" id="L233">    }</span>
+
+    @Override
+    public void deactivateFeature(ShaderProgramFeature feature) {
+<span class="nc bnc" id="L237" title="All 2 branches missed.">        if (activeFeatures.remove(feature)) {</span>
+<span class="nc" id="L238">            activeFeaturesMask = ShaderProgramFeature.getBitset(activeFeatures);</span>
+<span class="nc" id="L239">            activeFeaturesChanged = true;</span>
+        }
+<span class="nc" id="L241">    }</span>
+
+    @Override
+    public void deactivateFeatures(ShaderProgramFeature... features) {
+<span class="nc" id="L245">        Arrays.asList(features).forEach(this::deactivateFeature);</span>
+<span class="nc" id="L246">    }</span>
+
+    @Override
+    public boolean supportsFeature(ShaderProgramFeature feature) {
+<span class="nc" id="L250">        return shader.getAvailableFeatures().contains(feature);</span>
+    }
+
+    @Override
+    public void setFloat(String desc, float f, boolean currentOnly) {
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L256">            return;</span>
+        }
+<span class="nc bnc" id="L258" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L259">            enable();</span>
+<span class="nc" id="L260">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L261">            GL20.glUniform1f(id, f);</span>
+<span class="nc" id="L262">        } else {</span>
+<span class="nc" id="L263">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L265">                it.advance();</span>
+
+<span class="nc" id="L267">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L268">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L269">                GL20.glUniform1f(id, f);</span>
+<span class="nc" id="L270">            }</span>
+
+<span class="nc" id="L272">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L274">    }</span>
+
+    @Override
+    public void setFloat1(String desc, FloatBuffer buffer, boolean currentOnly) {
+<span class="nc bnc" id="L278" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L279">            return;</span>
+        }
+<span class="nc bnc" id="L281" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L282">            enable();</span>
+<span class="nc" id="L283">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L284">            GL20.glUniform1(id, buffer);</span>
+<span class="nc" id="L285">        } else {</span>
+<span class="nc" id="L286">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L288">                it.advance();</span>
+
+<span class="nc" id="L290">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L291">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L292">                GL20.glUniform1(id, buffer);</span>
+<span class="nc" id="L293">            }</span>
+
+<span class="nc" id="L295">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L297">    }</span>
+
+    @Override
+    public void setFloat2(String desc, float f1, float f2, boolean currentOnly) {
+<span class="nc bnc" id="L301" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L302">            return;</span>
+        }
+<span class="nc bnc" id="L304" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L305">            enable();</span>
+<span class="nc" id="L306">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L307">            GL20.glUniform2f(id, f1, f2);</span>
+<span class="nc" id="L308">        } else {</span>
+<span class="nc" id="L309">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L311">                it.advance();</span>
+
+<span class="nc" id="L313">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L314">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L315">                GL20.glUniform2f(id, f1, f2);</span>
+<span class="nc" id="L316">            }</span>
+
+<span class="nc" id="L318">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L320">    }</span>
+
+    @Override
+    public void setFloat2(String desc, FloatBuffer buffer, boolean currentOnly) {
+<span class="nc bnc" id="L324" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L325">            return;</span>
+        }
+<span class="nc bnc" id="L327" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L328">            enable();</span>
+<span class="nc" id="L329">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L330">            GL20.glUniform2(id, buffer);</span>
+<span class="nc" id="L331">        } else {</span>
+<span class="nc" id="L332">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L334">                it.advance();</span>
+
+<span class="nc" id="L336">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L337">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L338">                GL20.glUniform2(id, buffer);</span>
+<span class="nc" id="L339">            }</span>
+
+<span class="nc" id="L341">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L343">    }</span>
+
+    @Override
+    public void setFloat3(String desc, float f1, float f2, float f3, boolean currentOnly) {
+<span class="nc bnc" id="L347" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L348">            return;</span>
+        }
+<span class="nc bnc" id="L350" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L351">            enable();</span>
+<span class="nc" id="L352">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L353">            GL20.glUniform3f(id, f1, f2, f3);</span>
+<span class="nc" id="L354">        } else {</span>
+<span class="nc" id="L355">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L356" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L357">                it.advance();</span>
+
+<span class="nc" id="L359">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L360">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L361">                GL20.glUniform3f(id, f1, f2, f3);</span>
+<span class="nc" id="L362">            }</span>
+
+<span class="nc" id="L364">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L366">    }</span>
+
+    @Override
+    public void setFloat3(String desc, FloatBuffer buffer, boolean currentOnly) {
+<span class="nc bnc" id="L370" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L371">            return;</span>
+        }
+<span class="nc bnc" id="L373" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L374">            enable();</span>
+<span class="nc" id="L375">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L376">            GL20.glUniform3(id, buffer);</span>
+<span class="nc" id="L377">        } else {</span>
+<span class="nc" id="L378">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L380">                it.advance();</span>
+
+<span class="nc" id="L382">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L383">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L384">                GL20.glUniform3(id, buffer);</span>
+<span class="nc" id="L385">            }</span>
+
+<span class="nc" id="L387">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L389">    }</span>
+
+    @Override
+    public void setFloat4(String desc, float f1, float f2, float f3, float f4, boolean currentOnly) {
+<span class="nc bnc" id="L393" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L394">            return;</span>
+        }
+<span class="nc bnc" id="L396" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L397">            enable();</span>
+<span class="nc" id="L398">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L399">            GL20.glUniform4f(id, f1, f2, f3, f4);</span>
+<span class="nc" id="L400">        } else {</span>
+<span class="nc" id="L401">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L402" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L403">                it.advance();</span>
+
+<span class="nc" id="L405">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L406">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L407">                GL20.glUniform4f(id, f1, f2, f3, f4);</span>
+<span class="nc" id="L408">            }</span>
+
+<span class="nc" id="L410">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L412">    }</span>
+
+    @Override
+    public void setFloat4(String desc, FloatBuffer buffer, boolean currentOnly) {
+<span class="nc bnc" id="L416" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L417">            return;</span>
+        }
+<span class="nc bnc" id="L419" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L420">            enable();</span>
+<span class="nc" id="L421">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L422">            GL20.glUniform4(id, buffer);</span>
+<span class="nc" id="L423">        } else {</span>
+<span class="nc" id="L424">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L425" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L426">                it.advance();</span>
+
+<span class="nc" id="L428">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L429">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L430">                GL20.glUniform4(id, buffer);</span>
+<span class="nc" id="L431">            }</span>
+
+<span class="nc" id="L433">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L435">    }</span>
+
+    @Override
+    public void setInt(String desc, int i, boolean currentOnly) {
+<span class="nc bnc" id="L439" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L440">            return;</span>
+        }
+<span class="nc bnc" id="L442" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L443">            enable();</span>
+<span class="nc" id="L444">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L445">            GL20.glUniform1i(id, i);</span>
+<span class="nc" id="L446">        } else {</span>
+<span class="nc" id="L447">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L448" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L449">                it.advance();</span>
+
+<span class="nc" id="L451">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L452">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L453">                GL20.glUniform1i(id, i);</span>
+<span class="nc" id="L454">            }</span>
+
+<span class="nc" id="L456">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L458">    }</span>
+
+    @Override
+    public void setBoolean(String desc, boolean value, boolean currentOnly) {
+<span class="nc bnc" id="L462" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L463">            return;</span>
+        }
+<span class="nc bnc" id="L465" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L466">            enable();</span>
+<span class="nc" id="L467">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc bnc" id="L468" title="All 2 branches missed.">            GL20.glUniform1i(id, value ? 1 : 0);</span>
+<span class="nc" id="L469">        } else {</span>
+<span class="nc" id="L470">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L471" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L472">                it.advance();</span>
+
+<span class="nc" id="L474">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L475">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc bnc" id="L476" title="All 2 branches missed.">                GL20.glUniform1i(id, value ? 1 : 0);</span>
+<span class="nc" id="L477">            }</span>
+
+<span class="nc" id="L479">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L481">    }</span>
+
+    @Override
+    public void setMatrix3(String desc, Matrix3f value, boolean currentOnly) {
+<span class="nc bnc" id="L485" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L486">            return;</span>
+        }
+<span class="nc bnc" id="L488" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L489">            enable();</span>
+<span class="nc" id="L490">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L491">            GL20.glUniformMatrix3(id, false, MatrixUtils.matrixToFloatBuffer(value));</span>
+<span class="nc" id="L492">        } else {</span>
+<span class="nc" id="L493">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L494" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L495">                it.advance();</span>
+
+<span class="nc" id="L497">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L498">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L499">                GL20.glUniformMatrix3(id, false, MatrixUtils.matrixToFloatBuffer(value));</span>
+<span class="nc" id="L500">            }</span>
+
+<span class="nc" id="L502">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L504">    }</span>
+
+    @Override
+    public void setMatrix3(String desc, FloatBuffer value, boolean currentOnly) {
+<span class="nc bnc" id="L508" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L509">            return;</span>
+        }
+<span class="nc bnc" id="L511" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L512">            enable();</span>
+<span class="nc" id="L513">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L514">            GL20.glUniformMatrix3(id, false, value);</span>
+<span class="nc" id="L515">        } else {</span>
+<span class="nc" id="L516">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L517" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L518">                it.advance();</span>
+
+<span class="nc" id="L520">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L521">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L522">                GL20.glUniformMatrix3(id, false, value);</span>
+<span class="nc" id="L523">            }</span>
+
+<span class="nc" id="L525">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L527">    }</span>
+
+    @Override
+    public void setMatrix4(String desc, Matrix4f value, boolean currentOnly) {
+<span class="nc bnc" id="L531" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L532">            return;</span>
+        }
+<span class="nc bnc" id="L534" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L535">            enable();</span>
+<span class="nc" id="L536">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L537">            GL20.glUniformMatrix4(id, false, MatrixUtils.matrixToFloatBuffer(value));</span>
+<span class="nc" id="L538">        } else {</span>
+<span class="nc" id="L539">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L540" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L541">                it.advance();</span>
+
+<span class="nc" id="L543">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L544">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L545">                GL20.glUniformMatrix4(id, false, MatrixUtils.matrixToFloatBuffer(value));</span>
+<span class="nc" id="L546">            }</span>
+
+<span class="nc" id="L548">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L550">    }</span>
+
+    @Override
+    public void setMatrix4(String desc, FloatBuffer value, boolean currentOnly) {
+<span class="nc bnc" id="L554" title="All 2 branches missed.">        if (isDisposed()) {</span>
+<span class="nc" id="L555">            return;</span>
+        }
+<span class="nc bnc" id="L557" title="All 2 branches missed.">        if (currentOnly) {</span>
+<span class="nc" id="L558">            enable();</span>
+<span class="nc" id="L559">            int id = getUniformLocation(getActiveShaderProgramId(), desc);</span>
+<span class="nc" id="L560">            GL20.glUniformMatrix4(id, false, value);</span>
+<span class="nc" id="L561">        } else {</span>
+<span class="nc" id="L562">            TIntIntIterator it = disposalAction.shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L563" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L564">                it.advance();</span>
+
+<span class="nc" id="L566">                GL20.glUseProgram(it.value());</span>
+<span class="nc" id="L567">                int id = getUniformLocation(it.value(), desc);</span>
+<span class="nc" id="L568">                GL20.glUniformMatrix4(id, false, value);</span>
+<span class="nc" id="L569">            }</span>
+
+<span class="nc" id="L571">            restoreStateAfterUniformsSet();</span>
+        }
+<span class="nc" id="L573">    }</span>
+
+    private int getActiveShaderProgramId() {
+<span class="nc" id="L576">        return disposalAction.shaderPrograms.get(activeFeaturesMask);</span>
+    }
+
+    private int getUniformLocation(int activeShaderProgramId, String desc) {
+<span class="nc" id="L580">        UniformId id = new UniformId(activeShaderProgramId, desc);</span>
+
+<span class="nc bnc" id="L582" title="All 2 branches missed.">        if (uniformLocationMap.containsKey(id)) {</span>
+<span class="nc" id="L583">            return uniformLocationMap.get(id);</span>
+        }
+
+<span class="nc" id="L586">        int loc = GL20.glGetUniformLocation(activeShaderProgramId, desc);</span>
+<span class="nc" id="L587">        uniformLocationMap.put(id, loc);</span>
+
+<span class="nc" id="L589">        return loc;</span>
+    }
+
+    private void restoreStateAfterUniformsSet() {
+<span class="nc bnc" id="L593" title="All 2 branches missed.">        if (shaderManager.getActiveMaterial() == this) {</span>
+<span class="nc" id="L594">            GL20.glUseProgram(getActiveShaderProgramId());</span>
+        } else {
+<span class="nc" id="L596">            enable();</span>
+        }
+<span class="nc" id="L598">    }</span>
+
+    private static final class UniformId {
+        private int shaderProgramId;
+        private String name;
+
+        // made package-private after Jenkins' suggestion
+<span class="nc" id="L605">        UniformId(int shaderProgramId, String name) {</span>
+<span class="nc" id="L606">            this.shaderProgramId = shaderProgramId;</span>
+<span class="nc" id="L607">            this.name = name;</span>
+<span class="nc" id="L608">        }</span>
+
+        @Override
+        public boolean equals(Object obj) {
+<span class="nc bnc" id="L612" title="All 2 branches missed.">            if (obj == this) {</span>
+<span class="nc" id="L613">                return true;</span>
+            }
+<span class="nc bnc" id="L615" title="All 2 branches missed.">            if (obj instanceof UniformId) {</span>
+<span class="nc" id="L616">                UniformId other = (UniformId) obj;</span>
+<span class="nc bnc" id="L617" title="All 4 branches missed.">                return shaderProgramId == other.shaderProgramId &amp;&amp; Objects.equal(name, other.name);</span>
+            }
+<span class="nc" id="L619">            return false;</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="nc" id="L624">            return Objects.hashCode(shaderProgramId, name);</span>
+        }
+    }
+
+    private static class DisposalAction implements Runnable {
+
+        private final ResourceUrn urn;
+
+<span class="nc" id="L632">        private TIntIntMap shaderPrograms = new TIntIntHashMap();</span>
+
+        // made package-private after Jenkins' suggestion
+<span class="nc" id="L635">        DisposalAction(ResourceUrn urn) {</span>
+<span class="nc" id="L636">            this.urn = urn;</span>
+<span class="nc" id="L637">        }</span>
+
+        @Override
+        public void run() {
+            try {
+<span class="nc" id="L642">                GameThread.synch(() -&gt; {</span>
+<span class="nc" id="L643">                    logger.debug(&quot;Disposing material {}.&quot;, urn);</span>
+<span class="nc" id="L644">                    TIntIntIterator it = shaderPrograms.iterator();</span>
+<span class="nc bnc" id="L645" title="All 2 branches missed.">                    while (it.hasNext()) {</span>
+<span class="nc" id="L646">                        it.advance();</span>
+<span class="nc" id="L647">                        GL20.glDeleteProgram(it.value());</span>
+                    }
+<span class="nc" id="L649">                    shaderPrograms.clear();</span>
+<span class="nc" id="L650">                });</span>
+<span class="nc" id="L651">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L652">                logger.error(&quot;Failed to dispose {}&quot;, urn, e);</span>
+<span class="nc" id="L653">            }</span>
+<span class="nc" id="L654">        }</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

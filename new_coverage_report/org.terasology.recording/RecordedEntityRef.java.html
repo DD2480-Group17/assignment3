@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecordedEntityRef.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.recording</a> &gt; <span class="el_source">RecordedEntityRef.java</span></div><h1>RecordedEntityRef.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.recording;
+
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.LowLevelEntityManager;
+import org.terasology.entitySystem.entity.internal.NullEntityRef;
+import org.terasology.entitySystem.event.Event;
+import org.terasology.entitySystem.prefab.Prefab;
+
+import java.util.List;
+
+/**
+ * Class used instead of other EntityRef types during RecordedEvent deserialization. This class is necessary because
+ * during RecordedEvent deserialization, it is not possible to correctly deserialize EntityRef fields because they do
+ * not exist yet, so RecordedEntityRef is responsible for saving its id and then try to get the real EntityRef when it
+ * is necessary.
+ */
+public class RecordedEntityRef extends EntityRef {
+
+    /** The EntityRef's id on the recording */
+    private long id;
+    /** The EntityManager that stores and creates the game's entities */
+    private LowLevelEntityManager manager;
+    /** The real EntityRef that was recorded with an event during Recording.
+     *  This variable is loaded with its real value once a method is called */
+    private EntityRef realEntityRef;
+
+<span class="nc" id="L43">    RecordedEntityRef(long id, LowLevelEntityManager manager) {</span>
+<span class="nc" id="L44">        this.id = id;</span>
+<span class="nc" id="L45">        this.manager = manager;</span>
+<span class="nc" id="L46">        this.realEntityRef = EntityRef.NULL;</span>
+<span class="nc" id="L47">    }</span>
+
+    @Override
+    public EntityRef copy() {
+<span class="nc" id="L51">        updateRealEntityRef();</span>
+<span class="nc" id="L52">        return this.realEntityRef.copy();</span>
+    }
+
+    @Override
+    public boolean exists() {
+<span class="nc" id="L57">        updateRealEntityRef();</span>
+<span class="nc" id="L58">        return this.realEntityRef.exists();</span>
+    }
+
+    @Override
+    public boolean isActive() {
+<span class="nc" id="L63">        updateRealEntityRef();</span>
+<span class="nc" id="L64">        return this.realEntityRef.isActive();</span>
+    }
+
+    @Override
+    public void destroy() {
+<span class="nc" id="L69">        updateRealEntityRef();</span>
+<span class="nc" id="L70">        this.realEntityRef.destroy();</span>
+<span class="nc" id="L71">    }</span>
+
+    @Override
+    public &lt;T extends Event&gt; T send(T event) {
+<span class="nc" id="L75">        updateRealEntityRef();</span>
+<span class="nc" id="L76">        return this.realEntityRef.send(event);</span>
+    }
+
+    @Override
+    public long getId() {
+<span class="nc" id="L81">        updateRealEntityRef();</span>
+<span class="nc" id="L82">        return this.realEntityRef.getId();</span>
+    }
+
+    @Override
+    public boolean isPersistent() {
+<span class="nc" id="L87">        updateRealEntityRef();</span>
+<span class="nc" id="L88">        return this.realEntityRef.isPersistent();</span>
+    }
+
+    @Override
+    public boolean isAlwaysRelevant() {
+<span class="nc" id="L93">        updateRealEntityRef();</span>
+<span class="nc" id="L94">        return this.realEntityRef.isAlwaysRelevant();</span>
+    }
+
+    @Override
+    public void setAlwaysRelevant(boolean alwaysRelevant) {
+<span class="nc" id="L99">        updateRealEntityRef();</span>
+<span class="nc" id="L100">        this.realEntityRef.setAlwaysRelevant(alwaysRelevant);</span>
+<span class="nc" id="L101">    }</span>
+
+    @Override
+    public EntityRef getOwner() {
+<span class="nc" id="L105">        updateRealEntityRef();</span>
+<span class="nc" id="L106">        return this.realEntityRef.getOwner();</span>
+    }
+
+    @Override
+    public void setOwner(EntityRef owner) {
+<span class="nc" id="L111">        updateRealEntityRef();</span>
+<span class="nc" id="L112">        this.realEntityRef.setOwner(owner);</span>
+<span class="nc" id="L113">    }</span>
+
+    @Override
+    public Prefab getParentPrefab() {
+<span class="nc" id="L117">        updateRealEntityRef();</span>
+<span class="nc" id="L118">        return this.realEntityRef.getParentPrefab();</span>
+    }
+
+    @Override
+    public String toFullDescription() {
+<span class="nc" id="L123">        updateRealEntityRef();</span>
+<span class="nc" id="L124">        return this.realEntityRef.toFullDescription();</span>
+    }
+
+    @Override
+    public &lt;T extends Component&gt; T addComponent(T component) {
+<span class="nc" id="L129">        updateRealEntityRef();</span>
+<span class="nc" id="L130">        return this.realEntityRef.addComponent(component);</span>
+    }
+
+    @Override
+    public void removeComponent(Class&lt;? extends Component&gt; componentClass) {
+<span class="nc" id="L135">        updateRealEntityRef();</span>
+<span class="nc" id="L136">        this.realEntityRef.removeComponent(componentClass);</span>
+<span class="nc" id="L137">    }</span>
+
+    @Override
+    public void saveComponent(Component component) {
+<span class="nc" id="L141">        updateRealEntityRef();</span>
+<span class="nc" id="L142">        this.realEntityRef.saveComponent(component);</span>
+<span class="nc" id="L143">    }</span>
+
+    @Override
+    public boolean hasComponent(Class&lt;? extends Component&gt; component) {
+<span class="nc" id="L147">        updateRealEntityRef();</span>
+<span class="nc" id="L148">        return this.realEntityRef.hasComponent(component);</span>
+    }
+
+    @Override
+    public boolean hasAnyComponents(List&lt;Class&lt;? extends Component&gt;&gt; filterComponents) {
+<span class="nc" id="L153">        updateRealEntityRef();</span>
+<span class="nc" id="L154">        return this.realEntityRef.hasAnyComponents(filterComponents);</span>
+    }
+
+    @Override
+    public boolean hasAllComponents(List&lt;Class&lt;? extends Component&gt;&gt; filterComponents) {
+<span class="nc" id="L159">        updateRealEntityRef();</span>
+<span class="nc" id="L160">        return this.realEntityRef.hasAllComponents(filterComponents);</span>
+    }
+
+    @Override
+    public &lt;T extends Component&gt; T getComponent(Class&lt;T&gt; componentClass) {
+<span class="nc" id="L165">        updateRealEntityRef();</span>
+<span class="nc" id="L166">        return this.realEntityRef.getComponent(componentClass);</span>
+    }
+
+    @Override
+    public Iterable&lt;Component&gt; iterateComponents() {
+<span class="nc" id="L171">        updateRealEntityRef();</span>
+<span class="nc" id="L172">        return this.realEntityRef.iterateComponents();</span>
+    }
+
+    private void updateRealEntityRef() {
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        if (this.realEntityRef instanceof NullEntityRef) {</span>
+<span class="nc" id="L177">            this.realEntityRef = this.manager.getEntity(this.id);</span>
+        }
+<span class="nc" id="L179">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

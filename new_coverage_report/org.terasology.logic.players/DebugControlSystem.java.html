@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DebugControlSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.players</a> &gt; <span class="el_source">DebugControlSystem.java</span></div><h1>DebugControlSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.logic.players;
+
+import org.lwjgl.input.Mouse;
+import org.terasology.config.Config;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.EventPriority;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.input.Keyboard;
+import org.terasology.input.binds.general.HideHUDButton;
+import org.terasology.input.events.KeyDownEvent;
+import org.terasology.input.events.KeyEvent;
+import org.terasology.input.events.MouseAxisEvent;
+import org.terasology.logic.characters.CharacterComponent;
+import org.terasology.logic.debug.DebugProperties;
+import org.terasology.network.ClientComponent;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.layers.ingame.metrics.DebugOverlay;
+import org.terasology.world.WorldProvider;
+
+
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L42">public class DebugControlSystem extends BaseComponentSystem {</span>
+
+    @In
+    private WorldProvider world;
+    
+    @In
+    private Config config;
+
+    @In
+    private NUIManager nuiManager;
+    
+    private DebugOverlay overlay;
+    
+<span class="nc" id="L55">    private boolean mouseGrabbed = true;</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L59">        overlay = nuiManager.addOverlay(&quot;engine:debugOverlay&quot;, DebugOverlay.class);</span>
+<span class="nc" id="L60">    }</span>
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onHideHUD(HideHUDButton event, EntityRef entity) {
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        if (event.isDown()) {</span>
+            // Make sure both are either visible or hidden
+<span class="nc bnc" id="L66" title="All 4 branches missed.">            final boolean hide = !(config.getRendering().getDebug().isHudHidden() &amp;&amp; config.getRendering().getDebug().isFirstPersonElementsHidden());</span>
+
+<span class="nc" id="L68">            config.getRendering().getDebug().setFirstPersonElementsHidden(hide);</span>
+<span class="nc" id="L69">            config.getRendering().getDebug().setHudHidden(hide);</span>
+
+<span class="nc" id="L71">            event.consume();</span>
+        }
+<span class="nc" id="L73">    }</span>
+
+
+    /**
+     * Creates illusion of time flying by if correspondig key is held down.
+     * Up / Down : Increases / Decreases time of day by 0.005 per keystroke.
+     * Right / left : Increases / Decreases time of day by 0.02 per keystroke.
+     * @param entity The player entity that triggered the time change.
+     */
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onKeyEvent(KeyEvent event, EntityRef entity) {
+<span class="nc" id="L84">        boolean debugEnabled = config.getSystem().isDebugEnabled();</span>
+        // Features for debug mode only
+<span class="nc bnc" id="L86" title="All 4 branches missed.">        if (debugEnabled &amp;&amp; event.isDown()) {</span>
+<span class="nc bnc" id="L87" title="All 5 branches missed.">            switch (event.getKey().getId()) {</span>
+                case Keyboard.KeyId.UP:
+<span class="nc" id="L89">                    world.getTime().setDays(world.getTime().getDays() + 0.005f);</span>
+<span class="nc" id="L90">                    event.consume();</span>
+<span class="nc" id="L91">                    break;</span>
+                case Keyboard.KeyId.DOWN:
+<span class="nc" id="L93">                    world.getTime().setDays(world.getTime().getDays() - 0.005f);</span>
+<span class="nc" id="L94">                    event.consume();</span>
+<span class="nc" id="L95">                    break;</span>
+                case Keyboard.KeyId.RIGHT:
+<span class="nc" id="L97">                    world.getTime().setDays(world.getTime().getDays() + 0.02f);</span>
+<span class="nc" id="L98">                    event.consume();</span>
+<span class="nc" id="L99">                    break;</span>
+                case Keyboard.KeyId.LEFT:
+<span class="nc" id="L101">                    world.getTime().setDays(world.getTime().getDays() - 0.02f);</span>
+<span class="nc" id="L102">                    event.consume();</span>
+<span class="nc" id="L103">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="nc" id="L108">    }</span>
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onKeyDown(KeyDownEvent event, EntityRef entity) {
+<span class="nc" id="L112">        boolean debugEnabled = config.getSystem().isDebugEnabled();</span>
+        // Features for debug mode only
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (debugEnabled) {</span>
+<span class="nc bnc" id="L115" title="All 5 branches missed.">            switch (event.getKey().getId()) {</span>
+                case Keyboard.KeyId.H:
+<span class="nc" id="L117">                    String DebugInfo = &quot;engine:DebugInfo&quot;;</span>
+<span class="nc" id="L118">                    nuiManager.toggleScreen(DebugInfo);</span>
+<span class="nc" id="L119">                    event.consume();</span>
+<span class="nc" id="L120">                    break;</span>
+                case Keyboard.KeyId.F6:
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                    config.getRendering().getDebug().setEnabled(!config.getRendering().getDebug().isEnabled());</span>
+<span class="nc" id="L123">                    event.consume();</span>
+<span class="nc" id="L124">                    break;</span>
+                case Keyboard.KeyId.F8:
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                    config.getRendering().getDebug().setRenderChunkBoundingBoxes(!config.getRendering().getDebug().isRenderChunkBoundingBoxes());</span>
+<span class="nc" id="L127">                    event.consume();</span>
+<span class="nc" id="L128">                    break;</span>
+                case Keyboard.KeyId.F9:
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                    config.getRendering().getDebug().setWireframe(!config.getRendering().getDebug().isWireframe());</span>
+<span class="nc" id="L131">                    event.consume();</span>
+<span class="nc" id="L132">                    break;</span>
+                default:
+                    break;
+            }
+        }
+
+<span class="nc bnc" id="L138" title="All 4 branches missed.">        switch (event.getKey().getId()) {</span>
+            case Keyboard.KeyId.F11:
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                mouseGrabbed = !mouseGrabbed;</span>
+<span class="nc" id="L141">                DebugProperties debugProperties = (DebugProperties) nuiManager.getHUD().getHUDElement(&quot;engine:DebugProperties&quot;);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                debugProperties.setVisible(!mouseGrabbed);</span>
+<span class="nc" id="L143">                Mouse.setGrabbed(mouseGrabbed);</span>
+<span class="nc" id="L144">                event.consume();</span>
+<span class="nc" id="L145">                break;</span>
+            case Keyboard.KeyId.F3:
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                config.getSystem().setDebugEnabled(!config.getSystem().isDebugEnabled());</span>
+<span class="nc" id="L148">                event.consume();</span>
+<span class="nc" id="L149">                break;</span>
+            case Keyboard.KeyId.F4:
+<span class="nc" id="L151">                overlay.toggleMetricsMode();</span>
+<span class="nc" id="L152">                event.consume();</span>
+<span class="nc" id="L153">                break;</span>
+            default:
+                break;
+
+        }
+<span class="nc" id="L158">    }</span>
+
+    @ReceiveEvent(components = CharacterComponent.class, priority = EventPriority.PRIORITY_HIGH)
+    public void onMouseX(MouseAxisEvent event, EntityRef entity) {
+<span class="nc bnc" id="L162" title="All 2 branches missed.">        if (!mouseGrabbed) {</span>
+<span class="nc" id="L163">            event.consume();</span>
+        }
+<span class="nc" id="L165">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

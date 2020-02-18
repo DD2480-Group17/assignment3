@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FloatingTextRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.logic</a> &gt; <span class="el_source">FloatingTextRenderer.java</span></div><h1>FloatingTextRenderer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.logic;
+
+import com.google.common.collect.Maps;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeDeactivateComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnChangedComponent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.RenderSystem;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.registry.In;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.font.FontMeshBuilder;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.HorizontalAlign;
+import org.terasology.rendering.opengl.OpenGLUtils;
+import org.terasology.world.WorldProvider;
+
+import java.util.Arrays;
+import java.util.Map;
+
+import static org.lwjgl.opengl.GL11.GL_DEPTH_TEST;
+import static org.lwjgl.opengl.GL11.glDisable;
+import static org.lwjgl.opengl.GL11.glEnable;
+import static org.lwjgl.opengl.GL11.glPopMatrix;
+import static org.lwjgl.opengl.GL11.glPushMatrix;
+import static org.lwjgl.opengl.GL11.glScaled;
+import static org.lwjgl.opengl.GL11.glTranslated;
+
+
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L56">public class FloatingTextRenderer extends BaseComponentSystem implements RenderSystem {</span>
+
+    private static final int PIXEL_PER_METER = 250;
+
+    private static final float METER_PER_PIXEL = 1.0f / PIXEL_PER_METER;
+
+    @In
+    private EntityManager entityManager;
+
+    @In
+    private AssetManager assetManager;
+
+    @In
+    private WorldProvider worldProvider;
+
+    @In
+    private Camera camera;
+
+    private Font font;
+    private Material underlineMaterial;
+<span class="nc" id="L76">    private Map&lt;EntityRef, Map&lt;Material, Mesh&gt;&gt; entityMeshCache = Maps.newHashMap();</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L80">        this.font = assetManager.getAsset(&quot;engine:NotoSans-Regular-Large&quot;, Font.class).get();</span>
+<span class="nc" id="L81">        this.underlineMaterial = assetManager.getAsset(&quot;engine:UIUnderline&quot;, Material.class).get();</span>
+<span class="nc" id="L82">    }</span>
+
+    private void render(Iterable&lt;EntityRef&gt; floatingTextEntities) {
+<span class="nc" id="L85">        Vector3f cameraPosition = camera.getPosition();</span>
+
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        for (EntityRef entity : floatingTextEntities) {</span>
+<span class="nc" id="L88">            LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            if (location == null) {</span>
+<span class="nc" id="L90">                continue;</span>
+            }
+
+<span class="nc" id="L93">            Vector3f worldPos = location.getWorldPosition();</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            if (!worldProvider.isBlockRelevant(worldPos)) {</span>
+<span class="nc" id="L95">                continue;</span>
+            }
+
+<span class="nc" id="L98">            FloatingTextComponent floatingText = entity.getComponent(FloatingTextComponent.class);</span>
+
+<span class="nc" id="L100">            String[] linesOfText = floatingText.text.split(&quot;\n&quot;);</span>
+<span class="nc" id="L101">            Color baseColor = floatingText.textColor;</span>
+<span class="nc" id="L102">            Color shadowColor = floatingText.textShadowColor;</span>
+<span class="nc" id="L103">            boolean underline = false;</span>
+
+<span class="nc" id="L105">            int textWidth = 0;</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            for (String singleLine : linesOfText) {</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">                if (font.getWidth(singleLine) &gt; textWidth) {</span>
+<span class="nc" id="L108">                    textWidth = font.getWidth(singleLine);</span>
+                }
+            }
+
+<span class="nc" id="L112">            FontMeshBuilder meshBuilder = new FontMeshBuilder(underlineMaterial);</span>
+
+<span class="nc" id="L114">            Map&lt;Material, Mesh&gt; meshMap = entityMeshCache.get(entity);</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            if (meshMap == null) {</span>
+<span class="nc" id="L116">                meshMap = meshBuilder</span>
+<span class="nc" id="L117">                        .createTextMesh(font, Arrays.asList(linesOfText), textWidth, HorizontalAlign.CENTER, baseColor,</span>
+                                shadowColor, underline);
+<span class="nc" id="L119">                entityMeshCache.put(entity, meshMap);</span>
+            }
+
+<span class="nc bnc" id="L122" title="All 2 branches missed.">            if (floatingText.isOverlay) {</span>
+<span class="nc" id="L123">                glDisable(GL_DEPTH_TEST);</span>
+            }
+
+<span class="nc" id="L126">            glPushMatrix();</span>
+
+<span class="nc" id="L128">            float scale = METER_PER_PIXEL * floatingText.scale;</span>
+
+<span class="nc" id="L130">            glTranslated(worldPos.x - cameraPosition.x, worldPos.y - cameraPosition.y, worldPos.z - cameraPosition.z);</span>
+<span class="nc" id="L131">            OpenGLUtils.applyBillboardOrientation();</span>
+<span class="nc" id="L132">            glScaled(scale, -scale, scale);</span>
+<span class="nc" id="L133">            glTranslated(-textWidth / 2.0, 0.0, 0.0);</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            for (Map.Entry&lt;Material, Mesh&gt; meshMapEntry : meshMap.entrySet()) {</span>
+<span class="nc" id="L135">                Mesh mesh = meshMapEntry.getValue();</span>
+<span class="nc" id="L136">                Material material = meshMapEntry.getKey();</span>
+<span class="nc" id="L137">                material.enable();</span>
+<span class="nc" id="L138">                material.bindTextures();</span>
+<span class="nc" id="L139">                material.setFloat4(&quot;croppingBoundaries&quot;, Float.MIN_VALUE, Float.MAX_VALUE,</span>
+                        Float.MIN_VALUE, Float.MAX_VALUE);
+<span class="nc" id="L141">                material.setFloat2(&quot;offset&quot;, 0.0f, 0.0f);</span>
+<span class="nc" id="L142">                material.setFloat(&quot;alpha&quot;, 1.0f);</span>
+<span class="nc" id="L143">                mesh.render();</span>
+<span class="nc" id="L144">            }</span>
+
+<span class="nc" id="L146">            glPopMatrix();</span>
+
+            // Revert to default state
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            if (floatingText.isOverlay) {</span>
+<span class="nc" id="L150">                glEnable(GL_DEPTH_TEST);</span>
+            }
+<span class="nc" id="L152">        }</span>
+<span class="nc" id="L153">    }</span>
+
+    private void diposeMeshMap(Map&lt;Material, Mesh&gt; meshMap) {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        for (Map.Entry&lt;Material, Mesh&gt; meshMapEntry : meshMap.entrySet()) {</span>
+<span class="nc" id="L157">            Mesh mesh = meshMapEntry.getValue();</span>
+<span class="nc" id="L158">            mesh.dispose();</span>
+            // Note: Material belongs to font and must not be disposed
+<span class="nc" id="L160">        }</span>
+<span class="nc" id="L161">    }</span>
+
+    @Override
+    public void renderOpaque() {
+<span class="nc" id="L165">    }</span>
+
+    @Override
+    public void renderAlphaBlend() {
+<span class="nc" id="L169">        render(entityManager.getEntitiesWith(FloatingTextComponent.class, LocationComponent.class));</span>
+<span class="nc" id="L170">    }</span>
+
+    @Override
+    public void renderOverlay() {
+<span class="nc" id="L174">    }</span>
+
+    @Override
+    public void renderShadows() {
+<span class="nc" id="L178">    }</span>
+
+    @ReceiveEvent(components = {FloatingTextComponent.class})
+    public void onDisplayNameChange(OnChangedComponent event, EntityRef entity) {
+<span class="nc" id="L182">        disposeCachedMeshOfEntity(entity);</span>
+<span class="nc" id="L183">    }</span>
+
+
+    @ReceiveEvent(components = {FloatingTextComponent.class})
+    public void onNameTagOwnerRemoved(BeforeDeactivateComponent event, EntityRef entity) {
+<span class="nc" id="L188">        disposeCachedMeshOfEntity(entity);</span>
+<span class="nc" id="L189">    }</span>
+
+    private void disposeCachedMeshOfEntity(EntityRef entity) {
+<span class="nc" id="L192">        Map&lt;Material, Mesh&gt; meshMap = entityMeshCache.remove(entity);</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">        if (meshMap != null) {</span>
+<span class="nc" id="L194">            diposeMeshMap(meshMap);</span>
+        }
+<span class="nc" id="L196">    }</span>
+
+    @Override
+    public void shutdown() {
+<span class="nc" id="L200">        entityMeshCache.values().forEach(this::diposeMeshMap);</span>
+<span class="nc" id="L201">        entityMeshCache.clear();</span>
+<span class="nc" id="L202">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

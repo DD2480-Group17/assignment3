@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TaskMaster.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.concurrency</a> &gt; <span class="el_source">TaskMaster.java</span></div><h1>TaskMaster.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities.concurrency;
+
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Comparator;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Manages execution of tasks on a queue.
+ *
+ * TaskMasters execute Tasks on separate threads, meaning that long running tasks can be performed without affecting
+ * rendering or other processing on the main thread. The usual caveats regarding threading and Events, Components,
+ * and Entities apply to the Tasks being processed.
+ * &lt;p&gt;
+ * Create TaskMaster instances using the static &quot;create&quot; helper methods, then use {@link #offer(Task)} to add tasks to
+ * the queue. In most cases the simple FIFO TaskMaster is good enough. However, you can create a prioritized queue by
+ * implementing {@link Comparable} in your {@link Task} implementations.
+ * &lt;p&gt;
+ * When you create a TaskMaster, it is important to shut it down after you're finished with it, generally in the
+ * shutdown method of a ComponentSystem. A basic usage example follows:
+ * &lt;p&gt;
+ * &lt;pre&gt;
+ * {@literal
+ * TaskMaster&lt;MyBaseTask&gt; taskMaster = TaskMaster.createFIFOTaskMaster(&quot;MyTaskMaster&quot;, 1);
+ * taskMaster.offer(new MyFooTask());
+ * taskMaster.offer(new MyBarTask());
+ * taskMaster.shutdown(new ShutdownTask());
+ * }
+ * &lt;/pre&gt;
+ *
+ * @see Task
+ * @see #createFIFOTaskMaster(String, int)
+ * @see #createPriorityTaskMaster(String, int, int)
+ */
+public final class TaskMaster&lt;T extends Task&gt; {
+<span class="fc" id="L61">    private static final Logger logger = LoggerFactory.getLogger(TaskMaster.class);</span>
+
+    private BlockingQueue&lt;T&gt; taskQueue;
+    private ExecutorService executorService;
+    private int threads;
+    private boolean running;
+    private String name;
+
+<span class="fc" id="L69">    private TaskMaster(String name, int threads, BlockingQueue&lt;T&gt; queue) {</span>
+<span class="fc" id="L70">        this.name = name;</span>
+<span class="fc" id="L71">        this.threads = threads;</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">        if (threads &lt;= 0) {</span>
+<span class="nc" id="L73">            throw new IllegalArgumentException(&quot;Must have at least one thread.&quot;);</span>
+        }
+<span class="fc" id="L75">        taskQueue = queue;</span>
+<span class="fc" id="L76">        restart();</span>
+<span class="fc" id="L77">    }</span>
+
+    /**
+     * Creates a FIFO taskmaster which simply reads from a task queue in order
+     */
+    public static &lt;T extends Task&gt; TaskMaster&lt;T&gt; createFIFOTaskMaster(String name, int threads) {
+<span class="fc" id="L83">        return new TaskMaster&lt;&gt;(name, threads, new LinkedBlockingQueue&lt;&gt;());</span>
+    }
+
+    /**
+     * Creates a prioritized taskmaster which uses {@link Comparable} Tasks to establish priority. The &lt;em&gt;least&lt;/em&gt;
+     * task (according to the Comparable interface) is processed first.
+     */
+    public static &lt;T extends Task &amp; Comparable&lt;? super T&gt;&gt; TaskMaster&lt;T&gt; createPriorityTaskMaster(String name, int threads, int queueSize) {
+<span class="nc" id="L91">        return new TaskMaster&lt;&gt;(name, threads, new PriorityBlockingQueue&lt;&gt;(queueSize));</span>
+    }
+
+    public static &lt;T extends Task&gt; TaskMaster&lt;T&gt; createPriorityTaskMaster(String name, int threads, int queueSize, Comparator&lt;T&gt; comparator) {
+<span class="nc" id="L95">        return new TaskMaster&lt;&gt;(name, threads, new PriorityBlockingQueue&lt;&gt;(queueSize, comparator));</span>
+    }
+
+    public static &lt;T extends Task&gt; TaskMaster&lt;T&gt; createDynamicPriorityTaskMaster(String name, int threads, Comparator&lt;T&gt; comparator) {
+<span class="fc" id="L99">        return new TaskMaster&lt;&gt;(name, threads, new DynamicPriorityBlockingQueue&lt;&gt;(comparator));</span>
+    }
+
+    /**
+     * Offers a task to this task master. This does not block, but may fail if the queue is full.
+     *
+     * @param task
+     * @return Whether the task was successfully added to the queue.
+     */
+    public boolean offer(T task) {
+<span class="fc" id="L109">        return taskQueue.offer(task);</span>
+    }
+
+    /**
+     * Adds a task to this task master. This blocks until the task can be added if the queue is full.
+     *
+     * @param task
+     */
+    public void put(T task) throws InterruptedException {
+<span class="nc" id="L118">        taskQueue.put(task);</span>
+<span class="nc" id="L119">    }</span>
+
+    public void shutdown(T shutdownTask, boolean awaitComplete) {
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if (!shutdownTask.isTerminateSignal()) {</span>
+<span class="nc" id="L123">            throw new IllegalArgumentException(&quot;Expected task to provide terminate signal&quot;);</span>
+        }
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (!awaitComplete) {</span>
+<span class="nc" id="L126">            taskQueue.drainTo(Lists.newArrayList());</span>
+        }
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        for (int i = 0; i &lt; threads; ++i) {</span>
+            try {
+<span class="fc" id="L130">                taskQueue.offer(shutdownTask, 250, TimeUnit.MILLISECONDS);</span>
+<span class="nc" id="L131">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L132">                logger.error(&quot;Failed to enqueue shutdown request&quot;, e);</span>
+<span class="fc" id="L133">            }</span>
+        }
+<span class="fc" id="L135">        AccessController.doPrivileged((PrivilegedAction&lt;Object&gt;) () -&gt; {</span>
+<span class="fc" id="L136">            executorService.shutdown();</span>
+            try {
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">                if (!executorService.awaitTermination(20, TimeUnit.SECONDS)) {</span>
+<span class="nc" id="L139">                    logger.warn(&quot;Timed out awaiting thread termination&quot;);</span>
+<span class="nc" id="L140">                    executorService.shutdownNow();</span>
+                }
+<span class="nc" id="L142">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L143">                logger.warn(&quot;Interrupted awaiting chunk thread termination&quot;);</span>
+<span class="nc" id="L144">                executorService.shutdownNow();</span>
+<span class="fc" id="L145">            }</span>
+<span class="fc" id="L146">            return null;</span>
+        });
+<span class="fc" id="L148">        running = false;</span>
+<span class="fc" id="L149">    }</span>
+
+    public void restart() {
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">        if (!running) {</span>
+<span class="fc" id="L153">            executorService = Executors.newFixedThreadPool(threads);</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">            for (int i = 0; i &lt; threads; ++i) {</span>
+<span class="fc" id="L155">                executorService.execute(new TaskProcessor&lt;&gt;(name + &quot;-&quot; + i, taskQueue));</span>
+            }
+<span class="fc" id="L157">            running = true;</span>
+        }
+<span class="fc" id="L159">    }</span>
+
+    /**
+     * Get the {@link ExecutorService} underlying this TaskMaster. Note that by default the service will have a
+     * {@link TaskProcessor} enqueued for each thread. In order to use the ExecutorService directly you will need to
+     * {@method offer} a {@link ShutdownTask} as shown:
+     * &lt;p&gt;
+     * {@code
+     * taskMaster.offer(new ShutdownTask());
+     * }
+     * @return the {@link ExecutorService} used by this instance
+     */
+    public ExecutorService getExecutorService() {
+<span class="nc" id="L172">        return executorService;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

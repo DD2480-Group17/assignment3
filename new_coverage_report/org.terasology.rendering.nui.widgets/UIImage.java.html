@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIImage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UIImage.java</span></div><h1>UIImage.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.ScaleMode;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+
+/**
+ *  A widget to display an image.
+ */
+public class UIImage extends CoreWidget {
+<span class="nc" id="L32">    @LayoutConfig</span>
+    private Binding&lt;TextureRegion&gt; image = new DefaultBinding&lt;&gt;();
+
+<span class="nc" id="L35">    @LayoutConfig</span>
+    private Binding&lt;Color&gt; tint = new DefaultBinding&lt;&gt;(Color.WHITE);
+
+    @LayoutConfig
+    private boolean ignoreAspectRatio;
+
+<span class="nc" id="L41">    public UIImage() {</span>
+<span class="nc" id="L42">    }</span>
+
+    public UIImage(String id) {
+<span class="nc" id="L45">        super(id);</span>
+<span class="nc" id="L46">    }</span>
+
+<span class="nc" id="L48">    public UIImage(TextureRegion image) {</span>
+<span class="nc" id="L49">        this.image.set(image);</span>
+<span class="nc" id="L50">    }</span>
+
+    public UIImage(String id, TextureRegion image) {
+<span class="nc" id="L53">        super(id);</span>
+<span class="nc" id="L54">        this.image.set(image);</span>
+<span class="nc" id="L55">    }</span>
+
+    public UIImage(String id, TextureRegion image, boolean ignoreAspectRatio) {
+<span class="nc" id="L58">        super(id);</span>
+<span class="nc" id="L59">        this.image.set(image);</span>
+<span class="nc" id="L60">        this.ignoreAspectRatio = ignoreAspectRatio;</span>
+<span class="nc" id="L61">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (image.get() != null) {</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (ignoreAspectRatio) {</span>
+<span class="nc" id="L67">                ScaleMode scaleMode = canvas.getCurrentStyle().getTextureScaleMode();</span>
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">                if (image.get().getWidth() &gt; (image.get().getHeight() * 2)) {</span>
+<span class="nc" id="L70">                    canvas.getCurrentStyle().setTextureScaleMode(ScaleMode.STRETCH);</span>
+                } else {
+<span class="nc" id="L72">                    canvas.getCurrentStyle().setTextureScaleMode(ScaleMode.SCALE_FILL);</span>
+                }
+<span class="nc" id="L74">                canvas.drawTexture(image.get(), tint.get());</span>
+<span class="nc" id="L75">                canvas.getCurrentStyle().setTextureScaleMode(scaleMode);</span>
+<span class="nc" id="L76">            } else {</span>
+<span class="nc" id="L77">                canvas.drawTexture(image.get(), tint.get());</span>
+            }
+        }
+<span class="nc" id="L80">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (image.get() != null) {</span>
+<span class="nc" id="L85">            return image.get().size();</span>
+        }
+<span class="nc" id="L87">        return Vector2i.zero();</span>
+    }
+
+    /**
+     * @return The image being displayed
+     */
+    public TextureRegion getImage() {
+<span class="nc" id="L94">        return image.get();</span>
+    }
+
+    /**
+     * @param image The new image to display.
+     */
+    public void setImage(TextureRegion image) {
+<span class="nc" id="L101">        this.image.set(image);</span>
+<span class="nc" id="L102">    }</span>
+
+    public void bindTexture(Binding&lt;TextureRegion&gt; binding) {
+<span class="nc" id="L105">        this.image = binding;</span>
+<span class="nc" id="L106">    }</span>
+
+    /**
+     * @return The Color of the tint.
+     */
+    public Color getTint() {
+<span class="nc" id="L112">        return tint.get();</span>
+    }
+
+    /**
+     * @param color The new tint to apply.
+     */
+    public void setTint(Color color) {
+<span class="nc" id="L119">        this.tint.set(color);</span>
+<span class="nc" id="L120">    }</span>
+
+    public void bindTint(Binding&lt;Color&gt; binding) {
+<span class="nc" id="L123">        this.tint = binding;</span>
+<span class="nc" id="L124">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

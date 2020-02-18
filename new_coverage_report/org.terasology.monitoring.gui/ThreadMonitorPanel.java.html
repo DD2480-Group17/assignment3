@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ThreadMonitorPanel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.monitoring.gui</a> &gt; <span class="el_source">ThreadMonitorPanel.java</span></div><h1>ThreadMonitorPanel.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.monitoring.gui;
+
+import com.google.common.eventbus.Subscribe;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.monitoring.ThreadActivity;
+import org.terasology.monitoring.ThreadMonitor;
+import org.terasology.monitoring.impl.SingleThreadMonitor;
+import org.terasology.monitoring.impl.ThreadMonitorEvent;
+
+import javax.swing.JPanel;
+import javax.swing.JList;
+import javax.swing.JLabel;
+import javax.swing.ListCellRenderer;
+import javax.swing.SwingUtilities;
+import javax.swing.AbstractListModel;
+import javax.swing.SwingConstants;
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.awt.Dimension;
+import java.awt.Component;
+import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+@SuppressWarnings(&quot;serial&quot;)
+public class ThreadMonitorPanel extends JPanel {
+
+<span class="nc" id="L49">    private static final Color BACKGROUND = Color.WHITE;</span>
+<span class="nc" id="L50">    private static final Logger LOGGER = LoggerFactory.getLogger(ThreadMonitorPanel.class);</span>
+
+    /**
+     * If true, the active monitoring thread in executor service should stop.
+     */
+    private boolean stopThread;
+
+<span class="nc" id="L57">    public ThreadMonitorPanel() {</span>
+<span class="nc" id="L58">        setLayout(new BorderLayout());</span>
+<span class="nc" id="L59">        JList list = new JList(new ThreadListModel());</span>
+<span class="nc" id="L60">        list.setCellRenderer(new ThreadListRenderer());</span>
+<span class="nc" id="L61">        list.setVisible(true);</span>
+<span class="nc" id="L62">        add(list, BorderLayout.CENTER);</span>
+<span class="nc" id="L63">    }</span>
+
+    public void stopThread() {
+<span class="nc" id="L66">        this.stopThread = true;</span>
+<span class="nc" id="L67">    }</span>
+
+    private abstract static class Task {
+
+        private String name;
+
+<span class="nc" id="L73">        Task(String name) {</span>
+<span class="nc" id="L74">            this.name = name;</span>
+<span class="nc" id="L75">        }</span>
+
+        public abstract void execute();
+
+        public String getName() {
+<span class="nc" id="L80">            return name;</span>
+        }
+
+    }
+
+<span class="nc" id="L85">    private static class ThreadListRenderer implements ListCellRenderer {</span>
+
+<span class="nc" id="L87">        private final MyRenderer renderer = new MyRenderer();</span>
+
+        @Override
+        public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+<span class="nc bnc" id="L91" title="All 2 branches missed.">            if (value instanceof SingleThreadMonitor) {</span>
+<span class="nc" id="L92">                renderer.setMonitor((SingleThreadMonitor) value);</span>
+            } else {
+<span class="nc" id="L94">                renderer.setMonitor(null);</span>
+            }
+<span class="nc" id="L96">            return renderer;</span>
+        }
+
+        private static class MyRenderer extends JPanel {
+
+<span class="nc" id="L101">            private final JPanel pHead = new JPanel();</span>
+<span class="nc" id="L102">            private final JPanel pList = new JPanel();</span>
+<span class="nc" id="L103">            private final JLabel lName = new JLabel();</span>
+<span class="nc" id="L104">            private final JLabel lId = new JLabel();</span>
+<span class="nc" id="L105">            private final JLabel lCounters = new JLabel();</span>
+<span class="nc" id="L106">            private final JLabel lActive = new JLabel();</span>
+<span class="nc" id="L107">            private final JPanel pError = new JPanel();</span>
+<span class="nc" id="L108">            private final JLabel lErrorSpacer = new JLabel();</span>
+<span class="nc" id="L109">            private final JLabel lError = new JLabel();</span>
+
+<span class="nc" id="L111">            private Dimension dId = new Dimension(0, 0);</span>
+<span class="nc" id="L112">            private Dimension dName = new Dimension(0, 0);</span>
+
+<span class="nc" id="L114">            MyRenderer() {</span>
+<span class="nc" id="L115">                setBackground(BACKGROUND);</span>
+<span class="nc" id="L116">                setLayout(new BorderLayout());</span>
+
+<span class="nc" id="L118">                pHead.setLayout(new BorderLayout());</span>
+<span class="nc" id="L119">                pHead.setBackground(BACKGROUND);</span>
+<span class="nc" id="L120">                pHead.add(pList, BorderLayout.LINE_START);</span>
+<span class="nc" id="L121">                pHead.add(lActive, BorderLayout.LINE_END);</span>
+<span class="nc" id="L122">                pHead.add(pError, BorderLayout.PAGE_END);</span>
+
+<span class="nc" id="L124">                lId.setHorizontalAlignment(SwingConstants.RIGHT);</span>
+<span class="nc" id="L125">                lName.setForeground(Color.BLUE);</span>
+<span class="nc" id="L126">                lCounters.setForeground(Color.GRAY);</span>
+
+<span class="nc" id="L128">                pList.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));</span>
+<span class="nc" id="L129">                pList.setBackground(BACKGROUND);</span>
+<span class="nc" id="L130">                pList.add(lId);</span>
+<span class="nc" id="L131">                pList.add(lName);</span>
+<span class="nc" id="L132">                pList.add(lCounters);</span>
+
+<span class="nc" id="L134">                pError.setVisible(false);</span>
+<span class="nc" id="L135">                pError.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));</span>
+<span class="nc" id="L136">                pError.setBackground(BACKGROUND);</span>
+<span class="nc" id="L137">                pError.add(lErrorSpacer);</span>
+<span class="nc" id="L138">                pError.add(lError);</span>
+
+<span class="nc" id="L140">                lError.setForeground(Color.RED);</span>
+
+<span class="nc" id="L142">                add(pHead, BorderLayout.PAGE_START);</span>
+<span class="nc" id="L143">            }</span>
+
+            public void setMonitor(SingleThreadMonitor monitor) {
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                if (monitor != null) {</span>
+
+<span class="nc" id="L148">                    lName.setPreferredSize(null);</span>
+<span class="nc" id="L149">                    lName.setText(monitor.getName());</span>
+<span class="nc" id="L150">                    Dimension tmp = lName.getPreferredSize();</span>
+<span class="nc bnc" id="L151" title="All 4 branches missed.">                    if (tmp.width &gt; dName.width || tmp.height &gt; dName.height) {</span>
+<span class="nc" id="L152">                        dName = tmp;</span>
+                    }
+<span class="nc" id="L154">                    lName.setPreferredSize(dName);</span>
+
+<span class="nc" id="L156">                    lId.setPreferredSize(null);</span>
+<span class="nc" id="L157">                    lId.setText(&quot;&quot; + monitor.getThreadId());</span>
+<span class="nc" id="L158">                    tmp = lId.getPreferredSize();</span>
+<span class="nc bnc" id="L159" title="All 4 branches missed.">                    if (tmp.width &gt; dId.width || tmp.height &gt; dId.height) {</span>
+<span class="nc" id="L160">                        dId = tmp;</span>
+                    }
+<span class="nc" id="L162">                    lId.setPreferredSize(dId);</span>
+
+<span class="nc" id="L164">                    lCounters.setText(monitor.getLastTask());</span>
+
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                    if (monitor.isAlive()) {</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">                        if (monitor.isActive()) {</span>
+<span class="nc" id="L168">                            lActive.setForeground(Color.GREEN);</span>
+<span class="nc" id="L169">                            lActive.setText(&quot;Active&quot;);</span>
+                        } else {
+<span class="nc" id="L171">                            lActive.setForeground(Color.GRAY);</span>
+<span class="nc" id="L172">                            lActive.setText(&quot;Inactive&quot;);</span>
+                        }
+                    } else {
+<span class="nc" id="L175">                        lActive.setForeground(Color.RED);</span>
+<span class="nc" id="L176">                        lActive.setText(&quot;Disposed&quot;);</span>
+                    }
+
+<span class="nc" id="L179">                    pError.setVisible(monitor.hasErrors());</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                    if (monitor.hasErrors()) {</span>
+<span class="nc" id="L181">                        lErrorSpacer.setPreferredSize(dId);</span>
+<span class="nc" id="L182">                        lError.setText(monitor.getNumErrors() + &quot; Error(s), [&quot; + monitor.getLastError().getClass().getSimpleName() + &quot;] &quot;</span>
+<span class="nc" id="L183">                                + monitor.getLastError().getMessage());</span>
+                    }
+<span class="nc" id="L185">                } else {</span>
+<span class="nc" id="L186">                    lName.setText(&quot;&quot;);</span>
+<span class="nc" id="L187">                    lId.setText(&quot;&quot;);</span>
+<span class="nc" id="L188">                    lActive.setText(&quot;&quot;);</span>
+                }
+<span class="nc" id="L190">            }</span>
+
+        }
+    }
+
+    private final class ThreadListModel extends AbstractListModel {
+
+<span class="nc" id="L197">        private final java.util.List&lt;SingleThreadMonitor&gt; monitors = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L198">        private final ExecutorService executor = Executors.newSingleThreadExecutor();</span>
+<span class="nc" id="L199">        private final BlockingQueue&lt;Task&gt; queue = new LinkedBlockingQueue&lt;&gt;();</span>
+
+<span class="nc" id="L201">        private ThreadListModel() {</span>
+<span class="nc" id="L202">            ThreadMonitor.registerForEvents(this);</span>
+<span class="nc" id="L203">            queue.add(new Task(&quot;Sort Monitors&quot;) {</span>
+                @Override
+                public void execute() {
+<span class="nc" id="L206">                    ThreadMonitor.getThreadMonitors(monitors, false);</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">                    if (monitors.size() &gt; 0) {</span>
+<span class="nc" id="L208">                        Collections.sort(monitors);</span>
+<span class="nc" id="L209">                        invokeIntervalAdded(0, monitors.size() - 1);</span>
+                    }
+<span class="nc" id="L211">                }</span>
+            });
+
+<span class="nc" id="L214">            executor.execute(() -&gt; {</span>
+<span class="nc" id="L215">                Thread.currentThread().setPriority(Thread.MIN_PRIORITY);</span>
+                try {
+<span class="nc bnc" id="L217" title="All 2 branches missed.">                    while (!stopThread) {</span>
+<span class="nc" id="L218">                        final Task task = queue.poll(500, TimeUnit.MILLISECONDS);</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">                        if (task != null) {</span>
+<span class="nc" id="L220">                            try (ThreadActivity ignored = ThreadMonitor.startThreadActivity(task.getName())) {</span>
+<span class="nc" id="L221">                                task.execute();</span>
+<span class="nc" id="L222">                            }</span>
+                        } else {
+<span class="nc" id="L224">                            try (ThreadActivity ignored = ThreadMonitor.startThreadActivity(&quot;Sort Monitors&quot;)) {</span>
+<span class="nc" id="L225">                                Collections.sort(monitors);</span>
+<span class="nc" id="L226">                                invokeContentsChanged(0, monitors.size() - 1);</span>
+                            }
+                        }
+<span class="nc" id="L229">                    }</span>
+<span class="nc" id="L230">                } catch (Exception e) {</span>
+<span class="nc" id="L231">                    ThreadMonitor.addError(e);</span>
+<span class="nc" id="L232">                    LOGGER.error(&quot;Error executing thread monitor update&quot;, e);</span>
+<span class="nc" id="L233">                }</span>
+
+<span class="nc" id="L235">                executor.shutdownNow();</span>
+<span class="nc" id="L236">            });</span>
+<span class="nc" id="L237">        }</span>
+
+        private void invokeIntervalAdded(final int a, final int b) {
+<span class="nc" id="L240">            final Object source = this;</span>
+<span class="nc" id="L241">            SwingUtilities.invokeLater(() -&gt; fireIntervalAdded(source, a, b));</span>
+<span class="nc" id="L242">        }</span>
+
+        private void invokeContentsChanged(final int a, final int b) {
+<span class="nc" id="L245">            final Object source = this;</span>
+<span class="nc" id="L246">            SwingUtilities.invokeLater(() -&gt; fireContentsChanged(source, a, b));</span>
+<span class="nc" id="L247">        }</span>
+
+        @Subscribe
+        public void receiveThreadMonitorEvent(final ThreadMonitorEvent event) {
+<span class="nc bnc" id="L251" title="All 2 branches missed.">            if (event != null) {</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">                switch (event.type) {</span>
+                    case MonitorAdded:
+<span class="nc" id="L254">                        queue.add(new Task(&quot;Register Monitor&quot;) {</span>
+                            @Override
+                            public void execute() {
+<span class="nc bnc" id="L257" title="All 2 branches missed.">                                if (!monitors.contains(event.monitor)) {</span>
+<span class="nc" id="L258">                                    monitors.add(event.monitor);</span>
+<span class="nc" id="L259">                                    Collections.sort(monitors);</span>
+<span class="nc" id="L260">                                    invokeContentsChanged(0, monitors.size() - 1);</span>
+                                }
+<span class="nc" id="L262">                            }</span>
+                        });
+                        break;
+                }
+            }
+<span class="nc" id="L267">        }</span>
+
+        @Override
+        public int getSize() {
+<span class="nc" id="L271">            return monitors.size();</span>
+        }
+
+        @Override
+        public Object getElementAt(int index) {
+<span class="nc" id="L276">            return monitors.get(index);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

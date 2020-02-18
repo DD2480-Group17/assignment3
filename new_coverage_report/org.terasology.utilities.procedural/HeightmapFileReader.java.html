@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HeightmapFileReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.procedural</a> &gt; <span class="el_source">HeightmapFileReader.java</span></div><h1>HeightmapFileReader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities.procedural;
+
+import com.google.common.base.Charsets;
+import com.google.common.math.DoubleMath;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.math.RoundingMode;
+
+/**
+ * Reads a heightmap encoded in a textfile
+ *
+ */
+public final class HeightmapFileReader {
+
+    private HeightmapFileReader() {
+    }
+
+    public static void convertFileToTexture() throws IOException {
+<span class="nc" id="L41">        float[][] heightmap = readFile();</span>
+
+<span class="nc" id="L43">        double scaleFactor = 256 * 256 * 12.8;</span>
+
+//        Slick's PNGDecoder does not support 16 bit textures
+
+//        BufferedImage image = new BufferedImage(512, 512, BufferedImage.TYPE_USHORT_GRAY);
+//        DataBufferUShort buffer = (DataBufferUShort) image.getRaster().getDataBuffer();
+//        scaleFactor *= 256.0f;
+
+//        Slick's PNGDecoder does not support grayscale textures
+
+//        BufferedImage image = new BufferedImage(512, 512, BufferedImage.TYPE_BYTE_GRAY);
+//        DataBufferByte buffer = (DataBufferByte) image.getRaster().getDataBuffer();
+
+<span class="nc" id="L56">        BufferedImage image = new BufferedImage(512, 512, BufferedImage.TYPE_INT_RGB);</span>
+<span class="nc" id="L57">        DataBufferInt buffer = (DataBufferInt) image.getRaster().getDataBuffer();</span>
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        for (int x = 0; x &lt; 512; x++) {</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">            for (int z = 0; z &lt; 512; z++) {</span>
+<span class="nc" id="L61">                double doubleVal = heightmap[x][z] * scaleFactor;</span>
+<span class="nc" id="L62">                int val = DoubleMath.roundToInt(doubleVal, RoundingMode.HALF_UP);</span>
+<span class="nc" id="L63">                buffer.setElem(z * 512 + x, val);</span>
+            }
+        }
+
+<span class="nc" id="L67">        ImageIO.write(image, &quot;png&quot;, new File(&quot;platec_heightmap.png&quot;));</span>
+<span class="nc" id="L68">    }</span>
+
+    public static float[][] readFile() throws IOException {
+        // TODO: Exact file to read has been hard coded in engine for security reasons until height maps become assets
+<span class="nc" id="L72">        String file = &quot;Heightmap.txt&quot;;</span>
+<span class="nc" id="L73">        String delimiter = &quot;\n&quot;;</span>
+
+<span class="nc" id="L75">        try (InputStream fis = new FileInputStream(file)) {</span>
+<span class="nc" id="L76">            return readValues(fis, delimiter);</span>
+        }
+    }
+
+    public static float[][] readValues(java.io.InputStream in, String delimiter) throws java.io.IOException, java.lang.NumberFormatException {
+        String thisLine;
+<span class="nc" id="L82">        java.io.BufferedInputStream s = new java.io.BufferedInputStream(in);</span>
+<span class="nc" id="L83">        java.io.BufferedReader myInput = new java.io.BufferedReader(new java.io.InputStreamReader(s, Charsets.UTF_8));</span>
+
+<span class="nc" id="L85">        int index = 0;</span>
+<span class="nc" id="L86">        float min = 0;</span>
+<span class="nc" id="L87">        float max = 0;</span>
+<span class="nc" id="L88">        float[][] theMap = new float[512][512];</span>
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        while ((thisLine = myInput.readLine()) != null) {</span>
+
+            // scan it line by line
+<span class="nc" id="L93">            java.util.StringTokenizer st = new java.util.StringTokenizer(thisLine, delimiter);</span>
+<span class="nc" id="L94">            float a = Float.valueOf(st.nextToken());</span>
+<span class="nc" id="L95">            theMap[index / 512][index % 512] = a;</span>
+<span class="nc" id="L96">            index++;</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            min = a &lt; min ? a : min;</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">            max = a &gt; max ? a : max;</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (index / 512 &gt; 511) {</span>
+<span class="nc" id="L100">                break;</span>
+            }
+<span class="nc" id="L102">        }</span>
+
+//        System.out.println(&quot;min &quot; + min);
+//        System.out.println(&quot;max &quot; + max);
+<span class="nc" id="L106">        return (theMap);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

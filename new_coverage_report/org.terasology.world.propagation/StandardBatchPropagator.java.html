@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StandardBatchPropagator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.propagation</a> &gt; <span class="el_source">StandardBatchPropagator.java</span></div><h1>StandardBatchPropagator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.propagation;
+
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.terasology.math.ChunkMath;
+import org.terasology.math.Region3i;
+import org.terasology.math.Side;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.block.Block;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.chunks.LitChunk;
+
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Batch propagator that works on a set of changed blocks
+ * Works for a single given propagation ruleset
+ */
+public class StandardBatchPropagator implements BatchPropagator {
+
+    private static final byte NO_VALUE = 0;
+
+    private PropagationRules rules;
+    private PropagatorWorldView world;
+
+    /* Queues are stored in reverse order. Ie, strongest light is 0. */
+    private Set&lt;Vector3i&gt;[] reduceQueues;
+    private Set&lt;Vector3i&gt;[] increaseQueues;
+
+<span class="fc" id="L47">    private Map&lt;Side, Vector3i&gt; chunkEdgeDeltas = Maps.newEnumMap(Side.class);</span>
+
+<span class="fc" id="L49">    public StandardBatchPropagator(PropagationRules rules, PropagatorWorldView world) {</span>
+<span class="fc" id="L50">        this.world = world;</span>
+<span class="fc" id="L51">        this.rules = rules;</span>
+
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        for (Side side : Side.getAllSides()) {</span>
+<span class="fc" id="L54">            Vector3i delta = new Vector3i(side.getVector3i());</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">            if (delta.x &lt; 0) {</span>
+<span class="fc" id="L56">                delta.x += ChunkConstants.SIZE_X;</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">            } else if (delta.x &gt; 0) {</span>
+<span class="fc" id="L58">                delta.x -= ChunkConstants.SIZE_X;</span>
+            }
+<span class="fc bfc" id="L60" title="All 2 branches covered.">            if (delta.y &lt; 0) {</span>
+<span class="fc" id="L61">                delta.y += ChunkConstants.SIZE_Y;</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">            } else if (delta.y &gt; 0) {</span>
+<span class="fc" id="L63">                delta.y -= ChunkConstants.SIZE_Y;</span>
+            }
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            if (delta.z &lt; 0) {</span>
+<span class="fc" id="L66">                delta.z += ChunkConstants.SIZE_Z;</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">            } else if (delta.z &gt; 0) {</span>
+<span class="fc" id="L68">                delta.z -= ChunkConstants.SIZE_Z;</span>
+            }
+<span class="fc" id="L70">            chunkEdgeDeltas.put(side, delta);</span>
+<span class="fc" id="L71">        }</span>
+
+<span class="fc" id="L73">        increaseQueues = new Set[rules.getMaxValue()];</span>
+<span class="fc" id="L74">        reduceQueues = new Set[rules.getMaxValue()];</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        for (int i = 0; i &lt; rules.getMaxValue(); ++i) {</span>
+<span class="fc" id="L76">            increaseQueues[i] = Sets.newLinkedHashSet();</span>
+<span class="fc" id="L77">            reduceQueues[i] = Sets.newLinkedHashSet();</span>
+        }
+
+<span class="fc" id="L80">    }</span>
+
+    @Override
+    public void process(BlockChange... changes) {
+<span class="fc" id="L84">        process(Arrays.asList(changes));</span>
+<span class="fc" id="L85">    }</span>
+
+    @Override
+    public void process(Iterable&lt;BlockChange&gt; blockChanges) {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        for (BlockChange blockChange : blockChanges) {</span>
+<span class="fc" id="L90">            reviewChange(blockChange);</span>
+<span class="fc" id="L91">        }</span>
+
+<span class="fc" id="L93">        processReduction();</span>
+<span class="fc" id="L94">        processIncrease();</span>
+<span class="fc" id="L95">        cleanUp();</span>
+<span class="fc" id="L96">    }</span>
+
+    /**
+     * Handles a single block being changed to a different type.
+     *
+     * @param blockChange The change that was made
+     */
+    private void reviewChange(BlockChange blockChange) {
+<span class="fc" id="L104">        byte newValue = rules.getFixedValue(blockChange.getTo(), blockChange.getPosition());</span>
+<span class="fc" id="L105">        byte existingValue = world.getValueAt(blockChange.getPosition());</span>
+
+        /* Handle if the block has an higher fixed value */
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (newValue &gt; existingValue) {</span>
+<span class="fc" id="L109">            increase(blockChange.getPosition(), newValue);</span>
+        }
+
+        /* Handle if the block has a lower fixed value */
+<span class="fc" id="L113">        byte oldValue = rules.getFixedValue(blockChange.getFrom(), blockChange.getPosition());</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (newValue &lt; oldValue) {</span>
+<span class="fc" id="L115">            reduce(blockChange.getPosition(), oldValue);</span>
+        }
+
+        /* Process propagation out to other blocks */
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        for (Side side : Side.getAllSides()) {</span>
+<span class="fc" id="L120">            PropagationComparison comparison = rules.comparePropagation(blockChange.getTo(), blockChange.getFrom(), side);</span>
+
+<span class="pc bpc" id="L122" title="1 of 4 branches missed.">            if (comparison.isRestricting() &amp;&amp; existingValue &gt; 0) {</span>
+                /* If the propagation of the new value is going to be lower/reduced */
+<span class="fc" id="L124">                reduce(blockChange.getPosition(), existingValue);</span>
+<span class="fc" id="L125">                Vector3i adjPos = side.getAdjacentPos(blockChange.getPosition());</span>
+<span class="fc" id="L126">                byte adjValue = world.getValueAt(adjPos);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">                if (adjValue == rules.propagateValue(existingValue, side, blockChange.getFrom())) {</span>
+<span class="fc" id="L128">                    reduce(adjPos, adjValue);</span>
+                }
+
+<span class="fc bfc" id="L131" title="All 2 branches covered.">            } else if (comparison.isPermitting()) {</span>
+                /* If the propagation of the new value is going to be more allowing */
+<span class="fc bfc" id="L133" title="All 2 branches covered.">                if (existingValue &gt; 0) {</span>
+                    /* Spread this potentially higher value out */
+<span class="fc" id="L135">                    queueSpreadValue(blockChange.getPosition(), existingValue);</span>
+                }
+                /* Spread it out to the block on the side */
+<span class="fc" id="L138">                Vector3i adjPos = side.getAdjacentPos(blockChange.getPosition());</span>
+<span class="fc" id="L139">                byte adjValue = world.getValueAt(adjPos);</span>
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">                if (adjValue != PropagatorWorldView.UNAVAILABLE) {</span>
+<span class="fc" id="L141">                    queueSpreadValue(adjPos, adjValue);</span>
+                }
+            }
+<span class="fc" id="L144">        }</span>
+<span class="fc" id="L145">    }</span>
+
+
+    /**
+     * Reset a position to only it's fixed values
+     *
+     * @param pos      The position to reset
+     * @param oldValue The value present before reset
+     */
+    private void purge(Vector3i pos, byte oldValue) {
+<span class="fc" id="L155">        increaseQueues[rules.getMaxValue() - oldValue].remove(pos);</span>
+
+        /* Clear the value and re-propagate it if it's a positive value */
+<span class="fc" id="L158">        Block block = world.getBlockAt(pos);</span>
+<span class="fc" id="L159">        byte fixedValue = rules.getFixedValue(block, pos);</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">        if (fixedValue &gt; 0) {</span>
+<span class="fc" id="L161">            increase(pos, fixedValue);</span>
+        } else {
+<span class="fc" id="L163">            world.setValueAt(pos, NO_VALUE);</span>
+        }
+
+
+<span class="fc bfc" id="L167" title="All 2 branches covered.">        for (Side side : Side.getAllSides()) {</span>
+            /* Handle this value being reset to the default by updating sides as needed */
+<span class="fc" id="L169">            byte expectedValue = rules.propagateValue(oldValue, side, block);</span>
+<span class="fc" id="L170">            Vector3i adjPos = side.getAdjacentPos(pos);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">            if (rules.canSpreadOutOf(block, side)) {</span>
+<span class="fc" id="L172">                byte adjValue = world.getValueAt(adjPos);</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">                if (adjValue == expectedValue) {</span>
+<span class="fc" id="L174">                    Block adjBlock = world.getBlockAt(adjPos);</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">                    if (rules.canSpreadInto(adjBlock, side.reverse())) {</span>
+<span class="fc" id="L176">                        reduce(adjPos, expectedValue);</span>
+                    }
+<span class="fc bfc" id="L178" title="All 2 branches covered.">                } else if (adjValue &gt; 0) {</span>
+<span class="fc" id="L179">                    queueSpreadValue(adjPos, adjValue);</span>
+                }
+            }
+<span class="fc" id="L182">        }</span>
+<span class="fc" id="L183">    }</span>
+
+    /**
+     * Process all reducing propagation requests
+     * This is done from the largest value through the smallest.
+     */
+    private void processReduction() {
+<span class="fc bfc" id="L190" title="All 2 branches covered.">        for (int depth = 0; depth &lt; rules.getMaxValue(); depth++) {</span>
+<span class="fc" id="L191">            byte oldValue = (byte) (rules.getMaxValue() - depth);</span>
+
+<span class="fc bfc" id="L193" title="All 2 branches covered.">            while (!reduceQueues[depth].isEmpty()) {</span>
+<span class="fc" id="L194">                Set&lt;Vector3i&gt; toProcess = reduceQueues[depth];</span>
+<span class="fc" id="L195">                reduceQueues[depth] = Sets.newLinkedHashSetWithExpectedSize(toProcess.size());</span>
+
+                /* This step will add any new reductions to to the `reduceQueues` set */
+<span class="fc bfc" id="L198" title="All 2 branches covered.">                for (Vector3i pos : toProcess) {</span>
+<span class="fc" id="L199">                    purge(pos, oldValue);</span>
+<span class="fc" id="L200">                }</span>
+<span class="fc" id="L201">            }</span>
+        }
+<span class="fc" id="L203">    }</span>
+
+    /**
+     * Process all increasing propagation requests
+     * This is done from the strongest through to the weakest.
+     */
+    private void processIncrease() {
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        for (int depth = 0; depth &lt; rules.getMaxValue() - 1; depth++) {</span>
+<span class="fc" id="L211">            byte value = (byte) (rules.getMaxValue() - depth);</span>
+
+<span class="fc bfc" id="L213" title="All 2 branches covered.">            while (!increaseQueues[depth].isEmpty()) {</span>
+<span class="fc" id="L214">                Set&lt;Vector3i&gt; toProcess = increaseQueues[depth];</span>
+<span class="fc" id="L215">                increaseQueues[depth] = Sets.newLinkedHashSetWithExpectedSize(toProcess.size());</span>
+
+                /* This step will add any new values to `increaseQueues` */
+<span class="fc bfc" id="L218" title="All 2 branches covered.">                for (Vector3i pos : toProcess) {</span>
+<span class="fc" id="L219">                    push(pos, value);</span>
+<span class="fc" id="L220">                }</span>
+<span class="fc" id="L221">            }</span>
+        }
+
+<span class="fc" id="L224">    }</span>
+
+    /**
+     * Propagates a value from a position out into all adjacent blocks.
+     * &lt;p&gt;
+     * If the value spreading into a block is larger than the current value there, set it and queue it for propagating again
+     * If the value is smaller than the current value, do nothing
+     *
+     * @param pos   The initial position
+     * @param value The value to propagate
+     */
+    private void push(Vector3i pos, byte value) {
+<span class="fc" id="L236">        Block block = world.getBlockAt(pos);</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">        for (Side side : Side.getAllSides()) {</span>
+<span class="fc" id="L238">            byte propagatedValue = rules.propagateValue(value, side, block);</span>
+
+<span class="fc bfc" id="L240" title="All 2 branches covered.">            if (rules.canSpreadOutOf(block, side)) {</span>
+<span class="fc" id="L241">                Vector3i adjPos = side.getAdjacentPos(pos);</span>
+<span class="fc" id="L242">                byte adjValue = world.getValueAt(adjPos);</span>
+
+<span class="fc bfc" id="L244" title="All 4 branches covered.">                if (adjValue &lt; propagatedValue &amp;&amp; adjValue != PropagatorWorldView.UNAVAILABLE) {</span>
+<span class="fc" id="L245">                    Block adjBlock = world.getBlockAt(adjPos);</span>
+
+<span class="fc bfc" id="L247" title="All 2 branches covered.">                    if (rules.canSpreadInto(adjBlock, side.reverse())) {</span>
+<span class="fc" id="L248">                        increase(adjPos, propagatedValue);</span>
+                    }
+                }
+            }
+<span class="fc" id="L252">        }</span>
+<span class="fc" id="L253">    }</span>
+
+    /**
+     * Set the value at a position to a new value.
+     * This should be larger than the prior value
+     * &lt;p&gt;
+     * Queues up this new higher value to be propagated out
+     *
+     * @param position The position to set at
+     * @param value    The value to set the position to
+     */
+    private void increase(Vector3i position, byte value) {
+<span class="fc" id="L265">        world.setValueAt(position, value);</span>
+<span class="fc" id="L266">        queueSpreadValue(position, value);</span>
+<span class="fc" id="L267">    }</span>
+
+    /**
+     * Set the value at the position as having been lowered to a smaller value
+     *
+     * @param position The position to set at
+     * @param oldValue The original value at the position
+     */
+    private void reduce(Vector3i position, byte oldValue) {
+<span class="fc bfc" id="L276" title="All 2 branches covered.">        if (oldValue &gt; 0) {</span>
+<span class="fc" id="L277">            reduceQueues[rules.getMaxValue() - oldValue].add(position);</span>
+        }
+<span class="fc" id="L279">    }</span>
+
+    /**
+     * Queues up a propagation from a given position.
+     * Propagation is placed into a queue for the given level.
+     *
+     * @param position The position to propagate form
+     * @param value    The value to propagate out
+     */
+    private void queueSpreadValue(Vector3i position, byte value) {
+<span class="fc bfc" id="L289" title="All 2 branches covered.">        if (value &gt; 1) {</span>
+<span class="fc" id="L290">            increaseQueues[rules.getMaxValue() - value].add(position);</span>
+        }
+<span class="fc" id="L292">    }</span>
+
+    /**
+     * Clears all the queues and cleans up the object
+     */
+    private void cleanUp() {
+<span class="fc bfc" id="L298" title="All 2 branches covered.">        for (Set&lt;Vector3i&gt; queue : increaseQueues) {</span>
+<span class="fc" id="L299">            queue.clear();</span>
+        }
+<span class="fc" id="L301">    }</span>
+
+    @Override
+    public void propagateBetween(LitChunk chunk, LitChunk adjChunk, Side side, boolean propagateExternal) {
+<span class="nc" id="L305">        IndexProvider indexProvider = createIndexProvider(side);</span>
+
+<span class="nc" id="L307">        Region3i edgeRegion = ChunkMath.getEdgeRegion(Region3i.createFromMinAndSize(Vector3i.zero(), ChunkConstants.CHUNK_SIZE), side);</span>
+
+<span class="nc" id="L309">        int edgeSize = edgeRegion.size().x * edgeRegion.size().y * edgeRegion.size().z;</span>
+<span class="nc" id="L310">        int[] depth = new int[edgeSize];</span>
+
+<span class="nc" id="L312">        propagateSide(chunk, adjChunk, side, indexProvider, edgeRegion, depth);</span>
+<span class="nc" id="L313">        propagateDepth(adjChunk, side, propagateExternal, indexProvider, edgeRegion, depth);</span>
+<span class="nc" id="L314">    }</span>
+
+    private void propagateDepth(LitChunk adjChunk, Side side, boolean propagateExternal, IndexProvider indexProvider, Region3i edgeRegion, int[] depths) {
+<span class="nc" id="L317">        Vector3i adjPos = new Vector3i();</span>
+
+<span class="nc" id="L319">        int[] adjDepth = new int[depths.length];</span>
+<span class="nc bnc" id="L320" title="All 4 branches missed.">        int dimA = (side == Side.LEFT || side == Side.RIGHT) ? ChunkConstants.SIZE_Y : ChunkConstants.SIZE_X;</span>
+<span class="nc bnc" id="L321" title="All 4 branches missed.">        int dimB = (side == Side.FRONT || side == Side.BACK) ? ChunkConstants.SIZE_Y : ChunkConstants.SIZE_Z;</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">        ChunkMath.populateMinAdjacent2D(depths, adjDepth, dimA, dimB, !propagateExternal);</span>
+
+<span class="nc bnc" id="L324" title="All 2 branches missed.">        if (propagateExternal) {</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">            for (int y = 0; y &lt; dimB; ++y) {</span>
+<span class="nc" id="L326">                adjDepth[y * dimA] = 0;</span>
+<span class="nc" id="L327">                adjDepth[dimA - 1 + y * dimA] = 0;</span>
+            }
+<span class="nc bnc" id="L329" title="All 2 branches missed.">            for (int x = 0; x &lt; dimA; ++x) {</span>
+<span class="nc" id="L330">                adjDepth[x] = 0;</span>
+<span class="nc" id="L331">                adjDepth[x + dimA * (dimB - 1)] = 0;</span>
+            }
+        }
+
+<span class="nc bnc" id="L335" title="All 2 branches missed.">        for (Vector3i pos : edgeRegion) {</span>
+<span class="nc" id="L336">            int depthIndex = indexProvider.getIndexFor(pos);</span>
+<span class="nc" id="L337">            int adjacentDepth = adjDepth[depthIndex];</span>
+<span class="nc bnc" id="L338" title="All 2 branches missed.">            for (int i = adjacentDepth; i &lt; depths[depthIndex]; ++i) {</span>
+<span class="nc" id="L339">                adjPos.set(side.getVector3i());</span>
+<span class="nc" id="L340">                adjPos.mul(i + 1);</span>
+<span class="nc" id="L341">                adjPos.add(pos);</span>
+<span class="nc" id="L342">                adjPos.add(chunkEdgeDeltas.get(side));</span>
+<span class="nc" id="L343">                byte value = rules.getValue(adjChunk, adjPos);</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">                if (value &gt; 1) {</span>
+<span class="nc" id="L345">                    queueSpreadValue(adjChunk.chunkToWorldPosition(adjPos), value);</span>
+                }
+            }
+<span class="nc" id="L348">        }</span>
+<span class="nc" id="L349">    }</span>
+
+    private void propagateSide(LitChunk chunk, LitChunk adjChunk, Side side, IndexProvider indexProvider, Region3i edgeRegion, int[] depths) {
+<span class="nc" id="L352">        Vector3i adjPos = new Vector3i();</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">        for (int x = edgeRegion.minX(); x &lt;= edgeRegion.maxX(); ++x) {</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">            for (int y = edgeRegion.minY(); y &lt;= edgeRegion.maxY(); ++y) {</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">                for (int z = edgeRegion.minZ(); z &lt;= edgeRegion.maxZ(); ++z) {</span>
+
+<span class="nc" id="L357">                    byte expectedValue = (byte) (rules.getValue(chunk, x, y, z) - 1);</span>
+<span class="nc bnc" id="L358" title="All 2 branches missed.">                    if (expectedValue &lt; 1) {</span>
+<span class="nc" id="L359">                        continue;</span>
+                    }
+
+<span class="nc" id="L362">                    int depthIndex = indexProvider.getIndexFor(x, y, z);</span>
+<span class="nc" id="L363">                    adjPos.set(x, y, z);</span>
+<span class="nc" id="L364">                    adjPos.add(chunkEdgeDeltas.get(side));</span>
+
+
+<span class="nc" id="L367">                    int depth = 0;</span>
+<span class="nc" id="L368">                    Block lastBlock = chunk.getBlock(x, y, z);</span>
+<span class="nc" id="L369">                    byte adjValue = rules.getValue(adjChunk, adjPos);</span>
+<span class="nc bnc" id="L370" title="All 6 branches missed.">                    while (expectedValue &gt; adjValue &amp;&amp; adjValue != PropagatorWorldView.UNAVAILABLE &amp;&amp; rules.canSpreadOutOf(lastBlock, side)) {</span>
+<span class="nc" id="L371">                        lastBlock = adjChunk.getBlock(adjPos);</span>
+<span class="nc bnc" id="L372" title="All 2 branches missed.">                        if (rules.canSpreadInto(lastBlock, side.reverse())) {</span>
+<span class="nc" id="L373">                            rules.setValue(adjChunk, adjPos, expectedValue);</span>
+<span class="nc" id="L374">                            adjPos.add(side.getVector3i());</span>
+<span class="nc" id="L375">                            depth++;</span>
+<span class="nc" id="L376">                            expectedValue--;</span>
+<span class="nc" id="L377">                            adjValue = rules.getValue(adjChunk, adjPos);</span>
+                        } else {
+                            break;
+                        }
+                    }
+<span class="nc" id="L382">                    depths[depthIndex] = depth;</span>
+                }
+            }
+        }
+<span class="nc" id="L386">    }</span>
+
+    /**
+     * Get the index provider appropriate for that side
+     *
+     * @param side The side to get the provider for
+     * @return The provider for that side
+     */
+    private IndexProvider createIndexProvider(Side side) {
+<span class="nc bnc" id="L395" title="All 3 branches missed.">        switch (side) {</span>
+            case TOP:
+            case BOTTOM:
+<span class="nc" id="L398">                return new IndexProvider() {</span>
+                    @Override
+                    public int getIndexFor(Vector3i pos) {
+<span class="nc" id="L401">                        return pos.x + ChunkConstants.SIZE_X * pos.z;</span>
+                    }
+
+                    @Override
+                    public int getIndexFor(int x, int y, int z) {
+<span class="nc" id="L406">                        return x + ChunkConstants.SIZE_X * z;</span>
+                    }
+                };
+            case LEFT:
+            case RIGHT:
+<span class="nc" id="L411">                return new IndexProvider() {</span>
+                    @Override
+                    public int getIndexFor(Vector3i pos) {
+<span class="nc" id="L414">                        return pos.y + ChunkConstants.SIZE_Y * pos.z;</span>
+                    }
+
+                    @Override
+                    public int getIndexFor(int x, int y, int z) {
+<span class="nc" id="L419">                        return y + ChunkConstants.SIZE_Y * z;</span>
+                    }
+                };
+            default:
+<span class="nc" id="L423">                return new IndexProvider() {</span>
+                    @Override
+                    public int getIndexFor(Vector3i pos) {
+<span class="nc" id="L426">                        return pos.x + ChunkConstants.SIZE_X * pos.y;</span>
+                    }
+
+                    @Override
+                    public int getIndexFor(int x, int y, int z) {
+<span class="nc" id="L431">                        return x + ChunkConstants.SIZE_X * y;</span>
+                    }
+                };
+        }
+    }
+
+    @Override
+    public void propagateFrom(Vector3i pos, Block block) {
+<span class="nc" id="L439">        queueSpreadValue(pos, rules.getFixedValue(block, pos));</span>
+<span class="nc" id="L440">    }</span>
+
+    @Override
+    public void propagateFrom(Vector3i pos, byte value) {
+<span class="fc" id="L444">        queueSpreadValue(pos, value);</span>
+<span class="fc" id="L445">    }</span>
+
+    @Override
+    public void regenerate(Vector3i pos, byte value) {
+<span class="fc" id="L449">        reduce(pos, value);</span>
+<span class="fc" id="L450">    }</span>
+
+    private interface IndexProvider {
+        int getIndexFor(Vector3i pos);
+
+        int getIndexFor(int x, int y, int z);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

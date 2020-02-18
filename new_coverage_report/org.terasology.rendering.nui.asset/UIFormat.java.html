@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UIFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.asset</a> &gt; <span class="el_source">UIFormat.java</span></div><h1>UIFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.asset;
+
+import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import com.google.gson.stream.JsonReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.persistence.ModuleContext;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.extensionTypes.AssetTypeHandler;
+import org.terasology.persistence.typeHandling.gson.GsonTypeSerializationLibraryAdapterFactory;
+import org.terasology.reflection.metadata.ClassMetadata;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.LayoutHint;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.UILayout;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.skin.UISkin;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.utilities.ReflectionUtil;
+import org.terasology.utilities.gson.CaseInsensitiveEnumTypeAdapterFactory;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map.Entry;
+import java.util.Set;
+
+/**
+ * Handles loading UI widgets from json format files.
+ */
+@RegisterAssetFileFormat
+public class UIFormat extends AbstractAssetFileFormat&lt;UIData&gt; {
+
+    public static final String CONTENTS_FIELD = &quot;contents&quot;;
+    public static final String LAYOUT_INFO_FIELD = &quot;layoutInfo&quot;;
+    public static final String ID_FIELD = &quot;id&quot;;
+    public static final String TYPE_FIELD = &quot;type&quot;;
+
+<span class="fc" id="L74">    private static final Logger logger = LoggerFactory.getLogger(UIFormat.class);</span>
+
+    public UIFormat() {
+<span class="fc" id="L77">        super(&quot;ui&quot;);</span>
+<span class="fc" id="L78">    }</span>
+
+    @Override
+    public UIData load(ResourceUrn resourceUrn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="nc" id="L82">        try (JsonReader reader = new JsonReader(new InputStreamReader(inputs.get(0).openStream(), Charsets.UTF_8))) {</span>
+<span class="nc" id="L83">            reader.setLenient(true);</span>
+<span class="nc" id="L84">            UIData data = load(new JsonParser().parse(reader));</span>
+<span class="nc" id="L85">            data.setSource(inputs.get(0));</span>
+<span class="nc" id="L86">            return data;</span>
+        }
+    }
+
+    public UIData load(JsonElement element) throws IOException {
+<span class="nc" id="L91">        return load(element, null);</span>
+    }
+
+    public UIData load(JsonElement element, Locale otherLocale) throws IOException {
+<span class="nc" id="L95">        NUIManager nuiManager = CoreRegistry.get(NUIManager.class);</span>
+<span class="nc" id="L96">        TranslationSystem translationSystem = CoreRegistry.get(TranslationSystem.class);</span>
+<span class="nc" id="L97">        TypeHandlerLibrary library = new TypeHandlerLibrary(CoreRegistry.get(TypeHandlerLibrary.class));</span>
+<span class="nc" id="L98">        library.addTypeHandler(UISkin.class, new AssetTypeHandler&lt;&gt;(UISkin.class));</span>
+
+        // TODO: Rewrite to use TypeHandlerLibrary
+
+<span class="nc" id="L102">        GsonBuilder gsonBuilder = new GsonBuilder()</span>
+<span class="nc" id="L103">                .registerTypeAdapterFactory(new GsonTypeSerializationLibraryAdapterFactory(library))</span>
+<span class="nc" id="L104">                .registerTypeAdapterFactory(new CaseInsensitiveEnumTypeAdapterFactory())</span>
+<span class="nc" id="L105">                .registerTypeAdapter(UIData.class, new UIDataTypeAdapter())</span>
+<span class="nc" id="L106">                .registerTypeHierarchyAdapter(UIWidget.class, new UIWidgetTypeAdapter(nuiManager));</span>
+
+        // override the String TypeAdapter from the serialization library
+<span class="nc" id="L109">        gsonBuilder.registerTypeAdapter(String.class, new I18nStringTypeAdapter(translationSystem, otherLocale));</span>
+<span class="nc" id="L110">        Gson gson = gsonBuilder.create();</span>
+<span class="nc" id="L111">        return gson.fromJson(element, UIData.class);</span>
+    }
+
+    private static final class I18nStringTypeAdapter implements JsonDeserializer&lt;String&gt; {
+
+        private final TranslationSystem translationSystem;
+        private final Locale otherLocale;
+
+<span class="nc" id="L119">        I18nStringTypeAdapter(TranslationSystem translationSystem, Locale otherLocale) {</span>
+<span class="nc" id="L120">            this.translationSystem = translationSystem;</span>
+<span class="nc" id="L121">            this.otherLocale = otherLocale;</span>
+<span class="nc" id="L122">        }</span>
+
+        @Override
+        public String deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="nc" id="L126">            String text = json.getAsString();</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">            return otherLocale == null</span>
+<span class="nc" id="L128">                ? translationSystem.translate(text) : translationSystem.translate(text, otherLocale);</span>
+        }
+    }
+
+    /**
+     * Load UIData with a single, root widget
+     */
+    private static final class UIDataTypeAdapter implements JsonDeserializer&lt;UIData&gt; {
+
+        @Override
+        public UIData deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="nc" id="L139">            return new UIData((UIWidget) context.deserialize(json, UIWidget.class));</span>
+        }
+    }
+
+    /**
+     * Loads a widget. This requires the following custom handling:
+     * &lt;ul&gt;
+     * &lt;li&gt;The class of the widget is determined through a URI in the &quot;type&quot; attribute&lt;/li&gt;
+     * &lt;li&gt;If the &quot;id&quot; attribute is present, it is passed to the constructor&lt;/li&gt;
+     * &lt;li&gt;If the widget is a layout, then a &quot;contents&quot; attribute provides a list of widgets for content.
+     * Each contained widget may have a &quot;layoutInfo&quot; attribute providing the layout hint for its container.&lt;/li&gt;
+     * &lt;/ul&gt;
+     */
+    private static final class UIWidgetTypeAdapter implements JsonDeserializer&lt;UIWidget&gt; {
+
+        private NUIManager nuiManager;
+
+<span class="nc" id="L156">        UIWidgetTypeAdapter(NUIManager nuiManager) {</span>
+<span class="nc" id="L157">            this.nuiManager = nuiManager;</span>
+<span class="nc" id="L158">        }</span>
+
+        @Override
+        public UIWidget deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="nc bnc" id="L162" title="All 4 branches missed.">            if (json.isJsonPrimitive() &amp;&amp; json.getAsJsonPrimitive().isString()) {</span>
+<span class="nc" id="L163">                return new UILabel(json.getAsString());</span>
+            }
+
+<span class="nc" id="L166">            JsonObject jsonObject = json.getAsJsonObject();</span>
+
+<span class="nc" id="L168">            String type = jsonObject.get(TYPE_FIELD).getAsString();</span>
+<span class="nc" id="L169">            ClassMetadata&lt;? extends UIWidget, ?&gt; elementMetadata = nuiManager.getWidgetMetadataLibrary().resolve(type, ModuleContext.getContext());</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">            if (elementMetadata == null) {</span>
+<span class="nc" id="L171">                logger.error(&quot;Unknown UIWidget type {}&quot;, type);</span>
+<span class="nc" id="L172">                return null;</span>
+            }
+
+<span class="nc" id="L175">            String id = null;</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            if (jsonObject.has(ID_FIELD)) {</span>
+<span class="nc" id="L177">                id = jsonObject.get(ID_FIELD).getAsString();</span>
+            }
+
+<span class="nc" id="L180">            UIWidget element = elementMetadata.newInstance();</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (id != null) {</span>
+<span class="nc" id="L182">                FieldMetadata&lt;?, ?&gt; fieldMetadata = elementMetadata.getField(ID_FIELD);</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">                if (fieldMetadata == null) {</span>
+<span class="nc" id="L184">                    logger.warn(&quot;UIWidget type {} lacks id field&quot;, elementMetadata.getUri());</span>
+                } else {
+<span class="nc" id="L186">                    fieldMetadata.setValue(element, id);</span>
+                }
+            }
+
+            // Deserialize normal fields.
+<span class="nc" id="L191">            Set&lt;String&gt; unknownFields = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            for (Entry&lt;String, JsonElement&gt; entry : jsonObject.entrySet()) {</span>
+<span class="nc" id="L193">                String name = entry.getKey();</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                if (!ID_FIELD.equals(name)</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">                    &amp;&amp; !CONTENTS_FIELD.equals(name)</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                    &amp;&amp; !TYPE_FIELD.equals(name)</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                    &amp;&amp; !LAYOUT_INFO_FIELD.equals(name)) {</span>
+<span class="nc" id="L198">                    unknownFields.add(name);</span>
+                }
+<span class="nc" id="L200">            }</span>
+
+<span class="nc bnc" id="L202" title="All 2 branches missed.">            for (FieldMetadata&lt;? extends UIWidget, ?&gt; field : elementMetadata.getFields()) {</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">                if (jsonObject.has(field.getSerializationName())) {</span>
+<span class="nc" id="L204">                    unknownFields.remove(field.getSerializationName());</span>
+<span class="nc bnc" id="L205" title="All 4 branches missed.">                    if (field.getName().equals(CONTENTS_FIELD) &amp;&amp; UILayout.class.isAssignableFrom(elementMetadata.getType())) {</span>
+<span class="nc" id="L206">                        continue;</span>
+                    }
+                    try {
+<span class="nc bnc" id="L209" title="All 2 branches missed.">                        if (List.class.isAssignableFrom(field.getType())) {</span>
+<span class="nc" id="L210">                            Type contentType = ReflectionUtil.getTypeParameter(field.getField().getGenericType(), 0);</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                            if (contentType != null) {</span>
+<span class="nc" id="L212">                                List&lt;Object&gt; result = Lists.newArrayList();</span>
+<span class="nc" id="L213">                                JsonArray list = jsonObject.getAsJsonArray(field.getSerializationName());</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                                for (JsonElement item : list) {</span>
+<span class="nc" id="L215">                                    result.add(context.deserialize(item, contentType));</span>
+<span class="nc" id="L216">                                }</span>
+<span class="nc" id="L217">                                field.setValue(element, result);</span>
+                            }
+<span class="nc" id="L219">                        } else {</span>
+<span class="nc" id="L220">                            field.setValue(element, context.deserialize(jsonObject.get(field.getSerializationName()), field.getType()));</span>
+                        }
+<span class="nc" id="L222">                    } catch (RuntimeException e) {</span>
+<span class="nc" id="L223">                        logger.error(&quot;Failed to deserialize field {} of {}&quot;, field.getName(), type, e);</span>
+<span class="nc" id="L224">                    }</span>
+                }
+<span class="nc" id="L226">            }</span>
+
+<span class="nc bnc" id="L228" title="All 2 branches missed.">            for (String key : unknownFields) {</span>
+<span class="nc" id="L229">                logger.warn(&quot;Field '{}' not recognized for {} in {}&quot;, key, typeOfT, json);</span>
+<span class="nc" id="L230">            }</span>
+
+            // Deserialize contents and layout hints
+<span class="nc bnc" id="L233" title="All 2 branches missed.">            if (UILayout.class.isAssignableFrom(elementMetadata.getType())) {</span>
+<span class="nc" id="L234">                UILayout&lt;LayoutHint&gt; layout = (UILayout&lt;LayoutHint&gt;) element;</span>
+
+<span class="nc" id="L236">                Class&lt;? extends LayoutHint&gt; layoutHintType = (Class&lt;? extends LayoutHint&gt;)</span>
+<span class="nc" id="L237">                    ReflectionUtil.getTypeParameter(elementMetadata.getType().getGenericSuperclass(), 0);</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">                if (jsonObject.has(CONTENTS_FIELD)) {</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">                    for (JsonElement child : jsonObject.getAsJsonArray(CONTENTS_FIELD)) {</span>
+<span class="nc" id="L240">                        UIWidget childElement = context.deserialize(child, UIWidget.class);</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">                        if (childElement != null) {</span>
+<span class="nc" id="L242">                            LayoutHint hint = null;</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">                            if (child.isJsonObject()) {</span>
+<span class="nc" id="L244">                                JsonObject childObject = child.getAsJsonObject();</span>
+<span class="nc bnc" id="L245" title="All 6 branches missed.">                                if (layoutHintType != null &amp;&amp; !layoutHintType.isInterface() &amp;&amp; !Modifier.isAbstract(layoutHintType.getModifiers())</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">                                    &amp;&amp; childObject.has(LAYOUT_INFO_FIELD)) {</span>
+<span class="nc" id="L247">                                    hint = context.deserialize(childObject.get(LAYOUT_INFO_FIELD), layoutHintType);</span>
+                                }
+                            }
+<span class="nc" id="L250">                            layout.addWidget(childElement, hint);</span>
+                        }
+<span class="nc" id="L252">                    }</span>
+                }
+            }
+<span class="nc" id="L255">            return element;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

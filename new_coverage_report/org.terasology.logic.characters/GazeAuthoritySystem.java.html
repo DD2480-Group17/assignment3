@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GazeAuthoritySystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.characters</a> &gt; <span class="el_source">GazeAuthoritySystem.java</span></div><h1>GazeAuthoritySystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.characters;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.logic.location.Location;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.registry.In;
+
+/**
+ * Gaze describes where the character is looking.  This direction is accessible to all clients and could be hooked up to part of the rendered character.
+ * Also, this can be used to allow the server to correctly perform actions based on where the character is looking.
+ */
+@RegisterSystem(RegisterMode.AUTHORITY)
+<span class="nc" id="L39">public class GazeAuthoritySystem extends BaseComponentSystem {</span>
+<span class="nc" id="L40">    private static final Logger logger = LoggerFactory.getLogger(GazeAuthoritySystem.class);</span>
+    @In
+    EntityManager entityManager;
+    @In
+    private Config config;
+
+    @ReceiveEvent
+    public void ensureGazeContainerEntitiesCreated(OnActivatedComponent event, EntityRef entityRef, GazeMountPointComponent gazeMountPointComponent,
+            LocationComponent locationComponent) {
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        if (!gazeMountPointComponent.gazeEntity.exists()) {</span>
+<span class="nc" id="L50">            gazeMountPointComponent.gazeEntity = createGazeEntity();</span>
+<span class="nc" id="L51">            entityRef.saveComponent(gazeMountPointComponent);</span>
+        }
+<span class="nc" id="L53">        gazeMountPointComponent.translate.y = config.getPlayer().getEyeHeight();</span>
+<span class="nc" id="L54">        Location.attachChild(entityRef, gazeMountPointComponent.gazeEntity, gazeMountPointComponent.translate, new Quat4f(Quat4f.IDENTITY));</span>
+<span class="nc" id="L55">    }</span>
+
+    private EntityRef createGazeEntity() {
+<span class="nc" id="L58">        EntityBuilder gazeContainerBuilder = entityManager.newBuilder(&quot;engine:gaze&quot;);</span>
+<span class="nc" id="L59">        EntityRef gazeEntity = gazeContainerBuilder.build();</span>
+<span class="nc" id="L60">        return gazeEntity;</span>
+    }
+
+    /**
+     * Returns the gaze entity if it exists, otherwise the character entity will be returned.
+     *
+     * @param character
+     * @return
+     */
+    public static EntityRef getGazeEntityForCharacter(EntityRef character) {
+<span class="nc" id="L70">        GazeMountPointComponent gazeMountPointComponent = character.getComponent(GazeMountPointComponent.class);</span>
+<span class="nc bnc" id="L71" title="All 4 branches missed.">        if (gazeMountPointComponent != null &amp;&amp; gazeMountPointComponent.gazeEntity.exists()) {</span>
+<span class="nc" id="L72">            return gazeMountPointComponent.gazeEntity;</span>
+        }
+<span class="nc" id="L74">        return character;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

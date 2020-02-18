@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SubSampledNoise3D.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.procedural</a> &gt; <span class="el_source">SubSampledNoise3D.java</span></div><h1>SubSampledNoise3D.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.utilities.procedural;
+
+import com.google.common.math.IntMath;
+import org.terasology.math.Region3i;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+
+/**
+ * @deprecated Use {@link SubSampledNoise} instead
+ */
+@Deprecated
+public class SubSampledNoise3D implements Noise3D {
+
+    private Noise3D source;
+<span class="nc" id="L31">    private Vector3f zoom = new Vector3f(1, 1, 1);</span>
+<span class="nc" id="L32">    private int sampleRate = 1;</span>
+
+<span class="nc" id="L34">    public SubSampledNoise3D(Noise3D source, Vector3f zoom, int sampleRate) {</span>
+<span class="nc" id="L35">        this.source = source;</span>
+<span class="nc" id="L36">        this.zoom.set(zoom);</span>
+<span class="nc" id="L37">        this.sampleRate = sampleRate;</span>
+<span class="nc" id="L38">    }</span>
+
+    @Override
+    public float noise(float x, float y, float z) {
+<span class="nc" id="L42">        float xMod = TeraMath.modulus(x, sampleRate);</span>
+<span class="nc" id="L43">        float yMod = TeraMath.modulus(y, sampleRate);</span>
+<span class="nc" id="L44">        float zMod = TeraMath.modulus(z, sampleRate);</span>
+
+<span class="nc" id="L46">        float x0 = x - xMod;</span>
+<span class="nc" id="L47">        float x1 = x0 + sampleRate;</span>
+<span class="nc" id="L48">        float y0 = y - yMod;</span>
+<span class="nc" id="L49">        float y1 = y0 + sampleRate;</span>
+<span class="nc" id="L50">        float z0 = z - zMod;</span>
+<span class="nc" id="L51">        float z1 = z0 + sampleRate;</span>
+
+<span class="nc" id="L53">        float q000 = source.noise(x0 * zoom.x, y0 * zoom.y, z0 * zoom.z);</span>
+<span class="nc" id="L54">        float q100 = source.noise(x1 * zoom.x, y0 * zoom.y, z0 * zoom.z);</span>
+<span class="nc" id="L55">        float q010 = source.noise(x0 * zoom.x, y1 * zoom.y, z0 * zoom.z);</span>
+<span class="nc" id="L56">        float q110 = source.noise(x1 * zoom.x, y1 * zoom.y, z0 * zoom.z);</span>
+<span class="nc" id="L57">        float q001 = source.noise(x0 * zoom.x, y0 * zoom.y, z1 * zoom.z);</span>
+<span class="nc" id="L58">        float q101 = source.noise(x1 * zoom.x, y0 * zoom.y, z1 * zoom.z);</span>
+<span class="nc" id="L59">        float q011 = source.noise(x0 * zoom.x, y1 * zoom.y, z1 * zoom.z);</span>
+<span class="nc" id="L60">        float q111 = source.noise(x1 * zoom.x, y1 * zoom.y, z1 * zoom.z);</span>
+
+<span class="nc" id="L62">        return TeraMath.triLerp(q000, q100, q010, q110, q001, q101, q011, q111, xMod / sampleRate, yMod / sampleRate, zMod / sampleRate);</span>
+    }
+
+    public float[] noise(Region3i region) {
+<span class="nc" id="L66">        Region3i fullRegion = determineRequiredRegion(region);</span>
+<span class="nc" id="L67">        float[] keyData = getKeyValues(fullRegion);</span>
+<span class="nc" id="L68">        float[] fullData = mapExpand(keyData, fullRegion);</span>
+<span class="nc" id="L69">        return getSubset(fullData, fullRegion, region);</span>
+    }
+
+    private float[] getSubset(float[] fullData, Region3i fullRegion, Region3i subRegion) {
+<span class="nc bnc" id="L73" title="All 6 branches missed.">        if (subRegion.size().x != fullRegion.size().x || subRegion.size().y != fullRegion.size().y || subRegion.size().z != fullRegion.size().z) {</span>
+<span class="nc" id="L74">            float[] result = new float[subRegion.size().x * subRegion.size().y * subRegion.size().z];</span>
+<span class="nc" id="L75">            Vector3i offset = new Vector3i(subRegion.minX() - fullRegion.minX(), subRegion.minY() - fullRegion.minY(), subRegion.minZ() - fullRegion.minZ());</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            for (int z = 0; z &lt; subRegion.size().z; ++z) {</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                for (int y = 0; y &lt; subRegion.size().y; ++y) {</span>
+<span class="nc" id="L78">                    System.arraycopy(fullData, offset.x + fullRegion.sizeX() * (y + offset.y + fullRegion.sizeY() * (z + offset.z)),</span>
+<span class="nc" id="L79">                            result, subRegion.sizeX() * (y + subRegion.sizeY() * z), subRegion.size().x);</span>
+                }
+            }
+<span class="nc" id="L82">            return result;</span>
+        } else {
+<span class="nc" id="L84">            return fullData;</span>
+        }
+    }
+
+    private float[] mapExpand(float[] keyData, Region3i fullRegion) {
+<span class="nc" id="L89">        float[] fullData = new float[fullRegion.size().x * fullRegion.size().y * fullRegion.size().z];</span>
+<span class="nc" id="L90">        int samplesX = fullRegion.size().x / sampleRate + 1;</span>
+<span class="nc" id="L91">        int samplesY = fullRegion.size().y / sampleRate + 1;</span>
+<span class="nc" id="L92">        int samplesZ = fullRegion.size().z / sampleRate + 1;</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        for (int z = 0; z &lt; samplesZ - 1; z++) {</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            for (int y = 0; y &lt; samplesY - 1; y++) {</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                for (int x = 0; x &lt; samplesX - 1; x++) {</span>
+<span class="nc" id="L96">                    float q000 = keyData[x + samplesX * (y + samplesY * z)];</span>
+<span class="nc" id="L97">                    float q100 = keyData[x + 1 + samplesX * (y + samplesY * z)];</span>
+<span class="nc" id="L98">                    float q010 = keyData[x + samplesX * (y + 1 + samplesY * z)];</span>
+<span class="nc" id="L99">                    float q110 = keyData[(x + 1) + samplesX * (y + 1 + samplesY * z)];</span>
+<span class="nc" id="L100">                    float q001 = keyData[x + samplesX * (y + samplesY * (z + 1))];</span>
+<span class="nc" id="L101">                    float q101 = keyData[x + 1 + samplesX * (y + samplesY * (z + 1))];</span>
+<span class="nc" id="L102">                    float q011 = keyData[x + samplesX * (y + 1 + samplesY * (z + 1))];</span>
+<span class="nc" id="L103">                    float q111 = keyData[(x + 1) + samplesX * (y + 1 + samplesY * (z + 1))];</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">                    for (int innerZ = 0; innerZ &lt; sampleRate; ++innerZ) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                        for (int innerY = 0; innerY &lt; sampleRate; ++innerY) {</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                            for (int innerX = 0; innerX &lt; sampleRate; ++innerX) {</span>
+<span class="nc" id="L107">                                fullData[x * sampleRate + innerX + fullRegion.sizeX() * (y * sampleRate + innerY + fullRegion.sizeY() * (z * sampleRate + innerZ))] =</span>
+<span class="nc" id="L108">                                        TeraMath.triLerp(q000, q100, q010, q110, q001, q101, q011, q111,</span>
+                                                (float) innerX / sampleRate, (float) innerY / sampleRate, (float) innerZ / sampleRate);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+<span class="nc" id="L116">        return fullData;</span>
+    }
+
+    private float[] getKeyValues(Region3i fullRegion) {
+<span class="nc" id="L120">        int xDim = fullRegion.size().x / sampleRate + 1;</span>
+<span class="nc" id="L121">        int yDim = fullRegion.size().y / sampleRate + 1;</span>
+<span class="nc" id="L122">        int zDim = fullRegion.size().z / sampleRate + 1;</span>
+<span class="nc" id="L123">        float[] fullData = new float[xDim * yDim * zDim];</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        for (int z = 0; z &lt; zDim; z++) {</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">            for (int y = 0; y &lt; yDim; y++) {</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                for (int x = 0; x &lt; xDim; x++) {</span>
+<span class="nc" id="L127">                    int actualX = x * sampleRate + fullRegion.minX();</span>
+<span class="nc" id="L128">                    int actualY = y * sampleRate + fullRegion.minY();</span>
+<span class="nc" id="L129">                    int actualZ = z * sampleRate + fullRegion.minZ();</span>
+<span class="nc" id="L130">                    fullData[x + xDim * (y + yDim * z)] = source.noise(zoom.x * actualX, zoom.y * actualY, zoom.z * actualZ);</span>
+                }
+            }
+        }
+<span class="nc" id="L134">        return fullData;</span>
+    }
+
+    private Region3i determineRequiredRegion(Region3i region) {
+<span class="nc" id="L138">        int newMinX = region.minX() - IntMath.mod(region.minX(), sampleRate);</span>
+<span class="nc" id="L139">        int newMinY = region.minY() - IntMath.mod(region.minY(), sampleRate);</span>
+<span class="nc" id="L140">        int newMinZ = region.minZ() - IntMath.mod(region.minZ(), sampleRate);</span>
+<span class="nc" id="L141">        int newMaxX = region.maxX() + 4 - IntMath.mod(region.maxX(), sampleRate) - 1;</span>
+<span class="nc" id="L142">        int newMaxY = region.maxY() + 4 - IntMath.mod(region.maxY(), sampleRate) - 1;</span>
+<span class="nc" id="L143">        int newMaxZ = region.maxZ() + 4 - IntMath.mod(region.maxZ(), sampleRate) - 1;</span>
+<span class="nc" id="L144">        return Region3i.createFromMinMax(new Vector3i(newMinX, newMinY, newMinZ), new Vector3i(newMaxX, newMaxY, newMaxZ));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerInfoMessageImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.network.internal</a> &gt; <span class="el_source">ServerInfoMessageImpl.java</span></div><h1>ServerInfoMessageImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.network.internal;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.naming.Name;
+import org.terasology.naming.NameVersion;
+import org.terasology.naming.Version;
+import org.terasology.network.ServerInfoMessage;
+import org.terasology.protobuf.NetData;
+import org.terasology.world.internal.WorldInfo;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Default implementation of {@link ServerInfoMessage}.
+ * Wraps the Protocol Buffer implementation
+ */
+class ServerInfoMessageImpl implements ServerInfoMessage {
+
+<span class="nc" id="L40">    private static final Logger logger = LoggerFactory.getLogger(ServerInfoMessageImpl.class);</span>
+
+    private final NetData.ServerInfoMessage info;
+
+<span class="nc" id="L44">    ServerInfoMessageImpl(NetData.ServerInfoMessage pbInfo) {</span>
+<span class="nc" id="L45">        this.info = pbInfo;</span>
+<span class="nc" id="L46">    }</span>
+
+    @Override
+    public String getGameName() {
+<span class="nc" id="L50">        return info.getGameName();</span>
+    }
+
+    @Override
+    public String getMOTD() {
+<span class="nc" id="L55">        return info.getMOTD();</span>
+    }
+
+    @Override
+    public List&lt;WorldInfo&gt; getWorldInfoList() {
+<span class="nc" id="L60">        List&lt;WorldInfo&gt; result = Lists.newArrayList();</span>
+
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        for (NetData.WorldInfo pbWorldInfo : info.getWorldInfoList()) {</span>
+<span class="nc" id="L63">            WorldInfo worldInfo = new WorldInfo();</span>
+<span class="nc" id="L64">            worldInfo.setTime(pbWorldInfo.getTime());</span>
+<span class="nc" id="L65">            worldInfo.setTitle(pbWorldInfo.getTitle());</span>
+<span class="nc" id="L66">            result.add(worldInfo);</span>
+<span class="nc" id="L67">        }</span>
+
+<span class="nc" id="L69">        return result;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getRegisterBlockFamilyList() {
+<span class="nc" id="L74">        return Collections.unmodifiableList(info.getRegisterBlockFamilyList());</span>
+    }
+
+    @Override
+    public long getTime() {
+<span class="nc" id="L79">        return info.getTime();</span>
+    }
+
+    @Override
+    public float getReflectionHeight() {
+<span class="nc" id="L84">        return info.getReflectionHeight();</span>
+    }
+
+    @Override
+    public int getOnlinePlayersAmount() {
+<span class="nc" id="L89">        return info.getOnlinePlayersAmount();</span>
+    }
+
+    @Override
+    public List&lt;NameVersion&gt; getModuleList() {
+<span class="nc" id="L94">        List&lt;NameVersion&gt; result = Lists.newArrayList();</span>
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        for (NetData.ModuleInfo moduleInfo : info.getModuleList()) {</span>
+<span class="nc bnc" id="L97" title="All 4 branches missed.">            if (!moduleInfo.hasModuleId() || !moduleInfo.hasModuleVersion()) {</span>
+<span class="nc" id="L98">                logger.error(&quot;Received incomplete module info&quot;);</span>
+            } else {
+<span class="nc" id="L100">                Name id = new Name(moduleInfo.getModuleId());</span>
+<span class="nc" id="L101">                Version version = new Version(moduleInfo.getModuleVersion());</span>
+<span class="nc" id="L102">                result.add(new NameVersion(id, version));</span>
+            }
+<span class="nc" id="L104">        }</span>
+
+<span class="nc" id="L106">        return result;</span>
+    }
+
+    @Override
+    public Map&lt;Integer, String&gt; getBlockIds() {
+<span class="nc" id="L111">        Map&lt;Integer, String&gt; result = Maps.newHashMap();</span>
+
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        for (int i = 0; i &lt; info.getBlockIdCount(); ++i) {</span>
+<span class="nc" id="L114">            result.put(info.getBlockId(i), info.getBlockName(i));</span>
+        }
+
+<span class="nc" id="L117">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

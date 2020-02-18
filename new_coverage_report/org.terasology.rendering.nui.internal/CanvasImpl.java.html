@@ -1,0 +1,1071 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CanvasImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.internal</a> &gt; <span class="el_source">CanvasImpl.java</span></div><h1>CanvasImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.internal;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Queues;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.Time;
+import org.terasology.input.InputSystem;
+import org.terasology.input.MouseInput;
+import org.terasology.input.device.KeyboardDevice;
+import org.terasology.input.device.MouseDevice;
+import org.terasology.math.Border;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.BaseVector2i;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.HorizontalAlign;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.ScaleMode;
+import org.terasology.rendering.nui.SubRegion;
+import org.terasology.rendering.nui.TabbingManager;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.VerticalAlign;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDoubleClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseOverEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
+import org.terasology.rendering.nui.events.NUIMouseWheelEvent;
+import org.terasology.rendering.nui.skin.UISkin;
+import org.terasology.rendering.nui.skin.UIStyle;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UITooltip;
+import org.terasology.rendering.opengl.FrameBufferObject;
+import org.terasology.utilities.Assets;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
+/**
+ */
+public class CanvasImpl implements CanvasControl, PropertyChangeListener {
+
+<span class="fc" id="L80">    private static final Logger logger = LoggerFactory.getLogger(CanvasImpl.class);</span>
+
+    /**
+     * The maximum distance the cursor can move between clicks and still be counted as double clicking
+     */
+    private static final int MAX_DOUBLE_CLICK_DISTANCE = 5;
+    /**
+     * The maximum time (in milliseconds) between clicks that will still be counted as double clicking
+     */
+    private static final int DOUBLE_CLICK_TIME = 200;
+
+    /**
+     * A sufficiently large value for &quot;unbounded&quot; regions, without risking overflow.
+     */
+    private static final int LARGE_INT = Integer.MAX_VALUE / 2;
+
+    private final NUIManager nuiManager;
+    private final Time time;
+    private final KeyboardDevice keyboard;
+    private final MouseDevice mouse;
+
+    private CanvasState state;
+
+    private Material meshMat;
+    private Texture whiteTexture;
+
+<span class="fc" id="L106">    private List&lt;DrawOperation&gt; drawOnTopOperations = Lists.newArrayList();</span>
+
+    private boolean focusDrawn;
+
+    // Interaction region handling
+<span class="fc" id="L111">    private Deque&lt;InteractionRegion&gt; interactionRegions = Queues.newArrayDeque();</span>
+<span class="fc" id="L112">    private Set&lt;InteractionRegion&gt; mouseOverRegions = Sets.newLinkedHashSet();</span>
+    private InteractionRegion topMouseOverRegion;
+    private float tooltipTime;
+<span class="fc" id="L115">    private Vector2i lastTooltipPosition = new Vector2i();</span>
+<span class="fc" id="L116">    private UITooltip tooltipWidget = new UITooltip();</span>
+
+    private InteractionRegion clickedRegion;
+
+    // Double click handling
+    private long lastClickTime;
+    private MouseInput lastClickButton;
+<span class="fc" id="L123">    private Vector2i lastClickPosition = new Vector2i();</span>
+
+    private CanvasRenderer renderer;
+    private RenderingConfig renderingConfig;
+<span class="fc" id="L127">    private float uiScale = 1f;</span>
+
+<span class="fc" id="L129">    public CanvasImpl(NUIManager nuiManager, Context context, CanvasRenderer renderer) {</span>
+<span class="fc" id="L130">        this.renderer = renderer;</span>
+<span class="fc" id="L131">        this.nuiManager = nuiManager;</span>
+<span class="fc" id="L132">        this.time = context.get(Time.class);</span>
+<span class="fc" id="L133">        this.keyboard = context.get(InputSystem.class).getKeyboard();</span>
+<span class="fc" id="L134">        this.mouse = context.get(InputSystem.class).getMouseDevice();</span>
+<span class="fc" id="L135">        this.meshMat = Assets.getMaterial(&quot;engine:UILitMesh&quot;).get();</span>
+<span class="fc" id="L136">        this.whiteTexture = Assets.getTexture(&quot;engine:white&quot;).get();</span>
+
+<span class="fc" id="L138">        this.renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="fc" id="L139">        this.uiScale = this.renderingConfig.getUiScale() / 100f;</span>
+
+<span class="fc" id="L141">        this.renderingConfig.subscribe(RenderingConfig.UI_SCALE, this);</span>
+<span class="fc" id="L142">    }</span>
+
+    @Override
+    public void preRender() {
+<span class="nc" id="L146">        interactionRegions.clear();</span>
+<span class="nc" id="L147">        Vector2i size = renderer.getTargetSize();</span>
+<span class="nc" id="L148">        size.x = (int) (size.x / uiScale);</span>
+<span class="nc" id="L149">        size.y = (int) (size.y / uiScale);</span>
+
+<span class="nc" id="L151">        state = new CanvasState(null, Rect2i.createFromMinAndSize(0, 0, size.x, size.y));</span>
+<span class="nc" id="L152">        renderer.preRender();</span>
+<span class="nc" id="L153">        renderer.crop(state.cropRegion);</span>
+<span class="nc" id="L154">        focusDrawn = false;</span>
+
+<span class="nc" id="L156">    }</span>
+
+    @Override
+    public void postRender() {
+<span class="nc" id="L160">        drawOnTopOperations.forEach(DrawOperation::draw);</span>
+<span class="nc" id="L161">        drawOnTopOperations.clear();</span>
+
+<span class="nc bnc" id="L163" title="All 6 branches missed.">        if (topMouseOverRegion != null &amp;&amp; time.getGameTime() &gt;= tooltipTime &amp;&amp; getSkin() != null) {</span>
+<span class="nc" id="L164">            tooltipWidget.setAttachment(topMouseOverRegion.getTooltip());</span>
+<span class="nc" id="L165">            drawWidget(tooltipWidget);</span>
+        } else {
+<span class="nc" id="L167">            tooltipWidget.setAttachment(null);</span>
+        }
+
+<span class="nc" id="L170">        renderer.postRender();</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        if (!focusDrawn) {</span>
+<span class="nc" id="L172">            nuiManager.setFocus(null);</span>
+        }
+<span class="nc" id="L174">    }</span>
+
+    @Override
+    public void processMousePosition(Vector2i position) {
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if (clickedRegion != null) {</span>
+<span class="nc" id="L179">            Vector2i relPos = new Vector2i(position);</span>
+<span class="nc" id="L180">            relPos.sub(clickedRegion.offset);</span>
+<span class="nc" id="L181">            clickedRegion.listener.onMouseDrag(new NUIMouseDragEvent(mouse, keyboard, relPos));</span>
+        }
+
+<span class="nc" id="L184">        Set&lt;InteractionRegion&gt; newMouseOverRegions = Sets.newLinkedHashSet();</span>
+<span class="nc" id="L185">        Iterator&lt;InteractionRegion&gt; iter = interactionRegions.descendingIterator();</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        while (iter.hasNext()) {</span>
+<span class="nc" id="L187">            InteractionRegion next = iter.next();</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            if (next.region.contains(position)) {</span>
+<span class="nc" id="L189">                Vector2i relPos = new Vector2i(position);</span>
+<span class="nc" id="L190">                relPos.sub(next.offset);</span>
+<span class="nc" id="L191">                boolean isTopMostElement = newMouseOverRegions.isEmpty();</span>
+<span class="nc" id="L192">                next.listener.onMouseOver(new NUIMouseOverEvent(mouse, keyboard, relPos, isTopMostElement));</span>
+<span class="nc" id="L193">                newMouseOverRegions.add(next);</span>
+            }
+<span class="nc" id="L195">        }</span>
+
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        mouseOverRegions.stream().filter(region -&gt; !newMouseOverRegions.contains(region)).forEach(region -&gt;</span>
+<span class="nc" id="L198">            region.listener.onMouseLeave());</span>
+
+<span class="nc bnc" id="L200" title="All 4 branches missed.">        if (clickedRegion != null &amp;&amp; !interactionRegions.contains(clickedRegion)) {</span>
+<span class="nc" id="L201">            clickedRegion = null;</span>
+        }
+
+<span class="nc" id="L204">        mouseOverRegions = newMouseOverRegions;</span>
+
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        if (mouseOverRegions.isEmpty()) {</span>
+<span class="nc" id="L207">            topMouseOverRegion = null;</span>
+        } else {
+<span class="nc" id="L209">            InteractionRegion newTopMouseOverRegion = mouseOverRegions.iterator().next();</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">            if (!newTopMouseOverRegion.equals(topMouseOverRegion)) {</span>
+<span class="nc" id="L211">                topMouseOverRegion = newTopMouseOverRegion;</span>
+<span class="nc" id="L212">                tooltipTime = time.getGameTime() + newTopMouseOverRegion.element.getTooltipDelay();</span>
+<span class="nc" id="L213">                lastTooltipPosition.set(position);</span>
+            } else {
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                if (lastTooltipPosition.gridDistance(position) &gt; MAX_DOUBLE_CLICK_DISTANCE) {</span>
+<span class="nc" id="L216">                    tooltipTime = time.getGameTime() + newTopMouseOverRegion.element.getTooltipDelay();</span>
+<span class="nc" id="L217">                    lastTooltipPosition.set(position);</span>
+                }
+            }
+        }
+<span class="nc" id="L221">    }</span>
+
+    @Override
+    public boolean processMouseClick(MouseInput button, Vector2i pos) {
+<span class="nc" id="L225">        TabbingManager.focusSetThrough = false;</span>
+<span class="nc" id="L226">        TabbingManager.resetCurrentNum();</span>
+
+<span class="nc bnc" id="L228" title="All 4 branches missed.">        boolean possibleDoubleClick = lastClickPosition.gridDistance(pos) &lt; MAX_DOUBLE_CLICK_DISTANCE &amp;&amp; lastClickButton == button</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">            &amp;&amp; time.getGameTimeInMs() - lastClickTime &lt; DOUBLE_CLICK_TIME;</span>
+<span class="nc" id="L230">        lastClickPosition.set(pos);</span>
+<span class="nc" id="L231">        lastClickButton = button;</span>
+<span class="nc" id="L232">        lastClickTime = time.getGameTimeInMs();</span>
+
+<span class="nc bnc" id="L234" title="All 2 branches missed.">        for (InteractionRegion next : mouseOverRegions) {</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            if (next.region.contains(pos)) {</span>
+<span class="nc" id="L236">                Vector2i relPos = new Vector2i(pos);</span>
+<span class="nc" id="L237">                relPos.sub(next.offset);</span>
+<span class="nc bnc" id="L238" title="All 4 branches missed.">                if (possibleDoubleClick &amp;&amp; nuiManager.getFocus() == next.element) {</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">                    if (next.listener.onMouseDoubleClick(createDoubleClickEvent(button, relPos))) {</span>
+<span class="nc" id="L240">                        clickedRegion = next;</span>
+<span class="nc" id="L241">                        return true;</span>
+                    }
+<span class="nc bnc" id="L243" title="All 2 branches missed.">                } else if (next.listener.onMouseClick(createClickEvent(button, relPos))) {</span>
+<span class="nc" id="L244">                    clickedRegion = next;</span>
+<span class="nc" id="L245">                    nuiManager.setFocus(next.element);</span>
+<span class="nc" id="L246">                    return true;</span>
+                }
+            }
+<span class="nc" id="L249">        }</span>
+<span class="nc" id="L250">        return false;</span>
+    }
+
+    private NUIMouseClickEvent createClickEvent(MouseInput button, Vector2i relPos) {
+<span class="nc" id="L254">        return new NUIMouseClickEvent(mouse, keyboard, relPos, button);</span>
+    }
+
+    private NUIMouseDoubleClickEvent createDoubleClickEvent(MouseInput button, Vector2i relPos) {
+<span class="nc" id="L258">        return new NUIMouseDoubleClickEvent(mouse, keyboard, relPos, button);</span>
+    }
+
+    @Override
+    public boolean processMouseRelease(MouseInput button, Vector2i pos) {
+<span class="nc bnc" id="L263" title="All 2 branches missed.">        if (clickedRegion != null) {</span>
+<span class="nc" id="L264">            Vector2i relPos = new Vector2i(pos);</span>
+<span class="nc" id="L265">            relPos.sub(clickedRegion.region.min());</span>
+<span class="nc" id="L266">            clickedRegion.listener.onMouseRelease(new NUIMouseReleaseEvent(mouse, keyboard, relPos, button));</span>
+<span class="nc" id="L267">            clickedRegion = null;</span>
+<span class="nc" id="L268">            return true;</span>
+        }
+<span class="nc" id="L270">        return false;</span>
+    }
+
+    @Override
+    public boolean processMouseWheel(int wheelTurns, Vector2i pos) {
+<span class="nc bnc" id="L275" title="All 2 branches missed.">        for (InteractionRegion next : mouseOverRegions) {</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">            if (next.region.contains(pos)) {</span>
+<span class="nc" id="L277">                Vector2i relPos = new Vector2i(pos);</span>
+<span class="nc" id="L278">                relPos.sub(next.region.min());</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">                if (next.listener.onMouseWheel(new NUIMouseWheelEvent(mouse, keyboard, relPos, wheelTurns))) {</span>
+<span class="nc" id="L280">                    clickedRegion = next;</span>
+<span class="nc" id="L281">                    nuiManager.setFocus(next.element);</span>
+<span class="nc" id="L282">                    return true;</span>
+                }
+            }
+<span class="nc" id="L285">        }</span>
+<span class="nc" id="L286">        return false;</span>
+    }
+
+    @Override
+    public SubRegion subRegion(Rect2i region, boolean crop) {
+<span class="nc" id="L291">        return new SubRegionImpl(region, crop);</span>
+    }
+
+    @Override
+    public SubRegion subRegionFBO(ResourceUrn uri, BaseVector2i size) {
+<span class="nc" id="L296">        return new SubRegionFBOImpl(uri, size);</span>
+    }
+
+    @Override
+    public void setDrawOnTop(boolean drawOnTop) {
+<span class="nc" id="L301">        this.state.drawOnTop = drawOnTop;</span>
+<span class="nc" id="L302">    }</span>
+
+    @Override
+    public Vector2i size() {
+<span class="nc" id="L306">        return new Vector2i(state.drawRegion.width(), state.drawRegion.height());</span>
+    }
+
+    @Override
+    public Rect2i getRegion() {
+<span class="nc" id="L311">        return Rect2i.createFromMinAndSize(0, 0, state.drawRegion.width(), state.drawRegion.height());</span>
+    }
+
+    @Override
+    public void setAlpha(float value) {
+<span class="nc" id="L316">        state.alpha = value;</span>
+<span class="nc" id="L317">    }</span>
+
+    @Override
+    public void setSkin(UISkin skin) {
+<span class="nc" id="L321">        Preconditions.checkNotNull(skin);</span>
+<span class="nc" id="L322">        state.skin = skin;</span>
+<span class="nc" id="L323">    }</span>
+
+    @Override
+    public UISkin getSkin() {
+<span class="nc" id="L327">        return state.skin;</span>
+    }
+
+    @Override
+    public void setFamily(String familyName) {
+<span class="nc" id="L332">        state.family = familyName;</span>
+<span class="nc" id="L333">    }</span>
+
+    @Override
+    public void setMode(String mode) {
+<span class="nc" id="L337">        state.mode = mode;</span>
+<span class="nc" id="L338">    }</span>
+
+    @Override
+    public void setPart(String part) {
+<span class="nc" id="L342">        state.part = part;</span>
+<span class="nc" id="L343">    }</span>
+
+    @Override
+    public UIStyle getCurrentStyle() {
+<span class="nc" id="L347">        return state.getCurrentStyle();</span>
+    }
+
+    @Override
+    public Vector2i calculatePreferredSize(UIWidget widget) {
+<span class="nc" id="L352">        return calculateRestrictedSize(widget, new Vector2i(LARGE_INT, LARGE_INT));</span>
+    }
+
+    @Override
+    public Vector2i calculateRestrictedSize(UIWidget widget, Vector2i sizeRestrictions) {
+<span class="nc bnc" id="L357" title="All 2 branches missed.">        if (widget == null) {</span>
+<span class="nc" id="L358">            return sizeRestrictions;</span>
+        }
+
+<span class="nc bnc" id="L361" title="All 2 branches missed.">        String family = (widget.getFamily() != null) ? widget.getFamily() : state.family;</span>
+<span class="nc bnc" id="L362" title="All 2 branches missed.">        UISkin skin = (widget.getSkin() != null) ? widget.getSkin() : state.skin;</span>
+<span class="nc" id="L363">        UIStyle elementStyle = skin.getStyleFor(family, widget.getClass(), UIWidget.BASE_PART, widget.getMode());</span>
+<span class="nc" id="L364">        Rect2i region = applyStyleToSize(Rect2i.createFromMinAndSize(Vector2i.zero(), sizeRestrictions), elementStyle);</span>
+<span class="nc" id="L365">        try (SubRegion ignored = subRegionForWidget(widget, region, false)) {</span>
+<span class="nc" id="L366">            Vector2i preferredSize = widget.getPreferredContentSize(this, elementStyle.getMargin().shrink(sizeRestrictions));</span>
+<span class="nc" id="L367">            preferredSize = elementStyle.getMargin().grow(preferredSize);</span>
+<span class="nc" id="L368">            return applyStyleToSize(preferredSize, elementStyle);</span>
+        }
+    }
+
+    @Override
+    public Vector2i calculateMaximumSize(UIWidget widget) {
+<span class="nc bnc" id="L374" title="All 2 branches missed.">        if (widget == null) {</span>
+<span class="nc" id="L375">            return new Vector2i(Integer.MAX_VALUE, Integer.MAX_VALUE);</span>
+        }
+
+<span class="nc bnc" id="L378" title="All 2 branches missed.">        String family = (widget.getFamily() != null) ? widget.getFamily() : state.family;</span>
+<span class="nc" id="L379">        UIStyle elementStyle = state.skin.getStyleFor(family, widget.getClass(), UIWidget.BASE_PART, widget.getMode());</span>
+<span class="nc" id="L380">        try (SubRegion ignored = subRegionForWidget(widget, getRegion(), false)) {</span>
+<span class="nc" id="L381">            return applyStyleToSize(elementStyle.getMargin().grow(widget.getMaxContentSize(this)), elementStyle);</span>
+        }
+    }
+
+    @Override
+    public void drawWidget(UIWidget widget) {
+<span class="nc" id="L387">        drawWidget(widget, getRegion());</span>
+<span class="nc" id="L388">    }</span>
+
+    @Override
+    public void drawWidget(UIWidget element, Rect2i region) {
+<span class="nc bnc" id="L392" title="All 4 branches missed.">        if (element == null || !element.isVisible()) {</span>
+<span class="nc" id="L393">            return;</span>
+        }
+
+<span class="nc bnc" id="L396" title="All 2 branches missed.">        if (nuiManager.getFocus() == element) {</span>
+<span class="nc" id="L397">            focusDrawn = true;</span>
+        }
+<span class="nc bnc" id="L399" title="All 2 branches missed.">        String family = (element.getFamily() != null) ? element.getFamily() : state.family;</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">        UISkin skin = (element.getSkin() != null) ? element.getSkin() : state.skin;</span>
+<span class="nc" id="L401">        UIStyle newStyle = skin.getStyleFor(family, element.getClass(), UIWidget.BASE_PART, element.getMode());</span>
+        Rect2i regionArea;
+<span class="nc" id="L403">        try (SubRegion ignored = subRegionForWidget(element, region, false)) {</span>
+<span class="nc" id="L404">            regionArea = applyStyleToSize(region, newStyle, calculateMaximumSize(element));</span>
+        }
+
+<span class="nc" id="L407">        try (SubRegion ignored = subRegionForWidget(element, regionArea, false)) {</span>
+<span class="nc bnc" id="L408" title="All 2 branches missed.">            if (element.isSkinAppliedByCanvas()) {</span>
+<span class="nc" id="L409">                drawBackground();</span>
+<span class="nc" id="L410">                try (SubRegion withMargin = subRegionForWidget(element, newStyle.getMargin().shrink(Rect2i.createFromMinAndSize(Vector2i.zero(), regionArea.size())), false)) {</span>
+<span class="nc" id="L411">                    drawStyledWidget(element);</span>
+<span class="nc" id="L412">                }</span>
+            } else {
+<span class="nc" id="L414">                drawStyledWidget(element);</span>
+            }
+        }
+<span class="nc" id="L417">    }</span>
+
+    private void drawStyledWidget(UIWidget element) {
+<span class="nc bnc" id="L420" title="All 2 branches missed.">        if (element.getTooltip() != null) {</span>
+            // Integrated tooltip support - without this, setting a tooltip value does not make a tooltip work
+            // unless an interaction listener is explicitly added by the widget.
+<span class="nc" id="L423">            addInteractionRegion(new BaseInteractionListener());</span>
+        }
+<span class="nc" id="L425">        element.onDraw(this);</span>
+<span class="nc" id="L426">    }</span>
+
+    private SubRegion subRegionForWidget(UIWidget widget, Rect2i region, boolean crop) {
+<span class="nc" id="L429">        SubRegion result = subRegion(region, crop);</span>
+<span class="nc" id="L430">        state.element = widget;</span>
+<span class="nc bnc" id="L431" title="All 2 branches missed.">        if (widget.getSkin() != null) {</span>
+<span class="nc" id="L432">            setSkin(widget.getSkin());</span>
+        }
+<span class="nc bnc" id="L434" title="All 2 branches missed.">        if (widget.getFamily() != null) {</span>
+<span class="nc" id="L435">            setFamily(widget.getFamily());</span>
+        }
+<span class="nc" id="L437">        setPart(UIWidget.BASE_PART);</span>
+<span class="nc" id="L438">        setMode(widget.getMode());</span>
+<span class="nc" id="L439">        return result;</span>
+    }
+
+    @Override
+    public void drawText(String text) {
+<span class="nc" id="L444">        drawText(text, state.getRelativeRegion());</span>
+<span class="nc" id="L445">    }</span>
+
+    @Override
+    public void drawText(String text, Rect2i region) {
+<span class="nc" id="L449">        UIStyle style = getCurrentStyle();</span>
+<span class="nc bnc" id="L450" title="All 2 branches missed.">        if (style.isTextShadowed()) {</span>
+<span class="nc" id="L451">            drawTextRawShadowed(text, style.getFont(), style.getTextColor(), style.getTextShadowColor(), style.isTextUnderlined(), region, style.getHorizontalTextAlignment(),</span>
+<span class="nc" id="L452">                style.getVerticalTextAlignment());</span>
+        } else {
+<span class="nc" id="L454">            drawTextRaw(text, style.getFont(), style.getTextColor(), style.isTextUnderlined(), region, style.getHorizontalTextAlignment(), style.getVerticalTextAlignment());</span>
+        }
+<span class="nc" id="L456">    }</span>
+
+    @Override
+    public void drawTexture(TextureRegion texture) {
+<span class="nc" id="L460">        drawTexture(texture, state.getRelativeRegion());</span>
+<span class="nc" id="L461">    }</span>
+
+    @Override
+    public void drawTexture(TextureRegion texture, Color color) {
+<span class="nc" id="L465">        drawTexture(texture, state.getRelativeRegion(), color);</span>
+<span class="nc" id="L466">    }</span>
+
+    @Override
+    public void drawTexture(TextureRegion texture, Rect2i region) {
+<span class="nc" id="L470">        drawTextureRaw(texture, region, getCurrentStyle().getTextureScaleMode());</span>
+<span class="nc" id="L471">    }</span>
+
+    @Override
+    public void drawTexture(TextureRegion texture, Rect2i region, Color color) {
+<span class="nc" id="L475">        drawTextureRaw(texture, region, color, getCurrentStyle().getTextureScaleMode());</span>
+<span class="nc" id="L476">    }</span>
+
+    @Override
+    public void drawBackground() {
+<span class="nc" id="L480">        Rect2i region = applyStyleToSize(getRegion());</span>
+<span class="nc" id="L481">        drawBackground(region);</span>
+<span class="nc" id="L482">    }</span>
+
+    private Rect2i applyStyleToSize(Rect2i region) {
+<span class="nc" id="L485">        return applyStyleToSize(region, getCurrentStyle());</span>
+    }
+
+    private Rect2i applyStyleToSize(Rect2i region, UIStyle style, Vector2i maxSize) {
+<span class="nc bnc" id="L489" title="All 2 branches missed.">        if (region.isEmpty()) {</span>
+<span class="nc" id="L490">            return region;</span>
+        }
+<span class="nc" id="L492">        Vector2i size = applyStyleToSize(region.size(), style);</span>
+<span class="nc" id="L493">        size.x = Math.min(size.x, maxSize.x);</span>
+<span class="nc" id="L494">        size.y = Math.min(size.y, maxSize.y);</span>
+
+<span class="nc" id="L496">        int minX = region.minX() + style.getHorizontalAlignment().getOffset(size.x, region.width());</span>
+<span class="nc" id="L497">        int minY = region.minY() + style.getVerticalAlignment().getOffset(size.y, region.height());</span>
+
+<span class="nc" id="L499">        return Rect2i.createFromMinAndSize(minX, minY, size.x, size.y);</span>
+    }
+
+    private Vector2i applyStyleToSize(Vector2i size, UIStyle style) {
+<span class="nc" id="L503">        Vector2i result = new Vector2i(size);</span>
+<span class="nc bnc" id="L504" title="All 2 branches missed.">        if (style.getFixedWidth() != 0) {</span>
+<span class="nc" id="L505">            result.x = style.getFixedWidth();</span>
+        } else {
+<span class="nc" id="L507">            result.x = TeraMath.clamp(result.x, style.getMinWidth(), style.getMaxWidth());</span>
+        }
+
+<span class="nc bnc" id="L510" title="All 2 branches missed.">        if (style.getFixedHeight() != 0) {</span>
+<span class="nc" id="L511">            result.y = style.getFixedHeight();</span>
+        } else {
+<span class="nc" id="L513">            result.y = TeraMath.clamp(result.y, style.getMinHeight(), style.getMaxHeight());</span>
+        }
+
+<span class="nc" id="L516">        return result;</span>
+    }
+
+    private Rect2i applyStyleToSize(Rect2i region, UIStyle style) {
+<span class="nc bnc" id="L520" title="All 2 branches missed.">        if (region.isEmpty()) {</span>
+<span class="nc" id="L521">            return region;</span>
+        }
+<span class="nc" id="L523">        Vector2i size = applyStyleToSize(region.size(), style);</span>
+
+<span class="nc" id="L525">        int minX = region.minX() + style.getHorizontalAlignment().getOffset(size.x, region.width());</span>
+<span class="nc" id="L526">        int minY = region.minY() + style.getVerticalAlignment().getOffset(size.y, region.height());</span>
+
+<span class="nc" id="L528">        return Rect2i.createFromMinAndSize(minX, minY, size.x, size.y);</span>
+    }
+
+    @Override
+    public void drawBackground(Rect2i region) {
+<span class="nc bnc" id="L533" title="All 2 branches missed.">        if (region.isEmpty()) {</span>
+<span class="nc" id="L534">            return;</span>
+        }
+<span class="nc" id="L536">        UIStyle style = getCurrentStyle();</span>
+<span class="nc bnc" id="L537" title="All 2 branches missed.">        if (style.getBackground() != null) {</span>
+<span class="nc bnc" id="L538" title="All 2 branches missed.">            if (style.getBackgroundBorder().isEmpty()) {</span>
+<span class="nc" id="L539">                drawTextureRaw(style.getBackground(), region, style.getBackgroundScaleMode());</span>
+            } else {
+<span class="nc bnc" id="L541" title="All 2 branches missed.">                drawTextureRawBordered(style.getBackground(), region, style.getBackgroundBorder(), style.getBackgroundScaleMode() == ScaleMode.TILED);</span>
+            }
+        }
+<span class="nc" id="L544">    }</span>
+
+    @Override
+    public void drawTextRaw(String text, Font font, Color color) {
+<span class="nc" id="L548">        drawTextRawShadowed(text, font, color, Color.TRANSPARENT);</span>
+<span class="nc" id="L549">    }</span>
+
+    @Override
+    public void drawTextRaw(String text, Font font, Color color, Rect2i region) {
+<span class="nc" id="L553">        drawTextRawShadowed(text, font, color, Color.TRANSPARENT, region);</span>
+<span class="nc" id="L554">    }</span>
+
+    @Override
+    public void drawTextRaw(String text, Font font, Color color, Rect2i region, HorizontalAlign hAlign, VerticalAlign vAlign) {
+<span class="nc" id="L558">        drawTextRawShadowed(text, font, color, Color.TRANSPARENT, region, hAlign, vAlign);</span>
+<span class="nc" id="L559">    }</span>
+
+    @Override
+    public void drawTextRaw(String text, Font font, Color color, boolean underlined, Rect2i region, HorizontalAlign hAlign, VerticalAlign vAlign) {
+<span class="nc" id="L563">        drawTextRawShadowed(text, font, color, Color.TRANSPARENT, underlined, region, hAlign, vAlign);</span>
+<span class="nc" id="L564">    }</span>
+
+    @Override
+    public void drawTextRawShadowed(String text, Font font, Color color, Color shadowColor) {
+<span class="nc" id="L568">        drawTextRawShadowed(text, font, color, shadowColor, state.drawRegion);</span>
+<span class="nc" id="L569">    }</span>
+
+    @Override
+    public void drawTextRawShadowed(String text, Font font, Color color, Color shadowColor, Rect2i region) {
+<span class="nc" id="L573">        drawTextRawShadowed(text, font, color, shadowColor, region, HorizontalAlign.LEFT, VerticalAlign.TOP);</span>
+<span class="nc" id="L574">    }</span>
+
+    @Override
+    public void drawTextRawShadowed(String text, Font font, Color color, Color shadowColor, Rect2i region, HorizontalAlign hAlign, VerticalAlign vAlign) {
+<span class="nc" id="L578">        drawTextRawShadowed(text, font, color, shadowColor, false, region, hAlign, vAlign);</span>
+<span class="nc" id="L579">    }</span>
+
+    @Override
+    public void drawTextRawShadowed(String text, Font font, Color color, Color shadowColor, boolean underline, Rect2i region, HorizontalAlign hAlign, VerticalAlign vAlign) {
+<span class="nc" id="L583">        Rect2i absoluteRegion = relativeToAbsolute(region);</span>
+<span class="nc" id="L584">        Rect2i cropRegion = absoluteRegion.intersect(state.cropRegion);</span>
+<span class="nc bnc" id="L585" title="All 2 branches missed.">        if (!cropRegion.isEmpty()) {</span>
+<span class="nc bnc" id="L586" title="All 2 branches missed.">            if (state.drawOnTop) {</span>
+<span class="nc" id="L587">                drawOnTopOperations.add(new DrawTextOperation(text, font, hAlign, vAlign, absoluteRegion, cropRegion, color, shadowColor, state.getAlpha(), underline));</span>
+            } else {
+<span class="nc" id="L589">                renderer.drawText(text, font, hAlign, vAlign, absoluteRegion, color, shadowColor, state.getAlpha(), underline);</span>
+            }
+        }
+<span class="nc" id="L592">    }</span>
+
+    @Override
+    public void drawTextureRaw(TextureRegion texture, Rect2i region, ScaleMode mode) {
+<span class="nc" id="L596">        drawTextureRaw(texture, region, mode, 0f, 0f, 1f, 1f);</span>
+<span class="nc" id="L597">    }</span>
+
+    @Override
+    public void drawTextureRaw(TextureRegion texture, Rect2i region, Color color, ScaleMode mode) {
+<span class="nc" id="L601">        drawTextureRaw(texture, region, color, mode, 0f, 0f, 1f, 1f);</span>
+<span class="nc" id="L602">    }</span>
+
+    @Override
+    public void drawTextureRaw(TextureRegion texture, Rect2i region, ScaleMode mode, int ux, int uy, int uw, int uh) {
+<span class="nc" id="L606">        drawTextureRaw(texture, region, mode,</span>
+<span class="nc" id="L607">            (float) ux / texture.getWidth(), (float) uy / texture.getHeight(),</span>
+<span class="nc" id="L608">            (float) uw / texture.getWidth(), (float) uh / texture.getHeight());</span>
+<span class="nc" id="L609">    }</span>
+
+    @Override
+    public void drawTextureRaw(TextureRegion texture, Rect2i region, ScaleMode mode, float ux, float uy, float uw, float uh) {
+<span class="nc" id="L613">        drawTextureRaw(texture, region, Color.WHITE, mode, ux, uy, uw, uh);</span>
+<span class="nc" id="L614">    }</span>
+
+    @Override
+    public void drawTextureRaw(TextureRegion texture, Rect2i region, Color color, ScaleMode mode, float ux, float uy, float uw, float uh) {
+<span class="nc bnc" id="L618" title="All 2 branches missed.">        if (!state.cropRegion.overlaps(relativeToAbsolute(region))) {</span>
+<span class="nc" id="L619">            return;</span>
+        }
+<span class="nc" id="L621">        Rect2i absoluteRegion = relativeToAbsolute(region);</span>
+<span class="nc" id="L622">        Rect2i cropRegion = absoluteRegion.intersect(state.cropRegion);</span>
+<span class="nc bnc" id="L623" title="All 2 branches missed.">        if (!cropRegion.isEmpty()) {</span>
+<span class="nc bnc" id="L624" title="All 2 branches missed.">            if (state.drawOnTop) {</span>
+<span class="nc" id="L625">                drawOnTopOperations.add(new DrawTextureOperation(texture, color, mode, absoluteRegion, cropRegion, ux, uy, uw, uh, state.getAlpha()));</span>
+            } else {
+<span class="nc" id="L627">                renderer.drawTexture(texture, color, mode, absoluteRegion, ux, uy, uw, uh, state.getAlpha());</span>
+            }
+        }
+<span class="nc" id="L630">    }</span>
+
+    @Override
+    public void drawTextureRawBordered(TextureRegion texture, Rect2i region, Border border, boolean tile) {
+<span class="nc" id="L634">        drawTextureRawBordered(texture, region, border, tile, 0f, 0f, 1f, 1f);</span>
+<span class="nc" id="L635">    }</span>
+
+    @Override
+    public void drawTextureRawBordered(TextureRegion texture, Rect2i region, Border border, boolean tile, int ux, int uy, int uw, int uh) {
+<span class="nc" id="L639">        drawTextureRawBordered(texture, region, border, tile,</span>
+<span class="nc" id="L640">            (float) ux / texture.getWidth(), (float) uy / texture.getHeight(),</span>
+<span class="nc" id="L641">            (float) uw / texture.getWidth(), (float) uh / texture.getHeight());</span>
+<span class="nc" id="L642">    }</span>
+
+    @Override
+    public void drawTextureRawBordered(TextureRegion texture, Rect2i region, Border border, boolean tile, float ux, float uy, float uw, float uh) {
+<span class="nc bnc" id="L646" title="All 2 branches missed.">        if (!state.cropRegion.overlaps(relativeToAbsolute(region))) {</span>
+<span class="nc" id="L647">            return;</span>
+        }
+<span class="nc" id="L649">        Rect2i absoluteRegion = relativeToAbsolute(region);</span>
+<span class="nc" id="L650">        Rect2i cropRegion = absoluteRegion.intersect(state.cropRegion);</span>
+<span class="nc bnc" id="L651" title="All 2 branches missed.">        if (!cropRegion.isEmpty()) {</span>
+<span class="nc bnc" id="L652" title="All 2 branches missed.">            if (state.drawOnTop) {</span>
+<span class="nc" id="L653">                drawOnTopOperations.add(new DrawBorderedTextureOperation(texture, absoluteRegion, border, tile, cropRegion, ux, uy, uw, uh, state.getAlpha()));</span>
+            } else {
+<span class="nc" id="L655">                renderer.drawTextureBordered(texture, absoluteRegion, border, tile, ux, uy, uw, uh, state.getAlpha());</span>
+            }
+        }
+<span class="nc" id="L658">    }</span>
+
+    @Override
+    public void drawMaterial(Material material, Rect2i region) {
+<span class="nc bnc" id="L662" title="All 2 branches missed.">        if (material.isRenderable()) {</span>
+<span class="nc" id="L663">            Rect2i drawRegion = relativeToAbsolute(region);</span>
+<span class="nc bnc" id="L664" title="All 2 branches missed.">            if (!state.cropRegion.overlaps(drawRegion)) {</span>
+<span class="nc" id="L665">                return;</span>
+            }
+<span class="nc" id="L667">            material.setFloat(&quot;alpha&quot;, state.getAlpha());</span>
+<span class="nc" id="L668">            material.bindTextures();</span>
+<span class="nc" id="L669">            renderer.drawMaterialAt(material, drawRegion);</span>
+        }
+<span class="nc" id="L671">    }</span>
+
+    @Override
+    public void drawMesh(Mesh mesh, Material material, Rect2i region, Quat4f rotation, Vector3f offset, float scale) {
+<span class="nc bnc" id="L675" title="All 2 branches missed.">        if (material == null) {</span>
+<span class="nc" id="L676">            logger.warn(&quot;Attempted to draw with nonexistent material&quot;);</span>
+<span class="nc" id="L677">            return;</span>
+        }
+<span class="nc bnc" id="L679" title="All 2 branches missed.">        if (mesh == null) {</span>
+<span class="nc" id="L680">            logger.warn(&quot;Attempted to draw nonexistent mesh&quot;);</span>
+<span class="nc" id="L681">            return;</span>
+        }
+
+<span class="nc" id="L684">        Rect2i drawRegion = relativeToAbsolute(region);</span>
+<span class="nc bnc" id="L685" title="All 2 branches missed.">        if (!state.cropRegion.overlaps(drawRegion)) {</span>
+<span class="nc" id="L686">            return;</span>
+        }
+
+<span class="nc" id="L689">        renderer.drawMesh(mesh, material, drawRegion, drawRegion.intersect(state.cropRegion), rotation, offset, scale, state.getAlpha());</span>
+<span class="nc" id="L690">    }</span>
+
+    @Override
+    public void drawMesh(Mesh mesh, Texture texture, Rect2i region, Quat4f rotation, Vector3f offset, float scale) {
+<span class="nc" id="L694">        meshMat.setTexture(&quot;texture&quot;, texture);</span>
+<span class="nc" id="L695">        drawMesh(mesh, meshMat, region, rotation, offset, scale);</span>
+<span class="nc" id="L696">    }</span>
+
+    @Override
+    public void addInteractionRegion(InteractionListener listener) {
+<span class="nc" id="L700">        addInteractionRegion(listener, (UIWidget) null, getCurrentStyle().getMargin().grow(applyStyleToSize(getRegion())));</span>
+<span class="nc" id="L701">    }</span>
+
+    @Override
+    public void addInteractionRegion(InteractionListener listener, String tooltip) {
+<span class="nc" id="L705">        addInteractionRegion(listener, tooltip, getCurrentStyle().getMargin().grow(applyStyleToSize(getRegion())));</span>
+<span class="nc" id="L706">    }</span>
+
+    @Override
+    public void addInteractionRegion(InteractionListener listener, String tooltip, Rect2i region) {
+<span class="nc bnc" id="L710" title="All 4 branches missed.">        UIWidget tooltipLabelWidget = (tooltip == null || tooltip.isEmpty()) ? null : new UILabel(tooltip);</span>
+<span class="nc" id="L711">        addInteractionRegion(listener, tooltipLabelWidget, region);</span>
+<span class="nc" id="L712">    }</span>
+
+    @Override
+    public void addInteractionRegion(InteractionListener listener, Rect2i region) {
+<span class="nc" id="L716">        addInteractionRegion(listener, (UIWidget) null, region);</span>
+<span class="nc" id="L717">    }</span>
+
+    @Override
+    public void addInteractionRegion(InteractionListener listener, UIWidget tooltip) {
+<span class="nc" id="L721">        addInteractionRegion(listener, tooltip, getCurrentStyle().getMargin().grow(applyStyleToSize(getRegion())));</span>
+<span class="nc" id="L722">    }</span>
+
+    @Override
+    public void addInteractionRegion(InteractionListener listener, UIWidget tooltip, Rect2i region) {
+<span class="nc" id="L726">        Vector2i offset = state.drawRegion.min();</span>
+<span class="nc" id="L727">        Rect2i finalRegion = state.cropRegion.intersect(relativeToAbsolute(region));</span>
+<span class="nc bnc" id="L728" title="All 2 branches missed.">        if (!finalRegion.isEmpty()) {</span>
+<span class="nc" id="L729">            listener.setFocusManager(nuiManager);</span>
+<span class="nc bnc" id="L730" title="All 2 branches missed.">            if (state.drawOnTop) {</span>
+<span class="nc" id="L731">                drawOnTopOperations.add(new DrawInteractionRegionOperation(finalRegion, offset, listener, state.element, tooltip));</span>
+            } else {
+<span class="nc" id="L733">                interactionRegions.addLast(new InteractionRegion(finalRegion, offset, listener, state.element, tooltip));</span>
+            }
+        }
+<span class="nc" id="L736">    }</span>
+
+    @Override
+    public void drawLine(int startX, int startY, int endX, int endY, Color color) {
+<span class="nc" id="L740">        Line.LineCoordinates lc = Line.getLineCoordinates(startX, startY, endX, endY, state.drawRegion, state.cropRegion);</span>
+
+<span class="nc bnc" id="L742" title="All 2 branches missed.">        if (lc != null) {</span>
+<span class="nc bnc" id="L743" title="All 2 branches missed.">            if (state.drawOnTop) {</span>
+<span class="nc" id="L744">                drawOnTopOperations.add(new DrawLineOperation(lc.getStart().x, lc.getStart().y, lc.getEnd().x, lc.getEnd().y, color));</span>
+            } else {
+<span class="nc" id="L746">                renderer.drawLine(lc.getStart().x, lc.getStart().y, lc.getEnd().x, lc.getEnd().y, color);</span>
+            }
+        }
+<span class="nc" id="L749">    }</span>
+
+    @Override
+    public void drawFilledRectangle(Rect2i region, Color color) {
+<span class="nc" id="L753">        drawTextureRaw(whiteTexture, region, color, ScaleMode.STRETCH);</span>
+
+<span class="nc" id="L755">    }</span>
+
+    private Rect2i relativeToAbsolute(Rect2i region) {
+<span class="nc" id="L758">        return Line.relativeToAbsolute(region, state.drawRegion);</span>
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+<span class="nc bnc" id="L763" title="All 2 branches missed.">        if (evt.getPropertyName().equals(RenderingConfig.UI_SCALE)) {</span>
+<span class="nc" id="L764">            this.uiScale = this.renderingConfig.getUiScale() / 100f;</span>
+        }
+<span class="nc" id="L766">    }</span>
+
+    /**
+     * The state of the canvas
+     */
+    private static class CanvasState {
+<span class="nc" id="L772">        public UISkin skin = Assets.getSkin(&quot;engine:default&quot;).get();</span>
+<span class="nc" id="L773">        public String family = &quot;&quot;;</span>
+        public UIWidget element;
+<span class="nc" id="L775">        public String part = &quot;&quot;;</span>
+<span class="nc" id="L776">        public String mode = &quot;&quot;;</span>
+
+        public Rect2i drawRegion;
+        public Rect2i cropRegion;
+
+<span class="nc" id="L781">        private float alpha = 1.0f;</span>
+<span class="nc" id="L782">        private float baseAlpha = 1.0f;</span>
+
+        private boolean drawOnTop;
+
+        CanvasState(CanvasState previous, Rect2i drawRegion) {
+<span class="nc bnc" id="L787" title="All 2 branches missed.">            this(previous, drawRegion, (previous != null) ? previous.cropRegion : drawRegion);</span>
+<span class="nc" id="L788">        }</span>
+
+<span class="nc" id="L790">        CanvasState(CanvasState previous, Rect2i drawRegion, Rect2i cropRegion) {</span>
+<span class="nc bnc" id="L791" title="All 2 branches missed.">            if (previous != null) {</span>
+<span class="nc" id="L792">                this.skin = previous.skin;</span>
+<span class="nc" id="L793">                this.family = previous.family;</span>
+<span class="nc" id="L794">                this.element = previous.element;</span>
+<span class="nc" id="L795">                this.part = previous.part;</span>
+<span class="nc" id="L796">                this.mode = previous.mode;</span>
+<span class="nc" id="L797">                this.drawOnTop = previous.drawOnTop;</span>
+<span class="nc" id="L798">                baseAlpha = previous.getAlpha();</span>
+            }
+<span class="nc" id="L800">            this.drawRegion = drawRegion;</span>
+<span class="nc" id="L801">            this.cropRegion = cropRegion;</span>
+<span class="nc" id="L802">        }</span>
+
+        public float getAlpha() {
+<span class="nc" id="L805">            return alpha * baseAlpha;</span>
+        }
+
+        public UIStyle getCurrentStyle() {
+<span class="nc" id="L809">            return skin.getStyleFor(family, element.getClass(), part, mode);</span>
+        }
+
+        public Rect2i getRelativeRegion() {
+<span class="nc" id="L813">            return Rect2i.createFromMinAndSize(0, 0, drawRegion.width(), drawRegion.height());</span>
+        }
+    }
+
+    /**
+     * A SubRegion implementation for this canvas.
+     */
+    private class SubRegionImpl implements SubRegion {
+
+        public boolean croppingRegion;
+        private CanvasState previousState;
+        private boolean disposed;
+
+<span class="nc" id="L826">        SubRegionImpl(Rect2i region, boolean crop) {</span>
+<span class="nc" id="L827">            previousState = state;</span>
+
+<span class="nc" id="L829">            int left = TeraMath.addClampAtMax(region.minX(), state.drawRegion.minX());</span>
+<span class="nc" id="L830">            int right = TeraMath.addClampAtMax(region.maxX(), state.drawRegion.minX());</span>
+<span class="nc" id="L831">            int top = TeraMath.addClampAtMax(region.minY(), state.drawRegion.minY());</span>
+<span class="nc" id="L832">            int bottom = TeraMath.addClampAtMax(region.maxY(), state.drawRegion.minY());</span>
+<span class="nc" id="L833">            Rect2i subRegion = Rect2i.createFromMinAndMax(left, top, right, bottom);</span>
+<span class="nc bnc" id="L834" title="All 2 branches missed.">            if (crop) {</span>
+<span class="nc" id="L835">                Rect2i cropRegion = subRegion.intersect(state.cropRegion);</span>
+<span class="nc bnc" id="L836" title="All 2 branches missed.">                if (cropRegion.isEmpty()) {</span>
+<span class="nc" id="L837">                    state = new CanvasState(state, subRegion, cropRegion);</span>
+<span class="nc bnc" id="L838" title="All 2 branches missed.">                } else if (!cropRegion.equals(state.cropRegion)) {</span>
+<span class="nc" id="L839">                    state = new CanvasState(state, subRegion, cropRegion);</span>
+<span class="nc" id="L840">                    renderer.crop(cropRegion);</span>
+<span class="nc" id="L841">                    croppingRegion = true;</span>
+                } else {
+<span class="nc" id="L843">                    state = new CanvasState(state, subRegion);</span>
+                }
+<span class="nc" id="L845">            } else {</span>
+<span class="nc" id="L846">                state = new CanvasState(state, subRegion);</span>
+            }
+<span class="nc" id="L848">        }</span>
+
+        @Override
+        public void close() {
+<span class="nc bnc" id="L852" title="All 2 branches missed.">            if (!disposed) {</span>
+<span class="nc" id="L853">                disposed = true;</span>
+<span class="nc bnc" id="L854" title="All 2 branches missed.">                if (croppingRegion) {</span>
+<span class="nc" id="L855">                    renderer.crop(previousState.cropRegion);</span>
+                }
+<span class="nc" id="L857">                state = previousState;</span>
+            }
+<span class="nc" id="L859">        }</span>
+    }
+
+    private final class SubRegionFBOImpl implements SubRegion {
+        private FrameBufferObject fbo;
+        private CanvasState previousState;
+
+<span class="nc" id="L866">        private SubRegionFBOImpl(ResourceUrn uri, BaseVector2i size) {</span>
+<span class="nc" id="L867">            previousState = state;</span>
+
+<span class="nc" id="L869">            fbo = renderer.getFBO(uri, size);</span>
+<span class="nc" id="L870">            state = new CanvasState(state, Rect2i.createFromMinAndSize(new Vector2i(), size));</span>
+<span class="nc" id="L871">            fbo.bindFrame();</span>
+<span class="nc" id="L872">        }</span>
+
+        @Override
+        public void close() {
+<span class="nc" id="L876">            fbo.unbindFrame();</span>
+<span class="nc" id="L877">            state = previousState;</span>
+<span class="nc" id="L878">        }</span>
+    }
+
+    private static class InteractionRegion {
+        public InteractionListener listener;
+        public Rect2i region;
+        public Vector2i offset;
+        public UIWidget element;
+        public UIWidget tooltipOverride;
+
+<span class="nc" id="L888">        InteractionRegion(Rect2i region, Vector2i offset, InteractionListener listener, UIWidget element, UIWidget tooltipOverride) {</span>
+<span class="nc" id="L889">            this.listener = listener;</span>
+<span class="nc" id="L890">            this.region = region;</span>
+<span class="nc" id="L891">            this.offset = offset;</span>
+<span class="nc" id="L892">            this.element = element;</span>
+<span class="nc" id="L893">            this.tooltipOverride = tooltipOverride;</span>
+<span class="nc" id="L894">        }</span>
+
+        public UIWidget getTooltip() {
+<span class="nc bnc" id="L897" title="All 2 branches missed.">            if (tooltipOverride == null) {</span>
+<span class="nc" id="L898">                return element.getTooltip();</span>
+            }
+<span class="nc" id="L900">            return tooltipOverride;</span>
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+<span class="nc bnc" id="L905" title="All 2 branches missed.">            if (obj instanceof InteractionRegion) {</span>
+<span class="nc" id="L906">                InteractionRegion other = (InteractionRegion) obj;</span>
+<span class="nc" id="L907">                return Objects.equals(other.listener, listener);</span>
+            }
+<span class="nc" id="L909">            return false;</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="nc" id="L914">            return listener.hashCode();</span>
+        }
+    }
+
+    private interface DrawOperation {
+        void draw();
+    }
+
+    private final class DrawTextureOperation implements DrawOperation {
+
+        private Color color;
+        private ScaleMode mode;
+        private TextureRegion texture;
+        private Rect2i absoluteRegion;
+        private Rect2i cropRegion;
+        private float ux;
+        private float uy;
+        private float uw;
+        private float uh;
+        private float alpha;
+
+        private DrawTextureOperation(TextureRegion texture, Color color, ScaleMode mode, Rect2i absoluteRegion,
+<span class="nc" id="L936">                                     Rect2i cropRegion, float ux, float uy, float uw, float uh, float alpha) {</span>
+<span class="nc" id="L937">            this.color = color;</span>
+<span class="nc" id="L938">            this.mode = mode;</span>
+<span class="nc" id="L939">            this.texture = texture;</span>
+<span class="nc" id="L940">            this.absoluteRegion = absoluteRegion;</span>
+<span class="nc" id="L941">            this.cropRegion = cropRegion;</span>
+<span class="nc" id="L942">            this.ux = ux;</span>
+<span class="nc" id="L943">            this.uy = uy;</span>
+<span class="nc" id="L944">            this.uw = uw;</span>
+<span class="nc" id="L945">            this.uh = uh;</span>
+<span class="nc" id="L946">            this.alpha = alpha;</span>
+<span class="nc" id="L947">        }</span>
+
+        @Override
+        public void draw() {
+<span class="nc" id="L951">            renderer.crop(cropRegion);</span>
+<span class="nc" id="L952">            renderer.drawTexture(texture, color, mode, absoluteRegion, ux, uy, uw, uh, alpha);</span>
+<span class="nc" id="L953">            renderer.crop(state.cropRegion);</span>
+<span class="nc" id="L954">        }</span>
+    }
+
+    private final class DrawBorderedTextureOperation implements DrawOperation {
+
+        private TextureRegion texture;
+        private Border border;
+        private boolean tile;
+        private Rect2i absoluteRegion;
+        private Rect2i cropRegion;
+        private float ux;
+        private float uy;
+        private float uw;
+        private float uh;
+        private float alpha;
+
+        private DrawBorderedTextureOperation(TextureRegion texture, Rect2i absoluteRegion, Border border, boolean tile,
+<span class="nc" id="L971">                                             Rect2i cropRegion, float ux, float uy, float uw, float uh, float alpha) {</span>
+<span class="nc" id="L972">            this.texture = texture;</span>
+<span class="nc" id="L973">            this.tile = tile;</span>
+<span class="nc" id="L974">            this.absoluteRegion = absoluteRegion;</span>
+<span class="nc" id="L975">            this.border = border;</span>
+<span class="nc" id="L976">            this.cropRegion = cropRegion;</span>
+<span class="nc" id="L977">            this.ux = ux;</span>
+<span class="nc" id="L978">            this.uy = uy;</span>
+<span class="nc" id="L979">            this.uw = uw;</span>
+<span class="nc" id="L980">            this.uh = uh;</span>
+<span class="nc" id="L981">            this.alpha = alpha;</span>
+<span class="nc" id="L982">        }</span>
+
+        @Override
+        public void draw() {
+<span class="nc" id="L986">            renderer.crop(cropRegion);</span>
+<span class="nc" id="L987">            renderer.drawTextureBordered(texture, absoluteRegion, border, tile, ux, uy, uw, uh, alpha);</span>
+<span class="nc" id="L988">            renderer.crop(state.cropRegion);</span>
+<span class="nc" id="L989">        }</span>
+    }
+
+    private final class DrawLineOperation implements DrawOperation {
+
+        private int x0;
+        private int y0;
+        private int x1;
+        private int y1;
+        private Color color;
+
+<span class="nc" id="L1000">        private DrawLineOperation(int x0, int y0, int x1, int y1, Color color) {</span>
+<span class="nc" id="L1001">            this.x0 = x0;</span>
+<span class="nc" id="L1002">            this.y0 = y0;</span>
+<span class="nc" id="L1003">            this.x1 = x1;</span>
+<span class="nc" id="L1004">            this.y1 = y1;</span>
+<span class="nc" id="L1005">            this.color = color;</span>
+<span class="nc" id="L1006">        }</span>
+
+        @Override
+        public void draw() {
+<span class="nc" id="L1010">            renderer.drawLine(x0, y0, x1, y1, color);</span>
+<span class="nc" id="L1011">        }</span>
+    }
+
+    private final class DrawTextOperation implements DrawOperation {
+        private final String text;
+        private final Font font;
+        private final Rect2i absoluteRegion;
+        private final HorizontalAlign hAlign;
+        private final VerticalAlign vAlign;
+        private final Rect2i cropRegion;
+        private final Color shadowColor;
+        private final Color color;
+        private final float alpha;
+        private final boolean underline;
+
+        private DrawTextOperation(String text, Font font, HorizontalAlign hAlign, VerticalAlign vAlign, Rect2i absoluteRegion, Rect2i cropRegion,
+<span class="nc" id="L1027">                                  Color color, Color shadowColor, float alpha, boolean underline) {</span>
+<span class="nc" id="L1028">            this.text = text;</span>
+<span class="nc" id="L1029">            this.font = font;</span>
+<span class="nc" id="L1030">            this.absoluteRegion = absoluteRegion;</span>
+<span class="nc" id="L1031">            this.hAlign = hAlign;</span>
+<span class="nc" id="L1032">            this.vAlign = vAlign;</span>
+<span class="nc" id="L1033">            this.cropRegion = cropRegion;</span>
+<span class="nc" id="L1034">            this.shadowColor = shadowColor;</span>
+<span class="nc" id="L1035">            this.color = color;</span>
+<span class="nc" id="L1036">            this.alpha = alpha;</span>
+<span class="nc" id="L1037">            this.underline = underline;</span>
+<span class="nc" id="L1038">        }</span>
+
+        @Override
+        public void draw() {
+<span class="nc" id="L1042">            renderer.crop(cropRegion);</span>
+<span class="nc" id="L1043">            renderer.drawText(text, font, hAlign, vAlign, absoluteRegion, color, shadowColor, alpha, underline);</span>
+<span class="nc" id="L1044">            renderer.crop(state.cropRegion);</span>
+<span class="nc" id="L1045">        }</span>
+    }
+
+    private final class DrawInteractionRegionOperation implements DrawOperation {
+
+        private final Vector2i offset;
+        private final Rect2i region;
+        private final InteractionListener listener;
+        private final UIWidget currentElement;
+        private final UIWidget tooltipOverride;
+
+<span class="nc" id="L1056">        DrawInteractionRegionOperation(Rect2i region, Vector2i offset, InteractionListener listener, UIWidget currentElement, UIWidget tooltipOverride) {</span>
+<span class="nc" id="L1057">            this.region = region;</span>
+<span class="nc" id="L1058">            this.listener = listener;</span>
+<span class="nc" id="L1059">            this.offset = offset;</span>
+<span class="nc" id="L1060">            this.currentElement = currentElement;</span>
+<span class="nc" id="L1061">            this.tooltipOverride = tooltipOverride;</span>
+<span class="nc" id="L1062">        }</span>
+
+        @Override
+        public void draw() {
+<span class="nc" id="L1066">            interactionRegions.addLast(new InteractionRegion(region, offset, listener, currentElement, tooltipOverride));</span>
+<span class="nc" id="L1067">        }</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

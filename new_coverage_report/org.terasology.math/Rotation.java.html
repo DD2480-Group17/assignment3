@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Rotation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.math</a> &gt; <span class="el_source">Rotation.java</span></div><h1>Rotation.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.math;
+
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import gnu.trove.map.TByteObjectMap;
+import gnu.trove.map.hash.TByteObjectHashMap;
+import org.terasology.math.geom.Quat4f;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Rotation provides easy access to 90 degree increments of rotations - intended for block-related rotations.
+ * &lt;br&gt;&lt;br&gt;
+ * Uses the fly weight pattern to cache the 64 combinations of rotation.
+ * Note (Marcin Sciesinski): there are actually only 24 possible combinations, the remaining 40 are just duplicates
+ *
+ */
+public final class Rotation {
+    private static final Rotation[] ALL_ROTATIONS;
+    private static final TByteObjectMap&lt;Rotation&gt; NORMALIZED_ROTATIONS;
+    private static final ImmutableList&lt;Rotation&gt; HORIZONTAL_ROTATIONS;
+    private static final Rotation[] REVERSE_ROTATIONS;
+
+    private final Yaw yaw;
+    private final Pitch pitch;
+    private final Roll roll;
+
+    /**
+     * The index used by .rotate(), among others. Ranges from 0 to 63 (4^3-1).
+     */
+    private final int index;
+
+<span class="fc" id="L49">    private Rotation(Yaw yaw, Pitch pitch, Roll roll) {</span>
+<span class="fc" id="L50">        this.pitch = pitch;</span>
+<span class="fc" id="L51">        this.yaw = yaw;</span>
+<span class="fc" id="L52">        this.roll = roll;</span>
+<span class="fc" id="L53">        this.index = indexFor(yaw, pitch, roll);</span>
+<span class="fc" id="L54">    }</span>
+
+    public static Rotation none() {
+<span class="fc" id="L57">        return rotate(Yaw.NONE, Pitch.NONE, Roll.NONE);</span>
+    }
+
+    public static Rotation rotate(Pitch pitch) {
+<span class="fc" id="L61">        return rotate(Yaw.NONE, pitch, Roll.NONE);</span>
+    }
+
+    public static Rotation rotate(Yaw yaw) {
+<span class="fc" id="L65">        return rotate(yaw, Pitch.NONE, Roll.NONE);</span>
+    }
+
+    public static Rotation rotate(Roll roll) {
+<span class="fc" id="L69">        return rotate(Yaw.NONE, Pitch.NONE, roll);</span>
+    }
+
+    public static Rotation rotate(Yaw yaw, Pitch pitch) {
+<span class="nc" id="L73">        return rotate(yaw, pitch, Roll.NONE);</span>
+    }
+
+    public static Rotation rotate(Pitch pitch, Roll roll) {
+<span class="nc" id="L77">        return rotate(Yaw.NONE, pitch, roll);</span>
+    }
+
+    public static Rotation rotate(Yaw yaw, Roll roll) {
+<span class="nc" id="L81">        return rotate(yaw, Pitch.NONE, roll);</span>
+    }
+
+    public static Rotation rotate(Yaw yaw, Pitch pitch, Roll roll) {
+<span class="fc" id="L85">        return ALL_ROTATIONS[indexFor(yaw, pitch, roll)];</span>
+    }
+
+    /**
+     * Finds a reverse rotation to the specified one. Any side transformed by the rotation passed as a parameter, when
+     * passed to the returned rotation will return the original Side.
+     *
+     * @param rotation Rotation to find reverse rotation to.
+     *
+     * @return Reverse rotation to the specified one.
+     */
+    public static Rotation findReverse(Rotation rotation) {
+<span class="fc" id="L97">        Preconditions.checkNotNull(rotation);</span>
+<span class="fc" id="L98">        return REVERSE_ROTATIONS[rotation.index];</span>
+    }
+
+    public static List&lt;Rotation&gt; horizontalRotations() {
+<span class="fc" id="L102">        return HORIZONTAL_ROTATIONS;</span>
+    }
+
+    static {
+<span class="fc" id="L106">        ALL_ROTATIONS = new Rotation[4 * 4 * 4];</span>
+
+<span class="fc" id="L108">        NORMALIZED_ROTATIONS = new TByteObjectHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        for (Pitch pitch : Pitch.values()) {</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">            for (Yaw yaw : Yaw.values()) {</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">                for (Roll roll : Roll.values()) {</span>
+<span class="fc" id="L112">                    Rotation rotation = new Rotation(yaw, pitch, roll);</span>
+<span class="fc" id="L113">                    ALL_ROTATIONS[indexFor(yaw, pitch, roll)] = rotation;</span>
+<span class="fc" id="L114">                    Byte duplicateIndex = findDuplicateRotation(rotation);</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">                    if (duplicateIndex == null) {</span>
+<span class="fc" id="L116">                        NORMALIZED_ROTATIONS.put(indexFor(yaw, pitch, roll), rotation);</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L122">        HORIZONTAL_ROTATIONS = ImmutableList.of(</span>
+<span class="fc" id="L123">                ALL_ROTATIONS[indexFor(Yaw.NONE, Pitch.NONE, Roll.NONE)],</span>
+<span class="fc" id="L124">                ALL_ROTATIONS[indexFor(Yaw.CLOCKWISE_90, Pitch.NONE, Roll.NONE)],</span>
+<span class="fc" id="L125">                ALL_ROTATIONS[indexFor(Yaw.CLOCKWISE_180, Pitch.NONE, Roll.NONE)],</span>
+<span class="fc" id="L126">                ALL_ROTATIONS[indexFor(Yaw.CLOCKWISE_270, Pitch.NONE, Roll.NONE)]);</span>
+
+<span class="fc" id="L128">        REVERSE_ROTATIONS = new Rotation[ALL_ROTATIONS.length];</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        for (Rotation rotation : ALL_ROTATIONS) {</span>
+<span class="fc" id="L130">            Rotation reverse = findReverseInternal(rotation);</span>
+<span class="fc" id="L131">            REVERSE_ROTATIONS[rotation.index] = reverse;</span>
+        }
+<span class="fc" id="L133">    }</span>
+
+    private static Rotation findReverseInternal(Rotation rotation) {
+<span class="fc" id="L136">        Side frontResult = rotation.rotate(Side.FRONT);</span>
+<span class="fc" id="L137">        Side topResult = rotation.rotate(Side.TOP);</span>
+
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">        for (Rotation possibility : values()) {</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">            if (possibility.rotate(frontResult) == Side.FRONT</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">                    &amp;&amp; possibility.rotate(topResult) == Side.TOP) {</span>
+<span class="fc" id="L142">                return possibility;</span>
+            }
+<span class="fc" id="L144">        }</span>
+<span class="nc" id="L145">        throw new RuntimeException(&quot;Unable to find reverse rotation&quot;);</span>
+    }
+
+    private static Byte findDuplicateRotation(Rotation rotation) {
+<span class="fc" id="L149">        Side frontResult = rotation.rotate(Side.FRONT);</span>
+<span class="fc" id="L150">        Side topResult = rotation.rotate(Side.TOP);</span>
+<span class="fc" id="L151">        byte[] result = new byte[]{127};</span>
+
+<span class="fc" id="L153">        NORMALIZED_ROTATIONS.forEachEntry(</span>
+                (a, b) -&gt; {
+<span class="fc bfc" id="L155" title="All 2 branches covered.">                    if (b.rotate(Side.FRONT) == frontResult</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">                            &amp;&amp; b.rotate(Side.TOP) == topResult) {</span>
+<span class="fc" id="L157">                        result[0] = a;</span>
+<span class="fc" id="L158">                        return false;</span>
+                    }
+<span class="fc" id="L160">                    return true;</span>
+                });
+
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        if (result[0] != 127) {</span>
+<span class="fc" id="L164">            return result[0];</span>
+        } else {
+<span class="fc" id="L166">            return null;</span>
+        }
+    }
+
+    private static byte indexFor(Yaw yaw, Pitch pitch, Roll roll) {
+<span class="fc" id="L171">        return (byte) ((yaw.getIndex() &lt;&lt; 4) + (pitch.getIndex() &lt;&lt; 2) + roll.getIndex());</span>
+    }
+
+    public Yaw getYaw() {
+<span class="fc" id="L175">        return yaw;</span>
+    }
+
+    public Pitch getPitch() {
+<span class="fc" id="L179">        return pitch;</span>
+    }
+
+    public Roll getRoll() {
+<span class="fc" id="L183">        return roll;</span>
+    }
+
+    public Quat4f getQuat4f() {
+<span class="fc" id="L187">        Quat4f rotation = new Quat4f(yaw.getRadians(), pitch.getRadians(), roll.getRadians());</span>
+<span class="fc" id="L188">        rotation.normalize();</span>
+<span class="fc" id="L189">        return rotation;</span>
+    }
+
+    public Side rotate(Side side) {
+<span class="fc" id="L193">        Side result = side;</span>
+<span class="fc" id="L194">        result = result.rollClockwise(roll.getIncrements());</span>
+<span class="fc" id="L195">        result = result.pitchClockwise(pitch.getIncrements());</span>
+<span class="fc" id="L196">        result = result.yawClockwise(yaw.getIncrements());</span>
+<span class="fc" id="L197">        return result;</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">        if (this == obj) {</span>
+<span class="fc" id="L203">            return true;</span>
+        }
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        if (obj instanceof Rotation) {</span>
+<span class="nc" id="L206">            Rotation other = (Rotation) obj;</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">            return index == other.index;</span>
+        }
+<span class="nc" id="L209">        return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="fc" id="L214">        return index;</span>
+    }
+
+    /**
+     * Returns all possible rotations for each yaw, pitch &amp; roll combination, including duplicates.
+     *
+     * @return All possible rotations for each yaw, pitch &amp; roll combination.
+     */
+    public static Iterable&lt;Rotation&gt; allValues() {
+<span class="fc" id="L223">        return Arrays.asList(ALL_ROTATIONS);</span>
+    }
+
+    /**
+     * Returns only unique rotations, in respect to transformations, rather than in respect to yaw, pitch &amp; roll.
+     *
+     * @return Unique rotations, in respect to transformations.
+     */
+    public static Iterable&lt;Rotation&gt; values() {
+<span class="fc" id="L232">        return NORMALIZED_ROTATIONS.valueCollection();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TargetSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.input.cameraTarget</a> &gt; <span class="el_source">TargetSystem.java</span></div><h1>TargetSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.input.cameraTarget;
+
+import java.util.Arrays;
+
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.physics.CollisionGroup;
+import org.terasology.physics.HitResult;
+import org.terasology.physics.Physics;
+import org.terasology.physics.StandardCollisionGroup;
+import org.terasology.world.BlockEntityRegistry;
+
+public class TargetSystem {
+
+    private final BlockEntityRegistry blockRegistry;
+    private final Physics physics;
+
+<span class="nc" id="L36">    private EntityRef target = EntityRef.NULL;</span>
+<span class="nc" id="L37">    private EntityRef prevTarget = EntityRef.NULL;</span>
+
+    private Vector3i targetBlockPos;
+<span class="nc" id="L40">    private CollisionGroup[] filter = {StandardCollisionGroup.DEFAULT, StandardCollisionGroup.WORLD, StandardCollisionGroup.CHARACTER};</span>
+
+<span class="nc" id="L42">    public TargetSystem(BlockEntityRegistry blockRegistry, Physics physics) {</span>
+<span class="nc" id="L43">        this.blockRegistry = blockRegistry;</span>
+<span class="nc" id="L44">        this.physics = physics;</span>
+<span class="nc" id="L45">    }</span>
+
+    /**
+     * Gets the position of the block that is currently targeted. If there is currently no target, this will return
+     * a null reference (isTargetAvailable() would have returned false in this case).
+     * @return the target block position in world coordinates, a vector of 3 integers.
+     */
+    public Vector3i getTargetBlockPosition() {
+<span class="nc" id="L53">        return targetBlockPos;</span>
+    }
+
+    public boolean isTargetAvailable() {
+<span class="nc bnc" id="L57" title="All 4 branches missed.">        return target.exists() || targetBlockPos != null;</span>
+    }
+
+    public EntityRef getPreviousTarget() {
+<span class="nc" id="L61">        return prevTarget;</span>
+    }
+
+    public EntityRef getTarget() {
+<span class="nc" id="L65">        return target;</span>
+    }
+
+    public void setFilter(CollisionGroup... filter) {
+<span class="nc" id="L69">        this.filter = Arrays.copyOf(filter, filter.length);</span>
+<span class="nc" id="L70">    }</span>
+
+    public boolean updateTarget(Vector3f pos, Vector3f dir, float maxDist) {
+
+<span class="nc bnc" id="L74" title="All 4 branches missed.">        if (targetBlockPos != null &amp;&amp; !target.exists()) {</span>
+<span class="nc" id="L75">            target = blockRegistry.getEntityAt(targetBlockPos);</span>
+        }
+
+<span class="nc" id="L78">        HitResult hitInfo = physics.rayTrace(pos, dir, maxDist, filter);</span>
+<span class="nc" id="L79">        EntityRef newTarget = hitInfo.getEntity();</span>
+
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (hitInfo.isWorldHit()) {</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            if (targetBlockPos != null) {</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                if (targetBlockPos.equals(hitInfo.getBlockPosition())) {</span>
+<span class="nc" id="L84">                    return false;</span>
+                }
+            }
+<span class="nc" id="L87">            targetBlockPos = hitInfo.getBlockPosition();</span>
+        } else {
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            if (target.equals(newTarget)) {</span>
+<span class="nc" id="L90">                return false;</span>
+            }
+<span class="nc" id="L92">            targetBlockPos = null;</span>
+        }
+
+<span class="nc" id="L95">        prevTarget = target;</span>
+<span class="nc" id="L96">        target = newTarget;</span>
+
+<span class="nc" id="L98">        LocationComponent location = target.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L99" title="All 4 branches missed.">        if (location != null &amp;&amp; targetBlockPos != null) {</span>
+<span class="nc" id="L100">            location.setLocalPosition(targetBlockPos.toVector3f());</span>
+        }
+
+<span class="nc" id="L103">        return true;</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

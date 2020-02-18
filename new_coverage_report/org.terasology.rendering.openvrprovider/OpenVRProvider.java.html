@@ -1,0 +1,478 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenVRProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.openvrprovider</a> &gt; <span class="el_source">OpenVRProvider.java</span></div><h1>OpenVRProvider.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.openvrprovider;
+
+import com.sun.jna.Memory;
+import com.sun.jna.NativeLibrary;
+import com.sun.jna.Pointer;
+import jopenvr.HmdMatrix34_t;
+import jopenvr.HmdMatrix44_t;
+import jopenvr.JOpenVRLibrary;
+import jopenvr.JOpenVRLibrary.EVREventType;
+import jopenvr.Texture_t;
+import jopenvr.TrackedDevicePose_t;
+import jopenvr.VRControllerState_t;
+import jopenvr.VRTextureBounds_t;
+import jopenvr.VR_IVRCompositor_FnTable;
+import jopenvr.VR_IVROverlay_FnTable;
+import jopenvr.VR_IVRSettings_FnTable;
+import jopenvr.VR_IVRSystem_FnTable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.utilities.NativeHelper;
+
+import java.nio.IntBuffer;
+
+import static org.terasology.rendering.openvrprovider.ControllerListener.LEFT_CONTROLLER;
+import static org.terasology.rendering.openvrprovider.ControllerListener.RIGHT_CONTROLLER;
+
+/**
+ * This class is designed to make all API calls to OpenVR, thereby insulating it from the user. If you're looking to get
+ * some information from the headset/controllers you should probably look at OpenVRStereoRenderer, ControllerListener,
+ * or OpenVRState
+ */
+public final class OpenVRProvider {
+<span class="nc" id="L48">    public static Texture_t[] texType = new Texture_t[2];</span>
+
+    private static boolean initialized;
+<span class="nc" id="L51">    private static final Logger logger = LoggerFactory.getLogger(OpenVRProvider.class);</span>
+    private static VR_IVRSystem_FnTable vrSystem;
+    private static VR_IVRCompositor_FnTable vrCompositor;
+    private static VR_IVROverlay_FnTable vrOverlay;
+    private static VR_IVRSettings_FnTable vrSettings;
+<span class="nc" id="L56">    private static int[] controllerDeviceIndex = new int[2];</span>
+<span class="nc" id="L57">    private static VRControllerState_t.ByReference[] inputStateRefernceArray = new VRControllerState_t.ByReference[2];</span>
+<span class="nc" id="L58">    private static VRControllerState_t[] controllerStateReference = new VRControllerState_t[2];</span>
+    private static IntBuffer hmdErrorStore;
+    private static TrackedDevicePose_t.ByReference hmdTrackedDevicePoseReference;
+    private static TrackedDevicePose_t[] hmdTrackedDevicePoses;
+<span class="nc" id="L62">    private static boolean[] controllerTracking = new boolean[2];</span>
+
+    //keyboard
+    private static boolean keyboardShowing;
+    private static boolean headIsTracking;
+    private static OpenVRProvider instance;
+
+<span class="nc" id="L69">    private static final OpenVRState VR_STATE = new OpenVRState();</span>
+
+    // TextureIDs of framebuffers for each eye
+<span class="nc" id="L72">    private final VRTextureBounds_t texBounds = new VRTextureBounds_t();</span>
+<span class="nc" id="L73">    private float nearClip = 0.5f;</span>
+<span class="nc" id="L74">    private float farClip = 500.0f;</span>
+
+<span class="nc" id="L76">    private OpenVRProvider() {</span>
+<span class="nc" id="L77">    }</span>
+
+    // Get a singleton instance.
+    /**
+    * As a general rule, we should use this class as a singleton, because multiple instantiation
+    * will likely cause problems in the upstream native library. This provides a convenient method
+    * of using OpenVRProvider as a singleton.
+     */
+    public static OpenVRProvider getInstance() {
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (instance == null) {</span>
+<span class="nc" id="L87">            instance = new OpenVRProvider();</span>
+        }
+<span class="nc" id="L89">        return instance;</span>
+    }
+
+    /**
+     * Get the state of the VR system. This contains the poses of the eyes, controllers, etc...
+     * @return the VR state.
+     */
+    public OpenVRState getState() {
+<span class="nc" id="L97">        return VR_STATE;</span>
+    }
+
+    /**
+     * Initialize the VR system. Note that calling this method will cause OpenVR to launch. If there is no headset
+     * connected, or if the OpenVR library fails to initialize for some reason, this will return false, and a log
+     * entry about why initialization failed will be written.
+     * @return true if successful.
+     */
+    public boolean init() {
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        for (int handIndex = 0; handIndex &lt; 2; handIndex++) {</span>
+<span class="nc" id="L108">            controllerDeviceIndex[handIndex] = -1;</span>
+<span class="nc" id="L109">            controllerStateReference[handIndex] = new VRControllerState_t();</span>
+<span class="nc" id="L110">            inputStateRefernceArray[handIndex] = new VRControllerState_t.ByReference();</span>
+<span class="nc" id="L111">            inputStateRefernceArray[handIndex].setAutoRead(false);</span>
+<span class="nc" id="L112">            inputStateRefernceArray[handIndex].setAutoWrite(false);</span>
+<span class="nc" id="L113">            inputStateRefernceArray[handIndex].setAutoSynch(false);</span>
+<span class="nc" id="L114">            texType[handIndex] = new Texture_t();</span>
+        }
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        if (!initializeOpenVRLibrary()) {</span>
+<span class="nc" id="L117">            logger.warn(&quot;JOpenVR library loading failed.&quot;);</span>
+<span class="nc" id="L118">            return false;</span>
+        }
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (!initializeJOpenVR()) {</span>
+<span class="nc" id="L121">            logger.warn(&quot;JOpenVR initialization failed.&quot;);</span>
+<span class="nc" id="L122">            return false;</span>
+        }
+<span class="nc" id="L124">        int initAttempts = 0;</span>
+<span class="nc" id="L125">        boolean initSuccess = false;</span>
+
+        // OpenVR has a race condition here - it is necessary
+        // to initialize the overlay, but certain operations
+        // that appear to take place outside of the main thread
+        // seem to prevent that from happening if it's done too
+        // soon after OpenVR is initialized. This loop waits a
+        // reasonable amount of time and makes several attempts.
+        // In my testing, it works all of the time.
+<span class="nc bnc" id="L134" title="All 4 branches missed.">        while (!initSuccess &amp;&amp; initAttempts &lt; 10) {</span>
+            try {
+<span class="nc" id="L136">                Thread.sleep(300);</span>
+<span class="nc" id="L137">            } catch (InterruptedException ex) {</span>
+<span class="nc" id="L138">                Thread.currentThread().interrupt();</span>
+<span class="nc" id="L139">            }</span>
+<span class="nc" id="L140">            initSuccess = initOpenVRCompositor(true);</span>
+<span class="nc" id="L141">            initAttempts++;</span>
+        }
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        if (!initOpenVROverlay()) {</span>
+<span class="nc" id="L144">            logger.warn(&quot;VROverlay initialization failed.&quot;);</span>
+<span class="nc" id="L145">            return false;</span>
+        }
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        if (!initOpenVROSettings()) {</span>
+<span class="nc" id="L148">            logger.warn(&quot;OpenVR settings initialization failed.&quot;);</span>
+<span class="nc" id="L149">            return false;</span>
+        }
+<span class="nc" id="L151">        initialized = true;</span>
+<span class="nc" id="L152">        return true;</span>
+    }
+
+    /**
+     *
+     * @return true if initialized.
+     */
+    public boolean isInitialized() {
+<span class="nc" id="L160">        return initialized;</span>
+    }
+
+    /**
+     * In some instances, OpenVR will lose tracking on the head set. For example, if the line of sight to both light
+     * houses is obstructed, it is impossible to track the head set. In this case, the head set cannot be reliably
+     * tracked. In such cases, this method will return false, signaling that the head set tracking information returned
+     * by getEyePose() is unreliable.
+     *
+     * @return true if the pose of the headset is currently considered reliable.
+     */
+    public boolean isHeadTracking() {
+<span class="nc" id="L172">        return headIsTracking;</span>
+    }
+
+    /**
+     *
+     * @param controllerIndex - 0 for left, 1 for right, an integer.
+     * @return true if the pose of the controller is currently considered reliable.
+     */
+    public boolean isControllerTrackint(int controllerIndex) {
+<span class="nc" id="L181">        return controllerTracking[controllerIndex];</span>
+    }
+
+    /**
+     * Shut down the VR system.
+     */
+    public void shutdown() {
+<span class="nc" id="L188">        JOpenVRLibrary.VR_ShutdownInternal();</span>
+<span class="nc" id="L189">        vrSystem = null;</span>
+<span class="nc" id="L190">        vrCompositor = null;</span>
+<span class="nc" id="L191">        vrOverlay = null;</span>
+<span class="nc" id="L192">        vrSettings = null;</span>
+<span class="nc" id="L193">        initialized = false;</span>
+<span class="nc" id="L194">    }</span>
+
+    /**
+     * Query the VR library and update the VR state, which can then be retrieved via getState().
+     * This method should be called once per frame.
+     */
+    public void updateState() {
+<span class="nc" id="L201">        updatePose();</span>
+<span class="nc" id="L202">        pollControllers();</span>
+<span class="nc" id="L203">        pollInputEvents();</span>
+<span class="nc" id="L204">    }</span>
+
+    /**
+     * Make the specified controller vibrate
+     * @param controller - the hand index, 0 for left and 1 for right, an integer.
+     * @param strength - the strength of the pulse - a short value from 0 - 3999.
+     */
+    public static void triggerHapticPulse(int controller, int strength) {
+<span class="nc bnc" id="L212" title="All 2 branches missed.">        if (controllerDeviceIndex[controller] == -1) {</span>
+<span class="nc" id="L213">            return;</span>
+        }
+<span class="nc" id="L215">        vrSystem.TriggerHapticPulse.apply(controllerDeviceIndex[controller], 0, (short) strength);</span>
+<span class="nc" id="L216">    }</span>
+
+    /**
+     * Submit the frame stored in the frame buffers for the left and right eyes to the compositor. When this method is
+     * called, the contents of those frame buffers will show up in the head set. This method should be called exactly
+     * once per frame.
+     */
+    public void submitFrame() {
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        for (int nEye = 0; nEye &lt; 2; nEye++) {</span>
+<span class="nc" id="L225">            vrCompositor.Submit.apply(</span>
+                    nEye,
+                    texType[nEye], null,
+                    JOpenVRLibrary.EVRSubmitFlags.EVRSubmitFlags_Submit_Default);
+        }
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        if (vrCompositor.PostPresentHandoff != null) {</span>
+<span class="nc" id="L231">            vrCompositor.PostPresentHandoff.apply();</span>
+        }
+<span class="nc" id="L233">    }</span>
+
+    /**
+     * Set the distance of the camera from the near clipping plane, in OpenGL units, as a float.
+     * vrProvider.getState().getProjectionMatrix(...) method.
+     * @param nearClipIn - the near clip to set.
+     */
+    public void setNearClip(float nearClipIn) {
+<span class="nc" id="L241">        this.nearClip = nearClipIn;</span>
+<span class="nc" id="L242">    }</span>
+
+    /**
+     * Set the distance of the camera from the far clipping plane, in OpenGL units, as a float.
+     * vrProvider.getState().getProjectionMatrix(...) method.
+     * @param farClipIn - the near clip to set.
+     */
+    public void setFarClip(float farClipIn) {
+<span class="nc" id="L250">        this.farClip = farClipIn;</span>
+<span class="nc" id="L251">    }</span>
+
+    /**
+     * Turn on the keyboard overlay. This is a keyboard that hovers in front of the user, that can be typed upon by
+     * pointing the ray extending from the top of the controller at the key the user wants to press.
+     * @param showingState - true or false
+     * @return - true if successful. If this call fails, an error is logged.
+     */
+    public static boolean setKeyboardOverlayShowing(boolean showingState) {
+        int ret;
+<span class="nc bnc" id="L261" title="All 2 branches missed.">        if (showingState) {</span>
+<span class="nc" id="L262">            Pointer pointer = new Memory(3);</span>
+<span class="nc" id="L263">            pointer.setString(0, &quot;mc&quot;);</span>
+<span class="nc" id="L264">            Pointer empty = new Memory(1);</span>
+<span class="nc" id="L265">            empty.setString(0, &quot;&quot;);</span>
+<span class="nc" id="L266">            ret = vrOverlay.ShowKeyboard.apply(0, 0, pointer, 256, empty, (byte) 1, 0);</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            keyboardShowing = 0 == ret; //0 = no error, &gt; 0 see EVROverlayError</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">            if (ret != 0) {</span>
+<span class="nc" id="L269">                logger.error(&quot;VR Overlay Error: &quot; + vrOverlay.GetOverlayErrorNameFromEnum.apply(ret).getString(0));</span>
+            }
+<span class="nc" id="L271">        } else {</span>
+            try {
+<span class="nc" id="L273">                vrOverlay.HideKeyboard.apply();</span>
+<span class="nc" id="L274">            } catch (Error e) {</span>
+<span class="nc" id="L275">                logger.error(&quot;Error bringing up keyboard overlay: &quot; + e.toString());</span>
+<span class="nc" id="L276">            }</span>
+<span class="nc" id="L277">            keyboardShowing = false;</span>
+        }
+
+<span class="nc" id="L280">        return keyboardShowing;</span>
+    }
+
+    private void pollControllers() {
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        for (int handIndex = 0; handIndex &lt; 2; handIndex++) {</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">            if (controllerDeviceIndex[handIndex] != -1) {</span>
+<span class="nc" id="L286">                vrSystem.GetControllerState.apply(controllerDeviceIndex[handIndex], inputStateRefernceArray[handIndex]);</span>
+<span class="nc" id="L287">                inputStateRefernceArray[handIndex].read();</span>
+<span class="nc" id="L288">                controllerStateReference[handIndex] = inputStateRefernceArray[handIndex];</span>
+<span class="nc" id="L289">                VR_STATE.updateControllerButtonState(controllerStateReference);</span>
+            }
+        }
+<span class="nc" id="L292">    }</span>
+
+    private boolean initializeOpenVRLibrary() {
+<span class="nc bnc" id="L295" title="All 2 branches missed.">        if (initialized) {</span>
+<span class="nc" id="L296">            return true;</span>
+        }
+<span class="nc" id="L298">        logger.info(&quot;Adding OpenVR search path: &quot; + NativeHelper.getOpenVRLibPath());</span>
+<span class="nc" id="L299">        NativeLibrary.addSearchPath(&quot;openvr_api&quot;, NativeHelper.getOpenVRLibPath());</span>
+
+<span class="nc bnc" id="L301" title="All 2 branches missed.">        if (jopenvr.JOpenVRLibrary.VR_IsHmdPresent() != 1) {</span>
+<span class="nc" id="L302">            logger.info(&quot;VR Headset not detected.&quot;);</span>
+<span class="nc" id="L303">            return false;</span>
+        }
+<span class="nc" id="L305">        logger.info(&quot;VR Headset detected.&quot;);</span>
+<span class="nc" id="L306">        return true;</span>
+    }
+
+    private static boolean initializeJOpenVR() {
+<span class="nc" id="L310">        hmdErrorStore = IntBuffer.allocate(1);</span>
+<span class="nc" id="L311">        vrSystem = null;</span>
+<span class="nc" id="L312">        JOpenVRLibrary.VR_InitInternal(hmdErrorStore, JOpenVRLibrary.EVRApplicationType.EVRApplicationType_VRApplication_Scene);</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">        if (hmdErrorStore.get(0) == 0) {</span>
+            // ok, try and get the vrSystem pointer..
+<span class="nc" id="L315">            vrSystem = new VR_IVRSystem_FnTable(JOpenVRLibrary.VR_GetGenericInterface(JOpenVRLibrary.IVRSystem_Version, hmdErrorStore));</span>
+        }
+<span class="nc bnc" id="L317" title="All 4 branches missed.">        if (vrSystem == null || hmdErrorStore.get(0) != 0) {</span>
+<span class="nc" id="L318">            String errorString = jopenvr.JOpenVRLibrary.VR_GetVRInitErrorAsEnglishDescription(hmdErrorStore.get(0)).getString(0);</span>
+<span class="nc" id="L319">            logger.info(&quot;vrSystem initialization failed:&quot; + errorString);</span>
+<span class="nc" id="L320">            return false;</span>
+        } else {
+<span class="nc" id="L322">            vrSystem.setAutoSynch(false);</span>
+<span class="nc" id="L323">            vrSystem.read();</span>
+
+<span class="nc" id="L325">            logger.info(&quot;OpenVR initialized &amp; VR connected.&quot;);</span>
+
+<span class="nc" id="L327">            hmdTrackedDevicePoseReference = new TrackedDevicePose_t.ByReference();</span>
+<span class="nc" id="L328">            hmdTrackedDevicePoses = (TrackedDevicePose_t[]) hmdTrackedDevicePoseReference.toArray(JOpenVRLibrary.k_unMaxTrackedDeviceCount);</span>
+
+            // disable all this stuff which kills performance
+<span class="nc" id="L331">            hmdTrackedDevicePoseReference.setAutoRead(false);</span>
+<span class="nc" id="L332">            hmdTrackedDevicePoseReference.setAutoWrite(false);</span>
+<span class="nc" id="L333">            hmdTrackedDevicePoseReference.setAutoSynch(false);</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">            for (int i = 0; i &lt; JOpenVRLibrary.k_unMaxTrackedDeviceCount; i++) {</span>
+<span class="nc" id="L335">                hmdTrackedDevicePoses[i].setAutoRead(false);</span>
+<span class="nc" id="L336">                hmdTrackedDevicePoses[i].setAutoWrite(false);</span>
+<span class="nc" id="L337">                hmdTrackedDevicePoses[i].setAutoSynch(false);</span>
+            }
+        }
+<span class="nc" id="L340">        return true;</span>
+    }
+
+    // needed for in-game keyboard
+    private static boolean initOpenVROverlay() {
+<span class="nc" id="L345">        vrOverlay = new VR_IVROverlay_FnTable(JOpenVRLibrary.VR_GetGenericInterface(JOpenVRLibrary.IVROverlay_Version, hmdErrorStore));</span>
+<span class="nc bnc" id="L346" title="All 2 branches missed.">        if (hmdErrorStore.get(0) == 0) {</span>
+<span class="nc" id="L347">            vrOverlay.setAutoSynch(false);</span>
+<span class="nc" id="L348">            vrOverlay.read();</span>
+<span class="nc" id="L349">            logger.info(&quot;OpenVR Overlay initialized OK.&quot;);</span>
+        } else {
+<span class="nc" id="L351">            String errorString = jopenvr.JOpenVRLibrary.VR_GetVRInitErrorAsEnglishDescription(hmdErrorStore.get(0)).getString(0);</span>
+<span class="nc" id="L352">            logger.info(&quot;vrOverlay initialization failed:&quot; + errorString);</span>
+<span class="nc" id="L353">            return false;</span>
+        }
+<span class="nc" id="L355">        return true;</span>
+    }
+
+    private static boolean initOpenVROSettings() {
+<span class="nc" id="L359">        vrSettings = new VR_IVRSettings_FnTable(JOpenVRLibrary.VR_GetGenericInterface(JOpenVRLibrary.IVRSettings_Version, hmdErrorStore));</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">        if (hmdErrorStore.get(0) == 0) {</span>
+<span class="nc" id="L361">            vrSettings.setAutoSynch(false);</span>
+<span class="nc" id="L362">            vrSettings.read();</span>
+<span class="nc" id="L363">            logger.info(&quot;OpenVR Settings initialized OK.&quot;);</span>
+        } else {
+<span class="nc" id="L365">            String errorString = jopenvr.JOpenVRLibrary.VR_GetVRInitErrorAsEnglishDescription(hmdErrorStore.get(0)).getString(0);</span>
+<span class="nc" id="L366">            logger.info(&quot;OpenVROSettings initialization failed:&quot; + errorString);</span>
+<span class="nc" id="L367">            return false;</span>
+        }
+<span class="nc" id="L369">        return true;</span>
+    }
+
+    private boolean initOpenVRCompositor(boolean set) {
+<span class="nc bnc" id="L373" title="All 4 branches missed.">        if (set &amp;&amp; vrSystem != null) {</span>
+<span class="nc" id="L374">            vrCompositor = new VR_IVRCompositor_FnTable(JOpenVRLibrary.VR_GetGenericInterface(JOpenVRLibrary.IVRCompositor_Version, hmdErrorStore));</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">            if (hmdErrorStore.get(0) == 0) {</span>
+<span class="nc" id="L376">                logger.info(&quot;OpenVR Compositor initialized OK.&quot;);</span>
+<span class="nc" id="L377">                vrCompositor.setAutoSynch(false);</span>
+<span class="nc" id="L378">                vrCompositor.read();</span>
+<span class="nc" id="L379">                vrCompositor.SetTrackingSpace.apply(JOpenVRLibrary.ETrackingUniverseOrigin.ETrackingUniverseOrigin_TrackingUniverseStanding);</span>
+            } else {
+<span class="nc" id="L381">                String errorString = jopenvr.JOpenVRLibrary.VR_GetVRInitErrorAsEnglishDescription(hmdErrorStore.get(0)).getString(0);</span>
+<span class="nc" id="L382">                logger.info(&quot;vrCompositor initialization failed:&quot; + errorString);</span>
+<span class="nc" id="L383">                return false;</span>
+            }
+        }
+<span class="nc bnc" id="L386" title="All 2 branches missed.">        if (vrCompositor == null) {</span>
+<span class="nc" id="L387">            logger.info(&quot;Skipping VR Compositor...&quot;);</span>
+        }
+
+        // left eye
+<span class="nc" id="L391">        texBounds.uMax = 1f;</span>
+<span class="nc" id="L392">        texBounds.uMin = 0f;</span>
+<span class="nc" id="L393">        texBounds.vMax = 1f;</span>
+<span class="nc" id="L394">        texBounds.vMin = 0f;</span>
+<span class="nc" id="L395">        texBounds.setAutoSynch(false);</span>
+<span class="nc" id="L396">        texBounds.setAutoRead(false);</span>
+<span class="nc" id="L397">        texBounds.setAutoWrite(false);</span>
+<span class="nc" id="L398">        texBounds.write();</span>
+        // texture type
+<span class="nc bnc" id="L400" title="All 2 branches missed.">        for (int nEye = 0; nEye &lt; 2; nEye++) {</span>
+<span class="nc" id="L401">            texType[0].eColorSpace = JOpenVRLibrary.EColorSpace.EColorSpace_ColorSpace_Gamma;</span>
+<span class="nc" id="L402">            texType[0].eType = JOpenVRLibrary.EGraphicsAPIConvention.EGraphicsAPIConvention_API_OpenGL;</span>
+<span class="nc" id="L403">            texType[0].setAutoSynch(false);</span>
+<span class="nc" id="L404">            texType[0].setAutoRead(false);</span>
+<span class="nc" id="L405">            texType[0].setAutoWrite(false);</span>
+<span class="nc" id="L406">            texType[0].handle = -1;</span>
+<span class="nc" id="L407">            texType[0].write();</span>
+        }
+<span class="nc" id="L409">        logger.info(&quot;OpenVR Compositor initialized OK.&quot;);</span>
+<span class="nc" id="L410">        return true;</span>
+    }
+
+    private static void findControllerDevices() {
+<span class="nc" id="L414">        controllerDeviceIndex[RIGHT_CONTROLLER] = -1;</span>
+<span class="nc" id="L415">        controllerDeviceIndex[LEFT_CONTROLLER] = -1;</span>
+
+<span class="nc" id="L417">        controllerDeviceIndex[RIGHT_CONTROLLER] =</span>
+<span class="nc" id="L418">                vrSystem.GetTrackedDeviceIndexForControllerRole.apply(</span>
+                        JOpenVRLibrary.ETrackedControllerRole.ETrackedControllerRole_TrackedControllerRole_LeftHand);
+<span class="nc" id="L420">        controllerDeviceIndex[LEFT_CONTROLLER] =</span>
+<span class="nc" id="L421">                vrSystem.GetTrackedDeviceIndexForControllerRole.apply(</span>
+                        JOpenVRLibrary.ETrackedControllerRole.ETrackedControllerRole_TrackedControllerRole_RightHand);
+<span class="nc" id="L423">    }</span>
+
+    private static void pollInputEvents() {
+<span class="nc" id="L426">        jopenvr.VREvent_t event = new jopenvr.VREvent_t();</span>
+
+<span class="nc bnc" id="L428" title="All 2 branches missed.">        while (vrSystem.PollNextEvent.apply(event, event.size()) &gt; 0) {</span>
+
+<span class="nc bnc" id="L430" title="All 3 branches missed.">            switch (event.eventType) {</span>
+                case EVREventType.EVREventType_VREvent_KeyboardClosed:
+                    //'huzzah'
+<span class="nc" id="L433">                    keyboardShowing = false;</span>
+<span class="nc" id="L434">                    break;</span>
+                case EVREventType.EVREventType_VREvent_KeyboardCharInput:
+<span class="nc" id="L436">                    break;</span>
+                default:
+<span class="nc" id="L438">                    break;</span>
+            }
+        }
+<span class="nc" id="L441">    }</span>
+
+    private void updatePose() {
+<span class="nc" id="L444">        vrCompositor.WaitGetPoses.apply(hmdTrackedDevicePoseReference, JOpenVRLibrary.k_unMaxTrackedDeviceCount, null, 0);</span>
+<span class="nc bnc" id="L445" title="All 2 branches missed.">        for (int nDevice = 0; nDevice &lt; JOpenVRLibrary.k_unMaxTrackedDeviceCount; ++nDevice) {</span>
+<span class="nc" id="L446">            hmdTrackedDevicePoses[nDevice].read();</span>
+        }
+
+<span class="nc bnc" id="L449" title="All 2 branches missed.">        if (hmdTrackedDevicePoses[JOpenVRLibrary.k_unTrackedDeviceIndex_Hmd].bPoseIsValid != 0) {</span>
+<span class="nc bnc" id="L450" title="All 2 branches missed.">            for (int nEye = 0; nEye &lt; 2; nEye++) {</span>
+<span class="nc" id="L451">                HmdMatrix34_t matPose = vrSystem.GetEyeToHeadTransform.apply(nEye);</span>
+<span class="nc" id="L452">                VR_STATE.setEyePoseWRTHead(matPose, nEye);</span>
+<span class="nc" id="L453">                HmdMatrix44_t matProjection =</span>
+<span class="nc" id="L454">                        vrSystem.GetProjectionMatrix.apply(nEye,</span>
+                                nearClip,
+                                farClip,
+                                JOpenVRLibrary.EGraphicsAPIConvention.EGraphicsAPIConvention_API_OpenGL);
+<span class="nc" id="L458">                VR_STATE.setProjectionMatrix(matProjection, nEye);</span>
+            }
+<span class="nc" id="L460">            VR_STATE.setHeadPose(hmdTrackedDevicePoses[JOpenVRLibrary.k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);</span>
+<span class="nc" id="L461">            headIsTracking = true;</span>
+        } else {
+<span class="nc" id="L463">            headIsTracking = false;</span>
+        }
+
+<span class="nc" id="L466">        findControllerDevices();</span>
+
+<span class="nc bnc" id="L468" title="All 2 branches missed.">        for (int handIndex = 0; handIndex &lt; 2; handIndex++) {</span>
+<span class="nc bnc" id="L469" title="All 2 branches missed.">            if (controllerDeviceIndex[handIndex] != -1) {</span>
+<span class="nc" id="L470">                controllerTracking[handIndex] = true;</span>
+<span class="nc" id="L471">                VR_STATE.setControllerPose(hmdTrackedDevicePoses[controllerDeviceIndex[handIndex]].mDeviceToAbsoluteTracking, handIndex);</span>
+            } else {
+<span class="nc" id="L473">                controllerTracking[handIndex] = false;</span>
+            }
+        }
+<span class="nc" id="L476">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

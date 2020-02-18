@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PerformanceMonitorPanel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.monitoring.gui</a> &gt; <span class="el_source">PerformanceMonitorPanel.java</span></div><h1>PerformanceMonitorPanel.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.monitoring.gui;
+
+import com.google.common.base.Preconditions;
+import gnu.trove.map.TObjectDoubleMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.monitoring.ThreadActivity;
+import org.terasology.monitoring.ThreadMonitor;
+
+import javax.swing.JPanel;
+import javax.swing.JList;
+import javax.swing.JLabel;
+import javax.swing.ListCellRenderer;
+import javax.swing.SwingUtilities;
+import javax.swing.AbstractListModel;
+import javax.swing.SwingConstants;
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.awt.Dimension;
+import java.awt.Component;
+import java.awt.Color;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+@SuppressWarnings(&quot;serial&quot;)
+public class PerformanceMonitorPanel extends JPanel {
+<span class="nc" id="L50">    private static final Logger LOGGER = LoggerFactory.getLogger(PerformanceMonitorPanel.class);</span>
+
+    // If true, the active monitoring thread in executor service should stop.
+    private boolean stopThread;
+
+<span class="nc" id="L55">    public PerformanceMonitorPanel() {</span>
+<span class="nc" id="L56">        setLayout(new BorderLayout());</span>
+<span class="nc" id="L57">        HeaderPanel header = new HeaderPanel();</span>
+<span class="nc" id="L58">        JList list = new JList(new PerformanceListModel());</span>
+<span class="nc" id="L59">        list.setCellRenderer(new PerformanceListRenderer(header));</span>
+<span class="nc" id="L60">        list.setVisible(true);</span>
+<span class="nc" id="L61">        add(header, BorderLayout.PAGE_START);</span>
+<span class="nc" id="L62">        add(list, BorderLayout.CENTER);</span>
+<span class="nc" id="L63">    }</span>
+
+    public void stopThread() {
+<span class="nc" id="L66">        stopThread = true;</span>
+<span class="nc" id="L67">    }</span>
+
+    private static class HeaderPanel extends JPanel {
+
+<span class="nc" id="L71">        private final JLabel lName = new JLabel(&quot;Title&quot;);</span>
+<span class="nc" id="L72">        private final JLabel lMean = new JLabel(&quot;Running Means&quot;);</span>
+<span class="nc" id="L73">        private final JLabel lSpike = new JLabel(&quot;Decaying Spikes&quot;);</span>
+
+<span class="nc" id="L75">        HeaderPanel() {</span>
+<span class="nc" id="L76">            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));</span>
+
+<span class="nc" id="L78">            add(lName);</span>
+<span class="nc" id="L79">            add(lMean);</span>
+<span class="nc" id="L80">            add(lSpike);</span>
+<span class="nc" id="L81">        }</span>
+
+        public void setNameSize(Dimension d) {
+<span class="nc" id="L84">            lName.setPreferredSize(d);</span>
+<span class="nc" id="L85">            doLayout();</span>
+<span class="nc" id="L86">        }</span>
+    }
+
+    private static class Entry implements Comparable&lt;Entry&gt; {
+
+        public final String name;
+        public boolean active;
+        public double mean;
+        public double spike;
+
+<span class="nc" id="L96">        Entry(String name) {</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            this.name = (name == null) ? &quot;&quot; : name;</span>
+<span class="nc" id="L98">        }</span>
+
+        @Override
+        public int compareTo(Entry o) {
+<span class="nc" id="L102">            return name.compareTo(o.name);</span>
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+<span class="nc bnc" id="L107" title="All 2 branches missed.">            if (obj == this) {</span>
+<span class="nc" id="L108">                return true;</span>
+            }
+<span class="nc bnc" id="L110" title="All 2 branches missed.">            if (obj instanceof Entry) {</span>
+<span class="nc" id="L111">                return Objects.equals(name, ((Entry) obj).name);</span>
+            }
+<span class="nc" id="L113">            return false;</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="nc" id="L118">            return Objects.hash(name);</span>
+        }
+    }
+
+    private static class PerformanceListRenderer implements ListCellRenderer {
+
+        private final MyRenderer renderer;
+
+<span class="nc" id="L126">        PerformanceListRenderer(HeaderPanel header) {</span>
+<span class="nc" id="L127">            renderer = new MyRenderer(header);</span>
+<span class="nc" id="L128">        }</span>
+
+        @Override
+        public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">            if (value instanceof Entry) {</span>
+<span class="nc" id="L133">                renderer.setEntry((Entry) value);</span>
+            } else {
+<span class="nc" id="L135">                renderer.setEntry(null);</span>
+            }
+<span class="nc" id="L137">            return renderer;</span>
+        }
+
+        private static class MyRenderer extends JPanel {
+
+            private final HeaderPanel header;
+<span class="nc" id="L143">            private final DecimalFormat format = new DecimalFormat(&quot;#####0.00&quot;);</span>
+<span class="nc" id="L144">            private final JLabel lName = new JLabel();</span>
+<span class="nc" id="L145">            private final JLabel lMean = new JLabel();</span>
+<span class="nc" id="L146">            private final JLabel lSpike = new JLabel();</span>
+
+<span class="nc" id="L148">            private Dimension dName = new Dimension(0, 0);</span>
+
+<span class="nc" id="L150">            MyRenderer(HeaderPanel header) {</span>
+<span class="nc" id="L151">                this.header = Preconditions.checkNotNull(header, &quot;The parameter 'header' must not be null&quot;);</span>
+
+<span class="nc" id="L153">                setBackground(Color.WHITE);</span>
+<span class="nc" id="L154">                setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));</span>
+
+<span class="nc" id="L156">                lMean.setHorizontalAlignment(SwingConstants.RIGHT);</span>
+<span class="nc" id="L157">                lMean.setForeground(Color.GRAY);</span>
+<span class="nc" id="L158">                lMean.setPreferredSize(header.lMean.getPreferredSize());</span>
+
+<span class="nc" id="L160">                lSpike.setHorizontalAlignment(SwingConstants.RIGHT);</span>
+<span class="nc" id="L161">                lSpike.setForeground(Color.GRAY);</span>
+<span class="nc" id="L162">                lSpike.setPreferredSize(header.lSpike.getPreferredSize());</span>
+
+<span class="nc" id="L164">                add(lName);</span>
+<span class="nc" id="L165">                add(lMean);</span>
+<span class="nc" id="L166">                add(lSpike);</span>
+<span class="nc" id="L167">            }</span>
+
+            public void setEntry(Entry entry) {
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                if (entry != null) {</span>
+<span class="nc" id="L171">                    lName.setPreferredSize(null);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                    lName.setForeground(entry.active ? Color.BLUE : Color.GRAY);</span>
+<span class="nc" id="L173">                    lName.setText(entry.name);</span>
+<span class="nc" id="L174">                    Dimension tmp = lName.getPreferredSize();</span>
+<span class="nc bnc" id="L175" title="All 4 branches missed.">                    if (tmp.width &gt; dName.width || tmp.height &gt; dName.height) {</span>
+<span class="nc" id="L176">                        dName = tmp;</span>
+<span class="nc" id="L177">                        header.setNameSize(dName);</span>
+                    }
+<span class="nc" id="L179">                    lName.setPreferredSize(dName);</span>
+
+<span class="nc" id="L181">                    lMean.setText(&quot;  &quot; + format.format(entry.mean) + &quot; ms&quot;);</span>
+<span class="nc" id="L182">                    lSpike.setText(&quot;  &quot; + format.format(entry.spike) + &quot; ms&quot;);</span>
+<span class="nc" id="L183">                } else {</span>
+<span class="nc" id="L184">                    lName.setText(&quot;&quot;);</span>
+<span class="nc" id="L185">                    lMean.setText(&quot;&quot;);</span>
+<span class="nc" id="L186">                    lSpike.setText(&quot;&quot;);</span>
+                }
+<span class="nc" id="L188">            }</span>
+        }
+    }
+
+    private final class PerformanceListModel extends AbstractListModel {
+
+<span class="nc" id="L194">        private final List&lt;Entry&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L195">        private final Map&lt;String, Entry&gt; map = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L196">        private final ExecutorService executor = Executors.newSingleThreadExecutor();</span>
+
+<span class="nc" id="L198">        private PerformanceListModel() {</span>
+<span class="nc" id="L199">            executor.execute(() -&gt; {</span>
+<span class="nc" id="L200">                Thread.currentThread().setPriority(Thread.MIN_PRIORITY);</span>
+                try {
+<span class="nc bnc" id="L202" title="All 2 branches missed.">                    while (!stopThread) {</span>
+<span class="nc" id="L203">                        Thread.sleep(1000);</span>
+<span class="nc" id="L204">                        try (ThreadActivity ignored = ThreadMonitor.startThreadActivity(&quot;Poll&quot;)) {</span>
+<span class="nc" id="L205">                            updateEntries(PerformanceMonitor.getRunningMean(), PerformanceMonitor.getDecayingSpikes());</span>
+<span class="nc" id="L206">                        }</span>
+                    }
+<span class="nc" id="L208">                } catch (Exception e) {</span>
+<span class="nc" id="L209">                    ThreadMonitor.addError(e);</span>
+<span class="nc" id="L210">                    LOGGER.error(&quot;Error executing performance monitor update&quot;, e);</span>
+<span class="nc" id="L211">                }</span>
+
+<span class="nc" id="L213">                executor.shutdownNow();</span>
+<span class="nc" id="L214">            });</span>
+<span class="nc" id="L215">        }</span>
+
+        private void invokeIntervalAdded(final int a, final int b) {
+<span class="nc" id="L218">            final Object source = this;</span>
+<span class="nc" id="L219">            SwingUtilities.invokeLater(() -&gt; fireIntervalAdded(source, a, b));</span>
+<span class="nc" id="L220">        }</span>
+
+        private void invokeContentsChanged(final int a, final int b) {
+<span class="nc" id="L223">            final Object source = this;</span>
+<span class="nc" id="L224">            SwingUtilities.invokeLater(() -&gt; fireContentsChanged(source, a, b));</span>
+<span class="nc" id="L225">        }</span>
+
+        private void updateEntries(TObjectDoubleMap&lt;String&gt; means, TObjectDoubleMap&lt;String&gt; spikes) {
+<span class="nc bnc" id="L228" title="All 2 branches missed.">            if (means != null) {</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">                for (final Entry entry : list) {</span>
+<span class="nc" id="L230">                    entry.active = false;</span>
+<span class="nc" id="L231">                }</span>
+<span class="nc" id="L232">                means.forEachEntry((key, value) -&gt; {</span>
+<span class="nc" id="L233">                    Entry entry = map.get(key);</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">                    if (entry == null) {</span>
+<span class="nc" id="L235">                        entry = new Entry(key);</span>
+<span class="nc" id="L236">                        list.add(entry);</span>
+<span class="nc" id="L237">                        map.put(key, entry);</span>
+<span class="nc" id="L238">                        invokeIntervalAdded(list.size() - 1, list.size() - 1);</span>
+                    }
+<span class="nc" id="L240">                    entry.active = true;</span>
+<span class="nc" id="L241">                    entry.mean = value;</span>
+<span class="nc" id="L242">                    return true;</span>
+                });
+<span class="nc" id="L244">                spikes.forEachEntry((key, value) -&gt; {</span>
+<span class="nc" id="L245">                    Entry entry = map.get(key);</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">                    if (entry != null) {</span>
+<span class="nc" id="L247">                        entry.spike = value;</span>
+                    }
+<span class="nc" id="L249">                    return true;</span>
+                });
+
+<span class="nc" id="L252">                Collections.sort(list);</span>
+<span class="nc" id="L253">                invokeContentsChanged(0, list.size() - 1);</span>
+            }
+<span class="nc" id="L255">        }</span>
+
+        @Override
+        public int getSize() {
+<span class="nc" id="L259">            return list.size();</span>
+        }
+
+        @Override
+        public Object getElementAt(int index) {
+<span class="nc" id="L264">            return list.get(index);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

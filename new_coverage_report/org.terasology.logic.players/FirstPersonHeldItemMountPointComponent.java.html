@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FirstPersonHeldItemMountPointComponent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.players</a> &gt; <span class="el_source">FirstPersonHeldItemMountPointComponent.java</span></div><h1>FirstPersonHeldItemMountPointComponent.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.players;
+
+import jopenvr.VRControllerState_t;
+import org.joml.Matrix4f;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.Owns;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.rendering.openvrprovider.ControllerListener;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.rendering.openvrprovider.OpenVRProvider;
+
+/**
+ * Only used by the client side so that held items can be positioned in line with the camera
+ */
+<span class="nc" id="L32">public class FirstPersonHeldItemMountPointComponent implements Component, ControllerListener {</span>
+
+<span class="nc" id="L34">    @Owns</span>
+    public EntityRef mountPointEntity = EntityRef.NULL;
+<span class="nc" id="L36">    public Vector3f rotateDegrees = Vector3f.zero();</span>
+<span class="nc" id="L37">    public Vector3f translate = Vector3f.zero();</span>
+    public Quat4f rotationQuaternion;
+<span class="nc" id="L39">    public float scale = 1f;</span>
+
+    // TODO: @In
+<span class="nc" id="L42">    private final OpenVRProvider vrProvider = OpenVRProvider.getInstance();</span>
+    private boolean trackingDataReceived;
+
+
+    // The hand/tool models seem to have an origin other than the pivot point. This is a best-effort correction,
+    // in the form of a 4x4 homogeneous transformation matrix
+<span class="nc" id="L48">    private Matrix4f toolAdjustmentMatrix = new Matrix4f(</span>
+            1.0f, 0.0f, 0.0f, 0.0f,
+<span class="nc" id="L50">            0.0f, (float) Math.cos(230. * TeraMath.DEG_TO_RAD), (float) Math.sin(230. * TeraMath.DEG_TO_RAD), 0.0f,</span>
+<span class="nc" id="L51">            0.0f, (float) -Math.sin(230. * TeraMath.DEG_TO_RAD), (float) Math.cos(230. * TeraMath.DEG_TO_RAD), 0.0f,</span>
+            0.0f, -0.05f, -0.2f, 1.0f
+    );
+
+    /**
+     * Sometimes, a tracking system (i.e. for room-scale VR) provides a pose for this mount point. In this
+     * case, special handling is necessary, and this accessor gives a way to check.
+     * @return true if this class is receiving tracking updates, false if not.
+     */
+    public boolean isTracked() {
+<span class="nc" id="L61">        return trackingDataReceived;</span>
+    }
+
+    /**
+     * If possible, make this object listen for controller pose updates. If the vrProvider is not active (i.e. no headset
+     * is connected), then the callback methods will not get called for the first time, and this component will act as
+     * it would in its default state (static location, activation triggered upon use of equipped object).
+     */
+    public void trySubscribeToControllerPoses() {
+<span class="nc" id="L70">        vrProvider.getState().addControllerListener(this);</span>
+<span class="nc" id="L71">    }</span>
+
+    /**
+     * A callback target for the controller listener. This callback triggers when a button is pressed on the controllers.
+     * It's currently ignored by this class. This method and the below method are both designed to be called in their
+     * roles as listeners, and not really part of the public interface of this class.
+     * @param stateBefore - the state before the state change.
+     * @param stateAfter - the state after the state change.
+     * @param nController - the hand index, 0 for left and 1 for right.
+     */
+    public void buttonStateChanged(VRControllerState_t stateBefore, VRControllerState_t stateAfter, int nController) {
+        // nothing for now
+<span class="nc" id="L83">    }</span>
+
+    /**
+     * A callback target for the controller listener. When this callback triggers, the pos of the mount point will
+     * cuange to the value of the pose parameter. This is mainly designed as a callback, and not intended to be part
+     * of the public interface of this class.
+     * @param pose - the controller pose - a homogenous transformation matrix.
+     * @param handIndex - the hand index - 0 for left and 1 for right.
+     */
+    public void poseChanged(Matrix4f pose, int handIndex) {
+        // do nothing for the second controller
+        // TODO: put a hand for the second controller.
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (handIndex != 0) {</span>
+<span class="nc" id="L96">            return;</span>
+        }
+<span class="nc" id="L98">        trackingDataReceived = true;</span>
+<span class="nc" id="L99">        Matrix4f adjustedPose = pose.mul(toolAdjustmentMatrix);</span>
+<span class="nc" id="L100">        translate = new Vector3f(adjustedPose.m30(), adjustedPose.m31(), adjustedPose.m32());</span>
+<span class="nc" id="L101">        org.joml.Vector4f jomlQuaternion = org.terasology.rendering.openvrprovider.OpenVRUtil.convertToQuaternion(adjustedPose);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (rotationQuaternion == null) {</span>
+<span class="nc" id="L103">            rotationQuaternion = new Quat4f(jomlQuaternion.x, jomlQuaternion.y, jomlQuaternion.z, jomlQuaternion.w);</span>
+        } else {
+<span class="nc" id="L105">            rotationQuaternion.set(jomlQuaternion.x, jomlQuaternion.y, jomlQuaternion.z, jomlQuaternion.w);</span>
+        }
+<span class="nc" id="L107">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

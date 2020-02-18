@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParticlePool.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.particles</a> &gt; <span class="el_source">ParticlePool.java</span></div><h1>ParticlePool.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.particles;
+
+import com.google.common.base.Preconditions;
+
+/**
+ * Object to keep track of the state of the living particles in a particle system and
+ * also maintains a pool of dead particles that can be recycled.
+ */
+public final class ParticlePool {
+
+    //== package private attributes =====================
+
+    // Static constants
+    private static final int X_OFFSET = 0;
+    private static final int Y_OFFSET = 1;
+    private static final int Z_OFFSET = 2;
+    private static final int W_OFFSET = 3;
+
+    // Per particle scalars
+    public final float[] energy;
+
+    // Per particle 2d vectors
+    public final float[] textureOffset;
+
+    // Per particle 3d vectors
+    public final float[] position;
+    public final float[] previousPosition;
+    public final float[] velocity;
+
+    public final float[] scale;
+
+    // Per particle 4d vectors
+    public final float[] color;
+
+    //== private attributes =============================
+
+<span class="pc" id="L52">    public final ParticleData temporaryParticleData = new ParticleData();</span>
+
+    private int firstDeadParticleIndex;
+    private final int rawSize;
+
+    //== Constructors ===================================
+
+<span class="fc" id="L59">    public ParticlePool(final int size) {</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        Preconditions.checkArgument(size &gt; 0, &quot;Size must be &gt;0, but was %s&quot;, size);</span>
+
+<span class="fc" id="L62">        this.rawSize = size;</span>
+<span class="fc" id="L63">        this.firstDeadParticleIndex = 0;</span>
+
+        // Per particle scalars
+<span class="fc" id="L66">        this.energy = new float[size];</span>
+
+        // Per particle 2d vectors
+<span class="fc" id="L69">        this.textureOffset = new float[size * 2];</span>
+
+        // Per particle 3d vectors
+<span class="fc" id="L72">        this.position = new float[size * 3];</span>
+<span class="fc" id="L73">        this.previousPosition = new float[size * 3];</span>
+<span class="fc" id="L74">        this.velocity = new float[size * 3];</span>
+<span class="fc" id="L75">        this.scale = new float[size * 3];</span>
+
+        // Per particle 4d vectors
+<span class="fc" id="L78">        this.color = new float[size * 4];</span>
+<span class="fc" id="L79">    }</span>
+
+<span class="nc" id="L81">    private ParticlePool() {</span>
+<span class="nc" id="L82">        throw new UnsupportedOperationException();</span>
+    }
+
+    //== public methods =================================
+
+    public int size() {
+<span class="fc" id="L88">        return rawSize;</span>
+    }
+
+    public int livingParticles() {
+<span class="fc" id="L92">        return firstDeadParticleIndex;</span>
+    }
+
+    public int deadParticles() {
+<span class="fc" id="L96">        return rawSize - firstDeadParticleIndex;</span>
+    }
+
+    public int reviveParticle() {
+<span class="fc" id="L100">        resetParticleData(firstDeadParticleIndex);</span>
+<span class="fc" id="L101">        firstDeadParticleIndex++;</span>
+
+<span class="fc" id="L103">        return firstDeadParticleIndex - 1;</span>
+    }
+
+    public void moveDeceasedParticle(final int index) {
+<span class="fc" id="L107">        firstDeadParticleIndex--;</span>
+        // First dead particle now points to the last living particle and there is a dead particle in the living pool.
+        // Moving the last living particle to the location of the deceased particle fixes both issues.
+<span class="fc" id="L110">        loadTemporaryDataFrom(firstDeadParticleIndex, ParticleDataMask.toInt(ParticleDataMask.ALL));</span>
+<span class="fc" id="L111">        storeTemporaryDataAt(index, ParticleDataMask.toInt(ParticleDataMask.ALL));</span>
+<span class="fc" id="L112">    }</span>
+
+    //== moving particle data ===========================
+
+    public void loadTemporaryDataFrom(final int index, int rawMask) {
+<span class="fc" id="L117">        final int index2 = 2 * index;</span>
+<span class="fc" id="L118">        final int index3 = 3 * index;</span>
+<span class="fc" id="L119">        final int index4 = 4 * index;</span>
+
+        // scalars
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if (ParticleDataMask.ENERGY.isEnabled(rawMask)) {</span>
+<span class="fc" id="L123">            temporaryParticleData.energy = energy[index];</span>
+        }
+
+        // 2d vectors
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        if (ParticleDataMask.TEXTURE_OFFSET.isEnabled(rawMask)) {</span>
+<span class="fc" id="L128">            temporaryParticleData.textureOffset.set(</span>
+                    textureOffset[index2 + X_OFFSET],
+                    textureOffset[index2 + Y_OFFSET]
+            );
+        }
+
+        // 3d vectors
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if (ParticleDataMask.POSITION.isEnabled(rawMask)) {</span>
+<span class="fc" id="L136">            temporaryParticleData.position.set(</span>
+                    position[index3 + X_OFFSET],
+                    position[index3 + Y_OFFSET],
+                    position[index3 + Z_OFFSET]
+            );
+        }
+
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">        if (ParticleDataMask.PREVIOUS_POSITION.isEnabled(rawMask)) {</span>
+<span class="fc" id="L144">            temporaryParticleData.previousPosition.set(</span>
+                    previousPosition[index3 + X_OFFSET],
+                    previousPosition[index3 + Y_OFFSET],
+                    previousPosition[index3 + Z_OFFSET]
+            );
+        }
+
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">        if (ParticleDataMask.VELOCITY.isEnabled(rawMask)) {</span>
+<span class="fc" id="L152">            temporaryParticleData.velocity.set(</span>
+                    velocity[index3 + X_OFFSET],
+                    velocity[index3 + Y_OFFSET],
+                    velocity[index3 + Z_OFFSET]
+            );
+        }
+
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">        if (ParticleDataMask.SCALE.isEnabled(rawMask)) {</span>
+<span class="fc" id="L160">            temporaryParticleData.scale.set(</span>
+                    scale[index3 + X_OFFSET],
+                    scale[index3 + Y_OFFSET],
+                    scale[index3 + Z_OFFSET]
+            );
+        }
+
+        // 4d vectors
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if (ParticleDataMask.COLOR.isEnabled(rawMask)) {</span>
+<span class="fc" id="L169">            temporaryParticleData.color.set(</span>
+                    color[index4 + X_OFFSET],
+                    color[index4 + Y_OFFSET],
+                    color[index4 + Z_OFFSET],
+                    color[index4 + W_OFFSET]
+            );
+        }
+<span class="fc" id="L176">    }</span>
+
+    public void storeTemporaryDataAt(final int index, final int rawMask) {
+<span class="fc" id="L179">        final int index2 = 2 * index;</span>
+<span class="fc" id="L180">        final int index3 = 3 * index;</span>
+<span class="fc" id="L181">        final int index4 = 4 * index;</span>
+
+        // scalars
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">        if (ParticleDataMask.ENERGY.isEnabled(rawMask)) {</span>
+<span class="fc" id="L185">            energy[index] = temporaryParticleData.energy;</span>
+        }
+
+        // 2d vectors
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">        if (ParticleDataMask.TEXTURE_OFFSET.isEnabled(rawMask)) {</span>
+<span class="fc" id="L190">            textureOffset[index2 + X_OFFSET] = temporaryParticleData.textureOffset.x();</span>
+<span class="fc" id="L191">            textureOffset[index2 + Y_OFFSET] = temporaryParticleData.textureOffset.y();</span>
+        }
+
+        // 3d vectors
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">        if (ParticleDataMask.POSITION.isEnabled(rawMask)) {</span>
+<span class="fc" id="L196">            position[index3 + X_OFFSET] = temporaryParticleData.position.x();</span>
+<span class="fc" id="L197">            position[index3 + Y_OFFSET] = temporaryParticleData.position.y();</span>
+<span class="fc" id="L198">            position[index3 + Z_OFFSET] = temporaryParticleData.position.z();</span>
+        }
+
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">        if (ParticleDataMask.PREVIOUS_POSITION.isEnabled(rawMask)) {</span>
+<span class="fc" id="L202">            previousPosition[index3 + X_OFFSET] = temporaryParticleData.previousPosition.x();</span>
+<span class="fc" id="L203">            previousPosition[index3 + Y_OFFSET] = temporaryParticleData.previousPosition.y();</span>
+<span class="fc" id="L204">            previousPosition[index3 + Z_OFFSET] = temporaryParticleData.previousPosition.z();</span>
+        }
+
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (ParticleDataMask.VELOCITY.isEnabled(rawMask)) {</span>
+<span class="fc" id="L208">            velocity[index3 + X_OFFSET] = temporaryParticleData.velocity.x();</span>
+<span class="fc" id="L209">            velocity[index3 + Y_OFFSET] = temporaryParticleData.velocity.y();</span>
+<span class="fc" id="L210">            velocity[index3 + Z_OFFSET] = temporaryParticleData.velocity.z();</span>
+        }
+
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        if (ParticleDataMask.SCALE.isEnabled(rawMask)) {</span>
+<span class="fc" id="L214">            scale[index3 + X_OFFSET] = temporaryParticleData.scale.x();</span>
+<span class="fc" id="L215">            scale[index3 + Y_OFFSET] = temporaryParticleData.scale.y();</span>
+<span class="fc" id="L216">            scale[index3 + Z_OFFSET] = temporaryParticleData.scale.z();</span>
+        }
+
+        // 4d vectors
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">        if (ParticleDataMask.COLOR.isEnabled(rawMask)) {</span>
+<span class="fc" id="L221">            color[index4 + X_OFFSET] = temporaryParticleData.color.x();</span>
+<span class="fc" id="L222">            color[index4 + Y_OFFSET] = temporaryParticleData.color.y();</span>
+<span class="fc" id="L223">            color[index4 + Z_OFFSET] = temporaryParticleData.color.z();</span>
+<span class="fc" id="L224">            color[index4 + W_OFFSET] = temporaryParticleData.color.w();</span>
+        }
+<span class="fc" id="L226">    }</span>
+
+    private void resetParticleData(final int i) {
+<span class="fc" id="L229">        final int i2 = i * 2;</span>
+<span class="fc" id="L230">        final int i3 = i * 3;</span>
+<span class="fc" id="L231">        final int i4 = i * 4;</span>
+
+        // scalars
+<span class="fc" id="L234">        energy[i] = 1.0f;</span>
+
+        // 2D vectors
+<span class="fc" id="L237">        textureOffset[i2 + X_OFFSET] = 0.0f;</span>
+
+        // 3D vectors
+
+<span class="fc" id="L241">        position[i3 + X_OFFSET] = 0.0f;</span>
+<span class="fc" id="L242">        position[i3 + Y_OFFSET] = 0.0f;</span>
+<span class="fc" id="L243">        position[i3 + Z_OFFSET] = 0.0f;</span>
+<span class="fc" id="L244">        previousPosition[i3 + X_OFFSET] = 0.0f;</span>
+<span class="fc" id="L245">        previousPosition[i3 + Y_OFFSET] = 0.0f;</span>
+<span class="fc" id="L246">        previousPosition[i3 + Z_OFFSET] = 0.0f;</span>
+<span class="fc" id="L247">        velocity[i3 + X_OFFSET] = 0.0f;</span>
+<span class="fc" id="L248">        velocity[i3 + Y_OFFSET] = 0.0f;</span>
+<span class="fc" id="L249">        velocity[i3 + Z_OFFSET] = 0.0f;</span>
+<span class="fc" id="L250">        scale[i3 + X_OFFSET] = 1.0f;</span>
+<span class="fc" id="L251">        scale[i3 + Y_OFFSET] = 1.0f;</span>
+<span class="fc" id="L252">        scale[i3 + Z_OFFSET] = 1.0f;</span>
+
+        // 4D vectors
+<span class="fc" id="L255">        color[i4 + X_OFFSET] = 1.0f;</span>
+<span class="fc" id="L256">        color[i4 + Y_OFFSET] = 1.0f;</span>
+<span class="fc" id="L257">        color[i4 + Z_OFFSET] = 1.0f;</span>
+<span class="fc" id="L258">        color[i4 + W_OFFSET] = 1.0f;</span>
+<span class="fc" id="L259">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlayerFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.players</a> &gt; <span class="el_source">PlayerFactory.java</span></div><h1>PlayerFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.players;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.ComponentContainer;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.characters.CharacterComponent;
+import org.terasology.logic.location.Location;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.AABB;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.BaseVector2i;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.SpiralIterable;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.physics.components.shapes.BoxShapeComponent;
+import org.terasology.physics.components.shapes.CapsuleShapeComponent;
+import org.terasology.physics.components.shapes.CylinderShapeComponent;
+import org.terasology.physics.components.shapes.HullShapeComponent;
+import org.terasology.physics.components.shapes.SphereShapeComponent;
+import org.terasology.world.WorldProvider;
+
+import java.util.Optional;
+
+/**
+ * Creates new player instances.
+ */
+public class PlayerFactory {
+
+<span class="nc" id="L49">    private static final Logger logger = LoggerFactory.getLogger(PlayerFactory.class);</span>
+
+    private EntityManager entityManager;
+    private WorldProvider worldProvider;
+
+<span class="nc" id="L54">    public PlayerFactory(EntityManager entityManager, WorldProvider worldProvider) {</span>
+<span class="nc" id="L55">        this.entityManager = entityManager;</span>
+<span class="nc" id="L56">        this.worldProvider = worldProvider;</span>
+<span class="nc" id="L57">    }</span>
+
+    /**
+     * Creates a new player character entity. The desired spawning location is derived from
+     * the {@link LocationComponent} of the controller.
+     * @param controller the controlling client entity
+     * @return a new player character entity
+     */
+    public EntityRef newInstance(EntityRef controller) {
+
+<span class="nc" id="L67">        EntityBuilder builder = entityManager.newBuilder(&quot;engine:player&quot;);</span>
+
+<span class="nc" id="L69">        LocationComponent location = controller.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L70">        Vector3f spawnPosition = findSpawnPositionFromLocationComponent(location);</span>
+<span class="nc" id="L71">        location.setWorldPosition(spawnPosition);</span>
+<span class="nc" id="L72">        controller.saveComponent(location);</span>
+
+<span class="nc" id="L74">        logger.debug(&quot;Spawing player at: {}&quot;, spawnPosition);</span>
+
+<span class="nc" id="L76">        builder.getComponent(LocationComponent.class).setWorldPosition(spawnPosition);</span>
+<span class="nc" id="L77">        builder.setOwner(controller);</span>
+
+<span class="nc" id="L79">        CharacterComponent playerComponent = builder.getComponent(CharacterComponent.class);</span>
+<span class="nc" id="L80">        playerComponent.controller = controller;</span>
+
+<span class="nc" id="L82">        EntityRef player = builder.build();</span>
+
+<span class="nc" id="L84">        Location.attachChild(player, controller, new Vector3f(), new Quat4f(0, 0, 0, 1));</span>
+
+<span class="nc" id="L86">        return player;</span>
+    }
+
+    public Vector3f findSpawnPositionFromLocationComponent(LocationComponent locationComponent) {
+<span class="nc" id="L90">        EntityBuilder builder = entityManager.newBuilder(&quot;engine:player&quot;);</span>
+<span class="nc" id="L91">        float extraSpace = 0.5f;  // spawn a little bit above the ground</span>
+<span class="nc" id="L92">        float entityHeight = getHeightOf(builder) + extraSpace;</span>
+<span class="nc" id="L93">        return findSpawnPos(locationComponent.getWorldPosition(), entityHeight).get(); // TODO: Handle Optional being empty</span>
+    }
+
+    private float getHeightOf(ComponentContainer prefab) {
+<span class="nc" id="L97">        BoxShapeComponent box = prefab.getComponent(BoxShapeComponent.class);</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (box != null) {</span>
+<span class="nc" id="L99">            return box.extents.getY();</span>
+        }
+
+<span class="nc" id="L102">        CylinderShapeComponent cylinder = prefab.getComponent(CylinderShapeComponent.class);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        if (cylinder != null) {</span>
+<span class="nc" id="L104">            return cylinder.height;</span>
+        }
+
+<span class="nc" id="L107">        CapsuleShapeComponent capsule = prefab.getComponent(CapsuleShapeComponent.class);</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (capsule != null) {</span>
+<span class="nc" id="L109">            return capsule.height;</span>
+        }
+
+<span class="nc" id="L112">        SphereShapeComponent sphere = prefab.getComponent(SphereShapeComponent.class);</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        if (sphere != null) {</span>
+<span class="nc" id="L114">            return sphere.radius * 2.0f;</span>
+        }
+
+<span class="nc" id="L117">        HullShapeComponent hull = prefab.getComponent(HullShapeComponent.class);</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if (hull != null) {</span>
+<span class="nc" id="L119">            AABB aabb = hull.sourceMesh.getAABB();</span>
+<span class="nc" id="L120">            return aabb.maxY() - aabb.minY();</span>
+        }
+
+<span class="nc" id="L123">        logger.warn(&quot;entity {} does not have any known extent specification - using default&quot;, prefab);</span>
+<span class="nc" id="L124">        return 1.0f;</span>
+    }
+
+    private Optional&lt;Vector3f&gt; findSpawnPos(Vector3f targetPos, float entityHeight) {
+<span class="nc" id="L128">        int targetBlockX = TeraMath.floorToInt(targetPos.x);</span>
+<span class="nc" id="L129">        int targetBlockY = TeraMath.floorToInt(targetPos.y);</span>
+<span class="nc" id="L130">        int targetBlockZ = TeraMath.floorToInt(targetPos.z);</span>
+<span class="nc" id="L131">        Vector2i center = new Vector2i(targetBlockX, targetBlockZ);</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        for (BaseVector2i pos : SpiralIterable.clockwise(center).maxRadius(32).scale(2).build()) {</span>
+
+<span class="nc" id="L134">            Vector3i testPos = new Vector3i(pos.getX(), targetBlockY, pos.getY());</span>
+<span class="nc" id="L135">            Vector3i spawnPos = findOpenVerticalPosition(testPos, entityHeight);</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            if (spawnPos != null) {</span>
+<span class="nc" id="L137">                return Optional.of(new Vector3f(spawnPos.getX(), spawnPos.getY() + entityHeight, spawnPos.getZ()));</span>
+            }
+<span class="nc" id="L139">        }</span>
+<span class="nc" id="L140">        return Optional.empty();</span>
+    }
+
+    /**
+     * find a spot above the surface that is big enough for this character
+     * @param spawnPos the position to check
+     * @param height the height of the entity to spawn
+     * @return the topmost solid block &lt;code&gt;null&lt;/code&gt; if none was found
+     */
+    private Vector3i findOpenVerticalPosition(Vector3i spawnPos, float height) {
+<span class="nc" id="L150">        int consecutiveAirBlocks = 0;</span>
+<span class="nc" id="L151">        Vector3i newSpawnPos = new Vector3i(spawnPos);</span>
+
+        // TODO: also start looking downwards if initial spawn pos is in the air
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        for (int i = 1; i &lt; 20; i++) {</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            if (worldProvider.isBlockRelevant(newSpawnPos)) {</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                if (worldProvider.getBlock(newSpawnPos).isPenetrable()) {</span>
+<span class="nc" id="L157">                    consecutiveAirBlocks++;</span>
+                } else {
+<span class="nc" id="L159">                    consecutiveAirBlocks = 0;</span>
+                }
+
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                if (consecutiveAirBlocks &gt;= height) {</span>
+<span class="nc" id="L163">                    newSpawnPos.subY(consecutiveAirBlocks);</span>
+<span class="nc" id="L164">                    return newSpawnPos;</span>
+                }
+<span class="nc" id="L166">                newSpawnPos.add(0, 1, 0);</span>
+            }
+        }
+
+<span class="nc" id="L170">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

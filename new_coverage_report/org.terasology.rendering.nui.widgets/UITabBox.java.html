@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UITabBox.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UITabBox.java</span></div><h1>UITabBox.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.nui.widgets;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.layouts.RowLayout;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+
+
+<span class="nc" id="L35">public class UITabBox extends CoreWidget {</span>
+<span class="nc" id="L36">    private static final Logger logger = LoggerFactory.getLogger(UITabBox.class);</span>
+
+<span class="nc" id="L38">    @LayoutConfig</span>
+    private List&lt;UIWidget&gt; contents = new ArrayList&lt;&gt;();
+
+<span class="nc" id="L41">    @LayoutConfig</span>
+    private List&lt;UIButton&gt; buttons = new ArrayList&lt;&gt;();
+
+<span class="nc" id="L44">    @LayoutConfig</span>
+    private int tabBarHeight = 30;
+
+<span class="nc" id="L47">    @LayoutConfig</span>
+    private int currentTab = 1;
+
+<span class="nc" id="L50">    private List&lt;ActivateEventListener&gt; listeners = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L51">    private RowLayout buttonLayout = new RowLayout();</span>
+    private boolean isCreated;
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L56" title="All 2 branches missed.">        if (!contents.isEmpty()) {</span>
+<span class="nc" id="L57">            Rect2i region = canvas.getRegion();</span>
+<span class="nc" id="L58">            Rect2i buttonRegion = Rect2i.createFromMinAndSize(region.minX(), region.minY(), region.width(), tabBarHeight);</span>
+<span class="nc" id="L59">            Rect2i boxRegion = Rect2i.createFromMinAndMax(region.minX(), region.minY() + tabBarHeight, region.width(), region.height());</span>
+<span class="nc" id="L60">            canvas.drawWidget(contents.get(currentTab), boxRegion);</span>
+<span class="nc" id="L61">            canvas.drawWidget(buttonLayout, buttonRegion);</span>
+        }
+<span class="nc" id="L63">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (!contents.isEmpty()) {</span>
+<span class="nc" id="L68">            return canvas.calculateRestrictedSize(contents.get(currentTab), sizeHint);</span>
+        }
+<span class="nc" id="L70">        return Vector2i.zero();</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (!isCreated) {</span>
+<span class="nc" id="L76">            isCreated = true;</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            for (int i = 0; i &lt; buttons.size(); i++) {</span>
+<span class="nc" id="L78">                UIButton button = buttons.get(i);</span>
+<span class="nc" id="L79">                listeners.add(widget -&gt; currentTab = buttons.indexOf(widget));</span>
+<span class="nc" id="L80">                button.subscribe(listeners.get(listeners.size() - 1));</span>
+<span class="nc" id="L81">                buttonLayout.addWidget(button, null);</span>
+<span class="nc" id="L82">                buttons.set(i, button);</span>
+            }
+        }
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        buttons.forEach(b -&gt; b.setActive(currentTab == buttons.indexOf(b)));</span>
+<span class="nc" id="L86">        super.update(delta);</span>
+<span class="nc" id="L87">    }</span>
+
+    @Override
+    public Iterator&lt;UIWidget&gt; iterator() {
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (!contents.isEmpty()) {</span>
+<span class="nc" id="L92">            return contents.iterator();</span>
+        }
+<span class="nc" id="L94">        return Collections.emptyIterator();</span>
+    }
+
+    public int addTab(UIWidget content, UIButton button) {
+<span class="nc" id="L98">        listeners.add(widget -&gt; currentTab = buttons.indexOf(widget));</span>
+<span class="nc" id="L99">        button.subscribe(listeners.get(listeners.size() - 1));</span>
+<span class="nc" id="L100">        buttonLayout.addWidget(button, null);</span>
+<span class="nc" id="L101">        contents.add(content);</span>
+<span class="nc" id="L102">        buttons.add(button);</span>
+
+<span class="nc" id="L104">        return contents.size() - 1;</span>
+    }
+
+    public void removeTab(int tabNumber) {
+<span class="nc" id="L108">        buttons.get(tabNumber).unsubscribe(listeners.get(tabNumber));</span>
+<span class="nc" id="L109">        buttonLayout.removeWidget(buttons.get(tabNumber));</span>
+<span class="nc" id="L110">        contents.remove(tabNumber);</span>
+<span class="nc" id="L111">        listeners.remove(tabNumber);</span>
+<span class="nc" id="L112">        buttons.remove(tabNumber);</span>
+<span class="nc" id="L113">    }</span>
+
+    /**
+     * Selects a tab from the contents list via index.
+     *
+     * @param index The index of the item to select.
+     */
+    public void select(int index) {
+<span class="nc bnc" id="L121" title="All 4 branches missed.">        if (index &gt;= 0 &amp;&amp; index &lt; contents.size()) {</span>
+<span class="nc" id="L122">            currentTab = index;</span>
+        }
+<span class="nc" id="L124">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

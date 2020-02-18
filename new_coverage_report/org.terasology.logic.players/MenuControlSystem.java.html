@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MenuControlSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.players</a> &gt; <span class="el_source">MenuControlSystem.java</span></div><h1>MenuControlSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.logic.players;
+
+import org.terasology.audio.AudioManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.input.ButtonState;
+import org.terasology.input.binds.general.OnlinePlayersButton;
+import org.terasology.input.binds.general.PauseButton;
+import org.terasology.input.binds.general.ScreenshotButton;
+import org.terasology.logic.characters.CharacterComponent;
+import org.terasology.logic.characters.events.PlayerDeathEvent;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.NetworkMode;
+import org.terasology.network.NetworkSystem;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.layers.ingame.DeathScreen;
+import org.terasology.rendering.nui.layers.ingame.OnlinePlayersOverlay;
+import org.terasology.rendering.opengl.ScreenGrabber;
+import org.terasology.utilities.Assets;
+import org.terasology.engine.Time;
+
+
+/**
+ * This system controls the client's in-game menus (Pause screen, Death screen, HUDs and overlays).
+ */
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L48">public class MenuControlSystem extends BaseComponentSystem {</span>
+
+    @In
+    private NUIManager nuiManager;
+
+    @In
+    private Time time;
+
+    @In
+    private NetworkSystem networkSystem;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L61">        nuiManager.getHUD().addHUDElement(&quot;dropItemRegion&quot;);  //Ensure the drop region is behind the toolbar</span>
+<span class="nc" id="L62">        nuiManager.getHUD().addHUDElement(&quot;toolbar&quot;);</span>
+<span class="nc" id="L63">    }</span>
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onTogglePause(PauseButton event, EntityRef entity) {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (event.getState() == ButtonState.DOWN) {</span>
+<span class="nc" id="L68">            nuiManager.toggleScreen(&quot;engine:pauseMenu&quot;);</span>
+<span class="nc" id="L69">            event.consume();</span>
+        }
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        if (networkSystem.getMode() == NetworkMode.NONE) {</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            if (nuiManager.isOpen(&quot;engine:pauseMenu&quot;)) {</span>
+<span class="nc" id="L73">                time.setPaused(true);</span>
+            } else {
+<span class="nc" id="L75">                time.setPaused(false);</span>
+            }
+        }
+<span class="nc" id="L78">    }</span>
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onScreenshotCapture(ScreenshotButton event, EntityRef entity) {
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        if (event.getState() == ButtonState.DOWN) {</span>
+<span class="nc" id="L83">            CoreRegistry.get(ScreenGrabber.class).takeScreenshot();</span>
+<span class="nc" id="L84">            CoreRegistry.get(AudioManager.class).playSound(Assets.getSound(&quot;engine:camera&quot;).get());</span>
+<span class="nc" id="L85">            event.consume();</span>
+        }
+<span class="nc" id="L87">    }</span>
+
+    @ReceiveEvent(components = {CharacterComponent.class})
+    public void onPlayerDeath(PlayerDeathEvent event, EntityRef character) {
+<span class="nc" id="L91">        EntityRef client = character.getComponent(CharacterComponent.class).controller;</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (client.getComponent(ClientComponent.class).local) {</span>
+<span class="nc" id="L93">            nuiManager.removeOverlay(&quot;engine:onlinePlayersOverlay&quot;);</span>
+<span class="nc" id="L94">            nuiManager.pushScreen(&quot;engine:deathScreen&quot;);</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">            if (event.damageTypeName != null) {</span>
+<span class="nc" id="L96">                ((DeathScreen) nuiManager.getScreen(&quot;engine:deathScreen&quot;)).setDeathDetails(event.instigatorName, event.damageTypeName);</span>
+            }
+        }
+<span class="nc" id="L99">    }</span>
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onShowOnlinePlayers(OnlinePlayersButton event, EntityRef entity) {
+<span class="nc" id="L103">        boolean show = event.isDown();</span>
+<span class="nc" id="L104">        String onlinePlayersOverlay = &quot;engine:onlinePlayersOverlay&quot;;</span>
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        if (show) {</span>
+<span class="nc" id="L107">            nuiManager.addOverlay(onlinePlayersOverlay, OnlinePlayersOverlay.class);</span>
+        } else {
+<span class="nc" id="L109">            nuiManager.removeOverlay(onlinePlayersOverlay);</span>
+        }
+<span class="nc" id="L111">        event.consume();</span>
+<span class="nc" id="L112">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CardLayout.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layouts</a> &gt; <span class="el_source">CardLayout.java</span></div><h1>CardLayout.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layouts;
+
+import com.google.common.collect.Maps;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreLayout;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.LayoutHint;
+import org.terasology.rendering.nui.UIWidget;
+
+import java.util.Iterator;
+import java.util.Map;
+
+/**
+ * A layout that allows for a single widget to be displayed among a list of stored widgets
+ */
+public class CardLayout extends CoreLayout&lt;LayoutHint&gt; {
+    /**
+     * The id of the currently displayed widget
+     */
+    @LayoutConfig
+    private String currentlyDisplayedCard;
+
+    /**
+     * Maps ids to their corresponding widgets
+     */
+<span class="pc" id="L42">    private Map&lt;String, UIWidget&gt; widgets = Maps.newHashMap();</span>
+
+    /**
+     * Creates an empty {@code CardLayout}
+     */
+<span class="fc" id="L47">    public CardLayout() {</span>
+
+<span class="fc" id="L49">    }</span>
+
+    /**
+     * Creates an empty {@code CardLayout} with the given id.
+     *
+     * @param id The id assigned to this {@code CardLayout}
+     */
+    public CardLayout(String id) {
+<span class="nc" id="L57">        super(id);</span>
+<span class="nc" id="L58">    }</span>
+
+    /**
+     * Adds the widget to this layout's widget list.
+     *
+     * @param widget The {@link UIWidget} to be added to this {@code CardLayout}
+     * @throws IllegalArgumentException if the widget does not have an id
+     */
+    public void addWidget(UIWidget widget) {
+<span class="fc" id="L67">        String id = widget.getId();</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        if (id == null) {</span>
+<span class="nc" id="L69">            throw new IllegalArgumentException(&quot;CardLayout requires for each widget to be added to it to have an id&quot;);</span>
+        }
+<span class="fc" id="L71">        widgets.put(id, widget);</span>
+<span class="fc" id="L72">    }</span>
+
+    /**
+     * Adds the widget to this layout's widget list.
+     *
+     * @param element The {@code UIWidget} to add
+     * @param hint (unused)
+     */
+    @Override
+    public void addWidget(UIWidget element, LayoutHint hint) {
+<span class="nc" id="L82">        addWidget(element);</span>
+<span class="nc" id="L83">    }</span>
+
+    /**
+     * Removes the widget from this layout's widget list.
+     *
+     * @param widget The {@code UIWidget} to be removed from this {@code CardLayout}
+     */
+    @Override
+    public void removeWidget(UIWidget widget) {
+<span class="nc" id="L92">        String id = widget.getId();</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (id != null) {</span>
+<span class="nc" id="L94">            widgets.remove(id);</span>
+        }
+<span class="nc" id="L96">    }</span>
+
+    @Override
+    public void removeAllWidgets() {
+<span class="nc" id="L100">        widgets.clear();</span>
+<span class="nc" id="L101">    }</span>
+
+    /**
+     * Sets the currently displayed widget.
+     *
+     * @param id The id of the {@code UIWidget} to be displayed
+     */
+    public void setDisplayedCard(String id) {
+<span class="fc" id="L109">        currentlyDisplayedCard = id;</span>
+<span class="fc" id="L110">    }</span>
+
+    /**
+     * Draws the currently displayed widget, as defined in {@code currentDisplayedCard}.
+     * This is called every frame.
+     *
+     * @param canvas The {@link Canvas} on which this {@code CardLayout} is drawn
+     */
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">        if (currentlyDisplayedCard != null) {</span>
+<span class="fc" id="L121">            UIWidget widget = widgets.get(currentlyDisplayedCard);</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">            if (widget != null) {</span>
+<span class="fc" id="L123">                canvas.drawWidget(widget);</span>
+            }
+        }
+<span class="fc" id="L126">    }</span>
+
+    /**
+     * Retrieves the preferred content size of this {@code CardLayout}.
+     * This is the minimum size this layout will take, given no space restrictions.
+     *
+     * @param canvas The {@code Canvas} on which this {@code CardLayout} is drawn
+     * @param sizeHint A {@link Vector2i} representing the space available for widgets to be drawn in this layout
+     * @return A {@code Vector2i} representing the preferred content size of this {@code CardLayout}
+     */
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="fc" id="L138">        int maxX = 0;</span>
+<span class="fc" id="L139">        int maxY = 0;</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">        for (UIWidget uiWidget : widgets.values()) {</span>
+<span class="fc" id="L141">            Vector2i preferredContentSize = uiWidget.getPreferredContentSize(canvas, sizeHint);</span>
+<span class="fc" id="L142">            maxX = Math.max(maxX, preferredContentSize.x);</span>
+<span class="fc" id="L143">            maxY = Math.max(maxY, preferredContentSize.y);</span>
+<span class="fc" id="L144">        }</span>
+
+<span class="fc" id="L146">        return new Vector2i(maxX, maxY);</span>
+    }
+
+    /**
+     * Retrieves the maximum content size of this {@code CardLayout}.
+     *
+     * @param canvas The {@code Canvas} on which this {@code CardLayout} is drawn
+     * @return A {@code Vector2i} representing the maximum content size of this {@code CardLayout}
+     */
+    @Override
+    public Vector2i getMaxContentSize(Canvas canvas) {
+<span class="nc" id="L157">        int maxX = 0;</span>
+<span class="nc" id="L158">        int maxY = 0;</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        for (UIWidget uiWidget : widgets.values()) {</span>
+<span class="nc" id="L160">            Vector2i maxContentSize = uiWidget.getMaxContentSize(canvas);</span>
+<span class="nc" id="L161">            maxX = Math.max(maxX, maxContentSize.x);</span>
+<span class="nc" id="L162">            maxY = Math.max(maxY, maxContentSize.y);</span>
+<span class="nc" id="L163">        }</span>
+
+<span class="nc" id="L165">        return new Vector2i(maxX, maxY);</span>
+    }
+
+    /**
+     * Retrieves an {@link Iterator} containing this layout's widget list.
+     *
+     * @return An {@code Iterator} containing the list of {@code UIWidgets}
+     */
+    @Override
+    public Iterator&lt;UIWidget&gt; iterator() {
+<span class="nc" id="L175">        return widgets.values().iterator();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GamePlayMetric.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.telemetry.metrics</a> &gt; <span class="el_source">GamePlayMetric.java</span></div><h1>GamePlayMetric.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.telemetry.metrics;
+
+import com.snowplowanalytics.snowplow.tracker.events.Unstructured;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.telemetry.GamePlayStatsComponent;
+import org.terasology.telemetry.TelemetryCategory;
+import org.terasology.telemetry.TelemetryField;
+
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * A game play metric tracking metric such as distance traveled, play time, etc.
+ * The stats begin at 0 when a new game starts.
+ */
+@TelemetryCategory(id = &quot;gameplay&quot;,
+        displayName = &quot;${engine:menu#telemetry-game-play}&quot;,
+        isOneMapMetric = false
+)
+public final class GamePlayMetric extends Metric {
+
+    public static final String SCHEMA_GAMEPLAY = &quot;iglu:org.terasology/gamePlay/jsonschema/1-0-0&quot;;
+
+    private Map&lt;String, Boolean&gt; bindingMap;
+
+    private LocalPlayer localPlayer;
+
+    @TelemetryField
+    private float distanceTraveled;
+
+    @TelemetryField
+    private long playTimeMinute;
+
+<span class="nc" id="L53">    public GamePlayMetric(Context context) {</span>
+<span class="nc" id="L54">        bindingMap = context.get(Config.class).getTelemetryConfig().getMetricsUserPermissionConfig().getBindingMap();</span>
+<span class="nc" id="L55">    }</span>
+
+    @Override
+    public Optional&lt;Unstructured&gt; getUnstructuredMetric() {
+<span class="nc" id="L59">        createTelemetryFieldToValue();</span>
+<span class="nc" id="L60">        Map&lt;String, Object&gt; filteredMetricMap = filterMetricMap(bindingMap);</span>
+<span class="nc" id="L61">        return getUnstructuredMetric(SCHEMA_GAMEPLAY, filteredMetricMap);</span>
+    }
+
+    @Override
+    public Map&lt;String, ?&gt; createTelemetryFieldToValue() {
+<span class="nc" id="L66">        localPlayer = CoreRegistry.get(LocalPlayer.class);</span>
+<span class="nc" id="L67">        EntityRef playerEntity = localPlayer.getCharacterEntity();</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        if (playerEntity.hasComponent(GamePlayStatsComponent.class)) {</span>
+<span class="nc" id="L69">            GamePlayStatsComponent gamePlayStatsComponent = playerEntity.getComponent(GamePlayStatsComponent.class);</span>
+<span class="nc" id="L70">            distanceTraveled = gamePlayStatsComponent.distanceTraveled;</span>
+<span class="nc" id="L71">            playTimeMinute = (long) gamePlayStatsComponent.playTimeMinute;</span>
+<span class="nc" id="L72">            return super.createTelemetryFieldToValue();</span>
+        } else {
+<span class="nc" id="L74">            return super.createTelemetryFieldToValue();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

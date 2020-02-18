@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TelemetryLogstashAppender.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.telemetry.logstash</a> &gt; <span class="el_source">TelemetryLogstashAppender.java</span></div><h1>TelemetryLogstashAppender.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.telemetry.logstash;
+
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.filter.ThresholdFilter;
+import net.logstash.logback.appender.LogstashTcpSocketAppender;
+import net.logstash.logback.composite.JsonProviders;
+import net.logstash.logback.composite.LogstashVersionJsonProvider;
+import net.logstash.logback.composite.loggingevent.LogLevelJsonProvider;
+import net.logstash.logback.composite.loggingevent.LoggerNameJsonProvider;
+import net.logstash.logback.composite.loggingevent.LoggingEventFormattedTimestampJsonProvider;
+import net.logstash.logback.composite.loggingevent.MdcJsonProvider;
+import net.logstash.logback.composite.loggingevent.MessageJsonProvider;
+import net.logstash.logback.composite.loggingevent.StackTraceJsonProvider;
+import net.logstash.logback.composite.loggingevent.ThreadNameJsonProvider;
+import net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder;
+import net.logstash.logback.stacktrace.ShortenedThrowableConverter;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+
+/**
+ * This is a logback Logstash appender that enriches error logs and sent them to the Logstash in server.
+ * The constructor has the default configuration of this appender. The destination of this appender will be set when error reporting is enabled.
+ */
+public class TelemetryLogstashAppender extends LogstashTcpSocketAppender {
+
+    public static final String TELEMETRY_APPENDER_NAME = &quot;LOGSTASH&quot;;
+
+    public static final String DEFAULT_LOGSTASH_HOST = &quot;utility.terasology.org&quot;;
+
+    public static final String DEFAULT_LOGSTASH_OWNER = &quot;Terasology Community&quot;;
+
+    public static final String DEFAULT_LOGSTASH_NAME = &quot;Logstash&quot;;
+
+    public static final int DEFAULT_LOGSTASH_PORT = 9600;
+
+    private Context gameContext;
+
+<span class="nc" id="L53">    public TelemetryLogstashAppender(Context context) {</span>
+
+<span class="nc" id="L55">        this.setName(TELEMETRY_APPENDER_NAME);</span>
+
+<span class="nc" id="L57">        this.setContext((LoggerContext) LoggerFactory.getILoggerFactory());</span>
+
+<span class="nc" id="L59">        this.addErrorFilter();</span>
+
+<span class="nc" id="L61">        this.setDefaultEncoder();</span>
+
+<span class="nc" id="L63">        this.gameContext = context;</span>
+<span class="nc" id="L64">    }</span>
+
+    private void addErrorFilter() {
+
+<span class="nc" id="L68">        ThresholdFilter filter = new ThresholdFilter();</span>
+<span class="nc" id="L69">        filter.setLevel(&quot;error&quot;);</span>
+<span class="nc" id="L70">        filter.start();</span>
+<span class="nc" id="L71">        this.addFilter(filter);</span>
+<span class="nc" id="L72">    }</span>
+
+    private void setDefaultEncoder() {
+
+<span class="nc" id="L76">        LoggingEventCompositeJsonEncoder loggingEventCompositeJsonEncoder = new LoggingEventCompositeJsonEncoder();</span>
+<span class="nc" id="L77">        JsonProviders jsonProviders = new JsonProviders();</span>
+<span class="nc" id="L78">        jsonProviders.addProvider(new LoggingEventFormattedTimestampJsonProvider());</span>
+<span class="nc" id="L79">        jsonProviders.addProvider(new LogstashVersionJsonProvider());</span>
+<span class="nc" id="L80">        jsonProviders.addProvider(new MdcJsonProvider());</span>
+<span class="nc" id="L81">        jsonProviders.addProvider(new MessageJsonProvider());</span>
+<span class="nc" id="L82">        jsonProviders.addProvider(new LogLevelJsonProvider());</span>
+<span class="nc" id="L83">        jsonProviders.addProvider(new LoggerNameJsonProvider());</span>
+<span class="nc" id="L84">        jsonProviders.addProvider(new ThreadNameJsonProvider());</span>
+
+        // custom providers
+<span class="nc" id="L87">        jsonProviders.addProvider(new SystemContextJsonProvider());</span>
+<span class="nc" id="L88">        jsonProviders.addProvider(new ModulesJsonProvider());</span>
+<span class="nc" id="L89">        jsonProviders.addProvider(new UserIdJsonProvider());</span>
+
+<span class="nc" id="L91">        StackTraceJsonProvider stackTraceJsonProvider = new StackTraceJsonProvider();</span>
+<span class="nc" id="L92">        ShortenedThrowableConverter shortenedThrowableConverter = new ShortenedThrowableConverter();</span>
+<span class="nc" id="L93">        shortenedThrowableConverter.setMaxDepthPerThrowable(30);</span>
+<span class="nc" id="L94">        shortenedThrowableConverter.setMaxLength(2046);</span>
+<span class="nc" id="L95">        shortenedThrowableConverter.setShortenedClassNameLength(20);</span>
+<span class="nc" id="L96">        shortenedThrowableConverter.setRootCauseFirst(true);</span>
+<span class="nc" id="L97">        stackTraceJsonProvider.setThrowableConverter(shortenedThrowableConverter);</span>
+<span class="nc" id="L98">        jsonProviders.addProvider(stackTraceJsonProvider);</span>
+
+<span class="nc" id="L100">        loggingEventCompositeJsonEncoder.setProviders(jsonProviders);</span>
+<span class="nc" id="L101">        this.setEncoder(loggingEventCompositeJsonEncoder);</span>
+<span class="nc" id="L102">    }</span>
+
+    public Context getGameContext() {
+<span class="nc" id="L105">        return gameContext;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

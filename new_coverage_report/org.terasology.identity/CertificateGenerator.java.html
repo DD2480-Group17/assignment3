@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CertificateGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.identity</a> &gt; <span class="el_source">CertificateGenerator.java</span></div><h1>CertificateGenerator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.identity;
+
+import com.google.common.base.Charsets;
+
+import java.math.BigInteger;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.SecureRandom;
+import java.security.Signature;
+import java.security.SignatureException;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.RSAPrivateKeySpec;
+import java.security.spec.RSAPublicKeySpec;
+import java.util.UUID;
+
+/**
+ * A generator for identity certificates.
+ */
+public class CertificateGenerator {
+    private static final int KEY_SIZE = 2048;
+    private KeyPairGenerator keyPairGenerator;
+    private KeyFactory keyFactory;
+    private Signature signer;
+
+<span class="fc" id="L44">    public CertificateGenerator() {</span>
+        try {
+<span class="fc" id="L46">            keyPairGenerator = KeyPairGenerator.getInstance(IdentityConstants.CERTIFICATE_ALGORITHM);</span>
+<span class="fc" id="L47">            keyFactory = KeyFactory.getInstance(IdentityConstants.CERTIFICATE_ALGORITHM);</span>
+<span class="fc" id="L48">            signer = Signature.getInstance(IdentityConstants.SIGNATURE_ALGORITHM);</span>
+<span class="nc" id="L49">        } catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L50">            throw new RuntimeException(&quot;Insufficient support for '&quot; + IdentityConstants.CERTIFICATE_ALGORITHM + &quot;', required for identity management&quot;, e);</span>
+<span class="fc" id="L51">        }</span>
+<span class="fc" id="L52">    }</span>
+
+    /**
+     * Generates a self-signed certificate. These are used to identify servers.
+     *
+     * @return A matched pair of public and private certificates.
+     */
+    public CertificatePair generateSelfSigned() {
+<span class="fc" id="L60">        keyPairGenerator.initialize(KEY_SIZE);</span>
+<span class="fc" id="L61">        KeyPair kp = keyPairGenerator.genKeyPair();</span>
+
+        try {
+<span class="fc" id="L64">            RSAPublicKeySpec pub = keyFactory.getKeySpec(kp.getPublic(), RSAPublicKeySpec.class);</span>
+<span class="fc" id="L65">            RSAPrivateKeySpec priv = keyFactory.getKeySpec(kp.getPrivate(), RSAPrivateKeySpec.class);</span>
+<span class="fc" id="L66">            String uuid = UUID.randomUUID().toString();</span>
+<span class="fc" id="L67">            signer.initSign(kp.getPrivate(), new SecureRandom());</span>
+<span class="fc" id="L68">            signer.update(uuid.getBytes(Charsets.UTF_8));</span>
+<span class="fc" id="L69">            signer.update(pub.getModulus().toByteArray());</span>
+<span class="fc" id="L70">            signer.update(pub.getPublicExponent().toByteArray());</span>
+<span class="fc" id="L71">            byte[] rawSig = signer.sign();</span>
+<span class="fc" id="L72">            BigInteger signature = new BigInteger(rawSig);</span>
+
+<span class="fc" id="L74">            PublicIdentityCertificate publicCert = new PublicIdentityCertificate(uuid, pub.getModulus(), pub.getPublicExponent(), signature);</span>
+<span class="fc" id="L75">            PrivateIdentityCertificate privateCert = new PrivateIdentityCertificate(priv.getModulus(), priv.getPrivateExponent());</span>
+<span class="fc" id="L76">            return new CertificatePair(publicCert, privateCert);</span>
+<span class="nc" id="L77">        } catch (InvalidKeySpecException | SignatureException | InvalidKeyException e) {</span>
+<span class="nc" id="L78">            throw new RuntimeException(&quot;Unexpected exception generating certificate&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Generates a certificate signed by the given signer - a server will typically generate client identity certificates
+     * signed by its certificate.
+     *
+     * @param signingCertificate
+     * @return A matched pair of public and private certificates.
+     */
+    public CertificatePair generate(PrivateIdentityCertificate signingCertificate) {
+<span class="fc" id="L90">        keyPairGenerator.initialize(KEY_SIZE);</span>
+<span class="fc" id="L91">        KeyPair kp = keyPairGenerator.genKeyPair();</span>
+
+<span class="fc" id="L93">        RSAPrivateKeySpec signingRSAKey = new RSAPrivateKeySpec(signingCertificate.getModulus(), signingCertificate.getExponent());</span>
+
+        try {
+<span class="fc" id="L96">            PrivateKey signingKey = keyFactory.generatePrivate(signingRSAKey);</span>
+
+<span class="fc" id="L98">            RSAPublicKeySpec pub = keyFactory.getKeySpec(kp.getPublic(), RSAPublicKeySpec.class);</span>
+<span class="fc" id="L99">            RSAPrivateKeySpec priv = keyFactory.getKeySpec(kp.getPrivate(), RSAPrivateKeySpec.class);</span>
+
+<span class="fc" id="L101">            String uuid = UUID.randomUUID().toString();</span>
+<span class="fc" id="L102">            signer.initSign(signingKey, new SecureRandom());</span>
+<span class="fc" id="L103">            signer.update(uuid.getBytes(Charsets.UTF_8));</span>
+<span class="fc" id="L104">            signer.update(pub.getModulus().toByteArray());</span>
+<span class="fc" id="L105">            signer.update(pub.getPublicExponent().toByteArray());</span>
+<span class="fc" id="L106">            byte[] rawSig = signer.sign();</span>
+<span class="fc" id="L107">            BigInteger signature = new BigInteger(rawSig);</span>
+
+<span class="fc" id="L109">            PublicIdentityCertificate publicCert = new PublicIdentityCertificate(uuid, pub.getModulus(), pub.getPublicExponent(), signature);</span>
+<span class="fc" id="L110">            PrivateIdentityCertificate privateCert = new PrivateIdentityCertificate(priv.getModulus(), priv.getPrivateExponent());</span>
+<span class="fc" id="L111">            return new CertificatePair(publicCert, privateCert);</span>
+<span class="nc" id="L112">        } catch (InvalidKeySpecException | SignatureException | InvalidKeyException e) {</span>
+<span class="nc" id="L113">            throw new RuntimeException(&quot;Unexpected exception generating certificate&quot;, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

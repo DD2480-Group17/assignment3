@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZoomableLayoutTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layouts</a> &gt; <span class="el_source">ZoomableLayoutTest.java</span></div><h1>ZoomableLayoutTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layouts;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.Canvas;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.terasology.math.TeraMath.ceilToInt;
+
+<span class="fc" id="L31">public class ZoomableLayoutTest {</span>
+    private static final int CANVAS_WIDTH = 100;
+    private static final int CANVAS_HEIGHT = 50;
+    private static final float WORLD_WIDTH = 100;
+    private static final float WORLD_HEIGHT = 100;
+
+    private ZoomableLayout zoomableLayout;
+
+    private Canvas canvas;
+
+    private ZoomableLayout.PositionalWidget item1;
+    private ZoomableLayout.PositionalWidget item2;
+    private ZoomableLayout.PositionalWidget item3;
+
+    private Vector2f pos1;
+    private Vector2f pos2;
+    private Vector2f pos3;
+
+    private Vector2f size1;
+    private Vector2f size2;
+    private Vector2f size3;
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L55">        zoomableLayout = new ZoomableLayout();</span>
+
+<span class="fc" id="L57">        item1 = mock(ZoomableLayout.PositionalWidget.class);</span>
+<span class="fc" id="L58">        item2 = mock(ZoomableLayout.PositionalWidget.class);</span>
+<span class="fc" id="L59">        item3 = mock(ZoomableLayout.PositionalWidget.class);</span>
+
+<span class="fc" id="L61">        canvas = mock(Canvas.class);</span>
+
+        //    
+        //   +------+
+        //   |  1   |
+        //   +------+
+        //             +-+
+        //             |2|
+        //             +-+
+        //
+        //                        +---+
+        //                        | 3 |
+        //                        |   |
+        //                        +---+
+
+        //positions of the widgets in the world
+<span class="fc" id="L77">        pos1 = new Vector2f(10, 10);</span>
+<span class="fc" id="L78">        pos2 = new Vector2f(40, 40);</span>
+<span class="fc" id="L79">        pos3 = new Vector2f(80, 70);</span>
+
+<span class="fc" id="L81">        when(item1.getPosition()).thenReturn(pos1);</span>
+<span class="fc" id="L82">        when(item2.getPosition()).thenReturn(pos2);</span>
+<span class="fc" id="L83">        when(item3.getPosition()).thenReturn(pos3);</span>
+
+        //size of widgets
+<span class="fc" id="L86">        size1 = new Vector2f(20, 10);</span>
+<span class="fc" id="L87">        size2 = new Vector2f(5, 10);</span>
+<span class="fc" id="L88">        size3 = new Vector2f(10, 20);</span>
+
+<span class="fc" id="L90">        when(item1.getSize()).thenReturn(size1);</span>
+<span class="fc" id="L91">        when(item2.getSize()).thenReturn(size2);</span>
+<span class="fc" id="L92">        when(item3.getSize()).thenReturn(size3);</span>
+
+<span class="fc" id="L94">        when(item1.isVisible()).thenReturn(true);</span>
+<span class="fc" id="L95">        when(item2.isVisible()).thenReturn(true);</span>
+<span class="fc" id="L96">        when(item3.isVisible()).thenReturn(true);</span>
+
+<span class="fc" id="L98">        Vector2i availableSize = new Vector2i(CANVAS_WIDTH, CANVAS_HEIGHT);</span>
+<span class="fc" id="L99">        when(canvas.size()).thenReturn(availableSize);</span>
+<span class="fc" id="L100">        zoomableLayout.setWindowSize(new Vector2f(WORLD_WIDTH, WORLD_HEIGHT));</span>
+
+<span class="fc" id="L102">        zoomableLayout.addWidget(item1);</span>
+<span class="fc" id="L103">        zoomableLayout.addWidget(item2);</span>
+<span class="fc" id="L104">        zoomableLayout.addWidget(item3);</span>
+
+<span class="fc" id="L106">    }</span>
+
+    @Test
+    public void testScaling() throws Exception {
+
+<span class="fc" id="L111">        zoomableLayout.onDraw(canvas);</span>
+
+        //world size scaled to fit ratio of screen size - world size now 200 x 100
+<span class="fc" id="L114">        assertEquals(zoomableLayout.getWindowSize(), new Vector2f(WORLD_WIDTH * 2, WORLD_HEIGHT));</span>
+<span class="fc" id="L115">        assertEquals(zoomableLayout.getScreenSize(), new Vector2i(CANVAS_WIDTH, CANVAS_HEIGHT));</span>
+<span class="fc" id="L116">        assertEquals(zoomableLayout.getPixelSize(), new Vector2f(CANVAS_WIDTH / (WORLD_WIDTH * 2), CANVAS_HEIGHT / WORLD_HEIGHT));</span>
+
+        //coordinates on widgets scaled down by half
+<span class="fc" id="L119">        verify(canvas).drawWidget(item1, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos1.x / 2), ceilToInt(pos1.y / 2)), new Vector2i(ceilToInt((pos1.x + size1.x) / 2), ceilToInt((pos1.y + size1.y) / 2))));</span>
+<span class="fc" id="L120">        verify(canvas).drawWidget(item2, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos2.x / 2), ceilToInt(pos2.y / 2)), new Vector2i(ceilToInt((pos2.x + size2.x) / 2), ceilToInt((pos2.y + size2.y) / 2))));</span>
+<span class="fc" id="L121">        verify(canvas).drawWidget(item3, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos3.x / 2), ceilToInt(pos3.y / 2)), new Vector2i(ceilToInt((pos3.x + size3.x) / 2), ceilToInt((pos3.y + size3.y) / 2))));</span>
+
+<span class="fc" id="L123">    }</span>
+
+    @Test
+    public void testZoomOut() throws Exception {
+
+<span class="fc" id="L128">        zoomableLayout.onDraw(canvas);</span>
+
+        //zoom out 2x from top left corner
+<span class="fc" id="L131">        zoomableLayout.zoom(2, 2, new Vector2i(0, 0));</span>
+<span class="fc" id="L132">        zoomableLayout.onDraw(canvas);</span>
+
+        //world size doubled
+<span class="fc" id="L135">        assertEquals(zoomableLayout.getWindowSize(), new Vector2f(WORLD_WIDTH * 2 * 2, WORLD_HEIGHT * 2));</span>
+<span class="fc" id="L136">        assertEquals(zoomableLayout.getScreenSize(), new Vector2i(CANVAS_WIDTH, CANVAS_HEIGHT));</span>
+<span class="fc" id="L137">        assertEquals(zoomableLayout.getPixelSize(), new Vector2f(CANVAS_WIDTH / (WORLD_WIDTH * 2 * 2), CANVAS_HEIGHT / (WORLD_HEIGHT * 2)));</span>
+
+<span class="fc" id="L139">        verify(canvas).drawWidget(item1, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos1.x / 4), ceilToInt(pos1.y / 4)), new Vector2i(ceilToInt((pos1.x + size1.x) / 4), ceilToInt((pos1.y + size1.y) / 4))));</span>
+<span class="fc" id="L140">        verify(canvas).drawWidget(item2, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos2.x / 4), ceilToInt(pos2.y / 4)), new Vector2i(ceilToInt((pos2.x + size2.x) / 4), ceilToInt((pos2.y + size2.y) / 4))));</span>
+<span class="fc" id="L141">        verify(canvas).drawWidget(item3, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos3.x / 4), ceilToInt(pos3.y / 4)), new Vector2i(ceilToInt((pos3.x + size3.x) / 4), ceilToInt((pos3.y + size3.y) / 4))));</span>
+
+<span class="fc" id="L143">    }</span>
+
+    @Test
+    public void testZoomInAndDrag() throws Exception {
+
+<span class="fc" id="L148">        zoomableLayout.onDraw(canvas);</span>
+
+        //zoom in 2x towards left top corner
+<span class="fc" id="L151">        zoomableLayout.zoom(0.5f, 0.5f, new Vector2i(0, 0));</span>
+<span class="fc" id="L152">        zoomableLayout.onDraw(canvas);</span>
+
+        //world size halved
+<span class="fc" id="L155">        assertEquals(zoomableLayout.getWindowSize(), new Vector2f(WORLD_WIDTH, WORLD_HEIGHT / 2));</span>
+<span class="fc" id="L156">        assertEquals(zoomableLayout.getScreenSize(), new Vector2i(CANVAS_WIDTH, CANVAS_HEIGHT));</span>
+<span class="fc" id="L157">        assertEquals(zoomableLayout.getPixelSize(), new Vector2f(CANVAS_WIDTH / WORLD_WIDTH, CANVAS_HEIGHT / (WORLD_HEIGHT / 2)));</span>
+
+<span class="fc" id="L159">        verify(canvas).drawWidget(item1, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos1.x), ceilToInt(pos1.y)), new Vector2i(ceilToInt(pos1.x + size1.x), ceilToInt(pos1.y + size1.y))));</span>
+<span class="fc" id="L160">        verify(canvas).drawWidget(item2, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos2.x), ceilToInt(pos2.y)), new Vector2i(ceilToInt(pos2.x + size2.x), ceilToInt(pos2.y + size2.y))));</span>
+<span class="fc" id="L161">        verify(canvas).drawWidget(item3, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos3.x), ceilToInt(pos3.y)), new Vector2i(ceilToInt(pos3.x + size3.x), ceilToInt(pos3.y + size3.y))));</span>
+
+        //simulate drag to item2
+<span class="fc" id="L164">        zoomableLayout.setWindowPosition(pos2);</span>
+<span class="fc" id="L165">        zoomableLayout.onDraw(canvas);</span>
+
+        //item1 out of canvas
+<span class="fc" id="L168">        verify(canvas).drawWidget(item1, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos1.x - pos2.x), ceilToInt(pos1.y - pos2.y)), new Vector2i(ceilToInt(pos1.x + size1.x - pos2.x), ceilToInt(pos1.y + size1.y - pos2.y))));</span>
+<span class="fc" id="L169">        verify(canvas).drawWidget(item2, Rect2i.createFromMinAndMax(Vector2i.zero(), new Vector2i(ceilToInt(size2.x), ceilToInt(size2.y))));</span>
+<span class="fc" id="L170">        verify(canvas).drawWidget(item3, Rect2i.createFromMinAndMax(new Vector2i(ceilToInt(pos3.x - pos2.x), ceilToInt(pos3.y - pos2.y)), new Vector2i(ceilToInt(pos3.x + size3.x - pos2.x), ceilToInt(pos3.y + size3.y - pos2.y))));</span>
+<span class="fc" id="L171">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

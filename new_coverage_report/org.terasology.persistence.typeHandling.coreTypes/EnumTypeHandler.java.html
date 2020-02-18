@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EnumTypeHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.coreTypes</a> &gt; <span class="el_source">EnumTypeHandler.java</span></div><h1>EnumTypeHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.coreTypes;
+
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.PersistedDataSerializer;
+import org.terasology.persistence.typeHandling.TypeHandler;
+
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ */
+public class EnumTypeHandler&lt;T extends Enum&gt; extends TypeHandler&lt;T&gt; {
+
+<span class="fc" id="L33">    private static final Logger logger = LoggerFactory.getLogger(EnumTypeHandler.class);</span>
+    private Class&lt;T&gt; enumType;
+<span class="fc" id="L35">    private Map&lt;String, T&gt; caseInsensitiveLookup = Maps.newHashMap();</span>
+
+<span class="fc" id="L37">    public EnumTypeHandler(Class&lt;T&gt; enumType) {</span>
+<span class="fc" id="L38">        this.enumType = enumType;</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        for (T value : enumType.getEnumConstants()) {</span>
+<span class="fc" id="L40">            caseInsensitiveLookup.put(value.toString().toLowerCase(Locale.ENGLISH), value);</span>
+        }
+<span class="fc" id="L42">    }</span>
+
+    @Override
+    public PersistedData serializeNonNull(T value, PersistedDataSerializer serializer) {
+<span class="fc" id="L46">        return serializer.serialize(value.toString());</span>
+    }
+
+    @Override
+    public Optional&lt;T&gt; deserialize(PersistedData data) {
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (data.isString()) {</span>
+<span class="fc" id="L52">            T result = caseInsensitiveLookup.get(data.getAsString().toLowerCase(Locale.ENGLISH));</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">            if (result == null) {</span>
+<span class="nc" id="L54">                logger.warn(&quot;Unknown enum value: '{}' for enum {}&quot;, data.getAsString(), enumType.getSimpleName());</span>
+            }
+<span class="fc" id="L56">            return Optional.ofNullable(result);</span>
+        }
+<span class="fc" id="L58">        return Optional.empty();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

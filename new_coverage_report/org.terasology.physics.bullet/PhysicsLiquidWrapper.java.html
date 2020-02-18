@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhysicsLiquidWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.physics.bullet</a> &gt; <span class="el_source">PhysicsLiquidWrapper.java</span></div><h1>PhysicsLiquidWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.physics.bullet;
+
+import org.terasology.physics.bullet.shapes.BulletCollisionShape;
+import org.terasology.physics.shapes.CollisionShape;
+import com.bulletphysics.collision.shapes.voxel.VoxelInfo;
+import com.bulletphysics.collision.shapes.voxel.VoxelPhysicsWorld;
+import org.terasology.math.VecMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+
+/**
+ */
+public class PhysicsLiquidWrapper implements VoxelPhysicsWorld {
+    private WorldProvider world;
+
+<span class="nc" id="L33">    public PhysicsLiquidWrapper(WorldProvider world) {</span>
+<span class="nc" id="L34">        this.world = world;</span>
+<span class="nc" id="L35">    }</span>
+
+    @Override
+    public VoxelInfo getCollisionShapeAt(int x, int y, int z) {
+<span class="nc" id="L39">        Block block = world.getBlock(x, y, z);</span>
+<span class="nc" id="L40">        return new LiquidVoxelInfo(block, new Vector3i(x, y, z));</span>
+    }
+
+    public void dispose() {
+<span class="nc" id="L44">        world = null;</span>
+<span class="nc" id="L45">    }</span>
+
+    private static class LiquidVoxelInfo implements VoxelInfo {
+
+        private boolean colliding;
+        private boolean blocking;
+        private CollisionShape shape;
+        private Vector3i position;
+        private Vector3f offset;
+
+<span class="nc" id="L55">         LiquidVoxelInfo(Block block, Vector3i position) {</span>
+<span class="nc" id="L56">            this.shape = block.getCollisionShape();</span>
+<span class="nc" id="L57">            this.offset = block.getCollisionOffset();</span>
+<span class="nc" id="L58">            this.colliding = block.isLiquid();</span>
+<span class="nc" id="L59">            this.blocking = false;</span>
+<span class="nc" id="L60">            this.position = position;</span>
+<span class="nc" id="L61">        }</span>
+
+        @Override
+        public boolean isColliding() {
+<span class="nc" id="L65">            return colliding;</span>
+        }
+
+        @Override
+        public Object getUserData() {
+<span class="nc" id="L70">            return position;</span>
+        }
+
+        @Override
+        public com.bulletphysics.collision.shapes.CollisionShape getCollisionShape() {
+<span class="nc" id="L75">             return ((BulletCollisionShape) shape).underlyingShape;</span>
+        }
+
+        @Override
+        public javax.vecmath.Vector3f getCollisionOffset() {
+<span class="nc" id="L80">            return VecMath.to(offset);</span>
+        }
+
+        @Override
+        public boolean isBlocking() {
+<span class="nc" id="L85">            return blocking;</span>
+        }
+
+        @Override
+        public float getFriction() {
+            // TODO Auto-generated method stub
+<span class="nc" id="L91">            return 0;</span>
+        }
+
+        @Override
+        public float getRestitution() {
+            // TODO Auto-generated method stub
+<span class="nc" id="L97">            return 0;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

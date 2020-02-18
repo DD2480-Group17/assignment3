@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockSelectionRenderSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.world.selection</a> &gt; <span class="el_source">BlockSelectionRenderSystem.java</span></div><h1>BlockSelectionRenderSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.world.selection;
+
+import org.terasology.utilities.Assets;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.RenderSystem;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.In;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.world.selection.BlockSelectionComponent;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * System to render registered BlockSelections.
+ * &lt;br&gt;&lt;br&gt;
+ * This system is not currently thread-safe.
+ *
+ */
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L41">public class BlockSelectionRenderSystem extends BaseComponentSystem implements RenderSystem {</span>
+    @In
+    private EntityManager entityManager;
+
+    /**
+     * This map will contain one reusable selection renderer per texture width/height pair.
+     * This should be a reasonable compromise between no caching and caching too many renderers.
+     * While it is possible that the number of cached renderers could grow out of control over time,
+     * in practice most textures should be a standard size.
+     */
+<span class="nc" id="L51">    private Map&lt;Vector2i, BlockSelectionRenderer&gt; cachedBlockSelectionRendererByTextureDimensionsMap = new HashMap&lt;&gt;();</span>
+
+    @Override
+    public void renderOverlay() {
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        for (EntityRef entity : entityManager.getEntitiesWith(BlockSelectionComponent.class)) {</span>
+<span class="nc" id="L56">            BlockSelectionComponent blockSelectionComponent = entity.getComponent(BlockSelectionComponent.class);</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            if (blockSelectionComponent.shouldRender) {</span>
+<span class="nc" id="L58">                Texture texture = blockSelectionComponent.texture;</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">                if (null == texture) {</span>
+<span class="nc" id="L60">                    texture = Assets.getTexture(&quot;engine:selection&quot;).get();</span>
+                }
+
+<span class="nc" id="L63">                Vector2i textureDimensions = new Vector2i(texture.getWidth(), texture.getHeight());</span>
+<span class="nc" id="L64">                BlockSelectionRenderer selectionRenderer = cachedBlockSelectionRendererByTextureDimensionsMap.get(textureDimensions);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">                if (null == selectionRenderer) {</span>
+<span class="nc" id="L66">                    selectionRenderer = new BlockSelectionRenderer(texture);</span>
+<span class="nc" id="L67">                    cachedBlockSelectionRendererByTextureDimensionsMap.put(textureDimensions, selectionRenderer);</span>
+                } else {
+<span class="nc" id="L69">                    selectionRenderer.setEffectsTexture(texture);</span>
+                }
+
+<span class="nc" id="L72">                renderOverlayForOneBlockSelection(blockSelectionComponent, selectionRenderer);</span>
+            }
+<span class="nc" id="L74">        }</span>
+<span class="nc" id="L75">    }</span>
+
+    private void renderOverlayForOneBlockSelection(BlockSelectionComponent blockSelectionComponent,
+                                                   BlockSelectionRenderer selectionRenderer) {
+<span class="nc" id="L79">        selectionRenderer.beginRenderOverlay();</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (blockSelectionComponent.currentSelection == null) {</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (blockSelectionComponent.startPosition != null) {</span>
+<span class="nc" id="L82">                selectionRenderer.renderMark(blockSelectionComponent.startPosition);</span>
+            }
+        } else {
+<span class="nc" id="L85">            Vector3i size = blockSelectionComponent.currentSelection.size();</span>
+<span class="nc" id="L86">            Vector3i block = new Vector3i();</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            for (int z = 0; z &lt; size.z; z++) {</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                for (int y = 0; y &lt; size.y; y++) {</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                    for (int x = 0; x &lt; size.x; x++) {</span>
+<span class="nc" id="L90">                        block.set(x, y, z);</span>
+<span class="nc" id="L91">                        block.add(blockSelectionComponent.currentSelection.min());</span>
+<span class="nc" id="L92">                        selectionRenderer.renderMark(block);</span>
+                    }
+                }
+            }
+        }
+<span class="nc" id="L97">        selectionRenderer.endRenderOverlay();</span>
+
+<span class="nc" id="L99">    }</span>
+
+    @Override
+    public void renderShadows() {
+<span class="nc" id="L103">    }</span>
+
+    @Override
+    public void renderOpaque() {
+<span class="nc" id="L107">    }</span>
+
+    @Override
+    public void renderAlphaBlend() {
+<span class="nc" id="L111">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockSoundsFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.sounds</a> &gt; <span class="el_source">BlockSoundsFormat.java</span></div><h1>BlockSoundsFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.block.sounds;
+
+import com.google.common.base.Charsets;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.audio.StaticSound;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Block sounds loader will load all block sounds definitions and build them into immutable objects.
+ */
+@RegisterAssetFileFormat
+public class BlockSoundsFormat extends AbstractAssetFileFormat&lt;BlockSoundsData&gt; {
+
+    private final AssetManager assetManager;
+    private JsonParser parser;
+
+    public BlockSoundsFormat(AssetManager assetManager) {
+<span class="fc" id="L46">        super(&quot;blocksounds&quot;);</span>
+<span class="fc" id="L47">        this.assetManager = assetManager;</span>
+<span class="fc" id="L48">        parser = new JsonParser();</span>
+<span class="fc" id="L49">    }</span>
+
+    @Override
+    public BlockSoundsData load(ResourceUrn resourceUrn, List&lt;AssetDataFile&gt; list) throws IOException {
+<span class="fc" id="L53">        JsonElement rawJson = readJson(list.get(0));</span>
+<span class="fc" id="L54">        JsonObject blockDefJson = rawJson.getAsJsonObject();</span>
+
+<span class="fc" id="L56">        BlockSoundsData data = new BlockSoundsData();</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        if (blockDefJson.has(&quot;basedOn&quot;)) {</span>
+<span class="nc" id="L58">            Optional&lt;BlockSounds&gt; parentBlockSounds = assetManager.getAsset(blockDefJson.get(&quot;basedOn&quot;).getAsString(), BlockSounds.class);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">            if (parentBlockSounds.isPresent()) {</span>
+<span class="nc" id="L60">                data.getStepSounds().addAll(parentBlockSounds.get().getStepSounds());</span>
+<span class="nc" id="L61">                data.getStepSounds().addAll(parentBlockSounds.get().getDestroySounds());</span>
+<span class="nc" id="L62">                data.getStepSounds().addAll(parentBlockSounds.get().getDigSounds());</span>
+            } else {
+<span class="nc" id="L64">                throw new IOException(&quot;Unable to resolve parent '&quot; + blockDefJson.get(&quot;basedOn&quot;).getAsString() + &quot;'&quot;);</span>
+            }
+        }
+
+<span class="fc" id="L68">        loadBlockSounds(blockDefJson, data);</span>
+<span class="fc" id="L69">        return data;</span>
+    }
+
+    private JsonElement readJson(AssetDataFile input) throws IOException {
+<span class="fc" id="L73">        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input.openStream(), Charsets.UTF_8))) {</span>
+<span class="fc" id="L74">            return parser.parse(reader);</span>
+        }
+    }
+
+    private void loadBlockSounds(JsonObject element, BlockSoundsData data) throws IOException {
+<span class="fc" id="L79">        readSoundList(element, &quot;stepSounds&quot;, data.getStepSounds());</span>
+<span class="fc" id="L80">        readSoundList(element, &quot;destroySounds&quot;, data.getDestroySounds());</span>
+<span class="fc" id="L81">        readSoundList(element, &quot;digSounds&quot;, data.getDigSounds());</span>
+<span class="fc" id="L82">    }</span>
+
+    private void readSoundList(JsonObject element, String field, List&lt;StaticSound&gt; sounds) throws IOException {
+<span class="pc bpc" id="L85" title="2 of 4 branches missed.">        if (element.has(field) &amp;&amp; element.get(field).isJsonArray()) {</span>
+<span class="fc" id="L86">            sounds.clear();</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">            for (JsonElement item : element.getAsJsonArray(field)) {</span>
+<span class="fc" id="L88">                Optional&lt;StaticSound&gt; sound = assetManager.getAsset(item.getAsString(), StaticSound.class);</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">                if (sound.isPresent()) {</span>
+<span class="fc" id="L90">                    sounds.add(sound.get());</span>
+                } else {
+<span class="nc" id="L92">                    throw new IOException(&quot;Unable to resolve sound '&quot; + item.getAsString() + &quot;'&quot;);</span>
+                }
+<span class="fc" id="L94">            }</span>
+        }
+<span class="fc" id="L96">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>
