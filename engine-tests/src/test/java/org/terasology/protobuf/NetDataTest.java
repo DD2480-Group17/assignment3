@@ -30,7 +30,6 @@ class NetDataTest {
         AdHocNetData.NetMessage.Builder.IsInitialized.printRes();
         BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();
         AdHocBuildPartial.getCoverage();
-
     }
 
     /**
