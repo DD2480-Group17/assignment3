@@ -15,6 +15,7 @@
  */
 package org.terasology.protobuf;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocBuildPartial;
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,6 +24,10 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 class NetDataTest {
+    @AfterAll
+    private static void printCoverage() {
+        AdHocNetData.printRes();
+    }
 
     /**
      * Test that some of the attributes for the ServerInfoMessage's object returned by buildPartial() are as
@@ -56,6 +61,9 @@ class NetDataTest {
         }
     }
 
+    /**
+     * Test that mergeFrom an empty ByteString message is initialized
+     */
     @Test
     public void mergeFromEmptyNetMessage() throws InvalidProtocolBufferException {
         NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();
@@ -64,6 +72,9 @@ class NetDataTest {
         assertTrue(builder.isInitialized());
     }
 
+    /**
+     * Test that mergeFrom the same NetMessage is initalized
+     */
     @Test
     public void mergeFromSameNetMessage() {
         NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();
@@ -72,6 +83,9 @@ class NetDataTest {
         assertTrue(builder.isInitialized());
     }
 
+    /**
+     * Test that mergeFrom merges a JoinMessage
+     */
     @Test
     public void mergeFromWithJoinMessage() {
         NetData.JoinMessage.Builder joinMessageBuilder = NetData.JoinMessage.newBuilder();
@@ -86,6 +100,9 @@ class NetDataTest {
         assertEquals("test", defaultInstance.getJoin().getName());
     }
 
+    /**
+     * Test that mergeFrom merges a BiomeChangeMessage
+     */
     @Test
     public void mergeFromWithBiomeChange() {
         NetData.BiomeChangeMessage.Builder biomeChangeMessageBuilder = NetData.BiomeChangeMessage.newBuilder();

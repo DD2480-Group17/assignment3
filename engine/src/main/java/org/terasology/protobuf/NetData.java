@@ -2266,329 +2266,543 @@ public final class NetData {
       }
 
       public Builder mergeFrom(org.terasology.protobuf.NetData.NetMessage other) {
-        if (other == org.terasology.protobuf.NetData.NetMessage.getDefaultInstance()) return this;
+        if (other == org.terasology.protobuf.NetData.NetMessage.getDefaultInstance()) {
+          AdHocNetData.visitBranch(0);
+          return this;
+        } else {
+          AdHocNetData.visitBranch(137);
+        }
         if (chunkInfoBuilder_ == null) {
+          AdHocNetData.visitBranch(1);
           if (!other.chunkInfo_.isEmpty()) {
+            AdHocNetData.visitBranch(2);
             if (chunkInfo_.isEmpty()) {
+              AdHocNetData.visitBranch(3);
               chunkInfo_ = other.chunkInfo_;
               bitField0_ = (bitField0_ & ~0x00000001);
             } else {
+              AdHocNetData.visitBranch(4);
               ensureChunkInfoIsMutable();
               chunkInfo_.addAll(other.chunkInfo_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(5);
           }
         } else {
+          AdHocNetData.visitBranch(6);
           if (!other.chunkInfo_.isEmpty()) {
+            AdHocNetData.visitBranch(7);
             if (chunkInfoBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(8);
               chunkInfoBuilder_.dispose();
               chunkInfoBuilder_ = null;
               chunkInfo_ = other.chunkInfo_;
               bitField0_ = (bitField0_ & ~0x00000001);
-              chunkInfoBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getChunkInfoFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                chunkInfoBuilder_ = getChunkInfoFieldBuilder();
+                AdHocNetData.visitBranch(9);
+              } else {
+                chunkInfoBuilder_ = null;
+                AdHocNetData.visitBranch(10);
+              }
             } else {
+              AdHocNetData.visitBranch(11);
               chunkInfoBuilder_.addAllMessages(other.chunkInfo_);
             }
+          } else {
+            AdHocNetData.visitBranch(12);
           }
         }
         if (invalidateChunkBuilder_ == null) {
+          AdHocNetData.visitBranch(13);
           if (!other.invalidateChunk_.isEmpty()) {
+            AdHocNetData.visitBranch(14);
             if (invalidateChunk_.isEmpty()) {
+              AdHocNetData.visitBranch(15);
               invalidateChunk_ = other.invalidateChunk_;
               bitField0_ = (bitField0_ & ~0x00000002);
             } else {
+              AdHocNetData.visitBranch(16);
               ensureInvalidateChunkIsMutable();
               invalidateChunk_.addAll(other.invalidateChunk_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(17);
           }
         } else {
+          AdHocNetData.visitBranch(18);
           if (!other.invalidateChunk_.isEmpty()) {
+            AdHocNetData.visitBranch(19);
             if (invalidateChunkBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(20);
               invalidateChunkBuilder_.dispose();
               invalidateChunkBuilder_ = null;
               invalidateChunk_ = other.invalidateChunk_;
               bitField0_ = (bitField0_ & ~0x00000002);
-              invalidateChunkBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getInvalidateChunkFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                invalidateChunkBuilder_ = getInvalidateChunkFieldBuilder();
+                AdHocNetData.visitBranch(21);
+              } else {
+                invalidateChunkBuilder_ = null;
+                AdHocNetData.visitBranch(22);
+              }
             } else {
+              AdHocNetData.visitBranch(23);
               invalidateChunkBuilder_.addAllMessages(other.invalidateChunk_);
             }
+          } else {
+            AdHocNetData.visitBranch(24);
           }
         }
         if (blockChangeBuilder_ == null) {
+          AdHocNetData.visitBranch(25);
           if (!other.blockChange_.isEmpty()) {
+            AdHocNetData.visitBranch(26);
             if (blockChange_.isEmpty()) {
+              AdHocNetData.visitBranch(27);
               blockChange_ = other.blockChange_;
               bitField0_ = (bitField0_ & ~0x00000004);
             } else {
+              AdHocNetData.visitBranch(28);
               ensureBlockChangeIsMutable();
               blockChange_.addAll(other.blockChange_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(29);
           }
         } else {
+          AdHocNetData.visitBranch(30);
           if (!other.blockChange_.isEmpty()) {
+            AdHocNetData.visitBranch(31);
             if (blockChangeBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(32);
               blockChangeBuilder_.dispose();
               blockChangeBuilder_ = null;
               blockChange_ = other.blockChange_;
               bitField0_ = (bitField0_ & ~0x00000004);
-              blockChangeBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getBlockChangeFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                AdHocNetData.visitBranch(33);
+                blockChangeBuilder_ = getBlockChangeFieldBuilder();
+              } else {
+                AdHocNetData.visitBranch(34);
+                blockChangeBuilder_ = null;
+              }
             } else {
+              AdHocNetData.visitBranch(35);
               blockChangeBuilder_.addAllMessages(other.blockChange_);
             }
+          } else {
+            AdHocNetData.visitBranch(36);
           }
         }
         if (createEntityBuilder_ == null) {
+          AdHocNetData.visitBranch(37);
           if (!other.createEntity_.isEmpty()) {
+            AdHocNetData.visitBranch(38);
             if (createEntity_.isEmpty()) {
+              AdHocNetData.visitBranch(39);
               createEntity_ = other.createEntity_;
               bitField0_ = (bitField0_ & ~0x00000008);
             } else {
+              AdHocNetData.visitBranch(40);
               ensureCreateEntityIsMutable();
               createEntity_.addAll(other.createEntity_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(41);
           }
         } else {
+          AdHocNetData.visitBranch(42);
           if (!other.createEntity_.isEmpty()) {
+            AdHocNetData.visitBranch(43);
             if (createEntityBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(44);
               createEntityBuilder_.dispose();
               createEntityBuilder_ = null;
               createEntity_ = other.createEntity_;
               bitField0_ = (bitField0_ & ~0x00000008);
-              createEntityBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getCreateEntityFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                AdHocNetData.visitBranch(45);
+                createEntityBuilder_ = getCreateEntityFieldBuilder();
+              } else {
+                AdHocNetData.visitBranch(46);
+                createEntityBuilder_ = null;
+              }
             } else {
+              AdHocNetData.visitBranch(47);
               createEntityBuilder_.addAllMessages(other.createEntity_);
             }
+          } else {
+            AdHocNetData.visitBranch(48);
           }
         }
         if (removeEntityBuilder_ == null) {
+          AdHocNetData.visitBranch(49);
           if (!other.removeEntity_.isEmpty()) {
+            AdHocNetData.visitBranch(50);
             if (removeEntity_.isEmpty()) {
+              AdHocNetData.visitBranch(51);
               removeEntity_ = other.removeEntity_;
               bitField0_ = (bitField0_ & ~0x00000010);
             } else {
+              AdHocNetData.visitBranch(52);
               ensureRemoveEntityIsMutable();
               removeEntity_.addAll(other.removeEntity_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(53);
           }
         } else {
+          AdHocNetData.visitBranch(54);
           if (!other.removeEntity_.isEmpty()) {
+            AdHocNetData.visitBranch(55);
             if (removeEntityBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(56);
               removeEntityBuilder_.dispose();
               removeEntityBuilder_ = null;
               removeEntity_ = other.removeEntity_;
               bitField0_ = (bitField0_ & ~0x00000010);
-              removeEntityBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getRemoveEntityFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                AdHocNetData.visitBranch(57);
+                removeEntityBuilder_ =getRemoveEntityFieldBuilder();
+              } else {
+                AdHocNetData.visitBranch(58);
+                removeEntityBuilder_ = null;
+              }
             } else {
+              AdHocNetData.visitBranch(59);
               removeEntityBuilder_.addAllMessages(other.removeEntity_);
             }
+          } else {
+            AdHocNetData.visitBranch(60);
           }
         }
         if (updateEntityBuilder_ == null) {
+          AdHocNetData.visitBranch(61);
           if (!other.updateEntity_.isEmpty()) {
+            AdHocNetData.visitBranch(62);
             if (updateEntity_.isEmpty()) {
+              AdHocNetData.visitBranch(63);
               updateEntity_ = other.updateEntity_;
               bitField0_ = (bitField0_ & ~0x00000020);
             } else {
+              AdHocNetData.visitBranch(64);
               ensureUpdateEntityIsMutable();
               updateEntity_.addAll(other.updateEntity_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(65);
           }
         } else {
+          AdHocNetData.visitBranch(66);
           if (!other.updateEntity_.isEmpty()) {
+            AdHocNetData.visitBranch(67);
             if (updateEntityBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(68);
               updateEntityBuilder_.dispose();
               updateEntityBuilder_ = null;
               updateEntity_ = other.updateEntity_;
               bitField0_ = (bitField0_ & ~0x00000020);
-              updateEntityBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getUpdateEntityFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                AdHocNetData.visitBranch(69);
+                updateEntityBuilder_ = getUpdateEntityFieldBuilder();
+              } else {
+                AdHocNetData.visitBranch(70);
+                updateEntityBuilder_ = null;
+              }
             } else {
+              AdHocNetData.visitBranch(71);
               updateEntityBuilder_.addAllMessages(other.updateEntity_);
             }
+          } else {
+            AdHocNetData.visitBranch(72);
           }
         }
         if (eventBuilder_ == null) {
+          AdHocNetData.visitBranch(73);
           if (!other.event_.isEmpty()) {
+            AdHocNetData.visitBranch(74);
             if (event_.isEmpty()) {
+              AdHocNetData.visitBranch(75);
               event_ = other.event_;
               bitField0_ = (bitField0_ & ~0x00000040);
             } else {
+              AdHocNetData.visitBranch(76);
               ensureEventIsMutable();
               event_.addAll(other.event_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(77);
           }
         } else {
+          AdHocNetData.visitBranch(78);
           if (!other.event_.isEmpty()) {
+            AdHocNetData.visitBranch(79);
             if (eventBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(80);
               eventBuilder_.dispose();
               eventBuilder_ = null;
               event_ = other.event_;
               bitField0_ = (bitField0_ & ~0x00000040);
-              eventBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getEventFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                AdHocNetData.visitBranch(81);
+                eventBuilder_ = getEventFieldBuilder();
+              } else {
+                AdHocNetData.visitBranch(82);
+                eventBuilder_ = null;
+              }
             } else {
+              AdHocNetData.visitBranch(83);
               eventBuilder_.addAllMessages(other.event_);
             }
+          } else {
+            AdHocNetData.visitBranch(84);
           }
         }
         if (other.hasTime()) {
+          AdHocNetData.visitBranch(85);
           setTime(other.getTime());
+        } else {
+          AdHocNetData.visitBranch(138);
         }
         if (biomeChangeBuilder_ == null) {
+          AdHocNetData.visitBranch(86);
           if (!other.biomeChange_.isEmpty()) {
+            AdHocNetData.visitBranch(87);
             if (biomeChange_.isEmpty()) {
+              AdHocNetData.visitBranch(88);
               biomeChange_ = other.biomeChange_;
               bitField0_ = (bitField0_ & ~0x00000100);
             } else {
+              AdHocNetData.visitBranch(89);
               ensureBiomeChangeIsMutable();
               biomeChange_.addAll(other.biomeChange_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(90);
           }
         } else {
+          AdHocNetData.visitBranch(91);
           if (!other.biomeChange_.isEmpty()) {
+            AdHocNetData.visitBranch(92);
             if (biomeChangeBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(93);
               biomeChangeBuilder_.dispose();
               biomeChangeBuilder_ = null;
               biomeChange_ = other.biomeChange_;
               bitField0_ = (bitField0_ & ~0x00000100);
-              biomeChangeBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getBiomeChangeFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                AdHocNetData.visitBranch(94);
+                biomeChangeBuilder_ = getBiomeChangeFieldBuilder();
+              } else {
+                AdHocNetData.visitBranch(95);
+                biomeChangeBuilder_ = null;
+              }
             } else {
+              AdHocNetData.visitBranch(96);
               biomeChangeBuilder_.addAllMessages(other.biomeChange_);
             }
+          } else {
+            AdHocNetData.visitBranch(97);
           }
         }
         if (extraDataChangeBuilder_ == null) {
+          AdHocNetData.visitBranch(98);
           if (!other.extraDataChange_.isEmpty()) {
+            AdHocNetData.visitBranch(99);
             if (extraDataChange_.isEmpty()) {
+              AdHocNetData.visitBranch(100);
               extraDataChange_ = other.extraDataChange_;
               bitField0_ = (bitField0_ & ~0x00000200);
             } else {
+              AdHocNetData.visitBranch(101);
               ensureExtraDataChangeIsMutable();
               extraDataChange_.addAll(other.extraDataChange_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(102);
           }
         } else {
+          AdHocNetData.visitBranch(103);
           if (!other.extraDataChange_.isEmpty()) {
+            AdHocNetData.visitBranch(104);
             if (extraDataChangeBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(105);
               extraDataChangeBuilder_.dispose();
               extraDataChangeBuilder_ = null;
               extraDataChange_ = other.extraDataChange_;
               bitField0_ = (bitField0_ & ~0x00000200);
-              extraDataChangeBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getExtraDataChangeFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                AdHocNetData.visitBranch(106);
+                extraDataChangeBuilder_ = getExtraDataChangeFieldBuilder();
+              } else {
+                AdHocNetData.visitBranch(107);
+                extraDataChangeBuilder_ = null;
+              }
             } else {
+              AdHocNetData.visitBranch(108);
               extraDataChangeBuilder_.addAllMessages(other.extraDataChange_);
             }
+          } else {
+            AdHocNetData.visitBranch(109);
           }
         }
         if (other.hasServerInfoRequest()) {
+          AdHocNetData.visitBranch(110);
           mergeServerInfoRequest(other.getServerInfoRequest());
+        } else {
+          AdHocNetData.visitBranch(139);
         }
         if (other.hasServerInfo()) {
+          AdHocNetData.visitBranch(111);
           mergeServerInfo(other.getServerInfo());
+        } else {
+          AdHocNetData.visitBranch(140);
         }
         if (blockFamilyRegisteredBuilder_ == null) {
+          AdHocNetData.visitBranch(112);
           if (!other.blockFamilyRegistered_.isEmpty()) {
+            AdHocNetData.visitBranch(113);
             if (blockFamilyRegistered_.isEmpty()) {
+              AdHocNetData.visitBranch(114);
               blockFamilyRegistered_ = other.blockFamilyRegistered_;
               bitField0_ = (bitField0_ & ~0x00001000);
             } else {
+              AdHocNetData.visitBranch(115);
               ensureBlockFamilyRegisteredIsMutable();
               blockFamilyRegistered_.addAll(other.blockFamilyRegistered_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(116);
           }
         } else {
+          AdHocNetData.visitBranch(117);
           if (!other.blockFamilyRegistered_.isEmpty()) {
+            AdHocNetData.visitBranch(118);
             if (blockFamilyRegisteredBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(119);
               blockFamilyRegisteredBuilder_.dispose();
               blockFamilyRegisteredBuilder_ = null;
               blockFamilyRegistered_ = other.blockFamilyRegistered_;
               bitField0_ = (bitField0_ & ~0x00001000);
-              blockFamilyRegisteredBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getBlockFamilyRegisteredFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                AdHocNetData.visitBranch(120);
+                blockFamilyRegisteredBuilder_ = getBlockFamilyRegisteredFieldBuilder();
+              } else {
+                AdHocNetData.visitBranch(121);
+                blockFamilyRegisteredBuilder_ = null;
+              }
             } else {
+              AdHocNetData.visitBranch(122);
               blockFamilyRegisteredBuilder_.addAllMessages(other.blockFamilyRegistered_);
             }
+          } else {
+            AdHocNetData.visitBranch(123);
           }
         }
         if (other.hasJoin()) {
+          AdHocNetData.visitBranch(124);
           mergeJoin(other.getJoin());
+        } else {
+          AdHocNetData.visitBranch(141);
         }
         if (moduleRequestBuilder_ == null) {
+          AdHocNetData.visitBranch(125);
           if (!other.moduleRequest_.isEmpty()) {
+            AdHocNetData.visitBranch(126);
             if (moduleRequest_.isEmpty()) {
+              AdHocNetData.visitBranch(127);
               moduleRequest_ = other.moduleRequest_;
               bitField0_ = (bitField0_ & ~0x00004000);
             } else {
+              AdHocNetData.visitBranch(128);
               ensureModuleRequestIsMutable();
               moduleRequest_.addAll(other.moduleRequest_);
             }
             onChanged();
+          } else {
+            AdHocNetData.visitBranch(129);
           }
         } else {
+          AdHocNetData.visitBranch(130);
           if (!other.moduleRequest_.isEmpty()) {
+            AdHocNetData.visitBranch(131);
             if (moduleRequestBuilder_.isEmpty()) {
+              AdHocNetData.visitBranch(132);
               moduleRequestBuilder_.dispose();
               moduleRequestBuilder_ = null;
               moduleRequest_ = other.moduleRequest_;
               bitField0_ = (bitField0_ & ~0x00004000);
-              moduleRequestBuilder_ = 
-                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
-                   getModuleRequestFieldBuilder() : null;
+              if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+                AdHocNetData.visitBranch(133);
+                moduleRequestBuilder_ = getModuleRequestFieldBuilder();
+              } else {
+                AdHocNetData.visitBranch(134);
+                moduleRequestBuilder_ = null;
+              }
             } else {
+              AdHocNetData.visitBranch(135);
               moduleRequestBuilder_.addAllMessages(other.moduleRequest_);
             }
+          } else {
+            AdHocNetData.visitBranch(136);
           }
         }
         if (other.hasModuleDataHeader()) {
+          AdHocNetData.visitBranch(142);
           mergeModuleDataHeader(other.getModuleDataHeader());
+        } else {
+          AdHocNetData.visitBranch(143);
         }
         if (other.hasModuleData()) {
+          AdHocNetData.visitBranch(144);
           mergeModuleData(other.getModuleData());
+        } else {
+          AdHocNetData.visitBranch(145);
         }
         if (other.hasJoinComplete()) {
+          AdHocNetData.visitBranch(146);
           mergeJoinComplete(other.getJoinComplete());
+        } else {
+          AdHocNetData.visitBranch(147);
         }
         if (other.hasHandshakeHello()) {
+          AdHocNetData.visitBranch(148);
           mergeHandshakeHello(other.getHandshakeHello());
+        } else {
+          AdHocNetData.visitBranch(149);
         }
         if (other.hasNewIdentityRequest()) {
+          AdHocNetData.visitBranch(150);
           mergeNewIdentityRequest(other.getNewIdentityRequest());
+        } else {
+          AdHocNetData.visitBranch(151);
         }
         if (other.hasProvisionIdentity()) {
+          AdHocNetData.visitBranch(152);
           mergeProvisionIdentity(other.getProvisionIdentity());
+        } else {
+          AdHocNetData.visitBranch(153);
         }
         if (other.hasHandshakeVerification()) {
+          AdHocNetData.visitBranch(154);
           mergeHandshakeVerification(other.getHandshakeVerification());
+        } else {
+          AdHocNetData.visitBranch(155);
         }
         this.mergeExtensionFields(other);
         this.mergeUnknownFields(other.getUnknownFields());
-        return this;
+        return this;//todo: add else clauses
       }
 
       public final boolean isInitialized() {
