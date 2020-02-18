@@ -17,8 +17,10 @@ package org.terasology.protobuf;
 
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocBuildPartial;
-import org.terasology.protobuf.NetData;
 import static org.junit.jupiter.api.Assertions.*;
+
+import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 class NetDataTest {
 
@@ -52,5 +54,50 @@ class NetDataTest {
         for (int i = 0; i < result.length; i++){
             System.out.println("Visited branch " + (i+1) + " " + result[i]);
         }
+    }
+
+    @Test
+    public void mergeFromEmptyNetMessage() throws InvalidProtocolBufferException {
+        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();
+        NetData.NetMessage empty = NetData.NetMessage.parseFrom(ByteString.EMPTY);
+        builder.mergeFrom(empty);
+        assertTrue(builder.isInitialized());
+    }
+
+    @Test
+    public void mergeFromSameNetMessage() {
+        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();
+        NetData.NetMessage.Builder builder = defaultInstance.toBuilder();
+        builder.mergeFrom(defaultInstance);
+        assertTrue(builder.isInitialized());
+    }
+
+    @Test
+    public void mergeFromWithJoinMessage() {
+        NetData.JoinMessage.Builder joinMessageBuilder = NetData.JoinMessage.newBuilder();
+        joinMessageBuilder.setName("test");
+
+        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();
+        NetData.NetMessage.Builder netMessageBuilder = defaultInstance.toBuilder();
+
+        netMessageBuilder.setJoin(joinMessageBuilder);
+        defaultInstance = defaultInstance.toBuilder().mergeFrom(netMessageBuilder.build()).build();
+
+        assertEquals("test", defaultInstance.getJoin().getName());
+    }
+
+    @Test
+    public void mergeFromWithBiomeChange() {
+        NetData.BiomeChangeMessage.Builder biomeChangeMessageBuilder = NetData.BiomeChangeMessage.newBuilder();
+        biomeChangeMessageBuilder.setNewBiome(1);
+
+        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();
+        NetData.NetMessage.Builder netMessageBuilder = defaultInstance.toBuilder();
+
+        netMessageBuilder.addBiomeChange(biomeChangeMessageBuilder);
+        defaultInstance = defaultInstance.toBuilder().mergeFrom(netMessageBuilder.build()).build();
+
+
+        assertEquals(1, defaultInstance.getBiomeChange(0).getNewBiome());
     }
 }
