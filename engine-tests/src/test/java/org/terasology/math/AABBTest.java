@@ -1,14 +1,24 @@
 package org.terasology.math;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocAABB;
 import org.terasology.math.geom.Vector3f;
+import org.terasology.protobuf.AdHocNetData;
+import org.terasology.protobuf.BranchCoverageNetDataNetMessageBuilderClearMethod;
 
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class AABBTest {
 
+    @AfterAll
+    private static void printCoverage() {
+        System.out.println(AdHocAABB.getPathCenterPoint());
+        System.out.println("centerPointForNormal has a coverage of: "+AdHocAABB.getCoverage(true)+"\n");
+        System.out.println(AdHocAABB.getPathNormalForPlane());
+        System.out.println("normalForPlaneClosestToOrigin has a coverage of: "+AdHocAABB.getCoverage(false)+"\n");
+    }
     /**
      * the test testCenterPointForNormalInXDirection, test if the function centerPointForNormal returns the correct centerpoint if
      * the object is between vector 0,0,0 and 0,0,5 facing the positive or negative x-axis.

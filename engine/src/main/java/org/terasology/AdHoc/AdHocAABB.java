@@ -3,6 +3,8 @@ package org.terasology.AdHoc;
 public class AdHocAABB {
     private static int[] adHocCenterPoint = new int[7];
     private static int[] adHocNormalForPlane = new int[7];
+    private static double foundCenter = 0;
+    private static double foundNormal = 0;
 
     /**
      * The method addVisitedBranchCenterPoint add a marker to a adHocCenterPoint, which represent that the branch with visitedId has been visited.
@@ -11,7 +13,10 @@ public class AdHocAABB {
      */
     public static void addVisitedBranchCenterPoint(int visitedId) {
         if (visitedId < adHocCenterPoint.length && visitedId >= 0) {
-            adHocCenterPoint[visitedId] = 1;
+            if(adHocCenterPoint[visitedId] == 0){
+                adHocCenterPoint[visitedId] = 1;
+                foundCenter++;
+            }
         }
     }
     /**
@@ -21,7 +26,10 @@ public class AdHocAABB {
      */
     public static void addVisitedBranchNormalForPlane(int visitedId) {
         if (visitedId < adHocNormalForPlane.length && visitedId >= 0) {
-            adHocNormalForPlane[visitedId] = 1;
+            if(adHocNormalForPlane[visitedId] == 0) {
+                adHocNormalForPlane[visitedId] = 1;
+                foundNormal++;
+            }
         }
     }
 
@@ -39,6 +47,19 @@ public class AdHocAABB {
      */
     public static String getPathNormalForPlane() {
         return getString(adHocNormalForPlane, "normalForPlaneClosestToOrigin");
+    }
+
+    /**
+     * Returns the coverage of the function centerPointForNormal or normalForPlaneClosestToOrigin
+     * @param centerPoint determines if the coverage from centerPointForNormal should be returned or normalForPlaneClosestToOrigin
+     * @return the coverage of the function centerPointForNormal or normalForPlaneClosestToOrigin
+     */
+    public static Double getCoverage(boolean centerPoint){
+        if(centerPoint){
+            return foundCenter/((double)adHocCenterPoint.length);
+        }else{
+            return foundNormal/((double)adHocNormalForPlane.length);
+        }
     }
 
     private static String getString(int[] adHoc, String name) {
