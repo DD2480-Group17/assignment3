@@ -200,12 +200,14 @@ extension of the super class, to avoid code duplication. This would cut the CC o
 what it is now, a reduction of 80 %.
 
 ### Estimated impact of refactoring (lower CC, but other drawbacks?).
-`centerPointForNormal(Vector3f) ` The estimated impact of refactoring is M = B-D+1 = 12-6 +1 = 7. Original complexity where 19,
+* `centerPointForNormal(Vector3f) ` The estimated impact of refactoring is M = B-D+1 = 12-6 +1 = 7. Original complexity where 19,
 which would result in a (19-7)/19 = 0.64 = 63% reduction of cyclomatic complexity.
 
 ### Carried out refactoring (optional)
 
-git diff ...
+* `centerPointForNormal(Vector3f) ` All chained if-statements where replaced by a function call. Example if(normal.x==1 && normal.y==0 && normal.z==0) 
+where changed to if(normalPositiveX). After the changes jcoco calculated the cyclomatic complexity to 7 which is the same as the
+estimated reduction of complexity.
 
 ## Overall experience
 
