@@ -177,16 +177,25 @@ Report of old coverage: [link]
 Report of new coverage: [link]
 
 Test cases added:
+`testCenterPointForNormalInXDirection `
+`testCenterPointForNormalMovedXAngledInYDirection `
+`testCenterPointForNormalNotUnitvectorNomal `
+`testNormalForPlaneClosestToOrigin `
+
 
 git diff ...
 
 ## Refactoring
 
-Plan for refactoring complex code:
+###Plan for refactoring complex code:
+`centerPointForNormal(Vector3f) ` The function has a complexity of 19 and are dependent chained if statemants. To lower
+the complexity the chained if statements could be moved to a function. This should reduce the number of branches by 4 for each
+statement which would result in 6*4 = 24 less branches. 
 
-Estimated impact of refactoring (lower CC, but other drawbacks?).
-
-Carried out refactoring (optional)
+###Estimated impact of refactoring (lower CC, but other drawbacks?).
+`centerPointForNormal(Vector3f) ` The estimated impact of refactoring is M = B-D+1 = 12-6 +1 = 7. Original complexity where 19,
+which would result in a (19-7)/19 = 0.64 = 63% reduction of cyclomatic complexity.
+###Carried out refactoring (optional)
 
 git diff ...
 
