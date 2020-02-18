@@ -101,7 +101,30 @@ class AABBTest {
         Vector3f result = aabb.centerPointForNormal(normal);
 
         assertEquals(result, answer);
-        System.out.println(AdHocAABB.getPathCenterPoint());
+    }
+
+    /**
+     * the test testNormalForPlaneClosestToOrigin, test if the function normalForPlaneClosestToOrigin returns the normal -1,0,0 if
+     * the input is the point 0,0,1, min = 0,0,0 and max = 0,0,5.
+     * <p>
+     * Test 1
+     * Input:
+     * min = 0,0,0 max = 0,0,5 pointOnAABB = 0,0,1, testx = true, testy = true and testz = true.
+     * Expected_output:
+     * A vector with coordinates (-1,0,0)
+     */
+    @Test
+    public void testNormalForPlaneClosestToOrigin() {
+        Vector3f pointOnAABB = new Vector3f(0, 0, 1);
+        Vector3f max = new Vector3f(0, 0, 5);
+        Vector3f min = new Vector3f(0, 0, 0);
+        Vector3f origin = new Vector3f(0, 0, 0);
+        Vector3f wanted = new Vector3f(-1, 0, 0);
+
+        AABB aabb = AABB.createMinMax(min, max);
+
+        Vector3f results = aabb.normalForPlaneClosestToOrigin(pointOnAABB, origin, true, true, true);
+        assertEquals(results, wanted);
     }
 
 
