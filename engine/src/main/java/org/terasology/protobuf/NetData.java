@@ -3,6 +3,7 @@
 
 package org.terasology.protobuf;
 import org.terasology.AdHoc.AdHocBuildPartial;
+import org.terasology.AdHoc.AdHocServerInfoMessageIsInitialized;
 import static org.terasology.protobuf.BranchCoverageNetDataNetMessageBuilderClearMethod.*;
 
 public final class NetData {
@@ -18047,32 +18048,55 @@ public final class NetData {
 
       public final boolean isInitialized() {
         for (int i = 0; i < getModuleCount(); i++) {
+          AdHocServerInfoMessageIsInitialized.visitBranch(0);
           if (!getModule(i).isInitialized()) {
-            
+            AdHocServerInfoMessageIsInitialized.visitBranch(1);
             return false;
           }
+          else{
+            AdHocServerInfoMessageIsInitialized.visitBranch(2);
+          }
         }
+        AdHocServerInfoMessageIsInitialized.visitBranch(3);
         for (int i = 0; i < getComponentCount(); i++) {
+          AdHocServerInfoMessageIsInitialized.visitBranch(4);
           if (!getComponent(i).isInitialized()) {
-            
+            AdHocServerInfoMessageIsInitialized.visitBranch(5);
             return false;
           }
+          else{
+            AdHocServerInfoMessageIsInitialized.visitBranch(6);
+          }
         }
+        AdHocServerInfoMessageIsInitialized.visitBranch(7);
         for (int i = 0; i < getEventCount(); i++) {
+          AdHocServerInfoMessageIsInitialized.visitBranch(8);
           if (!getEvent(i).isInitialized()) {
-            
+            AdHocServerInfoMessageIsInitialized.visitBranch(9);
             return false;
           }
+          else {
+            AdHocServerInfoMessageIsInitialized.visitBranch(10);
+          }
         }
+        AdHocServerInfoMessageIsInitialized.visitBranch(11);
         for (int i = 0; i < getWorldInfoCount(); i++) {
+          AdHocServerInfoMessageIsInitialized.visitBranch(12);
           if (!getWorldInfo(i).isInitialized()) {
-            
+            AdHocServerInfoMessageIsInitialized.visitBranch(13);
             return false;
           }
+          else{
+            AdHocServerInfoMessageIsInitialized.visitBranch(14);
+          }
         }
+        AdHocServerInfoMessageIsInitialized.visitBranch(15);
         if (!extensionsAreInitialized()) {
-          
+          AdHocServerInfoMessageIsInitialized.visitBranch(16);
           return false;
+        }
+        else{
+          AdHocServerInfoMessageIsInitialized.visitBranch(17);
         }
         return true;
       }
