@@ -187,15 +187,23 @@ git diff ...
 
 ## Refactoring
 
-###Plan for refactoring complex code:
-`centerPointForNormal(Vector3f) ` The function has a complexity of 19 and are dependent chained if statemants. To lower
+### Plan for refactoring complex code:
+* `centerPointForNormal(Vector3f) ` The function has a complexity of 19 and are dependent chained if statemants. To lower
 the complexity the chained if statements could be moved to a function. This should reduce the number of branches by 4 for each
-statement which would result in 6*4 = 24 less branches. 
+statement which would result in 6*4 = 24 less branches.
 
-###Estimated impact of refactoring (lower CC, but other drawbacks?).
+* `mergeFrom(NetData.NetMessage)` has a complexity of 79, and consists of the same block of code duplicated 11 times,
+in addition to 11 smaller if statements. The larger block consists of doing bitwise operations with different values and
+calling functions on its 11 containing objects that extend com.google.protobuf.GeneratedMessage.ExtendableMessage. Since
+all of these 11 objects are extensions of this class, the code block could be be put into the super class, or an
+extension of the super class, to avoid code duplication. This would cut the CC of the function to approximately 1/5 of
+what it is now, a reduction of 80 %.
+
+### Estimated impact of refactoring (lower CC, but other drawbacks?).
 `centerPointForNormal(Vector3f) ` The estimated impact of refactoring is M = B-D+1 = 12-6 +1 = 7. Original complexity where 19,
 which would result in a (19-7)/19 = 0.64 = 63% reduction of cyclomatic complexity.
-###Carried out refactoring (optional)
+
+### Carried out refactoring (optional)
 
 git diff ...
 
