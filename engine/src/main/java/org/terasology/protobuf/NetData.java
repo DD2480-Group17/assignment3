@@ -2,6 +2,7 @@
 // source: NetMessage.proto
 
 package org.terasology.protobuf;
+import static org.terasology.protobuf.BranchCoverageNetDataNetMessageBuilderClearMethod.*;
 
 public final class NetData {
   private NetData() {}
@@ -1912,132 +1913,176 @@ public final class NetData {
       public Builder clear() {
         super.clear();
         if (chunkInfoBuilder_ == null) {
+          branchCovered[0] = true;
           chunkInfo_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00000001);
         } else {
+          branchCovered[1] = true;
           chunkInfoBuilder_.clear();
         }
         if (invalidateChunkBuilder_ == null) {
+          branchCovered[2] = true;
           invalidateChunk_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00000002);
         } else {
+          branchCovered[3] = true;
           invalidateChunkBuilder_.clear();
         }
         if (blockChangeBuilder_ == null) {
+          branchCovered[4] = true;
           blockChange_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00000004);
         } else {
+          branchCovered[5] = true;
           blockChangeBuilder_.clear();
         }
         if (createEntityBuilder_ == null) {
+          branchCovered[6] = true;
           createEntity_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00000008);
         } else {
+          branchCovered[7] = true;
           createEntityBuilder_.clear();
         }
         if (removeEntityBuilder_ == null) {
+          branchCovered[8] = true;
           removeEntity_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00000010);
         } else {
+          branchCovered[9] = true;
           removeEntityBuilder_.clear();
         }
         if (updateEntityBuilder_ == null) {
+          branchCovered[10] = true;
           updateEntity_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00000020);
         } else {
+          branchCovered[11] = true;
           updateEntityBuilder_.clear();
         }
         if (eventBuilder_ == null) {
+          branchCovered[12] = true;
           event_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00000040);
         } else {
+          branchCovered[13] = true;
           eventBuilder_.clear();
         }
         time_ = 0L;
         bitField0_ = (bitField0_ & ~0x00000080);
         if (biomeChangeBuilder_ == null) {
+          branchCovered[14] = true;
           biomeChange_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00000100);
         } else {
+          branchCovered[15] = true;
           biomeChangeBuilder_.clear();
         }
         if (extraDataChangeBuilder_ == null) {
+          branchCovered[16] = true;
           extraDataChange_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00000200);
         } else {
+          branchCovered[17] = true;
           extraDataChangeBuilder_.clear();
         }
         if (serverInfoRequestBuilder_ == null) {
+          branchCovered[18] = true;
           serverInfoRequest_ = org.terasology.protobuf.NetData.ServerInfoRequest.getDefaultInstance();
         } else {
+          branchCovered[19] = true;
           serverInfoRequestBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00000400);
         if (serverInfoBuilder_ == null) {
+          branchCovered[20] = true;
           serverInfo_ = org.terasology.protobuf.NetData.ServerInfoMessage.getDefaultInstance();
         } else {
+          branchCovered[21] = true;
           serverInfoBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00000800);
         if (blockFamilyRegisteredBuilder_ == null) {
+          branchCovered[22] = true;
           blockFamilyRegistered_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00001000);
         } else {
+          branchCovered[23] = true;
           blockFamilyRegisteredBuilder_.clear();
         }
         if (joinBuilder_ == null) {
+          branchCovered[24] = true;
           join_ = org.terasology.protobuf.NetData.JoinMessage.getDefaultInstance();
         } else {
+          branchCovered[25] = true;
           joinBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00002000);
         if (moduleRequestBuilder_ == null) {
+          branchCovered[26] = true;
           moduleRequest_ = java.util.Collections.emptyList();
           bitField0_ = (bitField0_ & ~0x00004000);
         } else {
+          branchCovered[27] = true;
           moduleRequestBuilder_.clear();
         }
         if (moduleDataHeaderBuilder_ == null) {
+          branchCovered[28] = true;
           moduleDataHeader_ = org.terasology.protobuf.NetData.ModuleDataHeader.getDefaultInstance();
         } else {
+          branchCovered[29] = true;
           moduleDataHeaderBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00008000);
         if (moduleDataBuilder_ == null) {
+          branchCovered[30] = true;
           moduleData_ = org.terasology.protobuf.NetData.ModuleData.getDefaultInstance();
         } else {
+          branchCovered[31] = true;
           moduleDataBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00010000);
         if (joinCompleteBuilder_ == null) {
+          branchCovered[32] = true;
           joinComplete_ = org.terasology.protobuf.NetData.JoinCompleteMessage.getDefaultInstance();
         } else {
+          branchCovered[33] = true;
           joinCompleteBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00020000);
         if (handshakeHelloBuilder_ == null) {
+          branchCovered[34] = true;
           handshakeHello_ = org.terasology.protobuf.NetData.HandshakeHello.getDefaultInstance();
         } else {
+          branchCovered[35] = true;
           handshakeHelloBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00040000);
         if (newIdentityRequestBuilder_ == null) {
+          branchCovered[36] = true;
           newIdentityRequest_ = org.terasology.protobuf.NetData.NewIdentityRequest.getDefaultInstance();
         } else {
+          branchCovered[37] = true;
           newIdentityRequestBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00080000);
         if (provisionIdentityBuilder_ == null) {
+          branchCovered[38] = true;
           provisionIdentity_ = org.terasology.protobuf.NetData.ProvisionIdentity.getDefaultInstance();
         } else {
+          branchCovered[39] = true;
           provisionIdentityBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00100000);
         if (handshakeVerificationBuilder_ == null) {
+          branchCovered[40] = true;
           handshakeVerification_ = org.terasology.protobuf.NetData.HandshakeVerification.getDefaultInstance();
         } else {
+          branchCovered[41] = true;
           handshakeVerificationBuilder_.clear();
         }
+
+        System.out.println("branch coverage: " + calcBranchCoveragePercentage());
         bitField0_ = (bitField0_ & ~0x00200000);
         return this;
       }
