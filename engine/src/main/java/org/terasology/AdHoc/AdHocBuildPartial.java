@@ -41,4 +41,16 @@ public class AdHocBuildPartial {
     public static boolean[] getAdHoc(){
         return AdHoc;
     }
+
+    public static void getCoverage() {
+        boolean[] result = AdHocBuildPartial.getAdHoc();
+        int counter = 0;
+        for (int i = 0; i < result.length; i++) {
+            if (result[i] == true){
+                counter++;
+            }
+        }
+        double percentage = ((double)counter/(double)result.length)*100;
+        System.out.println(percentage);
+    }
 }
