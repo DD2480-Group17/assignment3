@@ -2,6 +2,7 @@
 // source: NetMessage.proto
 
 package org.terasology.protobuf;
+import org.terasology.AdHoc.AdHocBuildPartial;
 
 public final class NetData {
   private NetData() {}
@@ -17319,8 +17320,11 @@ public final class NetData {
         org.terasology.protobuf.NetData.ServerInfoMessage result = new org.terasology.protobuf.NetData.ServerInfoMessage(this);
         int from_bitField0_ = bitField0_;
         int to_bitField0_ = 0;
+
         if (moduleBuilder_ == null) {
+          AdHocBuildPartial.visitBranch(0);
           if (((bitField0_ & 0x00000001) == 0x00000001)) {
+            AdHocBuildPartial.visitBranch(1);
             module_ = java.util.Collections.unmodifiableList(module_);
             bitField0_ = (bitField0_ & ~0x00000001);
           }
@@ -17328,19 +17332,24 @@ public final class NetData {
         } else {
           result.module_ = moduleBuilder_.build();
         }
+
         if (((bitField0_ & 0x00000002) == 0x00000002)) {
+          AdHocBuildPartial.visitBranch(2);
           blockId_ = java.util.Collections.unmodifiableList(blockId_);
           bitField0_ = (bitField0_ & ~0x00000002);
         }
         result.blockId_ = blockId_;
         if (((bitField0_ & 0x00000004) == 0x00000004)) {
+          AdHocBuildPartial.visitBranch(3);
           blockName_ = new com.google.protobuf.UnmodifiableLazyStringList(
-              blockName_);
+                  blockName_);
           bitField0_ = (bitField0_ & ~0x00000004);
         }
         result.blockName_ = blockName_;
         if (componentBuilder_ == null) {
+          AdHocBuildPartial.visitBranch(4);
           if (((bitField0_ & 0x00000008) == 0x00000008)) {
+            AdHocBuildPartial.visitBranch(5);
             component_ = java.util.Collections.unmodifiableList(component_);
             bitField0_ = (bitField0_ & ~0x00000008);
           }
@@ -17349,7 +17358,9 @@ public final class NetData {
           result.component_ = componentBuilder_.build();
         }
         if (eventBuilder_ == null) {
+          AdHocBuildPartial.visitBranch(6);
           if (((bitField0_ & 0x00000010) == 0x00000010)) {
+            AdHocBuildPartial.visitBranch(7);
             event_ = java.util.Collections.unmodifiableList(event_);
             bitField0_ = (bitField0_ & ~0x00000010);
           }
@@ -17358,24 +17369,29 @@ public final class NetData {
           result.event_ = eventBuilder_.build();
         }
         if (((bitField0_ & 0x00000020) == 0x00000020)) {
+          AdHocBuildPartial.visitBranch(8);
           assetId_ = java.util.Collections.unmodifiableList(assetId_);
           bitField0_ = (bitField0_ & ~0x00000020);
         }
         result.assetId_ = assetId_;
         if (((bitField0_ & 0x00000040) == 0x00000040)) {
+          AdHocBuildPartial.visitBranch(9);
           assetUri_ = new com.google.protobuf.UnmodifiableLazyStringList(
-              assetUri_);
+                  assetUri_);
           bitField0_ = (bitField0_ & ~0x00000040);
         }
         result.assetUri_ = assetUri_;
         if (((bitField0_ & 0x00000080) == 0x00000080)) {
+          AdHocBuildPartial.visitBranch(10);
           registerBlockFamily_ = new com.google.protobuf.UnmodifiableLazyStringList(
-              registerBlockFamily_);
+                  registerBlockFamily_);
           bitField0_ = (bitField0_ & ~0x00000080);
         }
         result.registerBlockFamily_ = registerBlockFamily_;
         if (worldInfoBuilder_ == null) {
+          AdHocBuildPartial.visitBranch(11);
           if (((bitField0_ & 0x00000100) == 0x00000100)) {
+            AdHocBuildPartial.visitBranch(12);
             worldInfo_ = java.util.Collections.unmodifiableList(worldInfo_);
             bitField0_ = (bitField0_ & ~0x00000100);
           }
@@ -17384,41 +17400,50 @@ public final class NetData {
           result.worldInfo_ = worldInfoBuilder_.build();
         }
         if (((bitField0_ & 0x00000200) == 0x00000200)) {
+          AdHocBuildPartial.visitBranch(13);
           biomeShortId_ = java.util.Collections.unmodifiableList(biomeShortId_);
           bitField0_ = (bitField0_ & ~0x00000200);
         }
         result.biomeShortId_ = biomeShortId_;
         if (((bitField0_ & 0x00000400) == 0x00000400)) {
+          AdHocBuildPartial.visitBranch(14);
           biomeId_ = new com.google.protobuf.UnmodifiableLazyStringList(
-              biomeId_);
+                  biomeId_);
           bitField0_ = (bitField0_ & ~0x00000400);
         }
         result.biomeId_ = biomeId_;
         if (((from_bitField0_ & 0x00000800) == 0x00000800)) {
+          AdHocBuildPartial.visitBranch(15);
           to_bitField0_ |= 0x00000001;
         }
         result.errorMessage_ = errorMessage_;
         if (((from_bitField0_ & 0x00001000) == 0x00001000)) {
+          AdHocBuildPartial.visitBranch(16);
           to_bitField0_ |= 0x00000002;
         }
         result.version_ = version_;
         if (((from_bitField0_ & 0x00002000) == 0x00002000)) {
+          AdHocBuildPartial.visitBranch(17);
           to_bitField0_ |= 0x00000004;
         }
         result.gameName_ = gameName_;
         if (((from_bitField0_ & 0x00004000) == 0x00004000)) {
+          AdHocBuildPartial.visitBranch(18);
           to_bitField0_ |= 0x00000008;
         }
         result.time_ = time_;
         if (((from_bitField0_ & 0x00008000) == 0x00008000)) {
+          AdHocBuildPartial.visitBranch(19);
           to_bitField0_ |= 0x00000010;
         }
         result.reflectionHeight_ = reflectionHeight_;
         if (((from_bitField0_ & 0x00010000) == 0x00010000)) {
+          AdHocBuildPartial.visitBranch(20);
           to_bitField0_ |= 0x00000020;
         }
         result.mOTD_ = mOTD_;
         if (((from_bitField0_ & 0x00020000) == 0x00020000)) {
+          AdHocBuildPartial.visitBranch(21);
           to_bitField0_ |= 0x00000040;
         }
         result.onlinePlayersAmount_ = onlinePlayersAmount_;
