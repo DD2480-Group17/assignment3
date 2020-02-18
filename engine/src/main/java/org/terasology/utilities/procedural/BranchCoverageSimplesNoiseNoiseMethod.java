@@ -30,6 +30,9 @@ public class BranchCoverageSimplesNoiseNoiseMethod {
     }
 	
     public static void printBranchCoveragePercentage() {
+        for (int i = 0; i < branchCovered.length; i++){
+            System.out.println("noise(): branch " + i + ": " + branchCovered[i]);
+        }
         System.out.println("Branch coverage of SimplexNoise.noise(x1,x2,x3,x4): " + calcBranchCoveragePercentage() + " %");
     }
 }
