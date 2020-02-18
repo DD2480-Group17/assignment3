@@ -166,11 +166,16 @@ its output?
 
 ### Evaluation
 
+We decided to split the adhoc tool to be specific for every class. The adhoc classes used are `AdHocAABB`, `AdHocBuildPartial` and `AdHocSimplexNoise`.
 1. How detailed is your coverage measurement?
+* `AdHocAABB` The coverage is limited to check if the method enters a if statement or loop. If the if-statement is chained (if(a && b && c)) the adhoc tool
+counts this as one branch and not three. This is because we did not want to alter the structure of the code.
 
 2. What are the limitations of your own tool?
+* `AdHocAABB` It counts all chained if-statement as one if-statement.
 
 3. Are the results of your tool consistent with existing coverage tools?
+* `AdHocAABB` No, because Jcoco looks at the assembler code to be able to see chained if-statements.
 
 ### Coverage improvement
 
