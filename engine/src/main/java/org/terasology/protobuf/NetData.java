@@ -17705,122 +17705,178 @@ public final class NetData {
           }
           result.module_ = module_;
         } else {
+          AdHocBuildPartial.visitBranch(2);
           result.module_ = moduleBuilder_.build();
         }
 
         if (((bitField0_ & 0x00000002) == 0x00000002)) {
-          AdHocBuildPartial.visitBranch(2);
+          AdHocBuildPartial.visitBranch(3);
           blockId_ = java.util.Collections.unmodifiableList(blockId_);
           bitField0_ = (bitField0_ & ~0x00000002);
         }
+        else{
+          AdHocBuildPartial.visitBranch(4);
+        }
         result.blockId_ = blockId_;
         if (((bitField0_ & 0x00000004) == 0x00000004)) {
-          AdHocBuildPartial.visitBranch(3);
+          AdHocBuildPartial.visitBranch(5);
           blockName_ = new com.google.protobuf.UnmodifiableLazyStringList(
                   blockName_);
           bitField0_ = (bitField0_ & ~0x00000004);
         }
+        else{
+          AdHocBuildPartial.visitBranch(6);
+        }
         result.blockName_ = blockName_;
         if (componentBuilder_ == null) {
-          AdHocBuildPartial.visitBranch(4);
+          AdHocBuildPartial.visitBranch(7);
           if (((bitField0_ & 0x00000008) == 0x00000008)) {
-            AdHocBuildPartial.visitBranch(5);
+            AdHocBuildPartial.visitBranch(8);
             component_ = java.util.Collections.unmodifiableList(component_);
             bitField0_ = (bitField0_ & ~0x00000008);
           }
+          else{
+            AdHocBuildPartial.visitBranch(9);
+          }
           result.component_ = component_;
         } else {
+          AdHocBuildPartial.visitBranch(10);
           result.component_ = componentBuilder_.build();
         }
         if (eventBuilder_ == null) {
-          AdHocBuildPartial.visitBranch(6);
+          AdHocBuildPartial.visitBranch(11);
           if (((bitField0_ & 0x00000010) == 0x00000010)) {
-            AdHocBuildPartial.visitBranch(7);
+            AdHocBuildPartial.visitBranch(12);
             event_ = java.util.Collections.unmodifiableList(event_);
             bitField0_ = (bitField0_ & ~0x00000010);
           }
+          else{
+            AdHocBuildPartial.visitBranch(13);
+          }
           result.event_ = event_;
         } else {
+          AdHocBuildPartial.visitBranch(14);
           result.event_ = eventBuilder_.build();
         }
         if (((bitField0_ & 0x00000020) == 0x00000020)) {
-          AdHocBuildPartial.visitBranch(8);
+          AdHocBuildPartial.visitBranch(15);
           assetId_ = java.util.Collections.unmodifiableList(assetId_);
           bitField0_ = (bitField0_ & ~0x00000020);
         }
+        else{
+          AdHocBuildPartial.visitBranch(16);
+        }
         result.assetId_ = assetId_;
         if (((bitField0_ & 0x00000040) == 0x00000040)) {
-          AdHocBuildPartial.visitBranch(9);
+          AdHocBuildPartial.visitBranch(17);
           assetUri_ = new com.google.protobuf.UnmodifiableLazyStringList(
                   assetUri_);
           bitField0_ = (bitField0_ & ~0x00000040);
         }
+        else{
+          AdHocBuildPartial.visitBranch(18);
+        }
         result.assetUri_ = assetUri_;
         if (((bitField0_ & 0x00000080) == 0x00000080)) {
-          AdHocBuildPartial.visitBranch(10);
+          AdHocBuildPartial.visitBranch(19);
           registerBlockFamily_ = new com.google.protobuf.UnmodifiableLazyStringList(
                   registerBlockFamily_);
           bitField0_ = (bitField0_ & ~0x00000080);
         }
+        else{
+          AdHocBuildPartial.visitBranch(20);
+        }
         result.registerBlockFamily_ = registerBlockFamily_;
         if (worldInfoBuilder_ == null) {
-          AdHocBuildPartial.visitBranch(11);
+          AdHocBuildPartial.visitBranch(21);
           if (((bitField0_ & 0x00000100) == 0x00000100)) {
-            AdHocBuildPartial.visitBranch(12);
+            AdHocBuildPartial.visitBranch(22);
             worldInfo_ = java.util.Collections.unmodifiableList(worldInfo_);
             bitField0_ = (bitField0_ & ~0x00000100);
           }
+          else{
+            AdHocBuildPartial.visitBranch(23);
+          }
           result.worldInfo_ = worldInfo_;
         } else {
+          AdHocBuildPartial.visitBranch(24);
           result.worldInfo_ = worldInfoBuilder_.build();
         }
         if (((bitField0_ & 0x00000200) == 0x00000200)) {
-          AdHocBuildPartial.visitBranch(13);
+          AdHocBuildPartial.visitBranch(25);
           biomeShortId_ = java.util.Collections.unmodifiableList(biomeShortId_);
           bitField0_ = (bitField0_ & ~0x00000200);
         }
+        else{
+          AdHocBuildPartial.visitBranch(26);
+        }
         result.biomeShortId_ = biomeShortId_;
         if (((bitField0_ & 0x00000400) == 0x00000400)) {
-          AdHocBuildPartial.visitBranch(14);
+          AdHocBuildPartial.visitBranch(27);
           biomeId_ = new com.google.protobuf.UnmodifiableLazyStringList(
                   biomeId_);
           bitField0_ = (bitField0_ & ~0x00000400);
         }
+        else{
+          AdHocBuildPartial.visitBranch(28);
+        }
         result.biomeId_ = biomeId_;
         if (((from_bitField0_ & 0x00000800) == 0x00000800)) {
-          AdHocBuildPartial.visitBranch(15);
+          AdHocBuildPartial.visitBranch(29);
           to_bitField0_ |= 0x00000001;
+        }
+        else{
+          AdHocBuildPartial.visitBranch(30);
         }
         result.errorMessage_ = errorMessage_;
         if (((from_bitField0_ & 0x00001000) == 0x00001000)) {
-          AdHocBuildPartial.visitBranch(16);
+          AdHocBuildPartial.visitBranch(31);
           to_bitField0_ |= 0x00000002;
+        }
+        else{
+          AdHocBuildPartial.visitBranch(32);
         }
         result.version_ = version_;
         if (((from_bitField0_ & 0x00002000) == 0x00002000)) {
-          AdHocBuildPartial.visitBranch(17);
+          AdHocBuildPartial.visitBranch(33);
           to_bitField0_ |= 0x00000004;
+        }
+        else{
+          AdHocBuildPartial.visitBranch(34);
         }
         result.gameName_ = gameName_;
         if (((from_bitField0_ & 0x00004000) == 0x00004000)) {
-          AdHocBuildPartial.visitBranch(18);
+          AdHocBuildPartial.visitBranch(35);
           to_bitField0_ |= 0x00000008;
+        }
+        else{
+          AdHocBuildPartial.visitBranch(36);
         }
         result.time_ = time_;
         if (((from_bitField0_ & 0x00008000) == 0x00008000)) {
-          AdHocBuildPartial.visitBranch(19);
+          AdHocBuildPartial.visitBranch(37);
           to_bitField0_ |= 0x00000010;
+        }
+        else{
+          AdHocBuildPartial.visitBranch(38);
         }
         result.reflectionHeight_ = reflectionHeight_;
         if (((from_bitField0_ & 0x00010000) == 0x00010000)) {
-          AdHocBuildPartial.visitBranch(20);
+          AdHocBuildPartial.visitBranch(39);
           to_bitField0_ |= 0x00000020;
+        }
+        else{
+          AdHocBuildPartial.visitBranch(40);
         }
         result.mOTD_ = mOTD_;
         if (((from_bitField0_ & 0x00020000) == 0x00020000)) {
-          AdHocBuildPartial.visitBranch(21);
+          AdHocBuildPartial.visitBranch(41);
           to_bitField0_ |= 0x00000040;
         }
+        else{
+          AdHocBuildPartial.visitBranch(42);
+        }
+        AdHocBuildPartial.visitBranch(43);
         result.onlinePlayersAmount_ = onlinePlayersAmount_;
         result.bitField0_ = to_bitField0_;
         onBuilt();

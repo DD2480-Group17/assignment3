@@ -18,6 +18,7 @@ package org.terasology.protobuf;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocBuildPartial;
+import org.terasology.AdHoc.AdHoc.AdHocServerInfoMessageIsInitialized;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.protobuf.ByteString;

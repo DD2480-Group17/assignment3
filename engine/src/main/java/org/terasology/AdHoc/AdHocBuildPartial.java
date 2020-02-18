@@ -18,7 +18,7 @@ package org.terasology.AdHoc;
 /** Ad-hoc tool for function ServerInfoMessage.Builder.buildPartial()
  */
 public class AdHocBuildPartial {
-    public static boolean[] AdHoc = new boolean[22];
+    public static boolean[] AdHoc = new boolean[44];
 
     /**
      * Sets all values in AdHoc[] to false before we runt the function
