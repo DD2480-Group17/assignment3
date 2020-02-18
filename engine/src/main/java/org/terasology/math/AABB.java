@@ -18,6 +18,7 @@ package org.terasology.math;
 
 import com.google.common.base.Objects;
 import gnu.trove.list.TFloatList;
+import org.terasology.AdHoc.AdHocAABB;
 import org.terasology.math.geom.Matrix3f;
 import org.terasology.math.geom.Quat4f;
 import org.terasology.math.geom.Vector3d;
@@ -322,21 +323,27 @@ public final class AABB {
         List<Vector3f> normals = new ArrayList<>();
 
         if (pointOnAABB.z == min.z && testZ) {
+            AdHocAABB.addVisitedBranchNormalForPlane(0);
             normals.add(new Vector3f(0, 0, -1));
         }
         if (pointOnAABB.z == max.z && testZ) {
+            AdHocAABB.addVisitedBranchNormalForPlane(1);
             normals.add(new Vector3f(0, 0, 1));
         }
         if (pointOnAABB.x == min.x && testX) {
+            AdHocAABB.addVisitedBranchNormalForPlane(2);
             normals.add(new Vector3f(-1, 0, 0));
         }
         if (pointOnAABB.x == max.x && testX) {
+            AdHocAABB.addVisitedBranchNormalForPlane(3);
             normals.add(new Vector3f(1, 0, 0));
         }
         if (pointOnAABB.y == min.y && testY) {
+            AdHocAABB.addVisitedBranchNormalForPlane(4);
             normals.add(new Vector3f(0, -1, 0));
         }
         if (pointOnAABB.y == max.y && testY) {
+            AdHocAABB.addVisitedBranchNormalForPlane(5);
             normals.add(new Vector3f(0, 1, 0));
         }
 
@@ -350,6 +357,7 @@ public final class AABB {
             float distance = diff.length();
 
             if (distance < minDistance) {
+                AdHocAABB.addVisitedBranchNormalForPlane(6);
                 minDistance = distance;
                 closestNormal = n;
             }
@@ -365,25 +373,32 @@ public final class AABB {
      * @return The center point
      */
     public Vector3f centerPointForNormal(Vector3f normal) {
+
         if (normal.x == 1 && normal.y == 0 && normal.z == 0) {
+            AdHocAABB.addVisitedBranchCenterPoint(0);
             return new Vector3f(max.x, getCenter().y, getCenter().z);
         }
         if (normal.x == -1 && normal.y == 0 && normal.z == 0) {
+            AdHocAABB.addVisitedBranchCenterPoint(1);
             return new Vector3f(min.x, getCenter().y, getCenter().z);
         }
         if (normal.x == 0 && normal.y == 0 && normal.z == 1) {
+            AdHocAABB.addVisitedBranchCenterPoint(2);
             return new Vector3f(getCenter().x, getCenter().y, max.z);
         }
         if (normal.x == 0 && normal.y == 0 && normal.z == -1) {
+            AdHocAABB.addVisitedBranchCenterPoint(3);
             return new Vector3f(getCenter().x, getCenter().y, min.z);
         }
         if (normal.x == 0 && normal.y == 1 && normal.z == 0) {
+            AdHocAABB.addVisitedBranchCenterPoint(4);
             return new Vector3f(getCenter().x, max.y, getCenter().z);
         }
         if (normal.x == 0 && normal.y == -1 && normal.z == 0) {
+            AdHocAABB.addVisitedBranchCenterPoint(5);
             return new Vector3f(getCenter().x, min.y, getCenter().z);
         }
-
+        AdHocAABB.addVisitedBranchCenterPoint(6);
         return new Vector3f();
     }
 
@@ -486,4 +501,5 @@ public final class AABB {
 
         return true;
     }
+
 }
