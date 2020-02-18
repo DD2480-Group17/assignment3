@@ -163,8 +163,50 @@ class SimplexNoiseTest {
         }
     }
 
+
+    @Test
+    void testNoiseFourParametersAllZeros() {
+        SimplexNoise sn = new SimplexNoise(7);
+        float result = sn.noise(0.0f, 0.0f, 0.0f, 0.0f);
+        assertTrue(result >= -1.0f && result <= 1.0f);
+        assertEquals(0.0f, result);
+    }
+
+    @Test
+    void testNoiseFourParametersOne() {
+        SimplexNoise sn = new SimplexNoise(7);
+        float n1 = (float) -9.8451392e8;
+        float n2 = (float) -1.82247667e9;
+        float n3 = (float) -9.8426086e8;
+        float n4 = (float) 2.08989875e9;
+        float result = sn.noise(n1, n2, n3, n4);
+        assertTrue(result >= -1.0f && result <= 1.0f);
+    }
+
+    @Test
+    void testNoiseFourParametersTwo() {
+        SimplexNoise sn = new SimplexNoise(7);
+        float n1 = (float) 1.74955968e9;
+        float n2 = (float) 6.9046541e8;
+        float n3 = (float) 2.09334016e9;
+        float n4 = (float) 2.06225968e8;
+        float result = sn.noise(n1, n2, n3, n4);
+        assertTrue(result >= -1.0f && result <= 1.0f);
+    }
+
+    @Test
+    void testNoiseFourParametersThree() {
+        SimplexNoise sn = new SimplexNoise(7);
+        float n1 = (float) 4.32744384E8;
+        float n2 = (float) 1.66149146E9;
+        float n3 = (float) -6.9053453E8;
+        float n4 = (float) -1.99001549E9;
+        float result = sn.noise(n1, n2, n3, n4);
+        assertTrue(result >= -1.0f && result <= 1.0f);
+    }
+
     @AfterAll
-    private static void printCoverage() {
+    static void printCoverage() {
         BranchCoverageSimplesNoiseNoiseMethod.printBranchCoveragePercentage();
     }
 }
