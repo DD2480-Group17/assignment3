@@ -111,11 +111,10 @@ public final class AABB {
      *
      * @param vertices The vertices to encompass. It is assumed that the X, Y, Z components of each
      *                 vertex are stored consecutively in the {@link TFloatList}.
-     *
+     *                 <p>
      *                 For the {@code i}th vertex in the list, the X, Y, and Z components
      *                 are stored at indices {@code 3 * i}, {@code 3 * i + 1}, and
      *                 {@code 3 * i + 2} respectively.
-     *
      * @return The created AABB.
      */
     public static AABB createEncompasing(TFloatList vertices) {
@@ -164,6 +163,7 @@ public final class AABB {
 
     /**
      * Get a new AABB which have a new location base on the offset
+     *
      * @param offset The offset between the current AABB and the new AABB
      * @return the new AABB
      */
@@ -179,8 +179,8 @@ public final class AABB {
      * Transform this AABB into a new AABB with the given rotation, offset and scale.
      *
      * @param rotation The rotation from the current AABB to the new AABB.
-     * @param offset The offset between the current AABB and the new AABB.
-     * @param scale The scale of the new AABB with respect to the old AABB.
+     * @param offset   The offset between the current AABB and the new AABB.
+     * @param scale    The scale of the new AABB with respect to the old AABB.
      * @return The new transformed AABB.
      */
     public AABB transform(Quat4f rotation, Vector3f offset, float scale) {
@@ -374,32 +374,92 @@ public final class AABB {
      */
     public Vector3f centerPointForNormal(Vector3f normal) {
 
-        if (normal.x == 1 && normal.y == 0 && normal.z == 0) {
+        if (normalIsPositiveX(normal)) {
             AdHocAABB.addVisitedBranchCenterPoint(0);
             return new Vector3f(max.x, getCenter().y, getCenter().z);
         }
-        if (normal.x == -1 && normal.y == 0 && normal.z == 0) {
+        if (normalIsNegativeX(normal)) {
             AdHocAABB.addVisitedBranchCenterPoint(1);
             return new Vector3f(min.x, getCenter().y, getCenter().z);
         }
-        if (normal.x == 0 && normal.y == 0 && normal.z == 1) {
+        if (normalIsPositiveZ(normal)) {
             AdHocAABB.addVisitedBranchCenterPoint(2);
             return new Vector3f(getCenter().x, getCenter().y, max.z);
         }
-        if (normal.x == 0 && normal.y == 0 && normal.z == -1) {
+        if (normalIsNegativeZ(normal)) {
             AdHocAABB.addVisitedBranchCenterPoint(3);
             return new Vector3f(getCenter().x, getCenter().y, min.z);
         }
-        if (normal.x == 0 && normal.y == 1 && normal.z == 0) {
+        if (normalIsPositiveY(normal)) {
             AdHocAABB.addVisitedBranchCenterPoint(4);
             return new Vector3f(getCenter().x, max.y, getCenter().z);
         }
-        if (normal.x == 0 && normal.y == -1 && normal.z == 0) {
+        if (normalIsNegativeY(normal)) {
             AdHocAABB.addVisitedBranchCenterPoint(5);
             return new Vector3f(getCenter().x, min.y, getCenter().z);
         }
         AdHocAABB.addVisitedBranchCenterPoint(6);
         return new Vector3f();
+    }
+
+    /**
+     * The method normalIsPositiveX checks if normal is a positive x-axis unit-vector
+     *
+     * @param normal the input normal
+     * @return true, if normal is a positive x-axis unit-vector
+     */
+    private boolean normalIsPositiveX(Vector3f normal) {
+        return normal.x == 1 && normal.y == 0 && normal.z == 0;
+    }
+
+    /**
+     * The method normalIsNegativeX checks if normal is a negative x-axis unit-vector
+     *
+     * @param normal the input normal
+     * @return true, if normal is a negative x-axis unit-vector
+     */
+    private boolean normalIsNegativeX(Vector3f normal) {
+        return normal.x == -1 && normal.y == 0 && normal.z == 0;
+    }
+
+    /**
+     * The method normalIsPositiveZ checks if normal is a positive z-axis unit-vector
+     *
+     * @param normal the input normal
+     * @return true, if normal is a positive z-axis unit-vector
+     */
+    private boolean normalIsPositiveZ(Vector3f normal) {
+        return normal.x == 0 && normal.y == 0 && normal.z == 1;
+    }
+
+    /**
+     * The method normalIsNegativeZ checks if normal is a negative z-axis unit-vector
+     *
+     * @param normal the input normal
+     * @return true, if normal is a negative z-axis unit-vector
+     */
+    private boolean normalIsNegativeZ(Vector3f normal) {
+        return normal.x == 0 && normal.y == 0 && normal.z == -1;
+    }
+
+    /**
+     * The method normalIsPositiveY checks if normal is a positive y-axis unit-vector
+     *
+     * @param normal the input normal
+     * @return true, if normal is a positive y-axis unit-vector
+     */
+    private boolean normalIsPositiveY(Vector3f normal) {
+        return normal.x == 0 && normal.y == 1 && normal.z == 0;
+    }
+
+    /**
+     * The method normalIsNegativeY checks if normal is a negative y-axis unit-vector
+     *
+     * @param normal the input normal
+     * @return true, if normal is a negative y-axis unit-vector
+     */
+    private boolean normalIsNegativeY(Vector3f normal) {
+        return normal.x == 0 && normal.y == -1 && normal.z == 0;
     }
 
     public float minX() {
@@ -470,7 +530,7 @@ public final class AABB {
     /**
      * Checks whether a given ray intersects the AABB.
      *
-     * @param from The origin of the ray.
+     * @param from      The origin of the ray.
      * @param direction The direction of the ray.
      * @return True if the ray intersects the AABB, else false.
      */
