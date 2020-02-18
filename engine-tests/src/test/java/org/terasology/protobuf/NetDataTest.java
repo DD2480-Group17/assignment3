@@ -30,6 +30,7 @@ class NetDataTest {
         AdHocNetData.NetMessage.Builder.IsInitialized.printRes();
         BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();
         AdHocBuildPartial.getCoverage();
+        AdHocServerInfoMessageIsInitialized.getCoverage();
     }
 
     /**
@@ -183,5 +184,23 @@ class NetDataTest {
         assertListCountsEqualToSize(builder, 1);
         builder.clear();
         assertListCountsEqualToSize(builder, 0);
+    }
+
+    /**
+     * Test that the playersAmount and reflectionHeight are correct
+     * Test that the ServerInfoMessage's Builder is initialized
+     */
+    @Test
+    void testIsInitialized() {
+        NetData.ServerInfoMessage serverinfo1 = NetData.ServerInfoMessage.getDefaultInstance();
+        NetData.ServerInfoMessage.Builder builder = serverinfo1.newBuilder(serverinfo1);
+        NetData.ServerInfoMessage serverinfo2 = builder.buildPartial();
+
+        // gets the correct value for playersAmount
+        assertEquals(0, serverinfo2.getOnlinePlayersAmount());
+        // gets the correct value for reflectionHeight
+        assertEquals(0.0, serverinfo2.getReflectionHeight());
+        // Assertion should be true even if we haven't added any components to object
+        assertTrue(builder.isInitialized());
     }
 }
