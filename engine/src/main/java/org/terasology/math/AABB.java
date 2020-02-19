@@ -326,43 +326,65 @@ public final class AABB {
             AdHocAABB.addVisitedBranchNormalForPlane(0);
             normals.add(new Vector3f(0, 0, -1));
         }
-        if (pointOnAABB.z == max.z && testZ) {
+        else{
             AdHocAABB.addVisitedBranchNormalForPlane(1);
+        }
+        if (pointOnAABB.z == max.z && testZ) {
+            AdHocAABB.addVisitedBranchNormalForPlane(2);
             normals.add(new Vector3f(0, 0, 1));
         }
+        else{
+            AdHocAABB.addVisitedBranchNormalForPlane(3);
+        }
         if (pointOnAABB.x == min.x && testX) {
-            AdHocAABB.addVisitedBranchNormalForPlane(2);
+            AdHocAABB.addVisitedBranchNormalForPlane(4);
             normals.add(new Vector3f(-1, 0, 0));
         }
+        else{
+            AdHocAABB.addVisitedBranchNormalForPlane(5);
+        }
         if (pointOnAABB.x == max.x && testX) {
-            AdHocAABB.addVisitedBranchNormalForPlane(3);
+            AdHocAABB.addVisitedBranchNormalForPlane(6);
             normals.add(new Vector3f(1, 0, 0));
         }
+        else{
+            AdHocAABB.addVisitedBranchNormalForPlane(7);
+        }
         if (pointOnAABB.y == min.y && testY) {
-            AdHocAABB.addVisitedBranchNormalForPlane(4);
+            AdHocAABB.addVisitedBranchNormalForPlane(8);
             normals.add(new Vector3f(0, -1, 0));
         }
+        else{
+            AdHocAABB.addVisitedBranchNormalForPlane(9);
+        }
         if (pointOnAABB.y == max.y && testY) {
-            AdHocAABB.addVisitedBranchNormalForPlane(5);
+            AdHocAABB.addVisitedBranchNormalForPlane(10);
             normals.add(new Vector3f(0, 1, 0));
+        }
+        else{
+            AdHocAABB.addVisitedBranchNormalForPlane(11);
         }
 
         float minDistance = Float.MAX_VALUE;
         Vector3f closestNormal = new Vector3f();
 
         for (Vector3f n : normals) {
+            AdHocAABB.addVisitedBranchNormalForPlane(12);
             Vector3f diff = new Vector3f(centerPointForNormal(n));
             diff.sub(origin);
 
             float distance = diff.length();
 
             if (distance < minDistance) {
-                AdHocAABB.addVisitedBranchNormalForPlane(6);
+                AdHocAABB.addVisitedBranchNormalForPlane(13);
                 minDistance = distance;
                 closestNormal = n;
             }
+            else{
+                AdHocAABB.addVisitedBranchNormalForPlane(14);
+            }
         }
-
+        AdHocAABB.addVisitedBranchNormalForPlane(15);
         return closestNormal;
     }
 
@@ -378,27 +400,42 @@ public final class AABB {
             AdHocAABB.addVisitedBranchCenterPoint(0);
             return new Vector3f(max.x, getCenter().y, getCenter().z);
         }
-        if (normalIsNegativeX(normal)) {
+        else{
             AdHocAABB.addVisitedBranchCenterPoint(1);
+        }
+        if (normalIsNegativeX(normal)) {
+            AdHocAABB.addVisitedBranchCenterPoint(2);
             return new Vector3f(min.x, getCenter().y, getCenter().z);
         }
+        else{
+            AdHocAABB.addVisitedBranchCenterPoint(3);
+        }
         if (normalIsPositiveZ(normal)) {
-            AdHocAABB.addVisitedBranchCenterPoint(2);
+            AdHocAABB.addVisitedBranchCenterPoint(4);
             return new Vector3f(getCenter().x, getCenter().y, max.z);
         }
+        else{
+            AdHocAABB.addVisitedBranchCenterPoint(5);
+        }
         if (normalIsNegativeZ(normal)) {
-            AdHocAABB.addVisitedBranchCenterPoint(3);
+            AdHocAABB.addVisitedBranchCenterPoint(6);
             return new Vector3f(getCenter().x, getCenter().y, min.z);
         }
+        else{
+            AdHocAABB.addVisitedBranchCenterPoint(7);
+        }
         if (normalIsPositiveY(normal)) {
-            AdHocAABB.addVisitedBranchCenterPoint(4);
+            AdHocAABB.addVisitedBranchCenterPoint(8);
             return new Vector3f(getCenter().x, max.y, getCenter().z);
         }
+        else{
+            AdHocAABB.addVisitedBranchCenterPoint(9);
+        }
         if (normalIsNegativeY(normal)) {
-            AdHocAABB.addVisitedBranchCenterPoint(5);
+            AdHocAABB.addVisitedBranchCenterPoint(10);
             return new Vector3f(getCenter().x, min.y, getCenter().z);
         }
-        AdHocAABB.addVisitedBranchCenterPoint(6);
+        AdHocAABB.addVisitedBranchCenterPoint(11);
         return new Vector3f();
     }
 

@@ -1,8 +1,8 @@
 package org.terasology.AdHoc;
 
 public class AdHocAABB {
-    private static int[] adHocCenterPoint = new int[7];
-    private static int[] adHocNormalForPlane = new int[7];
+    private static int[] adHocCenterPoint = new int[12];
+    private static int[] adHocNormalForPlane = new int[16];
     private static double foundCenter = 0;
     private static double foundNormal = 0;
 
