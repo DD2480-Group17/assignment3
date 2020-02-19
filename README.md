@@ -12,8 +12,8 @@ Contributors: 237
 Terasology is basically a Minecraft clone.  
 
 ## Onboarding experience
-In the following section the experience of using the project Terasology is explained. The experiance where different depending
-on the operativsystem of the used computer.
+In the following section the experience of using the project Terasology is explained. The experience where different depending
+on the operative system of the used computer.
 
 #### How easily can you build the project? Briefly describe if everything worked as documented or not:
 
@@ -31,12 +31,12 @@ Were other components installed automatically by the build script?
 Did the build conclude automatically without errors?
 * `Linux` No, there was one almost empty Java source file which caused syntax errors. Removing this file solved the issue.
 * `Windows` No, 16 build error in IDEA, 3 build errors in CMD and 0 in Ubuntu terminal.
-* `Mac` No.
+* `Mac` No got several errors. However, after we managed to open the .bat files that was included etc everything worked with only few errors.
 
 How well do examples and tests run on your system(s)?
 * `Linux` Both the tests and the actual game run well.
 * `Windows` The game can be executed form CMD, the test can be executed from Ubuntu terminal, specific tests can be executed from IDEA.
-* `Mac` No.
+* `Mac` In the beginning, we could not run any tests on the Mac computer. After a while, we managed to run the tests both in the terminal and in IDEA.
 
 ## Complexity
 To automatically calculate the cyclomatic complexity for each method, we used the java tool JaCoCo. The methods and their cyclomatic complexity (Cxty) according to JaCoCo were:
@@ -52,9 +52,6 @@ To automatically calculate the cyclomatic complexity for each method, we used th
 ##### class NetData.ServerInfoMessage.Builder
 * buildPartial() : Cxty = 23
 * isInitialized() : Cxty = 10
-
-#### class SimplexNoise
-* noise(float x, float y, float z) : Cxty = 10
 
 ##### class AABB
 * centerPointForNormal(Vector3f) : Cxty = 19
@@ -103,7 +100,6 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 * `normalForPlaneClosestToOrigin() ` No it´s not, the length is only 37 lines of code.
 * `mergeFrom(NetData.NetMessage)` Yes, 325 lines of code.
 * `NetData.NetMessage.Builder.ìsInitialized()` Yes, 111 lines of code.
-* `noise(float x, float y, float z)` Yes, 150 lines of code.
 
 ##### What is the purpose of these functions? Is it related to the high CC?
 * `clear()` This function is related to called by the initialization and clear code paths to allow subclasses to reset any of their builtin fields back to the initial values. The reason for such high CC is that there are a lot of if-statements to check if the fields are not null. If they are null, they are initialized. Otherwise, clear method is called on a field if it is not null. However, there is a lot of code duplication. And, the problem should not have high essential complexity after refactoring.
@@ -114,7 +110,6 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 * `normalForPlaneClosestToOrigin() ` The purpose of this function is return the normal of the plane that is closest to the input point. The planes tested are specified as min and max, where the normal can be returned in x, y and z direction. The function can return several normals if the user is interested in more then one plane.
 * `mergeFrom(NetData.NetMessage)` The purpose of this function is to merge a NetMessage.Builder object with a NetMessage object, to create a new NetMessage.Builder object. It has high CC because of ridiculous code duplication. It consists of the same block of code duplicated 11 times, in addition to 11 other if-statements.
 * `NetData.NetMessage.Builder.ìsInitialized()` The purpose of this function is to check if all components of the NetMessage.Builder object have been initialized. The reason for the high CC is that it consists of a large amount of if-statements.
-* `noise(float x, float y, float z)` The purpose of this function is to return a noise value in the interval [-1,1] by using an algorithm to decide the simplex. The reason for the high CC is that it consists of several if-statements.
 
 ##### If your programming language uses exceptions: Are they taken into account by the tool? If you think of an exception as another possible branch (to the catch block or the end of the function), how is the CC affected?
 * `clear()` As per JaCoCo's documentation, "Note that as JaCoCo does not consider exception handling as branches try/catch blocks will also not increase complexity" is said under cyclomatic complexity. If exceptions are considered as branches, the cyclomatic complexity calculated will increase in general. However, in the NetData.NetMessage.Builder.clear(), there are no exceptions thrown. Therefore, the cyclomatic complexity will be the same regardless of whether exceptions are considered as branches or not.
@@ -125,7 +120,6 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 * `normalForPlaneClosestToOrigin() ` The function does not use exceptions.
 * `mergeFrom(NetData.NetMessage)` The function does not throw any exceptions.
 * `NetData.NetMessage.Builder.ìsInitialized()` The function does not throw any exceptions.
-* `noise(float x, float y, float z)` The function does not throw any exceptions.
 
 ##### Is the documentation of the function clear about the different possible outcomes induced by different branches taken?
 * `clear()` It is relatively clear. However, I had to read through the code a bit to get an idea about the how the documentation maps to the code.
@@ -135,19 +129,20 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 * `NetData.ServerInfoMessage.Builder.ìsInitialized()` There is no explicit documentation for this function. However, the function is relatively clear anyway.
 * `normalForPlaneClosestToOrigin() ` The documentation is understandable, however it does not state that several normals can be returned.
 * `mergeFrom(NetData.NetMessage)` There is no documentation available, and since the function is ovver 300 LOC and consists of bitwise operations it is very difficult to comprehend.
-* `NetData.NetMessage.Builder.ìsInitialized()` There is no documentation available, but since the function only returns a boolean value it is yet quite comprehensible.
-* `noise(float x, float y, float z)` There is some documentation available and the authors of the function have used Javadoc. However, they have not described the different possible outcomes induced by the different branches.
-* `noise(float xin, float yin, float zin, float win)` Same as noise in 3D (with three parameters).
+* `NetData.NetMessage.Builder.ìsInitialized()` There is no documentation available, but since the function only returns a boolean value it is yet quite
+* `noise(float xin, float yin, float zin, float win)` There is some documentation available and the authors of the function have used Javadoc. However, they have not described the different possible outcomes induced by the different branches.
 
 ## Coverage
 
 ### Tools
 
 #### Document your experience in using a "new"/different coverage tool. How well was the tool documented? Was it possible/easy/difficult to integrate it with your build environment?
+
 We decided to use Jacoco because it works well with the IDE Intellij which the product where developed in. In general no one in the group had larger issues
 related to Jacoco because it was already integrated in IntelliJ. The only problem related to Jacoco was if the project was incorrectly installed on
 IntelliJ, then Jacoco could potentially miss branches or set all branch coverage to 0. However, we considered this to be an difficulty in getting the
 program running rather then it being hard to use Jacoco.
+
 
 ### DYI
 
@@ -231,12 +226,15 @@ git diff ...
 * `centerPointForNormal(Vector3f) ` The function has a complexity of 19 and are dependent chained if statemants. To lower the complexity the chained if statements could be moved to a function. This should reduce the number of branches by 4 for each statement which would result in 6*4 = 24 less branches.
 * `mergeFrom(NetData.NetMessage)` has a complexity of 79, and consists of the same block of code duplicated 11 times, in addition to 11 smaller if statements. The larger block consists of doing bitwise operations with different values and calling functions on its 11 containing objects that extend com.google.protobuf.GeneratedMessage.ExtendableMessage. Since all of these 11 objects are extensions of this class, the code block could be be put into the super class, or an extension of the super class, to avoid code duplication. This would cut the CC of the function to approximately 1/5 of what it is now, a reduction of 80 %.
 * `clear()` The function consist of 22 blocks with similar patterns again and again. Functional programming paradigm was used to decrease the complexity from 22 to 1 by passing the different part in each pattern to two different helper functions that were created. This different part in each pattern can not be changed without referring to the fields of the object. That is why functional programming paradigm was used.
-`noise(4D)` what makes this function is a lot of if-statements. Most of the function seems to be essential complexity because it seems that they are just calculations essential to get a specific result. An easy way to refactor this function is to refactor the function by grouping the if-statements in different functions to give a better overview of what the algorithm does and reduce the cyclomatic complexity.
+* `noise(4D)` what makes this function is a lot of if-statements. Most of the function seems to be essential complexity because it seems that they are just calculations essential to get a specific result. An easy way to refactor this function is to refactor the function by grouping the if-statements in different functions to give a better overview of what the algorithm does and reduce the cyclomatic complexity.
+* `NetData.ServerInfoMessage.Builder.buildPartial()` consists of a lot of different if-statements, where some of them if-statements are nested and check if a certain builder object is null or not. If they are not, we will enter a new if-statements/branch. Those four if-statements could be moved into new functions called for instance buildComponent(), buildModule(), buildEvent() etc and be replaced by a function call (which takes the ServerInfoMessage object as a parameter that the buildPartial() function has created). We will probably need to use an if-statement to check the output of the function call. However, we will decrease the CC with 4 because we will get rid of one of the nested if-statements in buildPartial().
+
 
 ### Estimated impact of refactoring (lower CC, but other drawbacks?).
 * `centerPointForNormal(Vector3f) ` The estimated impact of refactoring is M = B-D+1 = 12-6 +1 = 7. Original complexity where 19, which would result in a (19-7)/19 = 0.64 = 63% reduction of cyclomatic complexity.
 * `clear()` the estimated impact of refactoring is to reduce the cyclomatic omplexity to nearly 1 because it is mostly repeated patterns. So, the impact is nearly 100 % reduction of cyclomatic complexity.
 * `noise(4D)` estimated impact by grouping the if-statements in different functions could be to reduce the complexity to 1. The reason is that if there is a natural grouping of operations in the algorithm, it would be easy to create different functions that handle different parts of the calculations and results and accumulate the results in the main calling method.
+* `NetData.ServerInfoMessage.Builder.buildPartial()` The estimated impact of the refactoring above is pi = 22 - 4*2 + 4 (remove the nested if-statments and replace with a single one), s = 1, M = 18 - 1 = 19. Original complexity where 23, which would decrease the cyclomatic complexity with 4/23 = 0,17 = 17%
 
 ### Carried out refactoring (optional)
 * `centerPointForNormal(Vector3f) ` All chained if-statements where replaced by a function call. Example if(normal.x==1 && normal.y==0 && normal.z==0) where changed to if(normalPositiveX). After the changes jcoco calculated the cyclomatic complexity to 7 which is the same as the estimated reduction of complexity.
@@ -245,5 +243,9 @@ git diff ...
 ## Overall experience
 
 What are your main take-aways from this project? What did you learn?
+
+* How to calculate and decide the cyclomatic complexity by using different formulas
+* Decide the approximately branch coverage of a function by creating a simple tool (ad hoc)
+* Implement external tools and Open Source Projects for different OS
 
 Is there something special you want to mention here?
