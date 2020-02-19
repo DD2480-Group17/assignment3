@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EnvironmentSwitchHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.bootstrap</a> &gt; <span class="el_source">EnvironmentSwitchHandler.java</span></div><h1>EnvironmentSwitchHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.bootstrap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
+import org.terasology.config.flexible.AutoConfigManager;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.metadata.EntitySystemLibrary;
+import org.terasology.entitySystem.metadata.EventLibrary;
+import org.terasology.entitySystem.metadata.MetadataUtil;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.prefab.internal.PrefabDeltaFormat;
+import org.terasology.entitySystem.prefab.internal.PrefabFormat;
+import org.terasology.entitySystem.systems.internal.DoNotAutoRegister;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.persistence.typeHandling.RegisterTypeHandler;
+import org.terasology.persistence.typeHandling.RegisterTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.TypeHandler;
+import org.terasology.persistence.typeHandling.TypeHandlerFactory;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.extensionTypes.CollisionGroupTypeHandler;
+import org.terasology.physics.CollisionGroup;
+import org.terasology.physics.CollisionGroupManager;
+import org.terasology.reflection.TypeRegistry;
+import org.terasology.reflection.copy.CopyStrategy;
+import org.terasology.reflection.copy.CopyStrategyLibrary;
+import org.terasology.reflection.copy.RegisterCopyStrategy;
+import org.terasology.registry.InjectionHelper;
+import org.terasology.util.reflection.GenericsUtil;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.lang.reflect.Type;
+import java.util.Optional;
+
+/**
+ * Handles an environment switch by updating the asset manager, component library, and other context objects.
+ */
+public final class EnvironmentSwitchHandler {
+<span class="nc" id="L58">    private static final Logger logger = LoggerFactory.getLogger(EnvironmentSwitchHandler.class);</span>
+
+    private PrefabFormat registeredPrefabFormat;
+    private PrefabDeltaFormat registeredPrefabDeltaFormat;
+
+<span class="nc" id="L63">    public EnvironmentSwitchHandler() {</span>
+<span class="nc" id="L64">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public void handleSwitchToGameEnvironment(Context context) {
+<span class="nc" id="L68">        ModuleManager moduleManager = context.get(ModuleManager.class);</span>
+<span class="nc" id="L69">        ModuleEnvironment environment = moduleManager.getEnvironment();</span>
+
+<span class="nc" id="L71">        TypeRegistry typeRegistry = context.get(TypeRegistry.class);</span>
+<span class="nc" id="L72">        typeRegistry.reload(environment);</span>
+
+<span class="nc" id="L74">        CopyStrategyLibrary copyStrategyLibrary = context.get(CopyStrategyLibrary.class);</span>
+<span class="nc" id="L75">        copyStrategyLibrary.clear();</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        for (Class&lt;? extends CopyStrategy&gt; copyStrategy : environment.getSubtypesOf(CopyStrategy.class)) {</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            if (copyStrategy.getAnnotation(RegisterCopyStrategy.class) == null) {</span>
+<span class="nc" id="L78">                continue;</span>
+            }
+<span class="nc" id="L80">            Type targetType = ReflectionUtil.getTypeParameterForSuper(copyStrategy, CopyStrategy.class, 0);</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (targetType instanceof Class) {</span>
+<span class="nc" id="L82">                registerCopyStrategy(copyStrategyLibrary, (Class&lt;?&gt;) targetType, copyStrategy);</span>
+            } else {
+<span class="nc" id="L84">                logger.error(&quot;Cannot register CopyStrategy '{}' - unable to determine target type&quot;, copyStrategy);</span>
+            }
+<span class="nc" id="L86">        }</span>
+
+<span class="nc" id="L88">        TypeHandlerLibrary typeHandlerLibrary = context.get(TypeHandlerLibrary.class);</span>
+<span class="nc" id="L89">        typeHandlerLibrary.addTypeHandler(CollisionGroup.class, new CollisionGroupTypeHandler(context.get(CollisionGroupManager.class)));</span>
+
+        // Entity System Library
+<span class="nc" id="L92">        EntitySystemLibrary library = new EntitySystemLibrary(context, typeHandlerLibrary);</span>
+<span class="nc" id="L93">        context.put(EntitySystemLibrary.class, library);</span>
+<span class="nc" id="L94">        ComponentLibrary componentLibrary = library.getComponentLibrary();</span>
+<span class="nc" id="L95">        context.put(ComponentLibrary.class, componentLibrary);</span>
+<span class="nc" id="L96">        context.put(EventLibrary.class, library.getEventLibrary());</span>
+<span class="nc" id="L97">        context.put(ClassMetaLibrary.class, new ClassMetaLibraryImpl(context));</span>
+
+<span class="nc" id="L99">        registerComponents(componentLibrary, environment);</span>
+<span class="nc" id="L100">        registerTypeHandlers(context, typeHandlerLibrary, environment);</span>
+
+        // Load configs for the new environment
+<span class="nc" id="L103">        AutoConfigManager autoConfigManager = context.get(AutoConfigManager.class);</span>
+<span class="nc" id="L104">        autoConfigManager.loadConfigsIn(context);</span>
+
+<span class="nc" id="L106">        ModuleAwareAssetTypeManager assetTypeManager = context.get(ModuleAwareAssetTypeManager.class);</span>
+
+        /*
+         * The registering of the prefab formats is done in this method, because it needs to be done before
+         * the environment of the asset manager gets changed.
+         *
+         * It can't be done before this method gets called because the ComponentLibrary isn't
+         * existing then yet.
+         */
+<span class="nc" id="L115">        unregisterPrefabFormats(assetTypeManager);</span>
+<span class="nc" id="L116">        registeredPrefabFormat = new PrefabFormat(componentLibrary, typeHandlerLibrary);</span>
+<span class="nc" id="L117">        assetTypeManager.registerCoreFormat(Prefab.class, registeredPrefabFormat);</span>
+<span class="nc" id="L118">        registeredPrefabDeltaFormat = new PrefabDeltaFormat(componentLibrary, typeHandlerLibrary);</span>
+<span class="nc" id="L119">        assetTypeManager.registerCoreDeltaFormat(Prefab.class, registeredPrefabDeltaFormat);</span>
+
+<span class="nc" id="L121">        assetTypeManager.switchEnvironment(environment);</span>
+
+<span class="nc" id="L123">    }</span>
+
+    private &lt;T, U extends CopyStrategy&lt;T&gt;&gt; void registerCopyStrategy(CopyStrategyLibrary copyStrategyLibrary, Class&lt;T&gt; type, Class&lt;U&gt; strategy) {
+        try {
+<span class="nc" id="L127">            copyStrategyLibrary.register(type, strategy.newInstance());</span>
+<span class="nc" id="L128">        } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L129">            logger.error(&quot;Cannot register CopyStrategy '{}' - failed to instantiate&quot;, strategy, e);</span>
+<span class="nc" id="L130">        }</span>
+<span class="nc" id="L131">    }</span>
+
+    /**
+     * Switches the environment of the asset manager to the specified one. It does not register the prefab formats
+     * as they require a proper ComponentLibrary.
+     *
+     * The existence of this method call is questionable. It has only be introduced to make sure that
+     * the asset type manager has never prefab formats that reference an old ComponentLibrary.
+     *
+     */
+    private void cheapAssetManagerUpdate(Context context, ModuleEnvironment environment) {
+<span class="nc" id="L142">        ModuleAwareAssetTypeManager moduleAwareAssetTypeManager = context.get(ModuleAwareAssetTypeManager.class);</span>
+<span class="nc" id="L143">        unregisterPrefabFormats(moduleAwareAssetTypeManager);</span>
+<span class="nc" id="L144">        moduleAwareAssetTypeManager.switchEnvironment(environment);</span>
+<span class="nc" id="L145">    }</span>
+
+
+    public void handleSwitchToPreviewEnvironment(Context context, ModuleEnvironment environment) {
+<span class="nc" id="L149">        cheapAssetManagerUpdate(context, environment);</span>
+<span class="nc" id="L150">        ComponentLibrary library = new ComponentLibrary(context);</span>
+<span class="nc" id="L151">        context.put(ComponentLibrary.class, library);</span>
+
+<span class="nc" id="L153">        registerComponents(library, environment);</span>
+<span class="nc" id="L154">    }</span>
+
+    public void handleSwitchBackFromPreviewEnvironment(Context context) {
+        // The newly created ComponentLibrary instance cannot be invalidated in context
+<span class="nc" id="L158">        ModuleEnvironment environment = context.get(ModuleManager.class).getEnvironment();</span>
+<span class="nc" id="L159">        cheapAssetManagerUpdate(context, environment);</span>
+<span class="nc" id="L160">    }</span>
+
+
+    public void handleSwitchToEmptyEnvironment(Context context) {
+<span class="nc" id="L164">        ModuleEnvironment environment = context.get(ModuleManager.class).getEnvironment();</span>
+<span class="nc" id="L165">        cheapAssetManagerUpdate(context, environment);</span>
+<span class="nc" id="L166">    }</span>
+
+    private void unregisterPrefabFormats(ModuleAwareAssetTypeManager assetTypeManager) {
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        if (registeredPrefabFormat != null) {</span>
+<span class="nc" id="L170">            assetTypeManager.removeCoreFormat(Prefab.class, registeredPrefabFormat);</span>
+<span class="nc" id="L171">            registeredPrefabFormat = null;</span>
+        }
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (registeredPrefabDeltaFormat != null) {</span>
+<span class="nc" id="L174">            assetTypeManager.removeCoreDeltaFormat(Prefab.class, registeredPrefabDeltaFormat);</span>
+<span class="nc" id="L175">            registeredPrefabDeltaFormat = null;</span>
+        }
+<span class="nc" id="L177">    }</span>
+
+
+    private static void registerComponents(ComponentLibrary library, ModuleEnvironment environment) {
+<span class="nc bnc" id="L181" title="All 2 branches missed.">        for (Class&lt;? extends Component&gt; componentType : environment.getSubtypesOf(Component.class)) {</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            if (componentType.getAnnotation(DoNotAutoRegister.class) == null) {</span>
+<span class="nc" id="L183">                String componentName = MetadataUtil.getComponentClassName(componentType);</span>
+<span class="nc" id="L184">                library.register(new SimpleUri(environment.getModuleProviding(componentType), componentName), componentType);</span>
+            }
+<span class="nc" id="L186">        }</span>
+<span class="nc" id="L187">    }</span>
+
+    @SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+    private static void registerTypeHandlers(Context context, TypeHandlerLibrary library, ModuleEnvironment environment) {
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        for (Class&lt;? extends TypeHandler&gt; handler : environment.getSubtypesOf(TypeHandler.class)) {</span>
+<span class="nc" id="L192">            RegisterTypeHandler register = handler.getAnnotation(RegisterTypeHandler.class);</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">            if (register != null) {</span>
+<span class="nc" id="L194">                Optional&lt;Type&gt; opt = GenericsUtil.getTypeParameterBindingForInheritedClass(handler, TypeHandler.class, 0);</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">                if (opt.isPresent()) {</span>
+<span class="nc" id="L196">                    TypeHandler instance = InjectionHelper.createWithConstructorInjection(handler, context);</span>
+<span class="nc" id="L197">                    InjectionHelper.inject(instance, context);</span>
+<span class="nc" id="L198">                    library.addTypeHandler((Class) opt.get(), instance);</span>
+                }
+            }
+<span class="nc" id="L201">        }</span>
+
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        for (Class&lt;? extends TypeHandlerFactory&gt; clazz : environment.getSubtypesOf(TypeHandlerFactory.class)) {</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">            if (!clazz.isAnnotationPresent(RegisterTypeHandlerFactory.class)) {</span>
+<span class="nc" id="L205">                continue;</span>
+            }
+
+<span class="nc" id="L208">            TypeHandlerFactory instance = InjectionHelper.createWithConstructorInjection(clazz, context);</span>
+<span class="nc" id="L209">            InjectionHelper.inject(instance, context);</span>
+<span class="nc" id="L210">            library.addTypeHandlerFactory(instance);</span>
+<span class="nc" id="L211">        }</span>
+<span class="nc" id="L212">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

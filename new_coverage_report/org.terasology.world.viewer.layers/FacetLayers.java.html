@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FacetLayers.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.viewer.layers</a> &gt; <span class="el_source">FacetLayers.java</span></div><h1>FacetLayers.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.viewer.layers;
+
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.world.generation.WorldFacet;
+
+/**
+ * Additional functionality around the {@link FacetLayer} interface that is
+ * independent from any actual implementation.
+ */
+public final class FacetLayers {
+
+<span class="nc" id="L36">    private static final Logger logger = LoggerFactory.getLogger(FacetLayers.class);</span>
+
+    private FacetLayers() {
+        // no instances
+    }
+
+    /**
+     * @param facets the facets that should be rendered
+     * @param environment the module environment that contains the facet layers
+     * @return an ordered list of facet layers
+     */
+    public static List&lt;FacetLayer&gt; createLayersFor(Set&lt;Class&lt;? extends WorldFacet&gt;&gt; facets, ModuleEnvironment environment) {
+<span class="nc" id="L48">        Iterable&lt;Class&lt;? extends FacetLayer&gt;&gt; layers = environment.getSubtypesOf(FacetLayer.class);</span>
+
+<span class="nc" id="L50">        List&lt;FacetLayer&gt; loadedLayers = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        for (Class&lt;? extends WorldFacet&gt; facet : facets) {</span>
+<span class="nc" id="L53">            loadedLayers.addAll(createLayersFor(facet, layers));</span>
+<span class="nc" id="L54">        }</span>
+
+        // sort by annotated z-order
+<span class="nc" id="L57">        loadedLayers.sort((l1, l2) -&gt; {</span>
+<span class="nc" id="L58">            int o1 = l1.getClass().getAnnotation(Renders.class).order();</span>
+<span class="nc" id="L59">            int o2 = l2.getClass().getAnnotation(Renders.class).order();</span>
+
+<span class="nc" id="L61">            return Integer.compare(o1, o2);</span>
+        });
+
+<span class="nc" id="L64">        return loadedLayers;</span>
+    }
+
+
+    private static Collection&lt;FacetLayer&gt; createLayersFor(Class&lt;? extends WorldFacet&gt; facetClass,
+            Iterable&lt;Class&lt;? extends FacetLayer&gt;&gt; layers) {
+
+<span class="nc" id="L71">        Collection&lt;FacetLayer&gt; result = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        for (Class&lt;? extends FacetLayer&gt; layer : layers) {</span>
+<span class="nc" id="L74">            Renders anno = layer.getAnnotation(Renders.class);</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">            if (anno == null) {</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                if (!Modifier.isAbstract(layer.getModifiers())) {</span>
+                    // ignore abstract classes
+<span class="nc" id="L78">                    logger.warn(&quot;FacetLayer class {} is not annotated with @Renders&quot;, layer);</span>
+                }
+            } else {
+<span class="nc" id="L81">                Class&lt;? extends WorldFacet&gt; annotated = anno.value();</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">                if (facetClass.equals(annotated)) {</span>
+                    try {
+<span class="nc" id="L84">                        FacetLayer instance = layer.newInstance();</span>
+<span class="nc" id="L85">                        result.add(instance);</span>
+<span class="nc" id="L86">                    } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L87">                        logger.warn(&quot;Could not call default constructor for {}&quot;, layer);</span>
+<span class="nc" id="L88">                    }</span>
+                }
+            }
+<span class="nc" id="L91">        }</span>
+
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (result.isEmpty()) {</span>
+<span class="nc" id="L94">            logger.warn(&quot;No layers found for facet {}&quot;, facetClass.getName());</span>
+        }
+
+<span class="nc" id="L97">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

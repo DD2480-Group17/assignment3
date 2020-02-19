@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultBehaviorTreeRunner.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior</a> &gt; <span class="el_source">DefaultBehaviorTreeRunner.java</span></div><h1>DefaultBehaviorTreeRunner.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior;
+
+import org.terasology.logic.behavior.asset.BehaviorTree;
+import org.terasology.logic.behavior.core.Actor;
+import org.terasology.logic.behavior.core.BehaviorNode;
+import org.terasology.logic.behavior.core.BehaviorState;
+import org.terasology.logic.behavior.core.BehaviorTreeRunner;
+import org.terasology.logic.behavior.core.DelegateNode;
+
+/**
+ * Tree runner, that runs the given tree.
+ */
+public class DefaultBehaviorTreeRunner implements BehaviorTreeRunner {
+    private final BehaviorTree tree;
+    private final BehaviorNode root;
+    private Callback callback;
+    private Actor actor;
+<span class="pc" id="L33">    private BehaviorState state = BehaviorState.UNDEFINED;</span>
+
+<span class="fc" id="L35">    public DefaultBehaviorTreeRunner(BehaviorNode node, Actor actor) {</span>
+<span class="fc" id="L36">        this.tree = null;</span>
+<span class="fc" id="L37">        this.root = node.deepCopy();</span>
+<span class="fc" id="L38">        this.actor = actor;</span>
+<span class="fc" id="L39">    }</span>
+
+<span class="nc" id="L41">    public DefaultBehaviorTreeRunner(BehaviorTree tree, Actor actor, Callback callback) {</span>
+<span class="nc" id="L42">        this.callback = callback;</span>
+<span class="nc" id="L43">        this.tree = tree;</span>
+<span class="nc" id="L44">        this.root = injectDelegates(tree.getRoot().deepCopy(), tree.getRoot());</span>
+
+<span class="nc" id="L46">        this.actor = actor;</span>
+<span class="nc" id="L47">    }</span>
+
+    private BehaviorNode injectDelegates(BehaviorNode newNode, BehaviorNode treeNode) {
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        if (newNode.getChildrenCount() == 0) {</span>
+<span class="nc" id="L51">            return createCallbackNode(newNode, treeNode);</span>
+        } else {
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            for (int i = 0; i &lt; newNode.getChildrenCount(); i++) {</span>
+<span class="nc" id="L54">                newNode.replaceChild(i, injectDelegates(newNode.getChild(i), treeNode.getChild(i)));</span>
+            }
+<span class="nc" id="L56">            return createCallbackNode(newNode, treeNode);</span>
+        }
+    }
+
+    private DelegateNode createCallbackNode(BehaviorNode newNode, final BehaviorNode treeNode) {
+<span class="nc" id="L61">        return new DelegateNode(newNode) {</span>
+            @Override
+            public BehaviorState execute(Actor theActor) {
+<span class="nc" id="L64">                BehaviorState result = super.execute(theActor);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">                if (callback != null) {</span>
+<span class="nc" id="L66">                    callback.afterExecute(treeNode, result);</span>
+                }
+<span class="nc" id="L68">                return result;</span>
+            }
+        };
+    }
+
+    @Override
+    public BehaviorTree getTree() {
+<span class="nc" id="L75">        return tree;</span>
+    }
+
+    @Override
+    public BehaviorState step() {
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (state != BehaviorState.RUNNING) {</span>
+<span class="fc" id="L81">            root.construct(actor);</span>
+        }
+        
+<span class="fc" id="L84">        state = root.execute(actor);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (state != BehaviorState.RUNNING) {</span>
+<span class="fc" id="L86">            root.destruct(actor);</span>
+        }
+
+<span class="fc" id="L89">        return state;</span>
+    }
+
+    @Override
+    public Actor getActor() {
+<span class="nc" id="L94">        return actor;</span>
+    }
+
+    @Override
+    public void setActor(Actor actor) {
+<span class="nc" id="L99">        this.actor = actor;</span>
+<span class="nc" id="L100">    }</span>
+
+    public interface Callback {
+        void afterExecute(BehaviorNode node, BehaviorState state);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

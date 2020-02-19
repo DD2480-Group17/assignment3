@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TabbingManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui</a> &gt; <span class="el_source">TabbingManager.java</span></div><h1>TabbingManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.nui;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Controls the tabbing for widgets.
+ */
+<span class="nc" id="L26">public class TabbingManager {</span>
+
+    public static final int UNINITIALIZED_DEPTH = -9999;
+    private static CoreScreenLayer openScreen;
+
+    private static boolean widgetIsOpen;
+
+    public static WidgetWithOrder focusedWidget;
+    public static boolean focusSetThrough;
+
+    private static int currentNum;
+    private static int maxNum;
+    private static int nextNum;
+    private static ArrayList&lt;Integer&gt; usedNums;
+    private static ArrayList&lt;WidgetWithOrder&gt; widgetsList;
+<span class="nc" id="L41">    private static boolean initialized = false;</span>
+
+    /**
+     * Resets TabbingManager values.
+     */
+    public static void init() {
+<span class="nc" id="L47">        widgetIsOpen = false;</span>
+<span class="nc" id="L48">        focusedWidget = null;</span>
+<span class="nc" id="L49">        focusSetThrough = false;</span>
+<span class="nc" id="L50">        currentNum = 0;</span>
+<span class="nc" id="L51">        maxNum = 0;</span>
+<span class="nc" id="L52">        nextNum = 0;</span>
+<span class="nc" id="L53">        usedNums = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L54">        widgetsList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L55">        initialized = true;</span>
+<span class="nc" id="L56">    }</span>
+
+    /**
+     * Changes (increases or decreases) currentNum.
+     * @param increase if currentNumber should be increased.
+     */
+    public static void changeCurrentNum(boolean increase) {
+<span class="nc" id="L63">        boolean loopedOnce = false;</span>
+<span class="nc" id="L64">        boolean adjusted = false;</span>
+
+<span class="nc bnc" id="L66" title="All 6 branches missed.">        while ((!adjusted || !usedNums.contains(currentNum)) &amp;&amp; usedNums.size()&gt;0) {</span>
+<span class="nc" id="L67">            adjusted = true;</span>
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            if (increase) {</span>
+<span class="nc" id="L70">                currentNum++;</span>
+            } else {
+<span class="nc" id="L72">                currentNum--;</span>
+            }
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            if (currentNum &gt; maxNum) {</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                if (!loopedOnce) {</span>
+<span class="nc" id="L76">                    currentNum = 0;</span>
+<span class="nc" id="L77">                    loopedOnce = true;</span>
+                } else {
+                    break;
+                }
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            } else if (currentNum &lt; 0) {</span>
+<span class="nc" id="L82">                currentNum = Collections.max(usedNums);</span>
+<span class="nc" id="L83">                loopedOnce = true;</span>
+            }
+        }
+<span class="nc" id="L86">    }</span>
+
+    /**
+     * Unfocuses the currently focused widget.
+     */
+    public static void unfocusWidget() {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (focusedWidget != null) {</span>
+<span class="nc" id="L93">            focusSetThrough = true;</span>
+<span class="nc" id="L94">            focusedWidget = null;</span>
+<span class="nc" id="L95">            openScreen.getManager().setFocus(null);</span>
+        }
+<span class="nc" id="L97">    }</span>
+
+    /**
+     * Gives an unused number.
+     * @return a new number for order
+     */
+    public static int getNewNextNum() {
+<span class="nc" id="L104">        nextNum++;</span>
+<span class="nc" id="L105">        maxNum++;</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        while (usedNums.contains(nextNum)) {</span>
+<span class="nc" id="L107">            nextNum++;</span>
+<span class="nc" id="L108">            maxNum++;</span>
+        }
+<span class="nc" id="L110">        return nextNum;</span>
+    }
+
+    /**
+     * Adds the order value to usedNums.
+     * @param toAdd the number to add to usedNums.
+     */
+    public static void addToUsedNums(int toAdd) {
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if (!usedNums.contains(toAdd)) {</span>
+<span class="nc" id="L119">            usedNums.add(toAdd);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if (toAdd &gt; maxNum) {</span>
+<span class="nc" id="L121">                maxNum = toAdd;</span>
+            }
+        }
+<span class="nc" id="L124">    }</span>
+
+    /**
+     * Adds a widget to usedNums.
+     * @param widget the widget to add to usedNums.
+     */
+    public static void addToWidgetsList(WidgetWithOrder widget) {
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (!widgetsList.contains(widget)) {</span>
+<span class="nc" id="L132">            widgetsList.add(widget);</span>
+        }
+<span class="nc" id="L134">    }</span>
+
+    /**
+     * Resets currentNum to zero.
+     */
+    public static void resetCurrentNum() {
+<span class="nc" id="L140">        currentNum = 0;</span>
+<span class="nc" id="L141">    }</span>
+    public static int getCurrentNum() {
+<span class="nc" id="L143">        return currentNum;</span>
+    }
+    public static List&lt;WidgetWithOrder&gt; getWidgetsList() {
+<span class="nc" id="L146">        return widgetsList;</span>
+    }
+    public static boolean isInitialized() {
+<span class="nc" id="L149">        return initialized;</span>
+    }
+    public static void setInitialized(boolean setInit) {
+<span class="nc" id="L152">        initialized = setInit;</span>
+<span class="nc" id="L153">    }</span>
+    public static boolean isWidgetOpen() {
+<span class="nc" id="L155">        return widgetIsOpen;</span>
+    }
+    public static CoreScreenLayer getOpenScreen() {
+<span class="nc" id="L158">        return openScreen;</span>
+    }
+    public static void setOpenScreen(CoreScreenLayer open) {
+<span class="nc" id="L161">        openScreen = open;</span>
+<span class="nc" id="L162">    }</span>
+    public static void setWidgetIsOpen(boolean open) {
+<span class="nc" id="L164">        widgetIsOpen = open;</span>
+<span class="nc" id="L165">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

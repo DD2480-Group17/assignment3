@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AWTTextureFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.texture</a> &gt; <span class="el_source">AWTTextureFormat.java</span></div><h1>AWTTextureFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.assets.texture;
+
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.assets.module.ModuleAssetDataProducer;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.DataBufferByte;
+import java.awt.image.WritableRaster;
+import java.io.InputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.PathMatcher;
+import java.util.List;
+import javax.imageio.ImageIO;
+
+/**
+ */
+@RegisterAssetFileFormat
+public class AWTTextureFormat extends AbstractAssetFileFormat&lt;TextureData&gt; {
+
+    private Texture.FilterMode defaultFilterMode;
+    private PathMatcher pathMatcher;
+
+    public AWTTextureFormat() {
+<span class="fc" id="L44">        this(Texture.FilterMode.NEAREST, path -&gt; {</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">                if (path.getName(1).toString().equals(ModuleAssetDataProducer.OVERRIDE_FOLDER)) {</span>
+<span class="nc" id="L46">                    return path.getName(3).toString().equals(&quot;textures&quot;);</span>
+                } else {
+<span class="fc" id="L48">                    return path.getName(2).toString().equals(&quot;textures&quot;);</span>
+                }
+            });
+<span class="fc" id="L51">    }</span>
+    public AWTTextureFormat(Texture.FilterMode defaultFilterMode, PathMatcher pathMatcher) {
+<span class="fc" id="L53">        super(&quot;jpeg&quot;, &quot;jpg&quot;, &quot;bmp&quot;, &quot;gif&quot;, &quot;png&quot;);</span>
+<span class="fc" id="L54">        this.defaultFilterMode = defaultFilterMode;</span>
+<span class="fc" id="L55">        this.pathMatcher = pathMatcher;</span>
+<span class="fc" id="L56">    }</span>
+
+    @Override
+    public TextureData load(ResourceUrn urn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="nc" id="L60">        try (InputStream inStream = inputs.get(0).openStream()) {</span>
+<span class="nc" id="L61">            final BufferedImage img = ImageIO.read(inStream);</span>
+<span class="nc" id="L62">            return convertToTextureData(img, defaultFilterMode);</span>
+<span class="nc" id="L63">        } catch (UnsupportedOperationException e) {</span>
+<span class="nc" id="L64">            throw new IOException(e);</span>
+        }
+    }
+
+    @Override
+    public PathMatcher getFileMatcher() {
+<span class="pc bpc" id="L70" title="1 of 4 branches missed.">        return path -&gt; super.getFileMatcher().matches(path) &amp;&amp; pathMatcher.matches(path);</span>
+    }
+
+    /**
+     * Converts a BufferedImage into a TextureData.
+     *
+     * @param image any type of BufferedImage
+     * @param filterMode any method used to determine the texture color for a texture mapped pixel
+     * @return a TextureData that contains the data from buffered image
+     */
+    public static TextureData convertToTextureData(final BufferedImage image, Texture.FilterMode filterMode) throws IOException {
+<span class="fc" id="L81">        final WritableRaster raster = image.getRaster();</span>
+<span class="fc" id="L82">        final DataBufferByte dbf = (DataBufferByte) raster.getDataBuffer();</span>
+<span class="fc" id="L83">        byte[] data = dbf.getData();</span>
+<span class="fc" id="L84">        final int stride = data.length / (image.getWidth() * image.getHeight());</span>
+        // Sanity check
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">        if (stride &gt; 4) {</span>
+<span class="nc" id="L87">            throw new IOException(&quot;Image data is corrupted! We expect less number of pixels: &quot;</span>
+<span class="nc" id="L88">              + image.getWidth() * image.getHeight() * stride + &quot;, instead of &quot; + data.length);</span>
+        }
+<span class="fc" id="L90">        final ByteBuffer buf = ByteBuffer.allocateDirect(4 * image.getWidth() * image.getHeight());</span>
+
+        // Convert AWT image to proper internal format
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (image.getType() == BufferedImage.TYPE_3BYTE_BGR) {</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">            for (int i = 0; i &lt; data.length; i += stride) {</span>
+<span class="fc" id="L95">                buf.put(data, i + 2, 1); // R</span>
+<span class="fc" id="L96">                buf.put(data, i + 1, 1); // G</span>
+<span class="fc" id="L97">                buf.put(data, i + 0, 1); // B</span>
+<span class="fc" id="L98">                buf.put((byte) 255); // A</span>
+            }
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        } else if (image.getType() == BufferedImage.TYPE_4BYTE_ABGR) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">            for (int i = 0; i &lt; data.length; i += stride) {</span>
+<span class="nc" id="L102">                buf.put(data, i + 3, 1); // R</span>
+<span class="nc" id="L103">                buf.put(data, i + 2, 1); // G</span>
+<span class="nc" id="L104">                buf.put(data, i + 1, 1); // B</span>
+<span class="nc" id="L105">                buf.put(data, i + 0, 1); // A</span>
+            }
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        } else if (image.getType() == BufferedImage.TYPE_INT_ARGB) {</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">            for (int i = 0; i &lt; data.length; i += stride) {</span>
+<span class="nc" id="L109">                buf.put(data, i + 1, 1); // R</span>
+<span class="nc" id="L110">                buf.put(data, i + 2, 1); // G</span>
+<span class="nc" id="L111">                buf.put(data, i + 3, 1); // B</span>
+<span class="nc" id="L112">                buf.put(data, i + 0, 1); // A</span>
+            }
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        } else if (image.getType() == BufferedImage.TYPE_BYTE_INDEXED) {</span>
+<span class="nc" id="L115">            final ColorModel cm = image.getColorModel();</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            for (int i = 0; i &lt; data.length; i += stride) {</span>
+<span class="nc" id="L117">                buf.put((byte) cm.getRed(data[i])); // R</span>
+<span class="nc" id="L118">                buf.put((byte) cm.getGreen(data[i])); // G</span>
+<span class="nc" id="L119">                buf.put((byte) cm.getBlue(data[i])); // B</span>
+<span class="nc" id="L120">                buf.put((byte) cm.getAlpha(data[i])); // A</span>
+            }
+<span class="nc" id="L122">        } else {</span>
+<span class="fc" id="L123">            throw new IOException(&quot;Unsupported AWT format: &quot; + image.getType());</span>
+        }
+<span class="fc" id="L125">        buf.flip();</span>
+
+<span class="fc" id="L127">        return new TextureData(image.getWidth(), image.getHeight(), new ByteBuffer[]{buf}, Texture.WrapMode.CLAMP, filterMode);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParticlePoolTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.particles</a> &gt; <span class="el_source">ParticlePoolTest.java</span></div><h1>ParticlePoolTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.particles;
+
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.terasology.math.TeraMath;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.utilities.random.Random;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Unit test for {@link ParticlePool}.
+ */
+<span class="fc" id="L30">public class ParticlePoolTest {</span>
+<span class="fc" id="L31">    private static Random random = new FastRandom(9083);</span>
+
+    private static void randomizeParticle(final ParticlePool pool, final int index) {
+<span class="fc" id="L34">        final int index3 = index * 3;</span>
+<span class="fc" id="L35">        final int index4 = index * 4;</span>
+
+<span class="fc" id="L37">        pool.energy[index] = random.nextFloat();</span>
+
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        for (int i = 0; i &lt; 3; i++) {</span>
+<span class="fc" id="L40">            pool.position[index3 + i] = random.nextFloat();</span>
+<span class="fc" id="L41">            pool.previousPosition[index3 + i] = random.nextFloat();</span>
+<span class="fc" id="L42">            pool.velocity[index3 + i] = random.nextFloat();</span>
+<span class="fc" id="L43">            pool.scale[index3 + i] = random.nextFloat();</span>
+        }
+
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        for (int i = 0; i &lt; 4; i++) {</span>
+<span class="fc" id="L47">            pool.color[index4 + i] = random.nextFloat();</span>
+        }
+<span class="fc" id="L49">    }</span>
+
+    private static void copyParticle(final ParticlePool src, final ParticlePool dest, final int index) {
+<span class="fc" id="L52">        final int index3 = index * 3;</span>
+<span class="fc" id="L53">        final int index4 = index * 4;</span>
+
+<span class="fc" id="L55">        dest.energy[index] = src.energy[index];</span>
+
+<span class="fc" id="L57">        System.arraycopy(src.position, index3, dest.position, index3, 3);</span>
+<span class="fc" id="L58">        System.arraycopy(src.previousPosition, index3, dest.previousPosition, index3, 3);</span>
+<span class="fc" id="L59">        System.arraycopy(src.velocity, index3, dest.velocity, index3, 3);</span>
+<span class="fc" id="L60">        System.arraycopy(src.scale, index3, dest.scale, index3, 3);</span>
+
+<span class="fc" id="L62">        System.arraycopy(src.color, index4, dest.color, index4, 4);</span>
+<span class="fc" id="L63">    }</span>
+
+    private static ParticlePool createCopy(final ParticlePool src) {
+<span class="fc" id="L66">        ParticlePool copy = new ParticlePool(src.size());</span>
+
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        for (int i = 0; i &lt; src.livingParticles(); i++) {</span>
+<span class="fc" id="L69">            copy.reviveParticle();</span>
+<span class="fc" id="L70">            copyParticle(src, copy, i);</span>
+        }
+
+<span class="fc" id="L73">        return copy;</span>
+    }
+
+    private static void assertEqualParticles(
+            final ParticlePool expected, final int expIndex,
+            final ParticlePool actual, final int actIndex,
+            final float epsilon
+    ) {
+<span class="fc" id="L81">        final int expIndex3 = expIndex * 3;</span>
+<span class="fc" id="L82">        final int expIndex4 = expIndex * 4;</span>
+
+<span class="fc" id="L84">        final int actIndex3 = actIndex * 3;</span>
+<span class="fc" id="L85">        final int actIndex4 = actIndex * 4;</span>
+
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        assertTrue(TeraMath.fastAbs(expected.energy[expIndex] - actual.energy[actIndex]) &lt; epsilon);</span>
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        for (int i = 0; i &lt; 3; i++) {</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">            assertTrue(TeraMath.fastAbs(expected.position[expIndex3 + i] - actual.position[actIndex3 + i]) &lt; epsilon);</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">            assertTrue(TeraMath.fastAbs(expected.previousPosition[expIndex3 + i] - actual.previousPosition[actIndex3 + i]) &lt; epsilon);</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            assertTrue(TeraMath.fastAbs(expected.velocity[expIndex3 + i] - actual.velocity[actIndex3 + i]) &lt; epsilon);</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">            assertTrue(TeraMath.fastAbs(expected.scale[expIndex3 + i] - actual.scale[actIndex3 + i]) &lt; epsilon);</span>
+        }
+
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        for (int i = 0; i &lt; 4; i++) {</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">            assertTrue(TeraMath.fastAbs(expected.color[expIndex4 + i] - actual.color[actIndex4 + i]) &lt; epsilon);</span>
+        }
+<span class="fc" id="L99">    }</span>
+
+    private static void fillWithRandom(ParticlePool pool, int nr) {
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        for (int i = 0; i &lt; nr; i++) {</span>
+<span class="fc" id="L103">            pool.reviveParticle();</span>
+<span class="fc" id="L104">            randomizeParticle(pool, i);</span>
+        }
+<span class="fc" id="L106">    }</span>
+
+    @Test
+    public void constructorTest() {
+<span class="fc" id="L110">        final int[] poolSizes = {1, 27, 133};</span>
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        for (int size : poolSizes) {</span>
+<span class="fc" id="L113">            ParticlePool pool = new ParticlePool(size);</span>
+<span class="fc" id="L114">            assertEquals(size, pool.size());</span>
+<span class="fc" id="L115">            assertEquals(0, pool.livingParticles());</span>
+<span class="fc" id="L116">            assertEquals(pool.size(), pool.deadParticles());</span>
+
+<span class="fc" id="L118">            assertEquals(size, pool.energy.length);</span>
+
+<span class="fc" id="L120">            assertEquals(size * 3, pool.position.length);</span>
+<span class="fc" id="L121">            assertEquals(size * 3, pool.previousPosition.length);</span>
+<span class="fc" id="L122">            assertEquals(size * 3, pool.velocity.length);</span>
+<span class="fc" id="L123">            assertEquals(size * 3, pool.scale.length);</span>
+
+<span class="fc" id="L125">            assertEquals(size * 4, pool.color.length);</span>
+        }
+        // Should throw exception after creating the pool
+<span class="fc" id="L128">        Assertions.assertThrows(IllegalArgumentException.class,</span>
+<span class="nc" id="L129">                () -&gt; new ParticlePool(0));</span>
+        
+<span class="fc" id="L131">    }</span>
+
+    @Test
+    public void reviveParticleTest() {
+<span class="fc" id="L135">        final int poolSize = 8;</span>
+
+<span class="fc" id="L137">        ParticlePool pool = new ParticlePool(poolSize);</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        for (int i = 1; i &lt;= poolSize; i++) {</span>
+<span class="fc" id="L139">            pool.reviveParticle();</span>
+<span class="fc" id="L140">            assertEquals(i, pool.livingParticles());</span>
+<span class="fc" id="L141">            assertEquals(poolSize - i, pool.deadParticles());</span>
+<span class="fc" id="L142">            assertEquals(poolSize, pool.size());</span>
+        }
+<span class="fc" id="L144">    }</span>
+
+    @Test
+    public void moveDeceasedTest() {
+        // initialize
+<span class="fc" id="L149">        int poolSize = 14;</span>
+<span class="fc" id="L150">        int livingParticles = 7;</span>
+<span class="fc" id="L151">        int deadParticles = poolSize - livingParticles;</span>
+
+<span class="fc" id="L153">        ParticlePool testPool = new ParticlePool(poolSize);</span>
+<span class="fc" id="L154">        fillWithRandom(testPool, livingParticles);</span>
+
+<span class="fc" id="L156">        ParticlePool comparisonPool = createCopy(testPool);</span>
+
+
+        // kill particle 3
+<span class="fc" id="L160">        testPool.moveDeceasedParticle(3);</span>
+<span class="fc" id="L161">        livingParticles--;</span>
+<span class="fc" id="L162">        deadParticles++;</span>
+
+<span class="fc" id="L164">        assertEquals(poolSize, testPool.size());</span>
+<span class="fc" id="L165">        assertEquals(livingParticles, testPool.livingParticles());</span>
+<span class="fc" id="L166">        assertEquals(deadParticles, testPool.deadParticles());</span>
+<span class="fc" id="L167">        assertEqualParticles(comparisonPool, 6, testPool, 3, 1.0e-6f);</span>
+
+
+        // kill particle 0
+<span class="fc" id="L171">        testPool.moveDeceasedParticle(0);</span>
+<span class="fc" id="L172">        livingParticles--;</span>
+<span class="fc" id="L173">        deadParticles++;</span>
+
+<span class="fc" id="L175">        assertEquals(poolSize, testPool.size());</span>
+<span class="fc" id="L176">        assertEquals(livingParticles, testPool.livingParticles());</span>
+<span class="fc" id="L177">        assertEquals(deadParticles, testPool.deadParticles());</span>
+<span class="fc" id="L178">        assertEqualParticles(comparisonPool, 5, testPool, 0, 1.0e-6f);</span>
+
+
+        // test it with a pool of length one (degenerate case)
+<span class="fc" id="L182">        poolSize = 1;</span>
+<span class="fc" id="L183">        testPool = new ParticlePool(poolSize);</span>
+<span class="fc" id="L184">        fillWithRandom(testPool, 1);</span>
+<span class="fc" id="L185">        livingParticles = 1;</span>
+<span class="fc" id="L186">        deadParticles = 0;</span>
+
+<span class="fc" id="L188">        testPool.moveDeceasedParticle(0);</span>
+<span class="fc" id="L189">        livingParticles--;</span>
+<span class="fc" id="L190">        deadParticles++;</span>
+
+<span class="fc" id="L192">        assertEquals(poolSize, testPool.size());</span>
+<span class="fc" id="L193">        assertEquals(livingParticles, testPool.livingParticles());</span>
+<span class="fc" id="L194">        assertEquals(deadParticles, testPool.deadParticles());</span>
+        // there are no living particles to compare here
+<span class="fc" id="L196">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

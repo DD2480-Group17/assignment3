@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TaskProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.concurrency</a> &gt; <span class="el_source">TaskProcessor.java</span></div><h1>TaskProcessor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities.concurrency;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.GameThread;
+import org.terasology.monitoring.ThreadActivity;
+import org.terasology.monitoring.ThreadMonitor;
+
+import java.util.concurrent.BlockingQueue;
+
+/**
+ */
+final class TaskProcessor&lt;T extends Task&gt; implements Runnable {
+
+<span class="fc" id="L31">    private static final Logger logger = LoggerFactory.getLogger(TaskProcessor.class);</span>
+
+    private String name;
+    private BlockingQueue&lt;T&gt; queue;
+
+<span class="fc" id="L36">     TaskProcessor(String name, BlockingQueue&lt;T&gt; taskQueue) {</span>
+<span class="fc" id="L37">        this.queue = taskQueue;</span>
+<span class="fc" id="L38">        this.name = name;</span>
+<span class="fc" id="L39">    }</span>
+
+    @Override
+    public void run() {
+<span class="fc" id="L43">        boolean running = true;</span>
+<span class="fc" id="L44">        Thread.currentThread().setPriority(Thread.MIN_PRIORITY);</span>
+<span class="fc" id="L45">        Thread.currentThread().setName(name);</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        while (running) {</span>
+            try {
+<span class="fc" id="L48">                T task = queue.take();</span>
+<span class="fc" id="L49">                try (ThreadActivity ignored = ThreadMonitor.startThreadActivity(task.getName())) {</span>
+<span class="fc" id="L50">                    task.run();</span>
+                }
+<span class="fc bfc" id="L52" title="All 2 branches covered.">                if (task.isTerminateSignal()) {</span>
+<span class="fc" id="L53">                    running = false;</span>
+                }
+<span class="nc" id="L55">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L56">                ThreadMonitor.addError(e);</span>
+<span class="nc" id="L57">                logger.error(&quot;Thread interrupted&quot;, e);</span>
+<span class="nc" id="L58">            } catch (RuntimeException e) {</span>
+<span class="nc" id="L59">                ThreadMonitor.addError(e);</span>
+<span class="nc" id="L60">                logger.error(&quot;Error in thread {}&quot;, Thread.currentThread().getName(), e);</span>
+<span class="nc" id="L61">            } catch (Error e) {</span>
+<span class="nc" id="L62">                GameThread.asynch(() -&gt; {</span>
+<span class="nc" id="L63">                    throw e;  // re-throw on game thread to terminate the entire application</span>
+                });
+<span class="pc" id="L65">            }</span>
+        }
+<span class="fc" id="L67">        logger.debug(&quot;Thread shutdown safely&quot;);</span>
+<span class="fc" id="L68">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

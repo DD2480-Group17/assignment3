@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InjectionHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.registry</a> &gt; <span class="el_source">InjectionHelper.java</span></div><h1>InjectionHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.registry;
+
+import org.reflections.ReflectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.util.reflection.ParameterProvider;
+import org.terasology.util.reflection.SimpleClassFactory;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+
+/**
+ */
+public final class InjectionHelper {
+<span class="fc" id="L36">    private static final Logger logger = LoggerFactory.getLogger(InjectionHelper.class);</span>
+
+    private InjectionHelper() {
+    }
+
+    public static void inject(final Object object, Context context) {
+<span class="fc" id="L42">        AccessController.doPrivileged((PrivilegedAction&lt;Object&gt;) () -&gt; {</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">            for (Field field : ReflectionUtils.getAllFields(object.getClass(), ReflectionUtils.withAnnotation(In.class))) {</span>
+<span class="fc" id="L44">                Object value = context.get(field.getType());</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">                if (value != null) {</span>
+                    try {
+<span class="fc" id="L47">                        field.setAccessible(true);</span>
+<span class="fc" id="L48">                        field.set(object, value);</span>
+<span class="nc" id="L49">                    } catch (IllegalAccessException e) {</span>
+<span class="nc" id="L50">                        logger.error(&quot;Failed to inject value {} into field {} of {}&quot;, value, field, object, e);</span>
+<span class="fc" id="L51">                    }</span>
+                }
+<span class="fc" id="L53">            }</span>
+
+<span class="fc" id="L55">            return null;</span>
+        });
+<span class="fc" id="L57">    }</span>
+
+    public static void inject(final Object object) {
+<span class="fc" id="L60">        AccessController.doPrivileged((PrivilegedAction&lt;Object&gt;) () -&gt; {</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            for (Field field : ReflectionUtils.getAllFields(object.getClass(), ReflectionUtils.withAnnotation(In.class))) {</span>
+<span class="fc" id="L62">                Object value = CoreRegistry.get(field.getType());</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">                if (value != null) {</span>
+                    try {
+<span class="fc" id="L65">                        field.setAccessible(true);</span>
+<span class="fc" id="L66">                        field.set(object, value);</span>
+<span class="nc" id="L67">                    } catch (IllegalAccessException e) {</span>
+<span class="nc" id="L68">                        logger.error(&quot;Failed to inject value {} into field {} of {}&quot;, value, field, object, e);</span>
+<span class="fc" id="L69">                    }</span>
+                }
+<span class="fc" id="L71">            }</span>
+
+<span class="fc" id="L73">            return null;</span>
+        });
+<span class="fc" id="L75">    }</span>
+
+    public static &lt;T&gt; void inject(final Object object, final Class&lt;? extends Annotation&gt; annotation, final Map&lt;Class&lt;? extends T&gt;, T&gt; source) {
+<span class="nc" id="L78">        AccessController.doPrivileged((PrivilegedAction&lt;Object&gt;) () -&gt; {</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            for (Field field : ReflectionUtils.getAllFields(object.getClass(), ReflectionUtils.withAnnotation(annotation))) {</span>
+<span class="nc" id="L80">                Object value = source.get(field.getType());</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                if (value != null) {</span>
+                    try {
+<span class="nc" id="L83">                        field.setAccessible(true);</span>
+<span class="nc" id="L84">                        field.set(object, value);</span>
+<span class="nc" id="L85">                    } catch (IllegalAccessException e) {</span>
+<span class="nc" id="L86">                        logger.error(&quot;Failed to inject value {} into field {}&quot;, value, field, e);</span>
+<span class="nc" id="L87">                    }</span>
+                } else {
+<span class="nc" id="L89">                    logger.error(&quot;Failed to inject into field {}, nothing to inject&quot;, field);</span>
+                }
+<span class="nc" id="L91">            }</span>
+
+<span class="nc" id="L93">            return null;</span>
+        });
+<span class="nc" id="L95">    }</span>
+
+    public static void share(Object object) {
+<span class="fc" id="L98">        Share share = object.getClass().getAnnotation(Share.class);</span>
+<span class="pc bpc" id="L99" title="1 of 4 branches missed.">        if (share != null &amp;&amp; share.value() != null) {</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">            for (Class interfaceType : share.value()) {</span>
+<span class="fc" id="L101">                CoreRegistry.put(interfaceType, object);</span>
+            }
+        }
+<span class="fc" id="L104">    }</span>
+
+    /**
+     * Creates a new instance for a class using constructor injection.
+     * The constructor does not need a special annotation for this.
+     * Which constructor is selected depends on the following criteria:
+     * &lt;ul&gt;
+     * &lt;li&gt;The constructor with the most parameters is used.&lt;/li&gt;
+     * &lt;li&gt;All parameters have to be available in the {@link Context}.&lt;/li&gt;
+     * &lt;li&gt;If not all parameters can be populated from the Context, the next Constructor with less parameters is used.&lt;/li&gt;
+     * &lt;li&gt;If no parameters can be populated at all, the default constructor (if available) is used.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * @param clazz The class to instantiate.
+     * @param context The context to use for injection.
+     * @return A new instance of the class to create.
+     * @throws NoSuchElementException if the injection failed, e.g. if no parameters were available on the context and a default constructor is missing.
+     */
+    public static &lt;E&gt; E createWithConstructorInjection(Class&lt;? extends E&gt; clazz, Context context) {
+<span class="fc" id="L122">        return safeCreateWithConstructorInjection(clazz, context).get();</span>
+    }
+
+    /**
+     * Similar to {@link #createWithConstructorInjection(Class, Context)}, but returns
+     * {@link Optional#empty()} instead of throwing an exception if the instantiation failed.
+     *
+     * @param clazz   The class to instantiate.
+     * @param context The context to use for injection.
+     * @return A new instance of the class to create.
+     * @see InjectionHelper#createWithConstructorInjection(Class, Context)
+     */
+    public static &lt;E&gt; Optional&lt;E&gt; safeCreateWithConstructorInjection(Class&lt;? extends E&gt; clazz, Context context) {
+<span class="fc" id="L135">        SimpleClassFactory simpleClassFactory = new SimpleClassFactory(new ParameterProvider() {</span>
+            @Override
+            public &lt;T&gt; Optional&lt;T&gt; get(Class&lt;T&gt; x) {
+<span class="fc" id="L138">                return Optional.ofNullable(context.get(x));</span>
+            }
+        });
+<span class="fc" id="L141">        return simpleClassFactory.instantiateClass(clazz);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

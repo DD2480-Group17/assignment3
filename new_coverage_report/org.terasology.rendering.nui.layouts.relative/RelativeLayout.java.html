@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RelativeLayout.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layouts.relative</a> &gt; <span class="el_source">RelativeLayout.java</span></div><h1>RelativeLayout.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layouts.relative;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreLayout;
+import org.terasology.rendering.nui.HorizontalAlign;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.VerticalAlign;
+
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ */
+<span class="nc" id="L37">public class RelativeLayout extends CoreLayout&lt;RelativeLayoutHint&gt; {</span>
+
+<span class="nc" id="L39">    private static final Logger logger = LoggerFactory.getLogger(RelativeLayout.class);</span>
+
+<span class="nc" id="L41">    private Map&lt;String, WidgetInfo&gt; contentLookup = Maps.newHashMap();</span>
+<span class="nc" id="L42">    private List&lt;WidgetInfo&gt; contents = Lists.newArrayList();</span>
+
+<span class="nc" id="L44">    private Map&lt;WidgetInfo, Rect2i&gt; cachedRegions = Maps.newHashMap();</span>
+
+<span class="nc" id="L46">    private String loopDetectionId = &quot;&quot;;</span>
+
+    @Override
+    public void addWidget(UIWidget widget, RelativeLayoutHint hint) {
+<span class="nc bnc" id="L50" title="All 4 branches missed.">        if (widget != null &amp;&amp; hint != null) {</span>
+<span class="nc" id="L51">            WidgetInfo info = new WidgetInfo(widget, hint);</span>
+<span class="nc" id="L52">            contents.add(info);</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            if (!widget.getId().isEmpty()) {</span>
+<span class="nc" id="L54">                contentLookup.put(widget.getId(), info);</span>
+            }
+<span class="nc bnc" id="L56" title="All 2 branches missed.">        } else if (widget != null) {</span>
+<span class="nc" id="L57">            logger.error(&quot;Attempted to add widget '{}' of type '{}' with no layout hint&quot;, widget.getId(), widget.getClass().getSimpleName());</span>
+        }
+<span class="nc" id="L59">    }</span>
+
+    @Override
+    public void removeWidget(UIWidget widget) {
+<span class="nc" id="L63">        String id = widget.getId();</span>
+<span class="nc" id="L64">        WidgetInfo info = contentLookup.get(id);</span>
+<span class="nc" id="L65">        contentLookup.remove(id);</span>
+<span class="nc" id="L66">        contents.remove(info);</span>
+<span class="nc" id="L67">        cachedRegions.remove(info);</span>
+<span class="nc" id="L68">    }</span>
+
+    @Override
+    public void removeAllWidgets() {
+<span class="nc" id="L72">        contentLookup.clear();</span>
+<span class="nc" id="L73">        contents.clear();</span>
+<span class="nc" id="L74">        cachedRegions.clear();</span>
+<span class="nc" id="L75">    }</span>
+
+    public void addWidget(UIWidget widget, HorizontalHint horizontal, VerticalHint vertical) {
+<span class="nc" id="L78">        addWidget(widget, new RelativeLayoutHint(horizontal, vertical));</span>
+<span class="nc" id="L79">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        for (WidgetInfo element : contents) {</span>
+<span class="nc" id="L84">            Rect2i drawRegion = getRegion(element, canvas);</span>
+<span class="nc" id="L85">            canvas.drawWidget(element.widget, drawRegion);</span>
+<span class="nc" id="L86">        }</span>
+<span class="nc" id="L87">        cachedRegions.clear();</span>
+<span class="nc" id="L88">    }</span>
+
+    private Rect2i getRegion(WidgetInfo element, Canvas canvas) {
+<span class="nc" id="L91">        Rect2i cachedRegion = cachedRegions.get(element);</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (cachedRegion != null) {</span>
+<span class="nc" id="L93">            return cachedRegion;</span>
+        }
+
+<span class="nc" id="L96">        int left = 0;</span>
+<span class="nc" id="L97">        int right = canvas.size().x;</span>
+<span class="nc" id="L98">        int center = canvas.size().x / 2;</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        if (element.layoutHint.getPositionCenterHorizontal() != null) {</span>
+<span class="nc" id="L100">            HorizontalInfo info = element.layoutHint.getPositionCenterHorizontal();</span>
+<span class="nc" id="L101">            Rect2i targetRegion = getTargetRegion(info.getWidget(), canvas);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">            HorizontalAlign align = (info.getTarget() != null) ? info.getTarget() : HorizontalAlign.CENTER;</span>
+<span class="nc" id="L103">            center = align.getStart(targetRegion) + info.getOffset();</span>
+        }
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        if (element.layoutHint.getPositionLeft() != null) {</span>
+<span class="nc" id="L106">            HorizontalInfo info = element.layoutHint.getPositionLeft();</span>
+<span class="nc" id="L107">            Rect2i targetRegion = getTargetRegion(info.getWidget(), canvas);</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">            HorizontalAlign align = (info.getTarget() != null) ? info.getTarget() : HorizontalAlign.LEFT;</span>
+<span class="nc" id="L109">            left = align.getStart(targetRegion) + info.getOffset();</span>
+        }
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (element.layoutHint.getPositionRight() != null) {</span>
+<span class="nc" id="L112">            HorizontalInfo info = element.layoutHint.getPositionRight();</span>
+<span class="nc" id="L113">            Rect2i targetRegion = getTargetRegion(info.getWidget(), canvas);</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">            HorizontalAlign align = (info.getTarget() != null) ? info.getTarget() : HorizontalAlign.RIGHT;</span>
+<span class="nc" id="L115">            right = align.getStart(targetRegion) - info.getOffset();</span>
+        }
+
+<span class="nc" id="L118">        int top = 0;</span>
+<span class="nc" id="L119">        int bottom = canvas.size().y;</span>
+<span class="nc" id="L120">        int vcenter = canvas.size().y / 2;</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        if (element.layoutHint.getPositionCenterVertical() != null) {</span>
+<span class="nc" id="L122">            VerticalInfo info = element.layoutHint.getPositionCenterVertical();</span>
+<span class="nc" id="L123">            Rect2i targetRegion = getTargetRegion(info.getWidget(), canvas);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            VerticalAlign align = (info.getTarget() != null) ? info.getTarget() : VerticalAlign.MIDDLE;</span>
+<span class="nc" id="L125">            vcenter = align.getStart(targetRegion) + info.getOffset();</span>
+        }
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if (element.layoutHint.getPositionTop() != null) {</span>
+<span class="nc" id="L128">            VerticalInfo info = element.layoutHint.getPositionTop();</span>
+<span class="nc" id="L129">            Rect2i targetRegion = getTargetRegion(info.getWidget(), canvas);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">            VerticalAlign align = (info.getTarget() != null) ? info.getTarget() : VerticalAlign.TOP;</span>
+<span class="nc" id="L131">            top = align.getStart(targetRegion) + info.getOffset();</span>
+        }
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (element.layoutHint.getPositionBottom() != null) {</span>
+<span class="nc" id="L134">            VerticalInfo info = element.layoutHint.getPositionBottom();</span>
+<span class="nc" id="L135">            Rect2i targetRegion = getTargetRegion(info.getWidget(), canvas);</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            VerticalAlign align = (info.getTarget() != null) ? info.getTarget() : VerticalAlign.BOTTOM;</span>
+<span class="nc" id="L137">            bottom = align.getStart(targetRegion) - info.getOffset();</span>
+        }
+
+<span class="nc" id="L140">        int width = element.layoutHint.getWidth();</span>
+<span class="nc bnc" id="L141" title="All 4 branches missed.">        if (width == 0 &amp;&amp; element.layoutHint.isUsingContentWidth()) {</span>
+<span class="nc" id="L142">            width = canvas.calculateRestrictedSize(element.widget, new Vector2i(right - left, bottom - top)).x;</span>
+        }
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (width == 0) {</span>
+<span class="nc" id="L145">            width = right - left;</span>
+        } else {
+<span class="nc bnc" id="L147" title="All 2 branches missed.">            if (element.layoutHint.getPositionCenterHorizontal() != null) {</span>
+<span class="nc" id="L148">                left = center - width / 2;</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            } else if (element.layoutHint.getPositionRight() != null) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                if (element.layoutHint.getPositionLeft() != null) {</span>
+<span class="nc" id="L151">                    center = left + (right - left) / 2;</span>
+<span class="nc" id="L152">                    left = center - width / 2;</span>
+                } else {
+<span class="nc" id="L154">                    left = right - width;</span>
+                }
+            }
+        }
+
+<span class="nc" id="L159">        int height = element.layoutHint.getHeight();</span>
+<span class="nc bnc" id="L160" title="All 4 branches missed.">        if (height == 0 &amp;&amp; element.layoutHint.isUsingContentHeight()) {</span>
+<span class="nc" id="L161">            height = canvas.calculateRestrictedSize(element.widget, new Vector2i(width, bottom - top)).y;</span>
+        }
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (height == 0) {</span>
+<span class="nc" id="L164">            height = bottom - top;</span>
+        } else {
+<span class="nc bnc" id="L166" title="All 2 branches missed.">            if (element.layoutHint.getPositionCenterVertical() != null) {</span>
+<span class="nc" id="L167">                top = vcenter - height / 2;</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">            } else if (element.layoutHint.getPositionBottom() != null) {</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                if (element.layoutHint.getPositionTop() != null) {</span>
+<span class="nc" id="L170">                    vcenter = top + (bottom - top) / 2;</span>
+<span class="nc" id="L171">                    top = vcenter - height / 2;</span>
+                } else {
+<span class="nc" id="L173">                    top = bottom - height;</span>
+                }
+            }
+        }
+<span class="nc" id="L177">        Rect2i region = Rect2i.createFromMinAndSize(left, top, width, height);</span>
+<span class="nc" id="L178">        cachedRegions.put(element, region);</span>
+<span class="nc" id="L179">        return region;</span>
+    }
+
+    private Rect2i getTargetRegion(String id, Canvas canvas) {
+<span class="nc bnc" id="L183" title="All 4 branches missed.">        if (id != null &amp;&amp; !id.isEmpty()) {</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            if (loopDetectionId.equals(id)) {</span>
+<span class="nc" id="L185">                logger.warn(&quot;Infinite loop detected resolving layout of element {}&quot;, loopDetectionId);</span>
+<span class="nc" id="L186">                loopDetectionId = &quot;&quot;;</span>
+<span class="nc" id="L187">                return canvas.getRegion();</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            } else if (loopDetectionId.isEmpty()) {</span>
+<span class="nc" id="L189">                loopDetectionId = id;</span>
+            }
+<span class="nc" id="L191">            WidgetInfo target = contentLookup.get(id);</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            if (target != null) {</span>
+                try {
+<span class="nc" id="L194">                    Rect2i region = getRegion(target, canvas);</span>
+<span class="nc" id="L195">                    loopDetectionId = &quot;&quot;;</span>
+<span class="nc" id="L196">                    return region;</span>
+<span class="nc" id="L197">                } catch (StackOverflowError e) {</span>
+<span class="nc" id="L198">                    logger.error(&quot;Stack Overflow detected resolving layout of element {}, unable to render&quot;, loopDetectionId);</span>
+                }
+            }
+        }
+<span class="nc" id="L202">        loopDetectionId = &quot;&quot;;</span>
+<span class="nc" id="L203">        return canvas.getRegion();</span>
+    }
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc" id="L208">        return new Vector2i();</span>
+    }
+
+    @Override
+    public Vector2i getMaxContentSize(Canvas canvas) {
+<span class="nc" id="L213">        return new Vector2i(Integer.MAX_VALUE, Integer.MAX_VALUE);</span>
+    }
+
+    @Override
+    public Iterator&lt;UIWidget&gt; iterator() {
+<span class="nc" id="L218">        List&lt;UIWidget&gt; widgets = Lists.newArrayListWithCapacity(contents.size());</span>
+<span class="nc" id="L219">        widgets.addAll(contents.stream().map(info -&gt; info.widget).collect(Collectors.toList()));</span>
+<span class="nc" id="L220">        return widgets.iterator();</span>
+    }
+
+    private static final class WidgetInfo {
+        private UIWidget widget;
+        private RelativeLayoutHint layoutHint;
+
+<span class="nc" id="L227">        private WidgetInfo(UIWidget widget, RelativeLayoutHint layoutHint) {</span>
+<span class="nc" id="L228">            this.widget = widget;</span>
+<span class="nc" id="L229">            this.layoutHint = layoutHint;</span>
+<span class="nc" id="L230">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

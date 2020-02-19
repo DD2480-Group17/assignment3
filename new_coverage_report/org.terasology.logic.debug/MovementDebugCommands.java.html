@@ -1,0 +1,453 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MovementDebugCommands.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.debug</a> &gt; <span class="el_source">MovementDebugCommands.java</span></div><h1>MovementDebugCommands.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.debug;
+
+import org.terasology.entitySystem.entity.EntityManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.logic.characters.CharacterImpulseEvent;
+import org.terasology.logic.common.DisplayNameComponent;
+import org.terasology.logic.characters.CharacterMovementComponent;
+import org.terasology.logic.characters.CharacterTeleportEvent;
+import org.terasology.logic.characters.GazeMountPointComponent;
+import org.terasology.logic.characters.MovementMode;
+import org.terasology.logic.location.Location;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.physics.engine.PhysicsEngine;
+import org.terasology.registry.In;
+import org.terasology.registry.Share;
+import org.terasology.utilities.Assets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.logic.characters.events.SetMovementModeEvent;
+import org.terasology.logic.console.commandSystem.annotations.Command;
+import org.terasology.logic.console.commandSystem.annotations.CommandParam;
+import org.terasology.logic.console.commandSystem.annotations.Sender;
+import org.terasology.logic.permission.PermissionManager;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.network.ClientComponent;
+
+import java.util.Optional;
+
+@RegisterSystem
+@Share(MovementDebugCommands.class)
+<span class="nc" id="L51">public class MovementDebugCommands extends BaseComponentSystem {</span>
+
+<span class="nc" id="L53">    private static final Logger logger = LoggerFactory.getLogger(MovementDebugCommands.class);</span>
+
+    @In
+    private PhysicsEngine physics;
+
+    @In
+    private EntityManager entityManager;
+
+    @Command(shortDescription = &quot;Grants flight and movement through walls&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String ghost(@Sender EntityRef client) {
+<span class="nc" id="L64">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L65">        clientComp.character.send(new SetMovementModeEvent(MovementMode.GHOSTING));</span>
+
+<span class="nc" id="L67">        return &quot;Ghost mode toggled&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Grants flight&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String flight(@Sender EntityRef client) {
+<span class="nc" id="L73">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L74">        clientComp.character.send(new SetMovementModeEvent(MovementMode.FLYING));</span>
+
+<span class="nc" id="L76">        return &quot;Flight mode toggled&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Set speed multiplier&quot;, helpText = &quot;Set speedMultiplier&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String setSpeedMultiplier(@Sender EntityRef client, @CommandParam(&quot;amount&quot;) float amount) {
+<span class="nc" id="L82">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L83">        CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (move != null) {</span>
+<span class="nc" id="L85">            float oldSpeedMultipler = move.speedMultiplier;</span>
+<span class="nc" id="L86">            move.speedMultiplier = amount;</span>
+<span class="nc" id="L87">            clientComp.character.saveComponent(move);</span>
+
+<span class="nc" id="L89">            return &quot;Speed multiplier set to &quot; + amount + &quot; (was &quot; + oldSpeedMultipler + &quot;)&quot;;</span>
+        }
+
+<span class="nc" id="L92">        return &quot;&quot;;</span>
+    }
+
+    @Command(value = &quot;pushCharacter&quot;, shortDescription = &quot;Pushes you in the direction (x, y, z)&quot;, runOnServer = true)
+    public String pushCharacterCommand(@Sender EntityRef sender,
+                                       @CommandParam(&quot;x&quot;) float x, @CommandParam(&quot;y&quot;) float y, @CommandParam(&quot;z&quot;) float z) {
+<span class="nc" id="L98">        ClientComponent clientComponent = sender.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L99">        clientComponent.character.send(new CharacterImpulseEvent(new Vector3f(x, y, z)));</span>
+<span class="nc" id="L100">        return &quot;Pushing character with &quot; + x + &quot; &quot; + y + &quot; &quot; + z;</span>
+    }
+
+    @Command(shortDescription = &quot;Set jump speed&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String setJumpSpeed(@Sender EntityRef client, @CommandParam(&quot;amount&quot;) float amount) {
+<span class="nc" id="L106">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L107">        CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (move != null) {</span>
+<span class="nc" id="L109">            float oldSpeed = move.jumpSpeed;</span>
+<span class="nc" id="L110">            move.jumpSpeed = amount;</span>
+<span class="nc" id="L111">            clientComp.character.saveComponent(move);</span>
+
+<span class="nc" id="L113">            return &quot;Jump speed set to &quot; + amount + &quot; (was &quot; + oldSpeed + &quot;)&quot;;</span>
+        }
+
+<span class="nc" id="L116">        return &quot;&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Show your Movement stats&quot;,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String showMovement(@Sender EntityRef client) {
+<span class="nc" id="L122">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L123">        CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (move != null) {</span>
+<span class="nc" id="L125">            return &quot;Your SpeedMultiplier:&quot; + move.speedMultiplier + &quot; JumpSpeed:&quot;</span>
+                   + move.jumpSpeed + &quot; SlopeFactor:&quot;
+                   + move.slopeFactor + &quot; RunFactor:&quot; + move.runFactor;
+        }
+<span class="nc" id="L129">        return &quot;You're dead I guess.&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Show your Position/Location&quot;,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String showPosition(@Sender EntityRef client) {
+<span class="nc" id="L135">        LocationComponent loc = client.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L136">        return &quot;Your Position: &quot; + loc.getWorldPosition();</span>
+    }
+
+    @Command(shortDescription = &quot;Show your Height&quot;,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String showHeight(@Sender EntityRef client) {
+<span class="nc" id="L142">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L143">        CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc" id="L144">        float height = move.height;</span>
+<span class="nc" id="L145">        GazeMountPointComponent gazeMountPointComponent = clientComp.character.getComponent(GazeMountPointComponent.class);</span>
+<span class="nc" id="L146">        float eyeHeight = gazeMountPointComponent.translate.y;</span>
+<span class="nc" id="L147">        return &quot;Your height: &quot; + height + &quot; Eye-height: &quot; + eyeHeight;</span>
+    }
+
+    @Command(shortDescription = &quot;Go really fast&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String hspeed(@Sender EntityRef client) {
+<span class="nc" id="L153">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L154">        CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (move != null) {</span>
+<span class="nc" id="L156">            move.speedMultiplier = 10f;</span>
+<span class="nc" id="L157">            move.jumpSpeed = 24f;</span>
+<span class="nc" id="L158">            clientComp.character.saveComponent(move);</span>
+
+<span class="nc" id="L160">            return &quot;High-speed mode activated&quot;;</span>
+        }
+
+<span class="nc" id="L163">        return &quot;&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Jump really high&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String hjump(@Sender EntityRef client) {
+<span class="nc" id="L169">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L170">        CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        if (move != null) {</span>
+<span class="nc" id="L172">            move.jumpSpeed = 75f;</span>
+<span class="nc" id="L173">            clientComp.character.saveComponent(move);</span>
+
+<span class="nc" id="L175">            return &quot;High-jump mode activated&quot;;</span>
+        }
+
+<span class="nc" id="L178">        return &quot;&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Restore normal speed values&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String restoreSpeed(@Sender EntityRef client) {
+<span class="nc" id="L184">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+
+<span class="nc" id="L186">        Optional&lt;Prefab&gt; prefab = Assets.get(new ResourceUrn(&quot;engine:player&quot;), Prefab.class);</span>
+<span class="nc" id="L187">        CharacterMovementComponent moveDefault = prefab.get().getComponent(CharacterMovementComponent.class);</span>
+<span class="nc" id="L188">        CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L189" title="All 4 branches missed.">        if (move != null &amp;&amp; moveDefault != null) {</span>
+<span class="nc" id="L190">            move.jumpSpeed = moveDefault.jumpSpeed;</span>
+<span class="nc" id="L191">            move.speedMultiplier = moveDefault.speedMultiplier;</span>
+<span class="nc" id="L192">            move.runFactor = moveDefault.runFactor;</span>
+<span class="nc" id="L193">            move.stepHeight = moveDefault.stepHeight;</span>
+<span class="nc" id="L194">            move.slopeFactor = moveDefault.slopeFactor;</span>
+<span class="nc" id="L195">            move.distanceBetweenFootsteps = moveDefault.distanceBetweenFootsteps;</span>
+<span class="nc" id="L196">            clientComp.character.saveComponent(move);</span>
+        }
+
+<span class="nc" id="L199">        return &quot;Normal speed values restored&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Toggles the maximum slope the player can walk up&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String sleigh(@Sender EntityRef client) {
+<span class="nc" id="L205">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L206">        CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (move != null) {</span>
+<span class="nc" id="L208">            float oldFactor = move.slopeFactor;</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            if (move.slopeFactor &gt; 0.7f) {</span>
+<span class="nc" id="L210">                move.slopeFactor = 0.6f;</span>
+            } else {
+<span class="nc" id="L212">                move.slopeFactor = 0.9f;</span>
+            }
+<span class="nc" id="L214">            clientComp.character.saveComponent(move);</span>
+<span class="nc" id="L215">            return &quot;Slope factor is now &quot; + move.slopeFactor + &quot; (was &quot; + oldFactor + &quot;)&quot;;</span>
+        }
+<span class="nc" id="L217">        return &quot;&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Sets the height the player can step up&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String stepHeight(@Sender EntityRef client, @CommandParam(&quot;height&quot;) float amount) {
+<span class="nc" id="L223">        ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L224">        CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        if (move != null) {</span>
+<span class="nc" id="L226">            float prevStepHeight = move.stepHeight;</span>
+<span class="nc" id="L227">            move.stepHeight = amount;</span>
+<span class="nc" id="L228">            clientComp.character.saveComponent(move);</span>
+
+<span class="nc" id="L230">            return &quot;Ground friction set to &quot; + amount + &quot; (was &quot; + prevStepHeight + &quot;)&quot;;</span>
+        }
+
+<span class="nc" id="L233">        return &quot;&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Sets the height of the player&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String playerHeight(@Sender EntityRef client, @CommandParam(&quot;height&quot;) float amount) {
+        try {
+<span class="nc" id="L240">            ClientComponent clientComp = client.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L241">            CharacterMovementComponent move = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">            if (move != null) {</span>
+<span class="nc" id="L243">                float prevHeight = move.height;</span>
+<span class="nc" id="L244">                move.height = amount;</span>
+<span class="nc" id="L245">                clientComp.character.saveComponent(move);</span>
+<span class="nc" id="L246">                LocationComponent loc = client.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L247">                Vector3f currentPosition = loc.getWorldPosition();</span>
+<span class="nc" id="L248">                clientComp.character</span>
+<span class="nc" id="L249">                        .send(new CharacterTeleportEvent(new Vector3f(currentPosition.getX(), currentPosition.getY() + (amount - prevHeight) / 2, currentPosition.getZ())));</span>
+<span class="nc" id="L250">                physics.removeCharacterCollider(clientComp.character);</span>
+<span class="nc" id="L251">                physics.getCharacterCollider(clientComp.character);</span>
+<span class="nc" id="L252">                return &quot;Height of player set to &quot; + amount + &quot; (was &quot; + prevHeight + &quot;)&quot;;</span>
+            }
+<span class="nc" id="L254">            return &quot;&quot;;</span>
+<span class="nc" id="L255">        } catch (NullPointerException e) {</span>
+<span class="nc" id="L256">            e.printStackTrace();</span>
+<span class="nc" id="L257">            return &quot;&quot;;</span>
+        }
+    }
+
+    @Command(shortDescription = &quot;Sets the eye-height of the player&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String playerEyeHeight(@Sender EntityRef client, @CommandParam(&quot;eye-height&quot;) float amount) {
+<span class="nc" id="L264">        EntityRef player = client.getComponent(ClientComponent.class).character;</span>
+        try {
+<span class="nc" id="L266">            GazeMountPointComponent gazeMountPointComponent = player.getComponent(GazeMountPointComponent.class);</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            if (gazeMountPointComponent != null) {</span>
+<span class="nc" id="L268">                float prevHeight = gazeMountPointComponent.translate.y;</span>
+<span class="nc" id="L269">                gazeMountPointComponent.translate.y = amount;</span>
+<span class="nc" id="L270">                Location.removeChild(player, gazeMountPointComponent.gazeEntity);</span>
+<span class="nc" id="L271">                Location.attachChild(player, gazeMountPointComponent.gazeEntity, gazeMountPointComponent.translate, new Quat4f(Quat4f.IDENTITY));</span>
+<span class="nc" id="L272">                player.saveComponent(gazeMountPointComponent);</span>
+<span class="nc" id="L273">                return &quot;Eye-height of player set to &quot; + amount + &quot; (was &quot; + prevHeight + &quot;)&quot;;</span>
+            }
+<span class="nc" id="L275">            return &quot;&quot;;</span>
+<span class="nc" id="L276">        } catch (NullPointerException e) {</span>
+<span class="nc" id="L277">            e.printStackTrace();</span>
+<span class="nc" id="L278">            return &quot;&quot;;</span>
+        }
+    }
+
+    @Command(value = &quot;teleport&quot;, shortDescription = &quot;Teleports you to a location&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String teleportCommand(@Sender EntityRef sender, @CommandParam(&quot;x&quot;) float x, @CommandParam(&quot;y&quot;) float y, @CommandParam(&quot;z&quot;) float z) {
+<span class="nc" id="L285">        ClientComponent clientComp = sender.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L286">        clientComp.character.send(new CharacterTeleportEvent(new Vector3f(x, y, z)));</span>
+<span class="nc" id="L287">        return &quot;Teleporting  to &quot; + x + &quot; &quot; + y + &quot; &quot; + z;</span>
+    }
+
+    @Command(shortDescription = &quot;Teleport to player&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String teleportMeToPlayer(@Sender EntityRef sender, @CommandParam(&quot;username&quot;) String username) {
+
+<span class="nc bnc" id="L294" title="All 2 branches missed.">        for (EntityRef clientEntity : entityManager.getEntitiesWith(ClientComponent.class)) {</span>
+<span class="nc" id="L295">            EntityRef clientInfo = clientEntity.getComponent(ClientComponent.class).clientInfo;</span>
+
+<span class="nc" id="L297">            DisplayNameComponent name = clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">            if (username.equalsIgnoreCase(name.name)) {</span>
+<span class="nc" id="L299">                LocationComponent locationComponent = clientEntity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">                if (locationComponent != null) {</span>
+<span class="nc" id="L301">                    Vector3f vLocation = locationComponent.getWorldPosition();</span>
+<span class="nc" id="L302">                    ClientComponent clientComp = sender.getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">                    if (clientComp != null) {</span>
+<span class="nc" id="L304">                        clientComp.character.send(new CharacterTeleportEvent(vLocation));</span>
+<span class="nc" id="L305">                        return &quot;Teleporting you to &quot; + username + &quot; at &quot; + vLocation.x + &quot; &quot; + vLocation.y + &quot; &quot; + vLocation.z;</span>
+                    }
+                }
+            }
+<span class="nc" id="L309">        }</span>
+
+<span class="nc" id="L311">        throw new IllegalArgumentException(&quot;No such user '&quot; + username + &quot;'&quot;);</span>
+    }
+
+    @Command(shortDescription = &quot;Teleport player to you&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.USER_MANAGEMENT_PERMISSION)
+    public String teleportPlayerToMe(@Sender EntityRef sender, @CommandParam(&quot;username&quot;) String username) {
+
+<span class="nc bnc" id="L318" title="All 2 branches missed.">        for (EntityRef clientEntity : entityManager.getEntitiesWith(ClientComponent.class)) {</span>
+<span class="nc" id="L319">            EntityRef clientInfo = clientEntity.getComponent(ClientComponent.class).clientInfo;</span>
+
+<span class="nc" id="L321">            DisplayNameComponent name = clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">            if (username.equalsIgnoreCase(name.name)) {</span>
+<span class="nc" id="L323">                LocationComponent locationComponent = sender.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                if (locationComponent != null) {</span>
+<span class="nc" id="L325">                    Vector3f vLocation = locationComponent.getWorldPosition();</span>
+<span class="nc" id="L326">                    ClientComponent clientComp = clientEntity.getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">                    if (clientComp != null) {</span>
+<span class="nc" id="L328">                        clientComp.character.send(new CharacterTeleportEvent(vLocation));</span>
+<span class="nc" id="L329">                        return &quot;Teleporting &quot; + username + &quot; to you at &quot; + vLocation.x + &quot; &quot; + vLocation.y + &quot; &quot; + vLocation.z;</span>
+                    }
+                }
+            }
+<span class="nc" id="L333">        }</span>
+
+<span class="nc" id="L335">        throw new IllegalArgumentException(&quot;No such user '&quot; + username + &quot;'&quot;);</span>
+    }
+
+    @Command(shortDescription = &quot;Teleport User1 to User2&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.USER_MANAGEMENT_PERMISSION)
+    public String teleportPlayerToPlayer(@CommandParam(&quot;usernameFrom&quot;) String usernameFrom, @CommandParam(&quot;usernameTo&quot;) String usernameTo) {
+
+<span class="nc bnc" id="L342" title="All 2 branches missed.">        if (usernameFrom.equalsIgnoreCase(usernameTo)) {</span>
+<span class="nc" id="L343">            throw new IllegalArgumentException(&quot;Why teleport to yourself...&quot;);</span>
+        }
+
+<span class="nc" id="L346">        EntityRef entityFrom = null;</span>
+<span class="nc" id="L347">        EntityRef entityTo = null;</span>
+<span class="nc" id="L348">        boolean foundEntityFrom = false;</span>
+<span class="nc" id="L349">        boolean foundEntityTo = false;</span>
+
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        for (EntityRef clientEntity : entityManager.getEntitiesWith(ClientComponent.class)) {</span>
+<span class="nc" id="L352">            EntityRef clientInfo = clientEntity.getComponent(ClientComponent.class).clientInfo;</span>
+
+<span class="nc" id="L354">            DisplayNameComponent name = clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L355" title="All 4 branches missed.">            if (!foundEntityFrom &amp;&amp; usernameFrom.equalsIgnoreCase(name.name)) {</span>
+<span class="nc" id="L356">                entityFrom = clientEntity;</span>
+<span class="nc" id="L357">                foundEntityFrom = true;</span>
+<span class="nc bnc" id="L358" title="All 4 branches missed.">            } else if (!foundEntityTo &amp;&amp; usernameTo.equalsIgnoreCase(name.name)) {</span>
+<span class="nc" id="L359">                entityTo = clientEntity;</span>
+<span class="nc" id="L360">                foundEntityTo = true;</span>
+            }
+
+<span class="nc bnc" id="L363" title="All 4 branches missed.">            if (foundEntityFrom &amp;&amp; foundEntityTo) {</span>
+<span class="nc" id="L364">                break;</span>
+            }
+<span class="nc" id="L366">        }</span>
+
+<span class="nc bnc" id="L368" title="All 2 branches missed.">        if (!foundEntityFrom) {</span>
+<span class="nc" id="L369">            throw new IllegalArgumentException(&quot;No such user '&quot; + usernameFrom + &quot;'&quot;);</span>
+        }
+<span class="nc bnc" id="L371" title="All 2 branches missed.">        if (!foundEntityTo) {</span>
+<span class="nc" id="L372">            throw new IllegalArgumentException(&quot;No such user '&quot; + usernameTo + &quot;'&quot;);</span>
+        }
+
+<span class="nc" id="L375">        LocationComponent locationComponent = entityTo.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L376" title="All 2 branches missed.">        if (locationComponent != null) {</span>
+<span class="nc" id="L377">            Vector3f vLocation = locationComponent.getWorldPosition();</span>
+<span class="nc" id="L378">            ClientComponent clientComp = entityFrom.getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">            if (clientComp != null) {</span>
+<span class="nc" id="L380">                clientComp.character.send(new CharacterTeleportEvent(vLocation));</span>
+<span class="nc" id="L381">                return &quot;Teleporting &quot; + usernameFrom + &quot; to &quot; + usernameTo + &quot; at &quot; + vLocation.x + &quot; &quot; + vLocation.y + &quot; &quot; + vLocation.z;</span>
+            }
+        }
+
+<span class="nc" id="L385">        throw new IllegalArgumentException(&quot;User &quot; + usernameTo + &quot; has an invalid location.&quot;);</span>
+    }
+
+    @Command(shortDescription = &quot;Teleport all users to location&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.USER_MANAGEMENT_PERMISSION)
+    public String teleportAllPlayersToLocation(@CommandParam(&quot;x&quot;) float x, @CommandParam(&quot;y&quot;) float y, @CommandParam(&quot;z&quot;) float z) {
+
+<span class="nc bnc" id="L392" title="All 2 branches missed.">        for (EntityRef clientEntity : entityManager.getEntitiesWith(ClientComponent.class)) {</span>
+<span class="nc" id="L393">            ClientComponent clientComp = clientEntity.getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L394" title="All 2 branches missed.">            if (clientComp != null) {</span>
+<span class="nc" id="L395">                clientComp.character.send(new CharacterTeleportEvent(new Vector3f(x, y, z)));</span>
+            }
+<span class="nc" id="L397">        }</span>
+
+<span class="nc" id="L399">        return &quot;All possible players teleported&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Teleport all users to specified user&quot;, runOnServer = true,
+            requiredPermission = PermissionManager.USER_MANAGEMENT_PERMISSION)
+    public String teleportAllPlayersToPlayer(@CommandParam(&quot;username&quot;) String username) {
+
+<span class="nc" id="L406">        Vector3f vPlayerLocation = Vector3f.zero();</span>
+<span class="nc" id="L407">        boolean bPlayerLocationWasFound = false;</span>
+<span class="nc" id="L408">        EntityRef playerEntity = null;</span>
+
+<span class="nc bnc" id="L410" title="All 2 branches missed.">        for (EntityRef clientEntity : entityManager.getEntitiesWith(ClientComponent.class)) {</span>
+<span class="nc" id="L411">            EntityRef clientInfo = clientEntity.getComponent(ClientComponent.class).clientInfo;</span>
+
+<span class="nc" id="L413">            DisplayNameComponent name = clientInfo.getComponent(DisplayNameComponent.class);</span>
+<span class="nc bnc" id="L414" title="All 2 branches missed.">            if (username.equalsIgnoreCase(name.name)) {</span>
+<span class="nc" id="L415">                LocationComponent locationComponent = clientEntity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">                if (locationComponent != null) {</span>
+<span class="nc" id="L417">                    vPlayerLocation = locationComponent.getWorldPosition();</span>
+<span class="nc" id="L418">                    bPlayerLocationWasFound = true;</span>
+<span class="nc" id="L419">                    playerEntity = clientEntity;</span>
+                }
+                break;
+            }
+<span class="nc" id="L423">        }</span>
+
+<span class="nc bnc" id="L425" title="All 2 branches missed.">        if (!bPlayerLocationWasFound) {</span>
+<span class="nc" id="L426">            throw new IllegalArgumentException(&quot;No such user '&quot; + username + &quot;'&quot;);</span>
+        }
+
+<span class="nc" id="L429">        MovementMode playerMovementMode = MovementMode.NONE;</span>
+<span class="nc" id="L430">        ClientComponent clientInfo = playerEntity.getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L431" title="All 2 branches missed.">        if (clientInfo != null) {</span>
+<span class="nc" id="L432">            CharacterMovementComponent playerMovementComponent = clientInfo.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L433" title="All 2 branches missed.">            if (playerMovementComponent != null) {</span>
+<span class="nc" id="L434">                playerMovementMode = playerMovementComponent.mode;</span>
+            }
+        }
+
+<span class="nc bnc" id="L438" title="All 2 branches missed.">        for (EntityRef clientEntity : entityManager.getEntitiesWith(ClientComponent.class)) {</span>
+<span class="nc" id="L439">            ClientComponent clientComp = clientEntity.getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L440" title="All 2 branches missed.">            if (clientComp != null) {</span>
+<span class="nc" id="L441">                clientComp.character.send(new CharacterTeleportEvent(vPlayerLocation));</span>
+
+<span class="nc" id="L443">                CharacterMovementComponent characterMovementComponent = clientComp.character.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L444" title="All 6 branches missed.">                if (characterMovementComponent != null &amp;&amp; playerMovementMode != MovementMode.NONE &amp;&amp; playerMovementMode != characterMovementComponent.mode) {</span>
+<span class="nc" id="L445">                    clientComp.character.send(new SetMovementModeEvent(playerMovementMode));</span>
+                }
+            }
+<span class="nc" id="L448">        }</span>
+
+<span class="nc" id="L450">        return &quot;All possible players teleported to &quot; + username + &quot; and set to &quot; + playerMovementMode;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

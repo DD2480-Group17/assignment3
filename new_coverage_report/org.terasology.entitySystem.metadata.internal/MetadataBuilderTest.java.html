@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataBuilderTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem.metadata.internal</a> &gt; <span class="el_source">MetadataBuilderTest.java</span></div><h1>MetadataBuilderTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem.metadata.internal;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.engine.SimpleUri;
+import org.terasology.reflection.copy.CopyStrategyLibrary;
+import org.terasology.reflection.metadata.DefaultClassMetadata;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.reflection.reflect.ReflectFactory;
+import org.terasology.reflection.reflect.ReflectionReflectFactory;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ */
+<span class="fc" id="L34">public class MetadataBuilderTest {</span>
+
+<span class="fc" id="L36">    private ReflectFactory factory = new ReflectionReflectFactory();</span>
+<span class="fc" id="L37">    private CopyStrategyLibrary copyStrategyLibrary = new CopyStrategyLibrary(factory);</span>
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L41">    }</span>
+
+    @Test
+    public void testDetectsLackOfDefaultConstructor() throws Exception {
+<span class="fc" id="L45">        DefaultClassMetadata&lt;NoDefaultConstructor&gt; metadata = new DefaultClassMetadata&lt;&gt;(new SimpleUri(), NoDefaultConstructor.class, factory, copyStrategyLibrary);</span>
+<span class="fc" id="L46">        assertFalse(metadata.isConstructable());</span>
+<span class="fc" id="L47">    }</span>
+
+    @Test
+    public void testTrivialMetadata() throws Exception {
+<span class="fc" id="L51">        DefaultClassMetadata&lt;Trivial&gt; metadata = new DefaultClassMetadata&lt;&gt;(new SimpleUri(), Trivial.class, factory, copyStrategyLibrary);</span>
+<span class="fc" id="L52">        assertNotNull(metadata);</span>
+<span class="fc" id="L53">        assertEquals(0, metadata.getFieldCount());</span>
+<span class="fc" id="L54">        assertTrue(metadata.isConstructable());</span>
+<span class="fc" id="L55">    }</span>
+
+    @Test
+    public void testPrivateField() throws Exception {
+<span class="fc" id="L59">        DefaultClassMetadata&lt;PrivateField&gt; metadata = new DefaultClassMetadata&lt;&gt;(new SimpleUri(), PrivateField.class, factory, copyStrategyLibrary);</span>
+<span class="fc" id="L60">        assertNotNull(metadata);</span>
+<span class="fc" id="L61">        assertEquals(1, metadata.getFieldCount());</span>
+<span class="fc" id="L62">        FieldMetadata fieldMetadata = metadata.getField(&quot;name&quot;);</span>
+<span class="fc" id="L63">        assertNotNull(fieldMetadata);</span>
+<span class="fc" id="L64">        assertEquals(String.class, fieldMetadata.getType());</span>
+<span class="fc" id="L65">        assertEquals(&quot;name&quot;, fieldMetadata.getName());</span>
+<span class="fc" id="L66">        assertNotNull(metadata.newInstance());</span>
+<span class="fc" id="L67">    }</span>
+
+    @Test
+    public void testInheritsFields() throws Exception {
+<span class="fc" id="L71">        DefaultClassMetadata&lt;Inheriting&gt; metadata = new DefaultClassMetadata&lt;&gt;(new SimpleUri(), Inheriting.class, factory, copyStrategyLibrary);</span>
+<span class="fc" id="L72">        assertNotNull(metadata);</span>
+<span class="fc" id="L73">        assertEquals(2, metadata.getFieldCount());</span>
+<span class="fc" id="L74">        assertNotNull(metadata.getField(&quot;name&quot;));</span>
+<span class="fc" id="L75">        assertNotNull(metadata.getField(&quot;value&quot;));</span>
+<span class="fc" id="L76">        assertNotNull(metadata.newInstance());</span>
+<span class="fc" id="L77">    }</span>
+
+    private static class NoDefaultConstructor {
+<span class="nc" id="L80">        NoDefaultConstructor(String name) {</span>
+
+<span class="nc" id="L82">        }</span>
+    }
+
+<span class="nc" id="L85">    public static class Trivial {</span>
+    }
+
+    public static class PrivateField {
+        private String name;
+
+        private PrivateField() {
+        }
+
+<span class="nc" id="L94">        public PrivateField(String name) {</span>
+<span class="nc" id="L95">            this.name = name;</span>
+<span class="nc" id="L96">        }</span>
+
+        public String whatName() {
+<span class="nc" id="L99">            return name;</span>
+        }
+    }
+
+    public static class Inheriting extends PrivateField {
+        private String value;
+
+<span class="fc" id="L106">        private Inheriting() {</span>
+<span class="fc" id="L107">        }</span>
+
+        public Inheriting(String name, String value) {
+<span class="nc" id="L110">            super(name);</span>
+<span class="nc" id="L111">            this.value = value;</span>
+<span class="nc" id="L112">        }</span>
+
+        public String whatValue() {
+<span class="nc" id="L115">            return value;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

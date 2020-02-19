@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TextureUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.texture</a> &gt; <span class="el_source">TextureUtil.java</span></div><h1>TextureUtil.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.assets.texture;
+
+import com.google.common.primitives.UnsignedBytes;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.naming.Name;
+import org.terasology.rendering.nui.Color;
+
+import java.awt.image.BufferedImage;
+import java.nio.ByteBuffer;
+
+public final class TextureUtil {
+<span class="fc" id="L30">    public static final Name COLOR_RESOURCE_NAME = new Name(&quot;Color&quot;);</span>
+<span class="fc" id="L31">    public static final Name NOISE_RESOURCE_NAME = new Name(&quot;Noise&quot;);</span>
+
+    private TextureUtil() {
+    }
+
+    /**
+     * Returns a AssetUri which represents a Texture of that color.
+     *
+     * @param color including alpha, of the texture to represent.
+     * @return an asset Uri for the texture
+     */
+    public static ResourceUrn getTextureUriForColor(Color color) {
+<span class="fc" id="L43">        return new ResourceUrn(TerasologyConstants.ENGINE_MODULE, COLOR_RESOURCE_NAME, new Name(getColorName(color)));</span>
+    }
+
+    /**
+     * Returns a AssetUri which represents a Texture that contains white noise
+     *
+     * @param size the size of the texture (both width and height)
+     * @param seed the seed value for the noise generator
+     * @param min  the minimum noise value (can be lower than 0 and will be clamped then)
+     * @param max  the minimum noise value (can be larger than 255 and will be clamped then)
+     * @return an asset Uri for the texture
+     */
+    public static ResourceUrn getTextureUriForWhiteNoise(int size, long seed, int min, int max) {
+
+<span class="fc" id="L57">        String name = String.format(&quot;%s.%d.%d.%d.%d&quot;, &quot;white&quot;, size, seed, min, max);</span>
+
+<span class="fc" id="L59">        return new ResourceUrn(TerasologyConstants.ENGINE_MODULE, NOISE_RESOURCE_NAME, new Name(name));</span>
+    }
+
+    private static String getColorName(Color color) {
+<span class="fc" id="L63">        StringBuilder builder = new StringBuilder();</span>
+<span class="fc" id="L64">        appendColorName(builder, color);</span>
+<span class="fc" id="L65">        return builder.toString();</span>
+    }
+
+    /**
+     * Method to append the color string hex representation back to a string buffer.
+     * Package-only access as it is for internal use in ColorTextureAssetResolver,
+     * but should be here for maintenance with the color-to-color-string code.
+     *
+     * @param sb    StringBuilder into which to append name
+     * @param color represented by hexColorName
+     */
+    private static void appendColorName(StringBuilder sb, Color color) {
+<span class="fc" id="L77">        int red = color.r();</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (red &lt; 16) {</span>
+<span class="fc" id="L79">            sb.append('0');</span>
+        }
+<span class="fc" id="L81">        sb.append(Integer.toHexString(red));</span>
+
+<span class="fc" id="L83">        int green = color.g();</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        if (green &lt; 16) {</span>
+<span class="fc" id="L85">            sb.append('0');</span>
+        }
+<span class="fc" id="L87">        sb.append(Integer.toHexString(green));</span>
+
+<span class="fc" id="L89">        int blue = color.b();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if (blue &lt; 16) {</span>
+<span class="fc" id="L91">            sb.append('0');</span>
+        }
+<span class="fc" id="L93">        sb.append(Integer.toHexString(blue));</span>
+
+<span class="fc" id="L95">        int alpha = color.a();</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (alpha &lt; 16) {</span>
+<span class="fc" id="L97">            sb.append('0');</span>
+        }
+<span class="fc" id="L99">        sb.append(Integer.toHexString(alpha));</span>
+<span class="fc" id="L100">    }</span>
+
+    /**
+     * Method to convert the color string hex representation back to a color.
+     * Package-only access as it is for internal use in ColorTextureAssetResolver,
+     * but should be here for maintenance with the color-to-color-string code.
+     *
+     * @param hexColorName RRGGBBAA in lower-case hex notation
+     * @return color represented by hexColorName
+     */
+    static/* package-only */Color getColorForColorName(String hexColorName) {
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if (hexColorName.length() != 8) {</span>
+            // TODO: we should probably log a warning in this case.
+<span class="nc" id="L113">            return null;</span>
+        }
+
+<span class="fc" id="L116">        String redString = hexColorName.substring(0, 2);</span>
+<span class="fc" id="L117">        String greenString = hexColorName.substring(2, 4);</span>
+<span class="fc" id="L118">        String blueString = hexColorName.substring(4, 6);</span>
+<span class="fc" id="L119">        String alphaString = hexColorName.substring(6);</span>
+
+<span class="fc" id="L121">        int red = Integer.parseInt(redString, 16);</span>
+<span class="fc" id="L122">        int green = Integer.parseInt(greenString, 16);</span>
+<span class="fc" id="L123">        int blue = Integer.parseInt(blueString, 16);</span>
+<span class="fc" id="L124">        int alpha = Integer.parseInt(alphaString, 16);</span>
+<span class="fc" id="L125">        return new Color(red, green, blue, alpha);</span>
+    }
+
+    public static BufferedImage convertToImage(TextureRegion textureRegion) {
+<span class="nc" id="L129">        final int width = textureRegion.getWidth();</span>
+<span class="nc" id="L130">        final int height = textureRegion.getHeight();</span>
+
+<span class="nc" id="L132">        final Rect2i pixelRegion = textureRegion.getPixelRegion();</span>
+<span class="nc" id="L133">        final Texture texture = textureRegion.getTexture();</span>
+<span class="nc" id="L134">        ByteBuffer textureBytes = texture.getData().getBuffers()[0];</span>
+<span class="nc" id="L135">        int stride = texture.getWidth() * 4;</span>
+<span class="nc" id="L136">        int posX = pixelRegion.minX();</span>
+<span class="nc" id="L137">        int posY = pixelRegion.minY();</span>
+
+<span class="nc" id="L139">        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        for (int y = 0; y &lt; height; y++) {</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">            for (int x = 0; x &lt; width; x++) {</span>
+<span class="nc" id="L142">                int r = UnsignedBytes.toInt(textureBytes.get((posY + y) * stride + (posX + x) * 4));</span>
+<span class="nc" id="L143">                int g = UnsignedBytes.toInt(textureBytes.get((posY + y) * stride + (posX + x) * 4 + 1));</span>
+<span class="nc" id="L144">                int b = UnsignedBytes.toInt(textureBytes.get((posY + y) * stride + (posX + x) * 4 + 2));</span>
+<span class="nc" id="L145">                int a = UnsignedBytes.toInt(textureBytes.get((posY + y) * stride + (posX + x) * 4 + 3));</span>
+
+<span class="nc" id="L147">                int argb = (a &lt;&lt; 24) + (r &lt;&lt; 16) + (g &lt;&lt; 8) + b;</span>
+<span class="nc" id="L148">                image.setRGB(x, y, argb);</span>
+            }
+        }
+<span class="nc" id="L151">        return image;</span>
+    }
+
+    /**
+     * Converts a BufferedImage into a ByteBuffer based on 32-bit values
+     * in RGBA byte order
+     *
+     * @param image any type of BufferedImage
+     * @return a ByteBuffer that contains the data in RGBA byte order
+     */
+    public static ByteBuffer convertToByteBuffer(BufferedImage image) {
+<span class="nc" id="L162">        int width = image.getWidth();</span>
+<span class="nc" id="L163">        int height = image.getHeight();</span>
+<span class="nc" id="L164">        ByteBuffer data = ByteBuffer.allocateDirect(4 * width * height);</span>
+
+<span class="nc bnc" id="L166" title="All 2 branches missed.">        for (int y = 0; y &lt; height; y++) {</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">            for (int x = 0; x &lt; width; x++) {</span>
+<span class="nc" id="L168">                int argb = image.getRGB(x, y);</span>
+<span class="nc" id="L169">                int r = (argb &gt;&gt; 16) &amp; 0xFF;</span>
+<span class="nc" id="L170">                int g = (argb &gt;&gt; 8) &amp; 0xFF;</span>
+<span class="nc" id="L171">                int b = argb &amp; 0xFF;</span>
+<span class="nc" id="L172">                int a = (argb &gt;&gt; 24) &amp; 0xFF;</span>
+<span class="nc" id="L173">                data.put(UnsignedBytes.checkedCast(r));</span>
+<span class="nc" id="L174">                data.put(UnsignedBytes.checkedCast(g));</span>
+<span class="nc" id="L175">                data.put(UnsignedBytes.checkedCast(b));</span>
+<span class="nc" id="L176">                data.put(UnsignedBytes.checkedCast(a));</span>
+            }
+        }
+<span class="nc" id="L179">        data.rewind();</span>
+<span class="nc" id="L180">        return data;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

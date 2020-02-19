@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BackdropNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">BackdropNode.java</span></div><h1>BackdropNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.util.glu.Sphere;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingDebugConfig;
+import org.terasology.context.Context;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.WireframeCapable;
+import org.terasology.rendering.dag.WireframeTrigger;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.DisableDepthWriting;
+import org.terasology.rendering.dag.stateChanges.EnableFaceCulling;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.LookThroughNormalized;
+import org.terasology.rendering.dag.stateChanges.SetFacesToCull;
+import org.terasology.rendering.dag.stateChanges.SetFboWriteMask;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture2D;
+import org.terasology.rendering.dag.stateChanges.SetWireframe;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.world.WorldRenderer;
+
+import static org.lwjgl.opengl.GL11.GL_FRONT;
+import static org.lwjgl.opengl.GL11.glCallList;
+import static org.lwjgl.opengl.GL11.glEndList;
+import static org.lwjgl.opengl.GL11.glGenLists;
+import static org.lwjgl.opengl.GL11.glNewList;
+
+/**
+ * Renders the backdrop.
+ *
+ * In this implementation the backdrop consists of a spherical mesh (a skysphere)
+ * on which two sky textures are projected, one for the day and one for the night.
+ * The two textures cross-fade as the day turns to night and viceversa.
+ *
+ * The shader also procedurally adds a main light (sun/moon) in the form of a blurred disc.
+ */
+public class BackdropNode extends AbstractNode implements WireframeCapable {
+<span class="nc" id="L63">    private static final ResourceUrn SKY_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.sky&quot;);</span>
+    private static final int SLICES = 16;
+    private static final int STACKS = 128;
+    private static final int RADIUS = 1024;
+
+    private WorldRenderer worldRenderer;
+    private BackdropProvider backdropProvider;
+
+<span class="nc" id="L71">    private int skySphere = -1;</span>
+    private SetWireframe wireframeStateChange;
+
+    private Material skyMaterial;
+
+<span class="nc" id="L76">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 1.0f, max = 8192.0f)
+    private float sunExponent = 512.0f;
+<span class="nc" id="L79">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 1.0f, max = 8192.0f)
+    private float moonExponent = 256.0f;
+<span class="nc" id="L82">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 10.0f)
+    private float skyDaylightBrightness = 0.6f;
+<span class="nc" id="L85">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 10.0f)
+    private float skyNightBrightness = 1.0f;
+
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    private Vector3f sunDirection;
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    private float turbidity;
+
+    public BackdropNode(String nodeUri, Context context) {
+<span class="nc" id="L95">        super(nodeUri, context);</span>
+
+<span class="nc" id="L97">        backdropProvider = context.get(BackdropProvider.class);</span>
+
+<span class="nc" id="L99">        worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L100">        SubmersibleCamera activeCamera = worldRenderer.getActiveCamera();</span>
+<span class="nc" id="L101">        addDesiredStateChange(new LookThroughNormalized(activeCamera));</span>
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        initSkysphere(activeCamera.getzFar() &lt; RADIUS ? activeCamera.getzFar() : RADIUS);</span>
+
+<span class="nc" id="L105">        wireframeStateChange = new SetWireframe(true);</span>
+<span class="nc" id="L106">        RenderingDebugConfig renderingDebugConfig = context.get(Config.class).getRendering().getDebug();</span>
+<span class="nc" id="L107">        new WireframeTrigger(renderingDebugConfig, this);</span>
+
+<span class="nc" id="L109">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L110">        FBO lastUpdatedGBuffer = displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo();</span>
+<span class="nc" id="L111">        addDesiredStateChange(new BindFbo(lastUpdatedGBuffer));</span>
+<span class="nc" id="L112">        addDesiredStateChange(new SetFboWriteMask(lastUpdatedGBuffer, true, false, false));</span>
+
+<span class="nc" id="L114">        addDesiredStateChange(new EnableMaterial(SKY_MATERIAL_URN));</span>
+
+        // By disabling the writing to the depth buffer the sky will always have a depth value
+        // set by the latest glClear statement.
+<span class="nc" id="L118">        addDesiredStateChange(new DisableDepthWriting());</span>
+
+        // Note: culling GL_FRONT polygons is necessary as we are inside the sphere and
+        //       due to vertex ordering the polygons we do see are the GL_BACK ones.
+<span class="nc" id="L122">        addDesiredStateChange(new EnableFaceCulling());</span>
+<span class="nc" id="L123">        addDesiredStateChange(new SetFacesToCull(GL_FRONT));</span>
+
+<span class="nc" id="L125">        skyMaterial = getMaterial(SKY_MATERIAL_URN);</span>
+
+<span class="nc" id="L127">        int textureSlot = 0;</span>
+<span class="nc" id="L128">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:sky90&quot;, SKY_MATERIAL_URN, &quot;texSky90&quot;));</span>
+<span class="nc" id="L129">        addDesiredStateChange(new SetInputTexture2D(textureSlot, &quot;engine:sky180&quot;, SKY_MATERIAL_URN, &quot;texSky180&quot;));</span>
+<span class="nc" id="L130">    }</span>
+
+    public void enableWireframe() {
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (!getDesiredStateChanges().contains(wireframeStateChange)) {</span>
+<span class="nc" id="L134">            addDesiredStateChange(wireframeStateChange);</span>
+<span class="nc" id="L135">            worldRenderer.requestTaskListRefresh();</span>
+        }
+<span class="nc" id="L137">    }</span>
+
+    public void disableWireframe() {
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if (getDesiredStateChanges().contains(wireframeStateChange)) {</span>
+<span class="nc" id="L141">            removeDesiredStateChange(wireframeStateChange);</span>
+<span class="nc" id="L142">            worldRenderer.requestTaskListRefresh();</span>
+        }
+<span class="nc" id="L144">    }</span>
+
+    /**
+     * Renders the backdrop of the scene - in this implementation: the skysphere.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L151">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+        // Common Shader Parameters
+
+<span class="nc" id="L155">        sunDirection = backdropProvider.getSunDirection(false);</span>
+<span class="nc" id="L156">        turbidity = backdropProvider.getTurbidity();</span>
+
+<span class="nc" id="L158">        skyMaterial.setFloat(&quot;daylight&quot;, backdropProvider.getDaylight(), true);</span>
+<span class="nc" id="L159">        skyMaterial.setFloat3(&quot;sunVec&quot;, sunDirection, true);</span>
+
+        // Shader Parameters
+
+<span class="nc" id="L163">        skyMaterial.setFloat3(&quot;zenith&quot;, getAllWeatherZenith(backdropProvider.getSunDirection(false).y, turbidity), true);</span>
+<span class="nc" id="L164">        skyMaterial.setFloat(&quot;turbidity&quot;, turbidity, true);</span>
+<span class="nc" id="L165">        skyMaterial.setFloat(&quot;colorExp&quot;, backdropProvider.getColorExp(), true);</span>
+<span class="nc" id="L166">        skyMaterial.setFloat4(&quot;skySettings&quot;, sunExponent, moonExponent, skyDaylightBrightness, skyNightBrightness, true);</span>
+
+        // Actual Node Processing
+
+<span class="nc" id="L170">        glCallList(skySphere); // Draws the skysphere</span>
+
+<span class="nc" id="L172">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L173">    }</span>
+
+    private void initSkysphere(float sphereRadius) {
+<span class="nc" id="L176">        Sphere sphere = new Sphere();</span>
+<span class="nc" id="L177">        sphere.setTextureFlag(true);</span>
+
+<span class="nc" id="L179">        skySphere = glGenLists(1);</span>
+
+<span class="nc" id="L181">        glNewList(skySphere, GL11.GL_COMPILE);</span>
+<span class="nc" id="L182">        sphere.draw(sphereRadius, SLICES, STACKS);</span>
+<span class="nc" id="L183">        glEndList();</span>
+<span class="nc" id="L184">    }</span>
+
+    static Vector3f getAllWeatherZenith(float thetaSunAngle, float turbidity) {
+<span class="nc" id="L187">        float thetaSun = (float) Math.acos(thetaSunAngle);</span>
+<span class="nc" id="L188">        Vector4f cx1 = new Vector4f(0.0f, 0.00209f, -0.00375f, 0.00165f);</span>
+<span class="nc" id="L189">        Vector4f cx2 = new Vector4f(0.00394f, -0.03202f, 0.06377f, -0.02903f);</span>
+<span class="nc" id="L190">        Vector4f cx3 = new Vector4f(0.25886f, 0.06052f, -0.21196f, 0.11693f);</span>
+<span class="nc" id="L191">        Vector4f cy1 = new Vector4f(0.0f, 0.00317f, -0.00610f, 0.00275f);</span>
+<span class="nc" id="L192">        Vector4f cy2 = new Vector4f(0.00516f, -0.04153f, 0.08970f, -0.04214f);</span>
+<span class="nc" id="L193">        Vector4f cy3 = new Vector4f(0.26688f, 0.06670f, -0.26756f, 0.15346f);</span>
+
+<span class="nc" id="L195">        float t2 = turbidity * turbidity;</span>
+<span class="nc" id="L196">        float chi = (4.0f / 9.0f - turbidity / 120.0f) * ((float) Math.PI - 2.0f * thetaSun);</span>
+
+<span class="nc" id="L198">        Vector4f theta = new Vector4f(1, thetaSun, thetaSun * thetaSun, thetaSun * thetaSun * thetaSun);</span>
+
+<span class="nc" id="L200">        float why = (4.0453f * turbidity - 4.9710f) * (float) Math.tan(chi) - 0.2155f * turbidity + 2.4192f;</span>
+<span class="nc" id="L201">        float x = t2 * cx1.dot(theta) + turbidity * cx2.dot(theta) + cx3.dot(theta);</span>
+<span class="nc" id="L202">        float y = t2 * cy1.dot(theta) + turbidity * cy2.dot(theta) + cy3.dot(theta);</span>
+
+<span class="nc" id="L204">        return new Vector3f(why, x, y);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenALManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.audio.openAL</a> &gt; <span class="el_source">OpenALManager.java</span></div><h1>OpenALManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.audio.openAL;
+
+import com.google.common.collect.Maps;
+import org.lwjgl.BufferUtils;
+import org.lwjgl.LWJGLException;
+import org.lwjgl.openal.AL;
+import org.lwjgl.openal.AL10;
+import org.lwjgl.openal.ALC10;
+import org.lwjgl.openal.ALC11;
+import org.lwjgl.openal.ALCcontext;
+import org.lwjgl.openal.ALCdevice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.AssetFactory;
+import org.terasology.audio.AudioEndListener;
+import org.terasology.audio.AudioManager;
+import org.terasology.audio.Sound;
+import org.terasology.audio.StaticSound;
+import org.terasology.audio.StaticSoundData;
+import org.terasology.audio.StreamingSound;
+import org.terasology.audio.StreamingSoundData;
+import org.terasology.audio.openAL.staticSound.OpenALSound;
+import org.terasology.audio.openAL.staticSound.OpenALSoundPool;
+import org.terasology.audio.openAL.streamingSound.OpenALStreamingSound;
+import org.terasology.audio.openAL.streamingSound.OpenALStreamingSoundPool;
+import org.terasology.config.AudioConfig;
+import org.terasology.math.Direction;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.util.Iterator;
+import java.util.Map;
+
+/**
+ * An Open AL implementation of AudioManager
+ */
+public class OpenALManager implements AudioManager {
+
+<span class="nc" id="L56">    private static final Logger logger = LoggerFactory.getLogger(OpenALManager.class);</span>
+
+    /**
+     * For faster distance check *
+     */
+    private static final float MAX_DISTANCE_SQUARED = MAX_DISTANCE * MAX_DISTANCE;
+
+<span class="nc" id="L63">    protected Map&lt;String, SoundPool&lt;? extends Sound&lt;?&gt;, ?&gt;&gt; pools = Maps.newHashMap();</span>
+
+<span class="nc" id="L65">    private Vector3f listenerPosition = new Vector3f();</span>
+
+<span class="nc" id="L67">    private Map&lt;SoundSource&lt;?&gt;, AudioEndListener&gt; endListeners = Maps.newHashMap();</span>
+
+<span class="nc" id="L69">    public OpenALManager(AudioConfig config) throws OpenALException, LWJGLException {</span>
+<span class="nc" id="L70">        logger.info(&quot;Initializing OpenAL audio manager&quot;);</span>
+
+<span class="nc" id="L72">        config.musicVolume.subscribe((setting, oldValue) -&gt; setMusicVolume(setting.get()));</span>
+<span class="nc" id="L73">        config.soundVolume.subscribe((setting, oldValue) -&gt; setSoundVolume(setting.get()));</span>
+
+<span class="nc" id="L75">        AL.create();</span>
+
+<span class="nc" id="L77">        AL10.alGetError();</span>
+
+<span class="nc" id="L79">        logger.info(&quot;OpenAL {} initialized!&quot;, AL10.alGetString(AL10.AL_VERSION));</span>
+
+<span class="nc" id="L81">        ALCcontext context = ALC10.alcGetCurrentContext();</span>
+<span class="nc" id="L82">        ALCdevice device = ALC10.alcGetContextsDevice(context);</span>
+
+<span class="nc" id="L84">        logger.info(&quot;Using OpenAL: {} by {}&quot;, AL10.alGetString(AL10.AL_RENDERER), AL10.alGetString(AL10.AL_VENDOR));</span>
+<span class="nc" id="L85">        logger.info(&quot;Using device: {}&quot;, ALC10.alcGetString(device, ALC10.ALC_DEVICE_SPECIFIER));</span>
+<span class="nc" id="L86">        logger.info(&quot;Available AL extensions: {}&quot;, AL10.alGetString(AL10.AL_EXTENSIONS));</span>
+<span class="nc" id="L87">        logger.info(&quot;Available ALC extensions: {}&quot;, ALC10.alcGetString(device, ALC10.ALC_EXTENSIONS));</span>
+
+<span class="nc" id="L89">        IntBuffer buffer = BufferUtils.createIntBuffer(1);</span>
+<span class="nc" id="L90">        ALC10.alcGetInteger(device, ALC11.ALC_MONO_SOURCES, buffer);</span>
+<span class="nc" id="L91">        logger.info(&quot;Max mono sources: {}&quot;, buffer.get(0));</span>
+<span class="nc" id="L92">        buffer.rewind();</span>
+
+<span class="nc" id="L94">        ALC10.alcGetInteger(device, ALC11.ALC_STEREO_SOURCES, buffer);</span>
+<span class="nc" id="L95">        logger.info(&quot;Max stereo sources: {}&quot;, buffer.get(0));</span>
+<span class="nc" id="L96">        buffer.rewind();</span>
+
+<span class="nc" id="L98">        ALC10.alcGetInteger(device, ALC10.ALC_FREQUENCY, buffer);</span>
+<span class="nc" id="L99">        logger.info(&quot;Mixer frequency: {}&quot;, buffer.get(0));</span>
+<span class="nc" id="L100">        buffer.rewind();</span>
+
+<span class="nc" id="L102">        AL10.alDistanceModel(AL10.AL_INVERSE_DISTANCE_CLAMPED);</span>
+
+        // Initialize sound pools
+<span class="nc" id="L105">        pools.put(&quot;sfx&quot;, new OpenALSoundPool(30)); // effects pool</span>
+<span class="nc" id="L106">        pools.put(&quot;music&quot;, new OpenALStreamingSoundPool(2)); // music pool</span>
+<span class="nc" id="L107">        pools.get(&quot;sfx&quot;).setVolume(config.soundVolume.get());</span>
+<span class="nc" id="L108">        pools.get(&quot;music&quot;).setVolume(config.musicVolume.get());</span>
+<span class="nc" id="L109">    }</span>
+
+    @Override
+    public void dispose() {
+<span class="nc" id="L113">        AL.destroy();</span>
+<span class="nc" id="L114">    }</span>
+
+    @Override
+    public void stopAllSounds() {
+<span class="nc" id="L118">        pools.values().forEach(SoundPool::stopAll);</span>
+<span class="nc" id="L119">        notifyEndListeners(true);</span>
+<span class="nc" id="L120">    }</span>
+
+    @Override
+    public boolean isMute() {
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        return AL10.alGetListenerf(AL10.AL_GAIN) &lt; 0.01f;</span>
+    }
+
+    @Override
+    public void setMute(boolean mute) {
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        if (mute) {</span>
+<span class="nc" id="L130">            AL10.alListenerf(AL10.AL_GAIN, 0);</span>
+        } else {
+<span class="nc" id="L132">            AL10.alListenerf(AL10.AL_GAIN, 1.0f);</span>
+        }
+<span class="nc" id="L134">    }</span>
+
+    private void setSoundVolume(float volume) {
+<span class="nc" id="L137">        pools.get(&quot;sfx&quot;).setVolume(volume);</span>
+<span class="nc" id="L138">    }</span>
+
+    private void setMusicVolume(float volume) {
+<span class="nc" id="L141">        pools.get(&quot;music&quot;).setVolume(volume);</span>
+<span class="nc" id="L142">    }</span>
+
+    @Override
+    public void playSound(StaticSound sound) {
+<span class="nc" id="L146">        playSound(sound, null, 1.0f, PRIORITY_NORMAL);</span>
+<span class="nc" id="L147">    }</span>
+
+    @Override
+    public void playSound(StaticSound sound, float volume) {
+<span class="nc" id="L151">        playSound(sound, null, volume, PRIORITY_NORMAL);</span>
+<span class="nc" id="L152">    }</span>
+
+    @Override
+    public void playSound(StaticSound sound, float volume, int priority) {
+<span class="nc" id="L156">        playSound(sound, null, volume, priority);</span>
+<span class="nc" id="L157">    }</span>
+
+    @Override
+    public void playSound(StaticSound sound, Vector3f position) {
+<span class="nc" id="L161">        playSound(sound, position, 1.0f, PRIORITY_NORMAL);</span>
+<span class="nc" id="L162">    }</span>
+
+    @Override
+    public void playSound(StaticSound sound, Vector3f position, float volume) {
+<span class="nc" id="L166">        playSound(sound, position, volume, PRIORITY_NORMAL);</span>
+<span class="nc" id="L167">    }</span>
+
+    @Override
+    public void playSound(StaticSound sound, Vector3f position, float volume, int priority) {
+<span class="nc" id="L171">        playSound(sound, position, volume, priority, null);</span>
+<span class="nc" id="L172">    }</span>
+
+    @Override
+    public void playSound(StaticSound sound, Vector3f position, float volume, int priority, AudioEndListener endListener) {
+<span class="nc bnc" id="L176" title="All 4 branches missed.">        if (position != null &amp;&amp; !checkDistance(position)) {</span>
+<span class="nc" id="L177">            return;</span>
+        }
+<span class="nc" id="L179">        SoundPool&lt;StaticSound, ?&gt; pool = (SoundPool&lt;StaticSound, ?&gt;) pools.get(&quot;sfx&quot;);</span>
+
+<span class="nc" id="L181">        SoundSource&lt;?&gt; source = pool.getSource(sound, priority);</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        if (source != null) {</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            source.setAbsolute(position != null);</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            if (position != null) {</span>
+<span class="nc" id="L185">                source.setPosition(position);</span>
+            }
+<span class="nc" id="L187">            source.setGain(volume);</span>
+<span class="nc" id="L188">            source.play();</span>
+
+<span class="nc bnc" id="L190" title="All 2 branches missed.">            if (endListener != null) {</span>
+<span class="nc" id="L191">                endListeners.put(source, endListener);</span>
+            }
+        }
+<span class="nc" id="L194">    }</span>
+
+    @Override
+    public void playMusic(StreamingSound music) {
+<span class="nc" id="L198">        playMusic(music, 1.0f, null);</span>
+<span class="nc" id="L199">    }</span>
+
+    @Override
+    public void playMusic(StreamingSound music, AudioEndListener endListener) {
+<span class="nc" id="L203">        playMusic(music, 1.0f, endListener);</span>
+<span class="nc" id="L204">    }</span>
+
+    @Override
+    public void playMusic(StreamingSound music, float volume) {
+<span class="nc" id="L208">        playMusic(music, volume, null);</span>
+<span class="nc" id="L209">    }</span>
+
+    @Override
+    public void playMusic(StreamingSound music, float volume, AudioEndListener endListener) {
+<span class="nc" id="L213">        SoundPool&lt;StreamingSound, ?&gt; pool = (SoundPool&lt;StreamingSound, ?&gt;) pools.get(&quot;music&quot;);</span>
+
+<span class="nc" id="L215">        pool.stopAll();</span>
+
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        if (music == null) {</span>
+<span class="nc" id="L218">            return;</span>
+        }
+
+<span class="nc" id="L221">        SoundSource&lt;?&gt; source = pool.getSource(music);</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">        if (source != null) {</span>
+<span class="nc" id="L223">            source.setGain(volume).play();</span>
+
+<span class="nc bnc" id="L225" title="All 2 branches missed.">            if (endListener != null) {</span>
+<span class="nc" id="L226">                endListeners.put(source, endListener);</span>
+            }
+        }
+<span class="nc" id="L229">    }</span>
+
+    @Override
+    public void loopMusic(StreamingSound music) {
+<span class="nc" id="L233">        loopMusic(music, 1.0f);</span>
+<span class="nc" id="L234">    }</span>
+
+    @Override
+    public void loopMusic(StreamingSound music, float volume) {
+<span class="nc" id="L238">        AudioEndListener loopingEndListener = interrupted -&gt; {</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">            if (!interrupted) {</span>
+<span class="nc" id="L240">                loopMusic(music, volume);</span>
+            }
+<span class="nc" id="L242">        };</span>
+<span class="nc" id="L243">        playMusic(music, volume, loopingEndListener);</span>
+<span class="nc" id="L244">    }</span>
+
+    @Override
+    public void updateListener(Vector3f position, Quat4f orientation, Vector3f velocity) {
+
+<span class="nc" id="L249">        AL10.alListener3f(AL10.AL_VELOCITY, velocity.x, velocity.y, velocity.z);</span>
+
+<span class="nc" id="L251">        OpenALException.checkState(&quot;Setting listener velocity&quot;);</span>
+
+<span class="nc" id="L253">        Vector3f dir = orientation.rotate(Direction.FORWARD.getVector3f(), new Vector3f());</span>
+<span class="nc" id="L254">        Vector3f up = orientation.rotate(Direction.UP.getVector3f(), new Vector3f());</span>
+
+<span class="nc" id="L256">        FloatBuffer listenerOri = BufferUtils.createFloatBuffer(6).put(new float[]{dir.x, dir.y, dir.z, up.x, up.y, up.z});</span>
+<span class="nc" id="L257">        listenerOri.flip();</span>
+<span class="nc" id="L258">        AL10.alListener(AL10.AL_ORIENTATION, listenerOri);</span>
+
+<span class="nc" id="L260">        OpenALException.checkState(&quot;Setting listener orientation&quot;);</span>
+<span class="nc" id="L261">        this.listenerPosition.set(position);</span>
+
+<span class="nc" id="L263">        AL10.alListener3f(AL10.AL_POSITION, position.x, position.y, position.z);</span>
+
+<span class="nc" id="L265">        OpenALException.checkState(&quot;Setting listener position&quot;);</span>
+<span class="nc" id="L266">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L270" title="All 2 branches missed.">        for (SoundPool&lt;?, ?&gt; pool : pools.values()) {</span>
+<span class="nc" id="L271">            pool.update(delta);</span>
+<span class="nc" id="L272">        }</span>
+<span class="nc" id="L273">        notifyEndListeners(false);</span>
+<span class="nc" id="L274">    }</span>
+
+    private void notifyEndListeners(boolean interrupted) {
+<span class="nc" id="L277">        Iterator&lt;Map.Entry&lt;SoundSource&lt;?&gt;, AudioEndListener&gt;&gt; iterator = endListeners.entrySet().iterator();</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">        while (iterator.hasNext()) {</span>
+<span class="nc" id="L279">            Map.Entry&lt;SoundSource&lt;?&gt;, AudioEndListener&gt; entry = iterator.next();</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">            if (!entry.getKey().isPlaying()) {</span>
+<span class="nc" id="L281">                iterator.remove();</span>
+
+                try {
+<span class="nc" id="L284">                    entry.getValue().onAudioEnd(interrupted);</span>
+<span class="nc" id="L285">                } catch (Exception e) {</span>
+<span class="nc" id="L286">                    logger.error(&quot;onAudioEnd() notification failed for {}&quot;, entry.getValue(), e);</span>
+<span class="nc" id="L287">                }</span>
+            }
+<span class="nc" id="L289">        }</span>
+<span class="nc" id="L290">    }</span>
+
+    protected boolean checkDistance(Vector3f soundPosition) {
+<span class="nc" id="L293">        Vector3f distance = new Vector3f(soundPosition);</span>
+<span class="nc" id="L294">        distance.sub(listenerPosition);</span>
+
+<span class="nc bnc" id="L296" title="All 2 branches missed.">        return distance.lengthSquared() &lt; MAX_DISTANCE_SQUARED;</span>
+    }
+
+    @Override
+    public AssetFactory&lt;StaticSound, StaticSoundData&gt; getStaticSoundFactory() {
+<span class="nc" id="L301">        return (urn, assetType, data) -&gt; new OpenALSound(urn, assetType, data, OpenALManager.this);</span>
+    }
+
+    @Override
+    public AssetFactory&lt;StreamingSound, StreamingSoundData&gt; getStreamingSoundFactory() {
+<span class="nc" id="L306">        return (urn, assetType, data) -&gt; new OpenALStreamingSound(urn, assetType, data, OpenALManager.this);</span>
+    }
+
+    public void purgeSound(Sound&lt;?&gt; sound) {
+<span class="nc bnc" id="L310" title="All 2 branches missed.">        for (SoundPool&lt;?, ?&gt; pool : pools.values()) {</span>
+<span class="nc" id="L311">            pool.purge(sound);</span>
+<span class="nc" id="L312">        }</span>
+<span class="nc" id="L313">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

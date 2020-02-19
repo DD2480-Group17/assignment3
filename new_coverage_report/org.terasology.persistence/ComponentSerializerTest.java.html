@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentSerializerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence</a> &gt; <span class="el_source">ComponentSerializerTest.java</span></div><h1>ComponentSerializerTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence;
+
+import com.google.common.collect.ImmutableMap;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.reflections.Reflections;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.bootstrap.EntitySystemSetupUtil;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.stubs.GetterSetterComponent;
+import org.terasology.entitySystem.stubs.IntegerComponent;
+import org.terasology.entitySystem.stubs.StringComponent;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.network.NetworkSystem;
+import org.terasology.persistence.serializers.ComponentSerializer;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.mathTypes.Quat4fTypeHandler;
+import org.terasology.persistence.typeHandling.mathTypes.Vector3fTypeHandler;
+import org.terasology.protobuf.EntityData;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.testUtil.ModuleManagerFactory;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+
+/**
+ */
+<span class="fc" id="L53">public class ComponentSerializerTest {</span>
+    private static ModuleManager moduleManager;
+    private ComponentSerializer componentSerializer;
+    private Context context;
+
+    @BeforeAll
+    public static void setupClass() throws Exception {
+<span class="fc" id="L60">        moduleManager = ModuleManagerFactory.create();</span>
+<span class="fc" id="L61">    }</span>
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L65">        context = new ContextImpl();</span>
+<span class="fc" id="L66">        context.put(RecordAndReplayCurrentStatus.class, new RecordAndReplayCurrentStatus());</span>
+<span class="fc" id="L67">        context.put(ModuleManager.class, moduleManager);</span>
+<span class="fc" id="L68">        CoreRegistry.setContext(context);</span>
+
+<span class="fc" id="L70">        Reflections reflections = new Reflections(getClass().getClassLoader());</span>
+<span class="fc" id="L71">        TypeHandlerLibrary serializationLibrary = new TypeHandlerLibrary(reflections);</span>
+
+<span class="fc" id="L73">        serializationLibrary.addTypeHandler(Vector3f.class, new Vector3fTypeHandler());</span>
+<span class="fc" id="L74">        serializationLibrary.addTypeHandler(Quat4f.class, new Quat4fTypeHandler());</span>
+
+<span class="fc" id="L76">        NetworkSystem networkSystem = mock(NetworkSystem.class);</span>
+<span class="fc" id="L77">        context.put(NetworkSystem.class, networkSystem);</span>
+<span class="fc" id="L78">        EntitySystemSetupUtil.addReflectionBasedLibraries(context);</span>
+<span class="fc" id="L79">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="fc" id="L80">        EngineEntityManager entityManager = context.get(EngineEntityManager.class);</span>
+<span class="fc" id="L81">        entityManager.getComponentLibrary().register(new SimpleUri(&quot;test&quot;, &quot;gettersetter&quot;), GetterSetterComponent.class);</span>
+<span class="fc" id="L82">        entityManager.getComponentLibrary().register(new SimpleUri(&quot;test&quot;, &quot;string&quot;), StringComponent.class);</span>
+<span class="fc" id="L83">        entityManager.getComponentLibrary().register(new SimpleUri(&quot;test&quot;, &quot;integer&quot;), IntegerComponent.class);</span>
+<span class="fc" id="L84">        ComponentLibrary componentLibrary = entityManager.getComponentLibrary();</span>
+<span class="fc" id="L85">        componentSerializer = new ComponentSerializer(componentLibrary, serializationLibrary);</span>
+
+<span class="fc" id="L87">    }</span>
+
+    @Test
+    public void testGetterSetterUtilization() throws Exception {
+<span class="fc" id="L91">        GetterSetterComponent comp = new GetterSetterComponent();</span>
+<span class="fc" id="L92">        GetterSetterComponent newComp = (GetterSetterComponent) componentSerializer.deserialize(componentSerializer.serialize(comp));</span>
+<span class="fc" id="L93">        assertTrue(comp.getterUsed);</span>
+<span class="fc" id="L94">        assertTrue(newComp.setterUsed);</span>
+<span class="fc" id="L95">    }</span>
+
+    @Test
+    public void testSerializeComponentDeltas() throws Exception {
+<span class="fc" id="L99">        EntityData.Component componentData = componentSerializer.serialize(new StringComponent(&quot;Original&quot;), new StringComponent(&quot;Delta&quot;));</span>
+
+<span class="fc" id="L101">        assertEquals(&quot;value&quot;, componentData.getField(0).getName());</span>
+<span class="fc" id="L102">        assertEquals(&quot;Delta&quot;, componentData.getField(0).getValue().getString(0));</span>
+<span class="fc" id="L103">    }</span>
+
+    @Test
+    public void testComponentTypeIdUsedWhenLookupTableEnabled() throws Exception {
+<span class="fc" id="L107">        componentSerializer.setIdMapping(ImmutableMap.&lt;Class&lt;? extends Component&gt;, Integer&gt;builder().put(StringComponent.class, 1).build());</span>
+<span class="fc" id="L108">        Component stringComponent = new StringComponent(&quot;Test&quot;);</span>
+<span class="fc" id="L109">        EntityData.Component compData = componentSerializer.serialize(stringComponent);</span>
+<span class="fc" id="L110">        assertEquals(1, compData.getTypeIndex());</span>
+<span class="fc" id="L111">        assertFalse(compData.hasType());</span>
+<span class="fc" id="L112">    }</span>
+
+    @Test
+    public void testComponentTypeIdUsedWhenLookupTableEnabledForComponentDeltas() throws Exception {
+<span class="fc" id="L116">        componentSerializer.setIdMapping(ImmutableMap.&lt;Class&lt;? extends Component&gt;, Integer&gt;builder().put(StringComponent.class, 413).build());</span>
+
+<span class="fc" id="L118">        EntityData.Component componentData = componentSerializer.serialize(new StringComponent(&quot;Original&quot;), new StringComponent(&quot;Value&quot;));</span>
+
+<span class="fc" id="L120">        assertEquals(413, componentData.getTypeIndex());</span>
+<span class="fc" id="L121">    }</span>
+
+    @Test
+    public void testComponentTypeIdDeserializes() throws Exception {
+<span class="fc" id="L125">        componentSerializer.setIdMapping(ImmutableMap.&lt;Class&lt;? extends Component&gt;, Integer&gt;builder().put(StringComponent.class, 1).build());</span>
+<span class="fc" id="L126">        EntityData.Component compData = EntityData.Component.newBuilder().setTypeIndex(1)</span>
+<span class="fc" id="L127">                .addField(EntityData.NameValue.newBuilder().setName(&quot;value&quot;).setValue(EntityData.Value.newBuilder().addString(&quot;item&quot;))).build();</span>
+<span class="fc" id="L128">        Component comp = componentSerializer.deserialize(compData);</span>
+<span class="fc" id="L129">        assertTrue(comp instanceof StringComponent);</span>
+<span class="fc" id="L130">        assertEquals(&quot;item&quot;, ((StringComponent) comp).value);</span>
+<span class="fc" id="L131">    }</span>
+
+    @Test
+    public void testDeltaComponentTypeIdDeserializesWithValue() throws Exception {
+<span class="fc" id="L135">        componentSerializer.setIdMapping(ImmutableMap.&lt;Class&lt;? extends Component&gt;, Integer&gt;builder().put(StringComponent.class, 1).build());</span>
+<span class="fc" id="L136">        EntityData.Component compData = EntityData.Component.newBuilder().setTypeIndex(1)</span>
+<span class="fc" id="L137">                .addField(EntityData.NameValue.newBuilder().setName(&quot;value&quot;).setValue(EntityData.Value.newBuilder().addString(&quot;item&quot;))).build();</span>
+<span class="fc" id="L138">        StringComponent original = new StringComponent(&quot;test&quot;);</span>
+<span class="fc" id="L139">        componentSerializer.deserializeOnto(original, compData);</span>
+<span class="fc" id="L140">        assertEquals(&quot;item&quot;, original.value);</span>
+<span class="fc" id="L141">    }</span>
+
+    @Test
+    public void testDeltaComponentTypeIdDeserializesWithoutValue() throws Exception {
+<span class="fc" id="L145">        componentSerializer.setIdMapping(ImmutableMap.&lt;Class&lt;? extends Component&gt;, Integer&gt;builder().put(StringComponent.class, 1).build());</span>
+<span class="fc" id="L146">        EntityData.Component compData = EntityData.Component.newBuilder().setTypeIndex(1).addField(EntityData.NameValue.newBuilder().setName(&quot;value&quot;)).build();</span>
+<span class="fc" id="L147">        StringComponent original = new StringComponent(&quot;test&quot;);</span>
+<span class="fc" id="L148">        componentSerializer.deserializeOnto(original, compData);</span>
+<span class="fc" id="L149">        assertEquals(null, original.value);</span>
+<span class="fc" id="L150">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

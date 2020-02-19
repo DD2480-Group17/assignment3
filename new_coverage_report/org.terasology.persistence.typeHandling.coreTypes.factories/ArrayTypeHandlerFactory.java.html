@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArrayTypeHandlerFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.coreTypes.factories</a> &gt; <span class="el_source">ArrayTypeHandlerFactory.java</span></div><h1>ArrayTypeHandlerFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.coreTypes.factories;
+
+import org.terasology.persistence.typeHandling.TypeHandler;
+import org.terasology.persistence.typeHandling.TypeHandlerFactory;
+import org.terasology.persistence.typeHandling.TypeHandlerContext;
+import org.terasology.persistence.typeHandling.coreTypes.ArrayTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.RuntimeDelegatingTypeHandler;
+import org.terasology.reflection.TypeInfo;
+
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.Type;
+import java.util.Optional;
+
+
+/**
+ * Creates type handlers for arrays.
+ */
+<span class="fc" id="L33">public class ArrayTypeHandlerFactory implements TypeHandlerFactory {</span>
+    @Override
+    public &lt;T&gt; Optional&lt;TypeHandler&lt;T&gt;&gt; create(TypeInfo&lt;T&gt; typeInfo, TypeHandlerContext context) {
+<span class="fc" id="L36">        Type type = typeInfo.getType();</span>
+
+<span class="fc bfc" id="L38" title="All 6 branches covered.">        if (!(type instanceof GenericArrayType || type instanceof Class &amp;&amp; ((Class&lt;?&gt;) type).isArray())) {</span>
+<span class="fc" id="L39">            return Optional.empty();</span>
+        }
+
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        Type elementType = type instanceof GenericArrayType</span>
+<span class="fc" id="L43">                ? ((GenericArrayType) type).getGenericComponentType()</span>
+<span class="fc" id="L44">                : ((Class&lt;?&gt;) type).getComponentType();</span>
+
+<span class="fc" id="L46">        TypeInfo&lt;?&gt; elementTypeInfo = TypeInfo.of(elementType);</span>
+
+<span class="fc" id="L48">        Optional&lt;TypeHandler&lt;?&gt;&gt; declaredElementTypeHandler =</span>
+<span class="fc" id="L49">                context.getTypeHandlerLibrary().getTypeHandler(elementType);</span>
+
+        @SuppressWarnings({&quot;unchecked&quot;})
+<span class="fc" id="L52">        TypeHandler&lt;?&gt; elementTypeHandler = new RuntimeDelegatingTypeHandler(</span>
+<span class="fc" id="L53">                declaredElementTypeHandler.orElse(null),</span>
+                elementTypeInfo,
+                context
+        );
+
+        @SuppressWarnings({&quot;unchecked&quot;})
+<span class="fc" id="L59">        TypeHandler&lt;T&gt; typeHandler = new ArrayTypeHandler(elementTypeHandler, elementTypeInfo);</span>
+
+<span class="fc" id="L61">        return Optional.of(typeHandler);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

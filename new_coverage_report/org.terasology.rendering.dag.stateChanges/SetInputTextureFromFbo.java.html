@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SetInputTextureFromFbo.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.stateChanges</a> &gt; <span class="el_source">SetInputTextureFromFbo.java</span></div><h1>SetInputTextureFromFbo.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.stateChanges;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.engine.SimpleUri;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.rendering.opengl.BaseFBOsManager;
+import org.terasology.rendering.opengl.FBO;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.util.Objects;
+
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
+import static org.lwjgl.opengl.GL11.glBindTexture;
+import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
+import static org.lwjgl.opengl.GL13.glActiveTexture;
+import static org.terasology.rendering.dag.AbstractNode.getMaterial;
+import static org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs.POST_FBO_REGENERATION;
+
+// TODO: split this class into two - one for opengl's global state change and one for the specific material state change.
+
+/**
+ * Sets a texture attached to an FBO as the input for a material.
+ */
+public class SetInputTextureFromFbo implements StateChange, PropertyChangeListener {
+    // depthStencilRboId is a possible FBO attachment but is not covered by a case here
+    // as it wouldn't work with the glBindTexture(TEXTURE_2D, ...) call.
+<span class="nc" id="L44">    public enum FboTexturesTypes {</span>
+<span class="nc" id="L45">        ColorTexture,</span>
+<span class="nc" id="L46">        DepthStencilTexture,</span>
+<span class="nc" id="L47">        NormalsTexture,</span>
+<span class="nc" id="L48">        LightAccumulationTexture,</span>
+    }
+
+    private SetInputTextureFromFbo defaultInstance;
+
+    private int textureSlot;
+    private FBO fbo;
+    private FboTexturesTypes textureType;
+    private ResourceUrn materialUrn;
+    private String shaderParameterName;
+    private Material material;
+    private int textureId;
+
+    /**
+     * The constructor, to be used in the initialise method of a node.
+     *
+     * Sample use:
+     *      addDesiredStateChange(new SetInputTextureFromFbo(0, fbo, ColorTexture,
+     *                                  displayResolutionDependentFboManager, &quot;engine:prog.chunk&quot;, &quot;textureWater&quot;));
+     *
+     * @param textureSlot an integer representing the number to add to GL_TEXTURE0 to identify a texture unit on the GPU.
+     * @param fbo the FBO from which the texture attachment will be fetched.
+     * @param textureType one of the types available through the FboTextureType enum.
+     * @param fboManager the BaseFBOsManager instance that will send change notifications via the update() method of this class.
+     * @param materialUrn a URN identifying a Material instance.
+     * @param shaderParameterName the name of a variable in the shader program used to sample the texture.
+     */
+    public SetInputTextureFromFbo(int textureSlot, FBO fbo, FboTexturesTypes textureType, BaseFBOsManager fboManager,
+<span class="nc" id="L76">                                  ResourceUrn materialUrn, String shaderParameterName) {</span>
+<span class="nc" id="L77">        this.textureSlot = textureSlot;</span>
+<span class="nc" id="L78">        this.textureType = textureType;</span>
+<span class="nc" id="L79">        this.fbo = fbo;</span>
+<span class="nc" id="L80">        this.materialUrn = materialUrn;</span>
+<span class="nc" id="L81">        this.shaderParameterName = shaderParameterName;</span>
+
+<span class="nc" id="L83">        this.material = getMaterial(materialUrn);</span>
+
+<span class="nc" id="L85">        propertyChange(null); // Cheeky way to initialise textureId</span>
+<span class="nc" id="L86">        fboManager.subscribe(POST_FBO_REGENERATION, this);</span>
+<span class="nc" id="L87">    }</span>
+
+    /**
+     * The constructor, to be used in the initialise method of a node.
+     *
+     * Sample use:
+     *      addDesiredStateChange(new SetInputTextureFromFbo(0, fboUri, ColorTexture,
+     *                                  displayResolutionDependentFboManager, &quot;engine:prog.chunk&quot;, &quot;textureWater&quot;));
+     *
+     * @param textureSlot an integer representing the number to add to GL_TEXTURE0 to identify a texture unit on the GPU.
+     * @param fboUri a SimpleUri identifying an FBO in the given fboManager, from which the texture attachment will be fetched.
+     * @param textureType one of the types available through the FboTextureType enum.
+     * @param fboManager the BaseFBOsManager instance that will send change notifications via the update() method of this class.
+     * @param materialUrn a ResourceUrn identifying a Material instance.
+     * @param shaderParameterName the name of a variable in the shader program used to sample the texture.
+     */
+    public SetInputTextureFromFbo(int textureSlot, SimpleUri fboUri, FboTexturesTypes textureType, BaseFBOsManager fboManager,
+                                  ResourceUrn materialUrn, String shaderParameterName) {
+<span class="nc" id="L105">        this(textureSlot, fboManager.get(fboUri), textureType, fboManager, materialUrn, shaderParameterName);</span>
+<span class="nc" id="L106">    }</span>
+
+<span class="nc" id="L108">    private SetInputTextureFromFbo(int textureSlot, ResourceUrn materialUrn, String shaderParameterName) {</span>
+<span class="nc" id="L109">        this.textureSlot = textureSlot;</span>
+<span class="nc" id="L110">        this.materialUrn = materialUrn;</span>
+<span class="nc" id="L111">        this.shaderParameterName = shaderParameterName;</span>
+
+<span class="nc" id="L113">        this.material = getMaterial(materialUrn);</span>
+
+<span class="nc" id="L115">        defaultInstance = this;</span>
+<span class="nc" id="L116">    }</span>
+
+    @Override
+    public StateChange getDefaultInstance() {
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (defaultInstance == null) {</span>
+<span class="nc" id="L121">            defaultInstance = new SetInputTextureFromFbo(this.textureSlot, materialUrn, this.shaderParameterName);</span>
+        }
+<span class="nc" id="L123">        return defaultInstance;</span>
+    }
+
+    private int fetchTextureId() {
+<span class="nc bnc" id="L127" title="All 5 branches missed.">        switch (textureType) {</span>
+            case ColorTexture:
+<span class="nc" id="L129">                return fbo.getColorBufferTextureId();</span>
+
+            case DepthStencilTexture:
+<span class="nc" id="L132">                return fbo.getDepthStencilTextureId();</span>
+
+            case NormalsTexture:
+<span class="nc" id="L135">                return fbo.getNormalsBufferTextureId();</span>
+
+            case LightAccumulationTexture:
+<span class="nc" id="L138">                return fbo.getLightBufferTextureId();</span>
+        }
+
+<span class="nc" id="L141">        return 0;</span>
+    }
+
+    /**
+     * Normally called by the FBO manager provided, when the FBOs are regenerated.
+     *
+     * This method refreshes the task's reference to the FBO attachment, so that they are always up to date.
+     */
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+        // The only property we are subscribing to is DisplayResolutionDependentFBOs.POST_FBO_REGENERATION
+<span class="nc" id="L152">        textureId = fetchTextureId();</span>
+<span class="nc" id="L153">    }</span>
+
+    @Override
+    public String toString() {
+<span class="nc bnc" id="L157" title="All 2 branches missed.">        if (this != defaultInstance) {</span>
+<span class="nc" id="L158">            return String.format(&quot;%30s: slot %s, fbo %s (fboId: %s), textureType %s, material %s, parameter '%s'&quot;, this.getClass().getSimpleName(),</span>
+<span class="nc" id="L159">                    textureSlot, fbo.getName(), fbo.getId(), textureType.name(), materialUrn.toString(), shaderParameterName);</span>
+        } else {
+<span class="nc" id="L161">            return String.format(&quot;%30s: slot %s, textureId 0, material %s, parameter '%s'&quot;, this.getClass().getSimpleName(),</span>
+<span class="nc" id="L162">                    textureSlot, materialUrn.toString(), shaderParameterName);</span>
+        }
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L168">        return Objects.hash(textureSlot, fbo, textureType, materialUrn, shaderParameterName);</span>
+    }
+
+    @Override
+    public boolean equals(Object other) {
+<span class="nc bnc" id="L173" title="All 8 branches missed.">        return (other instanceof SetInputTextureFromFbo)</span>
+                &amp;&amp; this.textureSlot == ((SetInputTextureFromFbo) other).textureSlot
+                &amp;&amp; this.fbo == ((SetInputTextureFromFbo) other).fbo
+                &amp;&amp; this.textureType == ((SetInputTextureFromFbo) other).textureType
+<span class="nc bnc" id="L177" title="All 2 branches missed.">                &amp;&amp; this.materialUrn.equals(((SetInputTextureFromFbo) other).materialUrn)</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                &amp;&amp; this.shaderParameterName.equals(((SetInputTextureFromFbo) other).shaderParameterName);</span>
+    }
+
+    /**
+     * Activates the texture unit GL_TEXTURE0 + textureSlot, binds the GL_TEXTURE_2D identified by textureId to it
+     * and sets the material provided on construction to sample the texture via the parameterName also provided on
+     * construction.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L188">        glActiveTexture(GL_TEXTURE0 + textureSlot);</span>
+<span class="nc" id="L189">        glBindTexture(GL_TEXTURE_2D, textureId);</span>
+<span class="nc" id="L190">        material.setInt(shaderParameterName, textureSlot, true);</span>
+<span class="nc" id="L191">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

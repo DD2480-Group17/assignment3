@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BindsConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config</a> &gt; <span class="el_source">BindsConfig.java</span></div><h1>BindsConfig.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.config;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import org.terasology.engine.SimpleUri;
+import org.terasology.input.Input;
+import org.terasology.input.InputType;
+import org.terasology.input.Keyboard.KeyId;
+import org.terasology.input.RegisterBindButton;
+import org.terasology.input.binds.movement.ForwardsButton;
+import org.terasology.naming.Name;
+
+import java.lang.reflect.Type;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static java.util.stream.Collectors.toList;
+
+/**
+ * The binds configuration holds the mapping from binding uris to Inputs.
+ * The {@link SimpleUri} for a binding contains the module id where the binding is defined and the id from the binding annotation, 
+ * e.g. from {@link RegisterBindButton} as object name.
+ * &lt;p&gt;
+ * One example for a binding-input combination is the {@link ForwardsButton} 
+ * which is defined in the engine with the id &lt;code&gt;forwards&lt;/code&gt;.
+ * The default input binding for the forward movement is the W-Key.
+ * Therefore the binds for &lt;code&gt;engine:forwards&lt;/code&gt; would contain an {@link Input} object with type {@link InputType#KEY} and id {@link KeyId.W}.
+ */
+<span class="fc" id="L59">public final class BindsConfig {</span>
+
+<span class="fc" id="L61">    private ListMultimap&lt;SimpleUri, Input&gt; uriBoundInputs = ArrayListMultimap.create();</span>
+
+    /**
+     * Returns true if an input has already been bound to another key
+     *
+     * @param newInput The input to check if it has been bound already
+     * @return True if newInput has been bound. False otherwise.
+     */
+    public boolean isBound(Input newInput) {
+<span class="nc bnc" id="L70" title="All 4 branches missed.">        return newInput != null &amp;&amp; uriBoundInputs.containsValue(newInput);</span>
+    }
+
+    /**
+     * Sets this BindsConfig to be identical to other
+     *
+     * @param other The BindsConfig to copy
+     */
+    public void setBinds(BindsConfig other) {
+<span class="fc" id="L79">        uriBoundInputs.clear();</span>
+<span class="fc" id="L80">        uriBoundInputs.putAll(other.uriBoundInputs);</span>
+<span class="fc" id="L81">    }</span>
+
+    public List&lt;Input&gt; getBinds(SimpleUri uri) {
+<span class="fc" id="L84">        return uriBoundInputs.get(uri);</span>
+    }
+
+    /**
+     * Returns whether an input bind has been registered with the BindsConfig.
+     * It may just have trivial None input.
+     *
+     * @param uri The bind's uri
+     * @return Whether the given bind has been registered with the BindsConfig
+     */
+    public boolean hasBinds(SimpleUri uri) {
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">        return !uriBoundInputs.get(uri).isEmpty();</span>
+    }
+
+    /**
+     * Sets the inputs for a given bind, replacing any previous inputs
+     *
+     */
+    public void setBinds(SimpleUri bindUri, Input ... inputs) {
+<span class="nc" id="L103">        setBinds(bindUri, Arrays.asList(inputs));</span>
+<span class="nc" id="L104">    }</span>
+
+    /**
+     * Sets the inputs for a given bind, replacing any previous inputs
+     *
+     */
+    public void setBinds(SimpleUri bindUri, Iterable&lt;Input&gt; inputs) {
+<span class="fc" id="L111">        Set&lt;Input&gt; uniqueInputs = Sets.newLinkedHashSet(inputs);</span>
+
+        // Clear existing usages of the given inputs
+<span class="fc" id="L114">        Iterator&lt;Input&gt; iterator = uriBoundInputs.values().iterator();</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        while (iterator.hasNext()) {</span>
+<span class="nc" id="L116">            Input i = iterator.next();</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">            if (uniqueInputs.contains(i)) {</span>
+<span class="nc" id="L118">                iterator.remove();</span>
+            }
+<span class="nc" id="L120">        }</span>
+<span class="fc" id="L121">        uriBoundInputs.replaceValues(bindUri, uniqueInputs);</span>
+<span class="fc" id="L122">    }</span>
+
+<span class="fc" id="L124">    static class Handler implements JsonSerializer&lt;BindsConfig&gt;, JsonDeserializer&lt;BindsConfig&gt; {</span>
+
+        @Override
+        public BindsConfig deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+<span class="nc" id="L128">            BindsConfig result = new BindsConfig();</span>
+<span class="nc" id="L129">            JsonObject inputObj = json.getAsJsonObject();</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">            for (Map.Entry&lt;String, JsonElement&gt; entry : inputObj.entrySet()) {</span>
+<span class="nc" id="L131">                SetMultimap&lt;String, Input&gt; map = context.deserialize(entry.getValue(), SetMultimap.class);</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                for (String id : map.keySet()) {</span>
+<span class="nc" id="L133">                    SimpleUri uri = new SimpleUri(new Name(entry.getKey()), id);</span>
+<span class="nc" id="L134">                    result.uriBoundInputs.putAll(uri, map.get(id));</span>
+<span class="nc" id="L135">                }</span>
+<span class="nc" id="L136">            }</span>
+<span class="nc" id="L137">            return result;</span>
+        }
+
+        @Override
+        public JsonElement serialize(BindsConfig bindsConfig, Type typeOfBindsConfig, JsonSerializationContext context) {
+<span class="fc" id="L142">            JsonObject result = new JsonObject();</span>
+<span class="fc" id="L143">            SetMultimap&lt;Name, SimpleUri&gt; bindingByModuleName = listBindingsByModuleName(bindsConfig);</span>
+<span class="fc" id="L144">            List&lt;Name&gt; sortedModuleNames = bindingByModuleName.keySet().stream().sorted().collect(toList());</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">            for (Name moduleName : sortedModuleNames) {</span>
+<span class="nc" id="L146">                SetMultimap&lt;String, Input&gt; moduleBinds = HashMultimap.create();</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                for (SimpleUri bindingUri : bindingByModuleName.get(moduleName)) {</span>
+<span class="nc" id="L148">                    moduleBinds.putAll(bindingUri.getObjectName().toString(), bindsConfig.uriBoundInputs.get(bindingUri));</span>
+<span class="nc" id="L149">                }</span>
+<span class="nc" id="L150">                JsonElement map = context.serialize(moduleBinds, SetMultimap.class);</span>
+<span class="nc" id="L151">                result.add(moduleName.toString(), map);</span>
+<span class="nc" id="L152">            }</span>
+<span class="fc" id="L153">            return result;</span>
+        }
+
+        public SetMultimap&lt;Name, SimpleUri&gt; listBindingsByModuleName(BindsConfig src) {
+<span class="fc" id="L157">            SetMultimap&lt;Name, SimpleUri&gt; bindingByModuleName = HashMultimap.create();</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">            for (SimpleUri bindingUri : src.uriBoundInputs.keySet()) {</span>
+<span class="nc" id="L159">                bindingByModuleName.put(bindingUri.getModuleName(), bindingUri);</span>
+<span class="nc" id="L160">            }</span>
+<span class="fc" id="L161">            return bindingByModuleName;</span>
+        }
+    }
+
+    public Collection&lt;Input&gt; getBoundInputs() {
+<span class="fc" id="L166">        return uriBoundInputs.values();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

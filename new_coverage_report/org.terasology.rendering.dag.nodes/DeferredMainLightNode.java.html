@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeferredMainLightNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">DeferredMainLightNode.java</span></div><h1>DeferredMainLightNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.DisableDepthTest;
+import org.terasology.rendering.dag.stateChanges.EnableBlending;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.SetBlendFunction;
+import org.terasology.rendering.dag.stateChanges.SetFboWriteMask;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture2D;
+import org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo;
+import org.terasology.rendering.logic.LightComponent;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.opengl.fbms.ShadowMapResolutionDependentFBOs;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.world.WorldProvider;
+
+import static org.lwjgl.opengl.GL11.GL_ONE;
+import static org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_COLOR;
+import static org.terasology.rendering.dag.nodes.ShadowMapNode.SHADOW_MAP_FBO_URI;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.DepthStencilTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.LightAccumulationTexture;
+import static org.terasology.rendering.dag.stateChanges.SetInputTextureFromFbo.FboTexturesTypes.NormalsTexture;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+
+// TODO: have this node and the shadowmap node handle multiple directional lights
+
+/**
+ * This class is integral to the deferred rendering process.
+ * It renders the main light (sun/moon) as a directional light, a type of light emitting parallel rays as is
+ * appropriate for astronomical light sources.
+ *
+ * This achieved by blending a single color into each pixel of the light accumulation buffer, the single
+ * color being dependent only on the angle between the camera and the light direction.
+ *
+ * Eventually the content of the light accumulation buffer is combined with other buffers to correctly
+ * light up the 3d scene.
+ */
+public class DeferredMainLightNode extends AbstractNode {
+<span class="nc" id="L67">    private static final ResourceUrn LIGHT_GEOMETRY_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.lightGeometryPass&quot;);</span>
+
+    private BackdropProvider backdropProvider;
+    private RenderingConfig renderingConfig;
+    private WorldProvider worldProvider;
+
+<span class="nc" id="L73">    private LightComponent mainLightComponent = new LightComponent();</span>
+
+    private Material lightGeometryMaterial;
+
+    private SubmersibleCamera activeCamera;
+    private Camera lightCamera;
+    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+    private Vector3f cameraPosition;
+<span class="nc" id="L81">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    private Vector3f activeCameraToLightSpace = new Vector3f();
+<span class="nc" id="L83">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    private Vector3f mainLightInViewSpace = new Vector3f();
+
+    public DeferredMainLightNode(String nodeUri, Context context) {
+<span class="nc" id="L87">        super(nodeUri, context);</span>
+
+<span class="nc" id="L89">        backdropProvider = context.get(BackdropProvider.class);</span>
+<span class="nc" id="L90">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L91">        worldProvider = context.get(WorldProvider.class);</span>
+
+<span class="nc" id="L93">        WorldRenderer worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L94">        activeCamera = worldRenderer.getActiveCamera();</span>
+<span class="nc" id="L95">        lightCamera = worldRenderer.getLightCamera();</span>
+
+<span class="nc" id="L97">        addDesiredStateChange(new EnableMaterial(LIGHT_GEOMETRY_MATERIAL_URN));</span>
+<span class="nc" id="L98">        lightGeometryMaterial = getMaterial(LIGHT_GEOMETRY_MATERIAL_URN);</span>
+
+<span class="nc" id="L100">        addDesiredStateChange(new DisableDepthTest());</span>
+
+<span class="nc" id="L102">        addDesiredStateChange(new EnableBlending());</span>
+<span class="nc" id="L103">        addDesiredStateChange(new SetBlendFunction(GL_ONE, GL_ONE_MINUS_SRC_COLOR));</span>
+
+<span class="nc" id="L105">        DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+<span class="nc" id="L106">        FBO lastUpdatedGBuffer = displayResolutionDependentFBOs.getGBufferPair().getLastUpdatedFbo();</span>
+        // TODO: make sure to read from the lastUpdatedGBuffer and write to the staleGBuffer.
+<span class="nc" id="L108">        addDesiredStateChange(new BindFbo(lastUpdatedGBuffer));</span>
+<span class="nc" id="L109">        addDesiredStateChange(new SetFboWriteMask(lastUpdatedGBuffer, false, false, true));</span>
+
+<span class="nc" id="L111">        initMainDirectionalLight();</span>
+
+<span class="nc" id="L113">        ShadowMapResolutionDependentFBOs shadowMapResolutionDependentFBOs = context.get(ShadowMapResolutionDependentFBOs.class);</span>
+<span class="nc" id="L114">        int textureSlot = 0;</span>
+<span class="nc" id="L115">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, DepthStencilTexture, displayResolutionDependentFBOs, LIGHT_GEOMETRY_MATERIAL_URN, &quot;texSceneOpaqueDepth&quot;));</span>
+<span class="nc" id="L116">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, NormalsTexture, displayResolutionDependentFBOs, LIGHT_GEOMETRY_MATERIAL_URN, &quot;texSceneOpaqueNormals&quot;));</span>
+<span class="nc" id="L117">        addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, lastUpdatedGBuffer, LightAccumulationTexture, displayResolutionDependentFBOs, LIGHT_GEOMETRY_MATERIAL_URN, &quot;texSceneOpaqueLightBuffer&quot;));</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if (renderingConfig.isDynamicShadows()) {</span>
+<span class="nc" id="L119">            addDesiredStateChange(new SetInputTextureFromFbo(textureSlot++, SHADOW_MAP_FBO_URI, DepthStencilTexture, shadowMapResolutionDependentFBOs, LIGHT_GEOMETRY_MATERIAL_URN, &quot;texSceneShadowMap&quot;));</span>
+
+<span class="nc bnc" id="L121" title="All 2 branches missed.">            if (renderingConfig.isCloudShadows()) {</span>
+<span class="nc" id="L122">                addDesiredStateChange(new SetInputTexture2D(textureSlot, &quot;engine:perlinNoiseTileable&quot;, LIGHT_GEOMETRY_MATERIAL_URN, &quot;texSceneClouds&quot;));</span>
+            }
+        }
+<span class="nc" id="L125">    }</span>
+
+    // TODO: one day the main light (sun/moon) should be just another light in the scene.
+    private void initMainDirectionalLight() {
+<span class="nc" id="L129">        mainLightComponent.lightType = LightComponent.LightType.DIRECTIONAL;</span>
+<span class="nc" id="L130">        mainLightComponent.lightAmbientIntensity = 0.75f;</span>
+<span class="nc" id="L131">        mainLightComponent.lightDiffuseIntensity = 0.75f;</span>
+<span class="nc" id="L132">        mainLightComponent.lightSpecularPower = 100f;</span>
+<span class="nc" id="L133">    }</span>
+
+    /**
+     * Renders the main light (sun/moon) as a uniformly colored full-screen quad.
+     * This gets blended into the existing data stored in the light accumulation buffer.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L141">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+<span class="nc" id="L143">        lightGeometryMaterial.activateFeature(ShaderProgramFeature.FEATURE_LIGHT_DIRECTIONAL);</span>
+
+        // Common Shader Parameters
+
+<span class="nc" id="L147">        lightGeometryMaterial.setFloat(&quot;daylight&quot;, backdropProvider.getDaylight(), true);</span>
+
+        // Specific Shader Parameters
+
+<span class="nc" id="L151">        cameraPosition = activeCamera.getPosition();</span>
+<span class="nc" id="L152">        activeCameraToLightSpace.sub(cameraPosition, lightCamera.getPosition());</span>
+<span class="nc" id="L153">        mainLightInViewSpace = backdropProvider.getSunDirection(true);</span>
+<span class="nc" id="L154">        activeCamera.getViewMatrix().transformPoint(mainLightInViewSpace);</span>
+
+        // TODO: This is necessary right now because activateFeature removes all material parameters.
+        // TODO: Remove this explicit binding once we get rid of activateFeature, or find a way to retain parameters through it.
+<span class="nc" id="L158">        lightGeometryMaterial.setInt(&quot;texSceneOpaqueDepth&quot;, 0, true);</span>
+<span class="nc" id="L159">        lightGeometryMaterial.setInt(&quot;texSceneOpaqueNormals&quot;, 1, true);</span>
+<span class="nc" id="L160">        lightGeometryMaterial.setInt(&quot;texSceneOpaqueLightBuffer&quot;, 2, true);</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        if (renderingConfig.isDynamicShadows()) {</span>
+<span class="nc" id="L162">            lightGeometryMaterial.setInt(&quot;texSceneShadowMap&quot;, 3, true);</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">            if (renderingConfig.isCloudShadows()) {</span>
+<span class="nc" id="L164">                lightGeometryMaterial.setInt(&quot;texSceneClouds&quot;, 4, true);</span>
+<span class="nc" id="L165">                lightGeometryMaterial.setFloat(&quot;time&quot;, worldProvider.getTime().getDays(), true);</span>
+<span class="nc" id="L166">                lightGeometryMaterial.setFloat3(&quot;cameraPosition&quot;, cameraPosition, true);</span>
+            }
+        }
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (renderingConfig.isDynamicShadows()) {</span>
+<span class="nc" id="L171">            lightGeometryMaterial.setMatrix4(&quot;lightViewProjMatrix&quot;, lightCamera.getViewProjectionMatrix(), true);</span>
+<span class="nc" id="L172">            lightGeometryMaterial.setMatrix4(&quot;invViewProjMatrix&quot;, activeCamera.getInverseViewProjectionMatrix(), true);</span>
+<span class="nc" id="L173">            lightGeometryMaterial.setFloat3(&quot;activeCameraToLightSpace&quot;, activeCameraToLightSpace, true);</span>
+        }
+
+        // Note: no need to set a camera here: the render takes place
+        // with a default opengl camera and the quad is in front of it.
+
+<span class="nc" id="L179">        lightGeometryMaterial.setFloat3(&quot;lightViewPos&quot;, mainLightInViewSpace, true);</span>
+<span class="nc" id="L180">        lightGeometryMaterial.setFloat3(&quot;lightColorDiffuse&quot;, mainLightComponent.lightColorDiffuse.x,</span>
+            mainLightComponent.lightColorDiffuse.y, mainLightComponent.lightColorDiffuse.z, true);
+<span class="nc" id="L182">        lightGeometryMaterial.setFloat3(&quot;lightColorAmbient&quot;, mainLightComponent.lightColorAmbient.x,</span>
+            mainLightComponent.lightColorAmbient.y, mainLightComponent.lightColorAmbient.z, true);
+<span class="nc" id="L184">        lightGeometryMaterial.setFloat3(&quot;lightProperties&quot;, mainLightComponent.lightAmbientIntensity,</span>
+            mainLightComponent.lightDiffuseIntensity, mainLightComponent.lightSpecularPower, true);
+
+        // Actual Node Processing
+
+<span class="nc" id="L189">        renderFullscreenQuad(); // renders the light.</span>
+
+<span class="nc" id="L191">        lightGeometryMaterial.deactivateFeature(ShaderProgramFeature.FEATURE_LIGHT_DIRECTIONAL);</span>
+
+<span class="nc" id="L193">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L194">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

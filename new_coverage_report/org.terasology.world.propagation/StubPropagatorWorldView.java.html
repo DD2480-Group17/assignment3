@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StubPropagatorWorldView.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.propagation</a> &gt; <span class="el_source">StubPropagatorWorldView.java</span></div><h1>StubPropagatorWorldView.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.propagation;
+
+import com.google.common.collect.Maps;
+import gnu.trove.map.TObjectByteMap;
+import gnu.trove.map.hash.TObjectByteHashMap;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.block.Block;
+
+import java.util.Map;
+
+/**
+ */
+public class StubPropagatorWorldView implements PropagatorWorldView {
+<span class="fc" id="L30">    private TObjectByteMap&lt;Vector3i&gt; lightData = new TObjectByteHashMap&lt;&gt;();</span>
+<span class="fc" id="L31">    private Map&lt;Vector3i, Block&gt; blockData = Maps.newHashMap();</span>
+    private Region3i relevantRegion;
+    private Block defaultBlock;
+
+<span class="fc" id="L35">    public StubPropagatorWorldView(Region3i relevantRegion, Block defaultBlock) {</span>
+<span class="fc" id="L36">        this.relevantRegion = relevantRegion;</span>
+<span class="fc" id="L37">        this.defaultBlock = defaultBlock;</span>
+<span class="fc" id="L38">    }</span>
+
+    public StubPropagatorWorldView(Region3i relevantRegion, Block defaultBlock, Map&lt;Vector3i, Block&gt; blockData) {
+<span class="fc" id="L41">        this(relevantRegion, defaultBlock);</span>
+<span class="fc" id="L42">        this.blockData = blockData;</span>
+<span class="fc" id="L43">    }</span>
+
+    @Override
+    public byte getValueAt(Vector3i pos) {
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (!relevantRegion.encompasses(pos)) {</span>
+<span class="fc" id="L48">            return UNAVAILABLE;</span>
+        }
+<span class="fc" id="L50">        return lightData.get(pos);</span>
+    }
+
+    @Override
+    public void setValueAt(Vector3i pos, byte value) {
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">        if (!relevantRegion.encompasses(pos)) {</span>
+<span class="nc" id="L56">            throw new IllegalArgumentException(&quot;Position out of bounds: &quot; + pos);</span>
+        }
+<span class="fc" id="L58">        lightData.put(new Vector3i(pos), value);</span>
+<span class="fc" id="L59">    }</span>
+
+    @Override
+    public Block getBlockAt(Vector3i pos) {
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        if (!relevantRegion.encompasses(pos)) {</span>
+<span class="nc" id="L64">            throw new IllegalArgumentException(&quot;Position out of bounds: &quot; + pos);</span>
+        }
+
+<span class="fc" id="L67">        Block result = blockData.get(pos);</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (result == null) {</span>
+<span class="fc" id="L69">            return defaultBlock;</span>
+        }
+<span class="fc" id="L71">        return result;</span>
+    }
+
+    public void setBlockAt(Vector3i pos, Block block) {
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (!relevantRegion.encompasses(pos)) {</span>
+<span class="nc" id="L76">            throw new IllegalArgumentException(&quot;Position out of bounds: &quot; + pos);</span>
+        }
+
+<span class="fc" id="L79">        blockData.put(pos, block);</span>
+<span class="fc" id="L80">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

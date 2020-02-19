@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParameterAdapterManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.console.commandSystem.adapter</a> &gt; <span class="el_source">ParameterAdapterManager.java</span></div><h1>ParameterAdapterManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.console.commandSystem.adapter;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.module.sandbox.API;
+import org.terasology.naming.Name;
+import org.terasology.world.block.family.BlockFamily;
+
+import java.util.Map;
+
+/**
+ */
+@API
+<span class="nc" id="L30">public class ParameterAdapterManager {</span>
+<span class="nc" id="L31">    private final Map&lt;Class&lt;?&gt;, ParameterAdapter&gt; adapters = Maps.newHashMap();</span>
+
+    /**
+     * @return A manager with basic adapters for wrapped primitives and {@link String}
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public static ParameterAdapterManager createBasic() {
+<span class="nc" id="L38">        ParameterAdapterManager manager = new ParameterAdapterManager();</span>
+
+<span class="nc bnc" id="L40" title="All 2 branches missed.">        for (Map.Entry&lt;Class, ParameterAdapter&gt; entry : PrimitiveAdapters.MAP.entrySet()) {</span>
+<span class="nc" id="L41">            manager.registerAdapter(entry.getKey(), entry.getValue());</span>
+<span class="nc" id="L42">        }</span>
+
+<span class="nc" id="L44">        return manager;</span>
+    }
+
+    /**
+     * @return A manager with basic adapters and following classes:
+     * {@link org.terasology.entitySystem.prefab.Prefab}
+     */
+    public static ParameterAdapterManager createCore() {
+<span class="nc" id="L52">        ParameterAdapterManager manager = createBasic();</span>
+
+<span class="nc" id="L54">        manager.registerAdapter(Name.class, new NameAdapter());</span>
+<span class="nc" id="L55">        manager.registerAdapter(Prefab.class, new PrefabAdapter());</span>
+<span class="nc" id="L56">        manager.registerAdapter(BlockFamily.class, new BlockFamilyAdapter());</span>
+
+<span class="nc" id="L58">        return manager;</span>
+    }
+
+    /**
+     * @return {@code true}, if the adapter didn't override a previously present adapter
+     */
+    public &lt;T&gt; boolean registerAdapter(Class&lt;? extends T&gt; clazz, ParameterAdapter&lt;T&gt; adapter) {
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        return adapters.put(clazz, adapter) == null;</span>
+    }
+
+    public boolean isAdapterRegistered(Class&lt;?&gt; clazz) {
+<span class="nc" id="L69">        return adapters.containsKey(clazz);</span>
+    }
+
+    /**
+     * @param clazz The type of the returned object
+     * @param raw The string from which to parse
+     * @return The parsed object
+     * @throws ClassCastException If the {@link ParameterAdapter} is linked with an incorrect {@link java.lang.Class}.
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;T&gt; T parse(Class&lt;T&gt; clazz, String raw) throws ClassCastException {
+<span class="nc" id="L80">        Preconditions.checkNotNull(raw, &quot;The String to parse must not be null&quot;);</span>
+
+<span class="nc" id="L82">        ParameterAdapter adapter = getAdapter(clazz);</span>
+
+<span class="nc" id="L84">        Preconditions.checkNotNull(adapter, &quot;No adapter found for &quot; + clazz.getCanonicalName());</span>
+
+<span class="nc" id="L86">        return (T) adapter.parse(raw);</span>
+    }
+
+    /**
+     * @param value The object to convertToString
+     * @param clazz The class pointing to the desired adapter
+     * @return The composed object
+     * @throws ClassCastException If the {@link ParameterAdapter} is linked with an incorrect {@link java.lang.Class}.
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;T&gt; String convertToString(T value, Class&lt;? super T&gt; clazz) throws ClassCastException {
+<span class="nc" id="L97">        Preconditions.checkNotNull(value, &quot;The Object to convertToString must not be null&quot;);</span>
+
+<span class="nc" id="L99">        ParameterAdapter adapter = getAdapter(clazz);</span>
+
+<span class="nc" id="L101">        Preconditions.checkNotNull(adapter, &quot;No adapter found for &quot; + clazz.getCanonicalName());</span>
+
+<span class="nc" id="L103">        return adapter.convertToString(value);</span>
+    }
+
+    /**
+     * @param value The object to convertToString
+     * @return The composed object
+     * @throws ClassCastException If the {@link ParameterAdapter} is linked with an incorrect {@link java.lang.Class}.
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public String convertToString(Object value) throws ClassCastException {
+<span class="nc" id="L113">        Class&lt;?&gt; clazz = value.getClass();</span>
+
+<span class="nc" id="L115">        return convertToString(value, (Class&lt;? super Object&gt;) clazz);</span>
+    }
+
+    public ParameterAdapter getAdapter(Class&lt;?&gt; clazz) {
+<span class="nc" id="L119">        return adapters.get(clazz);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

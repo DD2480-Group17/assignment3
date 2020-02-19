@@ -1,0 +1,538 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OggReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.audio.formats</a> &gt; <span class="el_source">OggReader.java</span></div><h1>OggReader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.audio.formats;
+
+import com.jcraft.jogg.Packet;
+import com.jcraft.jogg.Page;
+import com.jcraft.jogg.StreamState;
+import com.jcraft.jogg.SyncState;
+import com.jcraft.jorbis.Block;
+import com.jcraft.jorbis.Comment;
+import com.jcraft.jorbis.DspState;
+import com.jcraft.jorbis.Info;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
+/**
+ * Decompresses an Ogg file.
+ * &lt;br&gt;&lt;br&gt;
+ * How to use:&lt;br&gt;
+ * 1. Create OggInputStream passing in the input stream of the packed ogg file&lt;br&gt;
+ * 2. Fetch format and sampling rate using getFormat() and getRate(). Use it to
+ * initialize the sound player.&lt;br&gt;
+ * 3. Read the PCM data using one of the read functions, and feed it to your player.
+ * &lt;br&gt;&lt;br&gt;
+ * OggInputStream provides a read(ByteBuffer, int, int) that can be used to read
+ * data directly into a native buffer.
+ */
+public class OggReader extends FilterInputStream {
+<span class="fc" id="L48">    private static final Logger logger = LoggerFactory.getLogger(OggReader.class);</span>
+
+    /**
+     * The mono 16 bit format
+     */
+    private static final int FORMAT_MONO16 = 1;
+
+    /**
+     * The stereo 16 bit format
+     */
+    private static final int FORMAT_STEREO16 = 2;
+
+    /// Conversion buffer size
+<span class="fc" id="L61">    private static int convsize = 4096 * 2;</span>
+
+    // Conversion buffer
+<span class="fc" id="L64">    private static byte[] convbuffer = new byte[convsize];</span>
+
+    // temp vars
+<span class="fc" id="L67">    private float[][][] pcm = new float[1][][];</span>
+    private int[] index;
+
+    // end of stream
+    private boolean eos;
+
+    // sync and verify incoming physical bitstream
+<span class="fc" id="L74">    private SyncState syncState = new SyncState();</span>
+
+    // take physical pages, weld into a logical stream of packets
+<span class="fc" id="L77">    private StreamState streamState = new StreamState();</span>
+
+    // one Ogg bitstream page.  Vorbis packets are inside
+<span class="fc" id="L80">    private Page page = new Page();</span>
+
+    // one raw packet of data for decode
+<span class="fc" id="L83">    private Packet packet = new Packet();</span>
+
+    // struct that stores all the static vorbis bitstream settings
+<span class="fc" id="L86">    private Info info = new Info();</span>
+
+    // struct that stores all the bitstream user comments
+<span class="fc" id="L89">    private Comment comment = new Comment();</span>
+
+    // central working state for the packet-&gt;PCM decoder
+<span class="fc" id="L92">    private DspState dspState = new DspState();</span>
+
+    // local working space for packet-&gt;PCM decode
+<span class="fc" id="L95">    private Block block = new Block(dspState);</span>
+
+    // where we are in the convbuffer
+    private int convbufferOff;
+
+    // bytes ready in convbuffer.
+    private int convbufferSize;
+
+    // a dummy used by read() to read 1 byte.
+<span class="fc" id="L104">    private byte[] readDummy = new byte[1];</span>
+
+    /**
+     * Creates an OggInputStream that decompressed the specified ogg file.
+     */
+    public OggReader(InputStream input) {
+<span class="fc" id="L110">        super(input);</span>
+        try {
+<span class="fc" id="L112">            initVorbis();</span>
+<span class="fc" id="L113">            index = new int[info.channels];</span>
+<span class="nc" id="L114">        } catch (Exception e) {</span>
+<span class="nc" id="L115">            logger.error(&quot;Failed to read ogg file&quot;, e);</span>
+<span class="nc" id="L116">            eos = true;</span>
+<span class="fc" id="L117">        }</span>
+<span class="fc" id="L118">    }</span>
+
+    /**
+     * Gets the format of the ogg file. Is either FORMAT_MONO16 or FORMAT_STEREO16
+     */
+    public int getChannels() {
+<span class="fc" id="L124">        return info.channels;</span>
+    }
+
+    /**
+     * Gets the rate of the pcm audio.
+     */
+    public int getRate() {
+<span class="fc" id="L131">        return info.rate;</span>
+    }
+
+    /**
+     * Reads the next byte of data from this input stream. The value byte is
+     * returned as an int in the range 0 to 255. If no byte is available because
+     * the end of the stream has been reached, the value -1 is returned. This
+     * method blocks until input data is available, the end of the stream is
+     * detected, or an exception is thrown.
+     *
+     * @return the next byte of data, or -1 if the end of the stream is reached.
+     */
+    @Override
+    public int read() throws IOException {
+<span class="nc" id="L145">        int retVal = read(readDummy, 0, 1);</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        return (retVal == -1 ? -1 : readDummy[0]);</span>
+    }
+
+    /**
+     * Reads up to len bytes of data from the input stream into an array of bytes.
+     *
+     * @param b   the buffer into which the data is read.
+     * @param off the start offset of the data.
+     * @param len the maximum number of bytes read.
+     * @return the total number of bytes read into the buffer, or -1 if there is
+     *         no more data because the end of the stream has been reached.
+     */
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+<span class="fc bfc" id="L160" title="All 2 branches covered.">        if (eos) {</span>
+<span class="fc" id="L161">            return -1;</span>
+        }
+<span class="fc" id="L163">        int bytesRead = 0;</span>
+<span class="fc" id="L164">        int bytesRemaining = len;</span>
+<span class="fc" id="L165">        int offset = off;</span>
+<span class="fc bfc" id="L166" title="All 4 branches covered.">        while (!eos &amp;&amp; (bytesRemaining &gt; 0)) {</span>
+<span class="fc" id="L167">            fillConvbuffer();</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">            if (!eos) {</span>
+<span class="fc" id="L169">                int bytesToCopy = Math.min(bytesRemaining, convbufferSize - convbufferOff);</span>
+<span class="fc" id="L170">                System.arraycopy(convbuffer, convbufferOff, b, offset, bytesToCopy);</span>
+<span class="fc" id="L171">                convbufferOff += bytesToCopy;</span>
+<span class="fc" id="L172">                bytesRead += bytesToCopy;</span>
+<span class="fc" id="L173">                bytesRemaining -= bytesToCopy;</span>
+<span class="fc" id="L174">                offset += bytesToCopy;</span>
+<span class="fc" id="L175">            }</span>
+        }
+<span class="fc" id="L177">        return bytesRead;</span>
+    }
+
+    /**
+     * Reads up to len bytes of data from the input stream into a ByteBuffer.
+     *
+     * @param b   the buffer into which the data is read.
+     * @param off the start offset of the data.
+     * @param len the maximum number of bytes read.
+     * @return the total number of bytes read into the buffer, or -1 if there is
+     *         no more data because the end of the stream has been reached.
+     */
+    public int read(ByteBuffer b, int off, int len) throws IOException {
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if (eos) {</span>
+<span class="nc" id="L191">            return -1;</span>
+        }
+<span class="nc" id="L193">        b.position(off);</span>
+<span class="nc" id="L194">        int bytesRead = 0;</span>
+<span class="nc" id="L195">        int bytesRemaining = len;</span>
+<span class="nc bnc" id="L196" title="All 4 branches missed.">        while (!eos &amp;&amp; (bytesRemaining &gt; 0)) {</span>
+<span class="nc" id="L197">            fillConvbuffer();</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            if (!eos) {</span>
+<span class="nc" id="L199">                int bytesToCopy = Math.min(bytesRemaining, convbufferSize - convbufferOff);</span>
+<span class="nc" id="L200">                b.put(convbuffer, convbufferOff, bytesToCopy);</span>
+<span class="nc" id="L201">                convbufferOff += bytesToCopy;</span>
+<span class="nc" id="L202">                bytesRead += bytesToCopy;</span>
+<span class="nc" id="L203">                bytesRemaining -= bytesToCopy;</span>
+<span class="nc" id="L204">            }</span>
+        }
+<span class="nc" id="L206">        return bytesRead;</span>
+    }
+
+    /**
+     * Helper function. Decodes a packet to the convbuffer if it is empty.
+     * Updates convbufferSize, convbufferOff, and eos.
+     */
+    private void fillConvbuffer() throws IOException {
+<span class="fc bfc" id="L214" title="All 2 branches covered.">        if (convbufferOff &gt;= convbufferSize) {</span>
+<span class="fc" id="L215">            convbufferSize = lazyDecodePacket();</span>
+<span class="fc" id="L216">            convbufferOff = 0;</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">            if (convbufferSize == -1) {</span>
+<span class="fc" id="L218">                eos = true;</span>
+            }
+        }
+<span class="fc" id="L221">    }</span>
+
+    /**
+     * Returns 0 after EOF is reached, otherwise always return 1.
+     * &lt;br&gt;&lt;br&gt;
+     * Programs should not count on this method to return the actual number of
+     * bytes that could be read without blocking.
+     *
+     * @return 1 before EOF and 0 after EOF is reached.
+     */
+    @Override
+    public int available() throws IOException {
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        return (eos ? 0 : 1);</span>
+    }
+
+    /**
+     * OggInputStream does not support mark and reset. This function does nothing.
+     */
+    @Override
+    public synchronized void reset() throws IOException {
+<span class="nc" id="L241">    }</span>
+
+    /**
+     * OggInputStream does not support mark and reset.
+     *
+     * @return false.
+     */
+    @Override
+    public boolean markSupported() {
+<span class="nc" id="L250">        return false;</span>
+    }
+
+    /**
+     * Skips over and discards n bytes of data from the input stream. The skip
+     * method may, for a variety of reasons, end up skipping over some smaller
+     * number of bytes, possibly 0. The actual number of bytes skipped is returned.
+     *
+     * @param n the number of bytes to be skipped.
+     * @return the actual number of bytes skipped.
+     */
+    @Override
+    public long skip(long n) throws IOException {
+<span class="nc" id="L263">        int bytesRead = 0;</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">        while (bytesRead &lt; n) {</span>
+<span class="nc" id="L265">            int res = read();</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">            if (res == -1) {</span>
+<span class="nc" id="L267">                break;</span>
+            }
+<span class="nc" id="L269">            bytesRead++;</span>
+<span class="nc" id="L270">        }</span>
+<span class="nc" id="L271">        return bytesRead;</span>
+    }
+
+    /**
+     * Initalizes the vorbis stream. Reads the stream until info and comment are read.
+     */
+    private void initVorbis() throws Exception {
+        // Now we can read pages
+<span class="fc" id="L279">        syncState.init();</span>
+
+        // grab some data at the head of the stream.  We want the first page
+        // (which is guaranteed to be small and only contain the Vorbis
+        // stream initial header) We need the first page to get the stream
+        // serialno.
+
+        // submit a 4k block to libvorbis' Ogg layer
+<span class="fc" id="L287">        int bufferIndex = syncState.buffer(4096);</span>
+<span class="fc" id="L288">        byte[] buffer = syncState.data;</span>
+<span class="fc" id="L289">        int bytes = in.read(buffer, bufferIndex, 4096);</span>
+<span class="fc" id="L290">        syncState.wrote(bytes);</span>
+
+        // Get the first page.
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">        if (syncState.pageout(page) != 1) {</span>
+            // have we simply run out of data?  If so, we're done.
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            if (bytes &lt; 4096) {</span>
+<span class="nc" id="L296">                return; //break;</span>
+            }
+            // error case.  Must not be Vorbis data
+<span class="nc" id="L299">            throw new Exception(&quot;Input does not appear to be an Ogg bitstream.&quot;);</span>
+        }
+
+        // Get the serial number and set up the rest of decode.
+        // serialno first; use it to set up a logical stream
+<span class="fc" id="L304">        streamState.init(page.serialno());</span>
+
+        // extract the initial header from the first page and verify that the
+        // Ogg bitstream is in fact Vorbis data
+
+        // I handle the initial header first instead of just having the code
+        // read all three Vorbis headers at once because reading the initial
+        // header is an easy way to identify a Vorbis bitstream and it's
+        // useful to see that functionality seperated out.
+
+<span class="fc" id="L314">        info.init();</span>
+<span class="fc" id="L315">        comment.init();</span>
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">        if (streamState.pagein(page) &lt; 0) {</span>
+            // error; stream version mismatch perhaps
+<span class="nc" id="L318">            throw new Exception(&quot;Error reading first page of Ogg bitstream data.&quot;);</span>
+        }
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">        if (streamState.packetout(packet) != 1) {</span>
+            // no page? must not be vorbis
+<span class="nc" id="L322">            throw new Exception(&quot;Error reading initial header packet.&quot;);</span>
+        }
+<span class="pc bpc" id="L324" title="1 of 2 branches missed.">        if (info.synthesis_headerin(comment, packet) &lt; 0) {</span>
+            // error case; not a vorbis header
+<span class="nc" id="L326">            throw new Exception(&quot;This Ogg bitstream does not contain Vorbis audio data.&quot;);</span>
+        }
+
+        // At this point, we're sure we're Vorbis.  We've set up the logical
+        // (Ogg) bitstream decoder.  Get the comment and codebook headers and
+        // set up the Vorbis decoder
+
+        // The next two packets in order are the comment and codebook headers.
+        // They're likely large and may span multiple pages.  Thus we read
+        // and submit data until we get our two packets, watching that no
+        // pages are missing.  If a page is missing, error out; losing a
+        // header page is the only place where missing data is fatal.
+
+
+<span class="fc" id="L340">        int i = 0;</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">        while (i &lt; 2) {</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">            while (i &lt; 2) {</span>
+<span class="fc" id="L343">                int result = syncState.pageout(page);</span>
+<span class="pc bpc" id="L344" title="1 of 2 branches missed.">                if (result == 0) {</span>
+<span class="nc" id="L345">                    break; // Need more data</span>
+                }
+                // Don't complain about missing or corrupt data yet.  We'll
+                // catch it at the packet output phase
+
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">                if (result == 1) {</span>
+<span class="fc" id="L351">                    streamState.pagein(page); // we can ignore any errors here</span>
+                    // as they'll also become apparent
+                    // at packet out
+<span class="fc bfc" id="L354" title="All 2 branches covered.">                    while (i &lt; 2) {</span>
+<span class="fc" id="L355">                        result = streamState.packetout(packet);</span>
+<span class="pc bpc" id="L356" title="1 of 2 branches missed.">                        if (result == 0) {</span>
+<span class="nc" id="L357">                            break;</span>
+                        }
+<span class="pc bpc" id="L359" title="1 of 2 branches missed.">                        if (result == -1) {</span>
+                            // Uh oh; data at some point was corrupted or missing!
+                            // We can't tolerate that in a header.  Die.
+<span class="nc" id="L362">                            throw new Exception(&quot;Corrupt secondary header. Exiting.&quot;);</span>
+                        }
+<span class="fc" id="L364">                        info.synthesis_headerin(comment, packet);</span>
+<span class="fc" id="L365">                        i++;</span>
+                    }
+                }
+<span class="fc" id="L368">            }</span>
+
+            // no harm in not checking before adding more
+<span class="fc" id="L371">            bufferIndex = syncState.buffer(4096);</span>
+<span class="fc" id="L372">            buffer = syncState.data;</span>
+<span class="fc" id="L373">            bytes = in.read(buffer, bufferIndex, 4096);</span>
+
+            // NOTE: This is a bugfix. read will return -1 which will mess up syncState.
+<span class="pc bpc" id="L376" title="1 of 2 branches missed.">            if (bytes &lt; 0) {</span>
+<span class="nc" id="L377">                bytes = 0;</span>
+            }
+<span class="pc bpc" id="L379" title="3 of 4 branches missed.">            if (bytes == 0 &amp;&amp; i &lt; 2) {</span>
+<span class="nc" id="L380">                throw new Exception(&quot;End of file before finding all Vorbis headers!&quot;);</span>
+            }
+<span class="fc" id="L382">            syncState.wrote(bytes);</span>
+        }
+
+<span class="fc" id="L385">        convsize = 4096 / info.channels;</span>
+
+        // OK, got and parsed all three headers. Initialize the Vorbis
+        //  packet-&gt;PCM decoder.
+<span class="fc" id="L389">        dspState.synthesis_init(info); // central decode state</span>
+<span class="fc" id="L390">        block.init(dspState); // local state for most of the decode</span>
+        // so multiple block decodes can
+        // proceed in parallel.  We could init
+        // multiple vorbis_block structures
+        // for vd here
+<span class="fc" id="L395">    }</span>
+
+    /**
+     * Decodes a packet.
+     */
+    private int decodePacket() {
+        // check the endianes of the computer.
+<span class="pc bpc" id="L402" title="1 of 2 branches missed.">        final boolean bigEndian = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;</span>
+
+<span class="pc bpc" id="L404" title="1 of 2 branches missed.">        if (block.synthesis(packet) == 0) {</span>
+<span class="fc" id="L405">            dspState.synthesis_blockin(block);</span>
+        }
+
+        // **pcm is a multichannel float vector.  In stereo, for
+        // example, pcm[0] is left, and pcm[1] is right.  samples is
+        // the size of each channel.  Convert the float values
+        // (-1.&lt;=range&lt;=1.) to whatever PCM format and write it out
+<span class="fc" id="L412">        int convOff = 0;</span>
+        int samples;
+<span class="fc bfc" id="L414" title="All 2 branches covered.">        while ((samples = dspState.synthesis_pcmout(pcm, index)) &gt; 0) {</span>
+<span class="fc" id="L415">            float[][] localPcm = this.pcm[0];</span>
+<span class="pc bpc" id="L416" title="1 of 2 branches missed.">            int bout = (samples &lt; convsize ? samples : convsize);</span>
+
+            // convert floats to 16 bit signed ints (host order) and interleave
+<span class="fc bfc" id="L419" title="All 2 branches covered.">            for (int i = 0; i &lt; info.channels; i++) {</span>
+<span class="fc" id="L420">                int ptr = (i &lt;&lt; 1) + convOff;</span>
+
+
+<span class="fc" id="L423">                int mono = index[i];</span>
+
+<span class="fc bfc" id="L425" title="All 2 branches covered.">                for (int j = 0; j &lt; bout; j++) {</span>
+<span class="fc" id="L426">                    int val = (int) (localPcm[i][mono + j] * 32767);</span>
+
+                    // might as well guard against clipping
+<span class="fc" id="L429">                    val = Math.max(-32768, Math.min(32767, val));</span>
+<span class="fc bfc" id="L430" title="All 2 branches covered.">                    val |= (val &lt; 0 ? 0x8000 : 0);</span>
+
+<span class="pc bpc" id="L432" title="1 of 2 branches missed.">                    convbuffer[ptr + 0] = (byte) (bigEndian ? val &gt;&gt;&gt; 8 : val);</span>
+<span class="pc bpc" id="L433" title="1 of 2 branches missed.">                    convbuffer[ptr + 1] = (byte) (bigEndian ? val : val &gt;&gt;&gt; 8);</span>
+
+<span class="fc" id="L435">                    ptr += (info.channels) &lt;&lt; 1;</span>
+                }
+            }
+
+<span class="fc" id="L439">            convOff += 2 * info.channels * bout;</span>
+
+            // Tell orbis how many samples were consumed
+<span class="fc" id="L442">            dspState.synthesis_read(bout);</span>
+<span class="fc" id="L443">        }</span>
+
+<span class="fc" id="L445">        return convOff;</span>
+    }
+
+    /**
+     * Decodes the next packet.
+     *
+     * @return bytes read into convbuffer of -1 if end of file
+     */
+    private int lazyDecodePacket() throws IOException {
+<span class="fc" id="L454">        int result = getNextPacket();</span>
+<span class="fc bfc" id="L455" title="All 2 branches covered.">        if (result == -1) {</span>
+<span class="fc" id="L456">            return -1;</span>
+        }
+
+        // we have a packet.  Decode it
+<span class="fc" id="L460">        return decodePacket();</span>
+    }
+
+    /**
+     * @return
+     * @throws IOException
+     */
+    private int getNextPacket() throws IOException {
+        // get next packet.
+<span class="fc" id="L469">        boolean fetchedPacket = false;</span>
+<span class="pc bpc" id="L470" title="1 of 4 branches missed.">        while (!eos &amp;&amp; !fetchedPacket) {</span>
+<span class="fc" id="L471">            int result1 = streamState.packetout(packet);</span>
+<span class="fc bfc" id="L472" title="All 2 branches covered.">            if (result1 == 0) {</span>
+                // no more packets in page. Fetch new page.
+<span class="fc" id="L474">                int result2 = 0;</span>
+<span class="fc bfc" id="L475" title="All 4 branches covered.">                while (!eos &amp;&amp; result2 == 0) {</span>
+<span class="fc" id="L476">                    result2 = syncState.pageout(page);</span>
+<span class="fc bfc" id="L477" title="All 2 branches covered.">                    if (result2 == 0) {</span>
+<span class="fc" id="L478">                        fetchData();</span>
+                    }
+                }
+
+                // return if we have reaced end of file.
+<span class="pc bpc" id="L483" title="1 of 4 branches missed.">                if ((result2 == 0) &amp;&amp; (page.eos() != 0)) {</span>
+<span class="fc" id="L484">                    return -1;</span>
+                }
+
+<span class="pc bpc" id="L487" title="1 of 2 branches missed.">                if (result2 == 0) {</span>
+                    // need more data fetching page..
+<span class="nc" id="L489">                    fetchData();</span>
+<span class="pc bpc" id="L490" title="1 of 2 branches missed.">                } else if (result2 == -1) {</span>
+<span class="nc" id="L491">                    logger.warn(&quot;syncState.pageout(page) result == -1&quot;);</span>
+<span class="nc" id="L492">                    return -1;</span>
+                } else {
+<span class="fc" id="L494">                    streamState.pagein(page);</span>
+                }
+<span class="pc bpc" id="L496" title="1 of 2 branches missed.">            } else if (result1 == -1) {</span>
+<span class="nc" id="L497">                logger.warn(&quot;streamState.packetout(packet) result == -1&quot;);</span>
+<span class="nc" id="L498">                return -1;</span>
+            } else {
+<span class="fc" id="L500">                fetchedPacket = true;</span>
+            }
+<span class="fc" id="L502">        }</span>
+
+<span class="fc" id="L504">        return 0;</span>
+    }
+
+    /**
+     * Copys data from input stream to syncState.
+     */
+    private void fetchData() throws IOException {
+<span class="pc bpc" id="L511" title="1 of 2 branches missed.">        if (!eos) {</span>
+            // copy 4096 bytes from compressed stream to syncState.
+<span class="fc" id="L513">            int bufferIndex = syncState.buffer(4096);</span>
+<span class="fc bfc" id="L514" title="All 2 branches covered.">            if (bufferIndex &lt; 0) {</span>
+<span class="fc" id="L515">                eos = true;</span>
+<span class="fc" id="L516">                return;</span>
+            }
+<span class="fc" id="L518">            int bytes = in.read(syncState.data, bufferIndex, 4096);</span>
+<span class="fc" id="L519">            syncState.wrote(bytes);</span>
+<span class="pc bpc" id="L520" title="1 of 2 branches missed.">            if (bytes == 0) {</span>
+<span class="nc" id="L521">                eos = true;</span>
+            }
+        }
+<span class="fc" id="L524">    }</span>
+
+    /**
+     * Gets information on the ogg.
+     */
+    @Override
+    public String toString() {
+<span class="nc" id="L531">        String s = &quot;&quot;;</span>
+<span class="nc" id="L532">        s = s + &quot;version         &quot; + info.version + &quot;\n&quot;;</span>
+<span class="nc" id="L533">        s = s + &quot;channels        &quot; + info.channels + &quot;\n&quot;;</span>
+<span class="nc" id="L534">        s = s + &quot;rate (hz)       &quot; + info.rate;</span>
+<span class="nc" id="L535">        return s;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

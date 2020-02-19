@@ -1,0 +1,602 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TerasologyEngine.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine</a> &gt; <span class="el_source">TerasologyEngine.java</span></div><h1>TerasologyEngine.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.Queues;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.AssetFactory;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.engine.bootstrap.EnvironmentSwitchHandler;
+import org.terasology.engine.modes.GameState;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.module.ModuleManagerImpl;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.engine.subsystem.EngineSubsystem;
+import org.terasology.engine.subsystem.RenderingSubsystemFactory;
+import org.terasology.engine.subsystem.common.CommandSubsystem;
+import org.terasology.engine.subsystem.common.ConfigurationSubsystem;
+import org.terasology.engine.subsystem.common.GameSubsystem;
+import org.terasology.engine.subsystem.common.MonitoringSubsystem;
+import org.terasology.engine.subsystem.common.NetworkSubsystem;
+import org.terasology.engine.subsystem.common.PhysicsSubsystem;
+import org.terasology.engine.subsystem.common.TelemetrySubSystem;
+import org.terasology.engine.subsystem.common.ThreadManagerSubsystem;
+import org.terasology.engine.subsystem.common.TimeSubsystem;
+import org.terasology.engine.subsystem.common.WorldGenerationSubsystem;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.prefab.PrefabData;
+import org.terasology.entitySystem.prefab.internal.PojoPrefab;
+import org.terasology.i18n.I18nSubsystem;
+import org.terasology.input.InputSystem;
+import org.terasology.logic.behavior.asset.BehaviorTree;
+import org.terasology.logic.behavior.asset.BehaviorTreeData;
+import org.terasology.monitoring.Activity;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.network.NetworkSystem;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.recording.CharacterStateEventPositionMap;
+import org.terasology.recording.DirectionAndOriginPosRecorderList;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.recording.RecordAndReplayUtils;
+import org.terasology.reflection.TypeRegistry;
+import org.terasology.reflection.copy.CopyStrategyLibrary;
+import org.terasology.reflection.reflect.ReflectFactory;
+import org.terasology.reflection.reflect.ReflectionReflectFactory;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.asset.UIData;
+import org.terasology.rendering.nui.asset.UIElement;
+import org.terasology.rendering.nui.skin.UISkin;
+import org.terasology.rendering.nui.skin.UISkinData;
+import org.terasology.version.TerasologyVersion;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.loader.BlockFamilyDefinitionData;
+import org.terasology.world.block.loader.BlockFamilyDefinitionFormat;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.shapes.BlockShapeData;
+import org.terasology.world.block.shapes.BlockShapeImpl;
+import org.terasology.world.block.sounds.BlockSounds;
+import org.terasology.world.block.sounds.BlockSoundsData;
+import org.terasology.world.block.tiles.BlockTile;
+import org.terasology.world.block.tiles.TileData;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * &lt;p&gt;
+ * This GameEngine implementation is the heart of Terasology.
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * It first takes care of making a number of application-wide initializations (see init()
+ * method). It then provides a main game loop (see run() method) characterized by a number
+ * of mutually exclusive {@link GameState}s. The current GameState is updated each
+ * frame, and a change of state (see changeState() method) can be requested at any time - the
+ * switch will occur cleanly between frames. Interested parties can be notified of GameState
+ * changes by using the subscribeToStateChange() method.
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * At this stage the engine also provides a number of utility methods (see submitTask() and
+ * hasMouseFocus() to name a few) but they might be moved elsewhere.
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * Special mention must be made in regard to EngineSubsystems. An {@link EngineSubsystem}
+ * is a pluggable low-level component of the engine, that is processed every frame - like
+ * rendering or audio. A list of EngineSubsystems is provided in input to the engine's
+ * constructor. Different sets of Subsystems can significantly change the behaviour of
+ * the engine, i.e. providing a &quot;no-frills&quot; server in one case or a full-graphics client
+ * in another.
+ * &lt;/p&gt;
+ */
+public class TerasologyEngine implements GameEngine {
+
+<span class="nc" id="L120">    private static final Logger logger = LoggerFactory.getLogger(TerasologyEngine.class);</span>
+
+    private static final int ONE_MEBIBYTE = 1024 * 1024;
+
+<span class="nc" id="L124">    private final List&lt;Class&lt;?&gt;&gt; classesOnClasspathsToAddToEngine = new ArrayList&lt;&gt;();</span>
+
+    private GameState currentState;
+    private GameState pendingState;
+<span class="nc" id="L128">    private Set&lt;StateChangeSubscriber&gt; stateChangeSubscribers = Sets.newLinkedHashSet();</span>
+
+<span class="nc" id="L130">    private EngineStatus status = StandardGameStatus.UNSTARTED;</span>
+<span class="nc" id="L131">    private final List&lt;EngineStatusSubscriber&gt; statusSubscriberList = new CopyOnWriteArrayList&lt;&gt;();</span>
+
+    private volatile boolean shutdownRequested;
+    private volatile boolean running;
+
+    private TimeSubsystem timeSubsystem;
+    private Deque&lt;EngineSubsystem&gt; allSubsystems;
+    private ModuleAwareAssetTypeManager assetTypeManager;
+
+    /**
+     * Contains objects that life for the duration of this engine.
+     */
+    private Context rootContext;
+
+    /**
+     * This constructor initializes the engine by initializing its systems,
+     * subsystems and managers. It also verifies that some required systems
+     * are up and running after they have been initialized.
+     *
+     * @param subsystems Typical subsystems lists contain graphics, timer,
+     *                   audio and input subsystems.
+     */
+<span class="nc" id="L153">    public TerasologyEngine(TimeSubsystem timeSubsystem, Collection&lt;EngineSubsystem&gt; subsystems) {</span>
+
+<span class="nc" id="L155">        this.rootContext = new ContextImpl();</span>
+<span class="nc" id="L156">        rootContext.put(GameEngine.class, this);</span>
+<span class="nc" id="L157">        this.timeSubsystem = timeSubsystem;</span>
+
+        //Record and Replay classes
+<span class="nc" id="L160">        RecordAndReplayCurrentStatus recordAndReplayCurrentStatus = new RecordAndReplayCurrentStatus();</span>
+<span class="nc" id="L161">        rootContext.put(RecordAndReplayCurrentStatus.class, recordAndReplayCurrentStatus);</span>
+<span class="nc" id="L162">        RecordAndReplayUtils recordAndReplayUtils = new RecordAndReplayUtils();</span>
+<span class="nc" id="L163">        rootContext.put(RecordAndReplayUtils.class, recordAndReplayUtils);</span>
+<span class="nc" id="L164">        CharacterStateEventPositionMap characterStateEventPositionMap = new CharacterStateEventPositionMap();</span>
+<span class="nc" id="L165">        rootContext.put(CharacterStateEventPositionMap.class, characterStateEventPositionMap);</span>
+<span class="nc" id="L166">        DirectionAndOriginPosRecorderList directionAndOriginPosRecorderList = new DirectionAndOriginPosRecorderList();</span>
+<span class="nc" id="L167">        rootContext.put(DirectionAndOriginPosRecorderList.class, directionAndOriginPosRecorderList);</span>
+        /*
+         * We can't load the engine without core registry yet.
+         * e.g. the statically created MaterialLoader needs the CoreRegistry to get the AssetManager.
+         * And the engine loads assets while it gets created.
+         */
+        // TODO: Remove
+<span class="nc" id="L174">        CoreRegistry.setContext(rootContext);</span>
+
+<span class="nc" id="L176">        this.allSubsystems = Queues.newArrayDeque();</span>
+<span class="nc" id="L177">        this.allSubsystems.add(new ConfigurationSubsystem());</span>
+<span class="nc" id="L178">        this.allSubsystems.add(timeSubsystem);</span>
+<span class="nc" id="L179">        this.allSubsystems.addAll(subsystems);</span>
+<span class="nc" id="L180">        this.allSubsystems.add(new ThreadManagerSubsystem());</span>
+<span class="nc" id="L181">        this.allSubsystems.add(new MonitoringSubsystem());</span>
+<span class="nc" id="L182">        this.allSubsystems.add(new PhysicsSubsystem());</span>
+<span class="nc" id="L183">        this.allSubsystems.add(new CommandSubsystem());</span>
+<span class="nc" id="L184">        this.allSubsystems.add(new NetworkSubsystem());</span>
+<span class="nc" id="L185">        this.allSubsystems.add(new WorldGenerationSubsystem());</span>
+<span class="nc" id="L186">        this.allSubsystems.add(new GameSubsystem());</span>
+<span class="nc" id="L187">        this.allSubsystems.add(new I18nSubsystem());</span>
+<span class="nc" id="L188">        this.allSubsystems.add(new TelemetrySubSystem());</span>
+<span class="nc" id="L189">    }</span>
+
+    /**
+     * Provide ability to set additional engine classpath locations.   This must be called before initialize() or run().
+     * @param clazz any class that appears in the resource location to treat as an engine classpath.
+     */
+    protected void addToClassesOnClasspathsToAddToEngine(Class&lt;?&gt; clazz) {
+<span class="nc" id="L196">        classesOnClasspathsToAddToEngine.add(clazz);</span>
+<span class="nc" id="L197">    }</span>
+
+    public void initialize() {
+<span class="nc" id="L200">        Thread.currentThread().setPriority(Thread.MAX_PRIORITY);</span>
+<span class="nc" id="L201">        Stopwatch totalInitTime = Stopwatch.createStarted();</span>
+        try {
+<span class="nc" id="L203">            logger.info(&quot;Initializing Terasology...&quot;);</span>
+<span class="nc" id="L204">            logEnvironmentInfo();</span>
+
+            // TODO: Need to get everything thread safe and get rid of the concept of &quot;GameThread&quot; as much as possible.
+<span class="nc" id="L207">            GameThread.setToCurrentThread();</span>
+
+<span class="nc" id="L209">            preInitSubsystems();</span>
+
+<span class="nc" id="L211">            initManagers();</span>
+
+<span class="nc" id="L213">            initSubsystems();</span>
+
+<span class="nc" id="L215">            changeStatus(TerasologyEngineStatus.INITIALIZING_ASSET_MANAGEMENT);</span>
+<span class="nc" id="L216">            initAssets();</span>
+
+<span class="nc" id="L218">            EnvironmentSwitchHandler environmentSwitcher = new EnvironmentSwitchHandler();</span>
+<span class="nc" id="L219">            rootContext.put(EnvironmentSwitchHandler.class, environmentSwitcher);</span>
+
+<span class="nc" id="L221">            environmentSwitcher.handleSwitchToGameEnvironment(rootContext);</span>
+
+<span class="nc" id="L223">            postInitSubsystems();</span>
+
+<span class="nc" id="L225">            verifyInitialisation();</span>
+
+            /*
+             * Prevent objects being put in engine context after init phase. Engine states should use/create a
+             * child context.
+             */
+<span class="nc" id="L231">            CoreRegistry.setContext(null);</span>
+<span class="nc" id="L232">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L233">            logger.error(&quot;Failed to initialise Terasology&quot;, e);</span>
+<span class="nc" id="L234">            cleanup();</span>
+<span class="nc" id="L235">            throw e;</span>
+<span class="nc" id="L236">        }</span>
+
+<span class="nc" id="L238">        double seconds = 0.001 * totalInitTime.elapsed(TimeUnit.MILLISECONDS);</span>
+<span class="nc" id="L239">        logger.info(&quot;Initialization completed in {}sec.&quot;, String.format(&quot;%.2f&quot;, seconds));</span>
+<span class="nc" id="L240">    }</span>
+
+    private void verifyInitialisation() {
+<span class="nc" id="L243">        verifyRequiredSystemIsRegistered(Time.class);</span>
+<span class="nc" id="L244">        verifyRequiredSystemIsRegistered(DisplayDevice.class);</span>
+<span class="nc" id="L245">        verifyRequiredSystemIsRegistered(RenderingSubsystemFactory.class);</span>
+<span class="nc" id="L246">        verifyRequiredSystemIsRegistered(InputSystem.class);</span>
+<span class="nc" id="L247">    }</span>
+
+    /**
+     * Logs software, environment and hardware information.
+     */
+    private void logEnvironmentInfo() {
+<span class="nc" id="L253">        logger.info(TerasologyVersion.getInstance().toString());</span>
+<span class="nc" id="L254">        logger.info(&quot;Home path: {}&quot;, PathManager.getInstance().getHomePath());</span>
+<span class="nc" id="L255">        logger.info(&quot;Install path: {}&quot;, PathManager.getInstance().getInstallPath());</span>
+<span class="nc" id="L256">        logger.info(&quot;Java: {} in {}&quot;, System.getProperty(&quot;java.version&quot;), System.getProperty(&quot;java.home&quot;));</span>
+<span class="nc" id="L257">        logger.info(&quot;Java VM: {}, version: {}&quot;, System.getProperty(&quot;java.vm.name&quot;), System.getProperty(&quot;java.vm.version&quot;));</span>
+<span class="nc" id="L258">        logger.info(&quot;OS: {}, arch: {}, version: {}&quot;, System.getProperty(&quot;os.name&quot;), System.getProperty(&quot;os.arch&quot;), System.getProperty(&quot;os.version&quot;));</span>
+<span class="nc" id="L259">        logger.info(&quot;Max. Memory: {} MiB&quot;, Runtime.getRuntime().maxMemory() / ONE_MEBIBYTE);</span>
+<span class="nc" id="L260">        logger.info(&quot;Processors: {}&quot;, Runtime.getRuntime().availableProcessors());</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">        if (NonNativeJVMDetector.JVM_ARCH_IS_NONNATIVE) {</span>
+<span class="nc" id="L262">            logger.warn(&quot;Running on a 32-bit JVM on a 64-bit system. This may limit performance.&quot;);</span>
+        }
+<span class="nc" id="L264">    }</span>
+
+    /**
+     * Gives a chance to subsystems to do something BEFORE managers and Time are initialized.
+     */
+    private void preInitSubsystems() {
+<span class="nc" id="L270">        changeStatus(TerasologyEngineStatus.PREPARING_SUBSYSTEMS);</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">        for (EngineSubsystem subsystem : getSubsystems()) {</span>
+<span class="nc" id="L272">            changeStatus(() -&gt; &quot;Pre-initialising &quot; + subsystem.getName() + &quot; subsystem&quot;);</span>
+<span class="nc" id="L273">            subsystem.preInitialise(rootContext);</span>
+<span class="nc" id="L274">        }</span>
+<span class="nc" id="L275">    }</span>
+
+    private void initSubsystems() {
+<span class="nc" id="L278">        changeStatus(TerasologyEngineStatus.INITIALIZING_SUBSYSTEMS);</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">        for (EngineSubsystem subsystem : getSubsystems()) {</span>
+<span class="nc" id="L280">            changeStatus(() -&gt; &quot;Initialising &quot; + subsystem.getName() + &quot; subsystem&quot;);</span>
+<span class="nc" id="L281">            subsystem.initialise(this, rootContext);</span>
+<span class="nc" id="L282">        }</span>
+<span class="nc" id="L283">    }</span>
+
+    /**
+     * Gives a chance to subsystems to do something AFTER managers and Time are initialized.
+     */
+    private void postInitSubsystems() {
+<span class="nc bnc" id="L289" title="All 2 branches missed.">        for (EngineSubsystem subsystem : getSubsystems()) {</span>
+<span class="nc" id="L290">            changeStatus(() -&gt; &quot;Post-Initialising &quot; + subsystem.getName() + &quot; subsystem&quot;);</span>
+<span class="nc" id="L291">            subsystem.postInitialise(rootContext);</span>
+<span class="nc" id="L292">        }</span>
+<span class="nc" id="L293">    }</span>
+
+    /**
+     * Verifies that a required class is available through the core registry.
+     *
+     * @param clazz The required type, i.e. Time.class
+     * @throws IllegalStateException Details the required system that has not been registered.
+     */
+    private void verifyRequiredSystemIsRegistered(Class&lt;?&gt; clazz) {
+<span class="nc bnc" id="L302" title="All 2 branches missed.">        if (rootContext.get(clazz) == null) {</span>
+<span class="nc" id="L303">            throw new IllegalStateException(clazz.getSimpleName() + &quot; not registered as a core system.&quot;);</span>
+        }
+<span class="nc" id="L305">    }</span>
+
+    private void initManagers() {
+
+<span class="nc" id="L309">        changeStatus(TerasologyEngineStatus.INITIALIZING_MODULE_MANAGER);</span>
+<span class="nc" id="L310">        TypeRegistry typeRegistry = new TypeRegistry();</span>
+<span class="nc" id="L311">        rootContext.put(TypeRegistry.class, typeRegistry);</span>
+
+<span class="nc" id="L313">        ModuleManager moduleManager = new ModuleManagerImpl(rootContext.get(Config.class), classesOnClasspathsToAddToEngine);</span>
+<span class="nc" id="L314">        rootContext.put(ModuleManager.class, moduleManager);</span>
+
+<span class="nc" id="L316">        changeStatus(TerasologyEngineStatus.INITIALIZING_LOWLEVEL_OBJECT_MANIPULATION);</span>
+<span class="nc" id="L317">        ReflectFactory reflectFactory = new ReflectionReflectFactory();</span>
+<span class="nc" id="L318">        rootContext.put(ReflectFactory.class, reflectFactory);</span>
+
+<span class="nc" id="L320">        CopyStrategyLibrary copyStrategyLibrary = new CopyStrategyLibrary(reflectFactory);</span>
+<span class="nc" id="L321">        rootContext.put(CopyStrategyLibrary.class, copyStrategyLibrary);</span>
+
+<span class="nc" id="L323">        rootContext.put(TypeHandlerLibrary.class, TypeHandlerLibrary.forModuleEnvironment(moduleManager, typeRegistry));</span>
+
+<span class="nc" id="L325">        changeStatus(TerasologyEngineStatus.INITIALIZING_ASSET_TYPES);</span>
+<span class="nc" id="L326">        assetTypeManager = new ModuleAwareAssetTypeManager();</span>
+<span class="nc" id="L327">        rootContext.put(ModuleAwareAssetTypeManager.class, assetTypeManager);</span>
+<span class="nc" id="L328">        rootContext.put(AssetManager.class, assetTypeManager.getAssetManager());</span>
+<span class="nc" id="L329">    }</span>
+
+    private void initAssets() {
+
+
+        // cast lambdas explicitly to avoid inconsistent compiler behavior wrt. type inference
+<span class="nc" id="L335">        assetTypeManager.registerCoreAssetType(Prefab.class,</span>
+                (AssetFactory&lt;Prefab, PrefabData&gt;) PojoPrefab::new, false, &quot;prefabs&quot;);
+<span class="nc" id="L337">        assetTypeManager.registerCoreAssetType(BlockShape.class,</span>
+                (AssetFactory&lt;BlockShape, BlockShapeData&gt;) BlockShapeImpl::new, &quot;shapes&quot;);
+<span class="nc" id="L339">        assetTypeManager.registerCoreAssetType(BlockSounds.class,</span>
+                (AssetFactory&lt;BlockSounds, BlockSoundsData&gt;) BlockSounds::new, &quot;blockSounds&quot;);
+<span class="nc" id="L341">        assetTypeManager.registerCoreAssetType(BlockTile.class,</span>
+                (AssetFactory&lt;BlockTile, TileData&gt;) BlockTile::new, &quot;blockTiles&quot;);
+<span class="nc" id="L343">        assetTypeManager.registerCoreAssetType(BlockFamilyDefinition.class,</span>
+                (AssetFactory&lt;BlockFamilyDefinition, BlockFamilyDefinitionData&gt;) BlockFamilyDefinition::new, &quot;blocks&quot;);
+<span class="nc" id="L345">        assetTypeManager.registerCoreFormat(BlockFamilyDefinition.class,</span>
+<span class="nc" id="L346">                new BlockFamilyDefinitionFormat(assetTypeManager.getAssetManager()));</span>
+<span class="nc" id="L347">        assetTypeManager.registerCoreAssetType(UISkin.class,</span>
+                (AssetFactory&lt;UISkin, UISkinData&gt;) UISkin::new, &quot;skins&quot;);
+<span class="nc" id="L349">        assetTypeManager.registerCoreAssetType(BehaviorTree.class,</span>
+                (AssetFactory&lt;BehaviorTree, BehaviorTreeData&gt;) BehaviorTree::new, false, &quot;behaviors&quot;);
+<span class="nc" id="L351">        assetTypeManager.registerCoreAssetType(UIElement.class,</span>
+                (AssetFactory&lt;UIElement, UIData&gt;) UIElement::new, &quot;ui&quot;);
+
+<span class="nc bnc" id="L354" title="All 2 branches missed.">        for (EngineSubsystem subsystem : allSubsystems) {</span>
+<span class="nc" id="L355">            subsystem.registerCoreAssetTypes(assetTypeManager);</span>
+<span class="nc" id="L356">        }</span>
+<span class="nc" id="L357">    }</span>
+
+    @Override
+    public EngineStatus getStatus() {
+<span class="nc" id="L361">        return status;</span>
+    }
+
+    @Override
+    public void subscribe(EngineStatusSubscriber subscriber) {
+<span class="nc" id="L366">        statusSubscriberList.add(subscriber);</span>
+<span class="nc" id="L367">    }</span>
+
+    @Override
+    public void unsubscribe(EngineStatusSubscriber subscriber) {
+<span class="nc" id="L371">        statusSubscriberList.remove(subscriber);</span>
+<span class="nc" id="L372">    }</span>
+
+    private void changeStatus(EngineStatus newStatus) {
+<span class="nc" id="L375">        status = newStatus;</span>
+<span class="nc bnc" id="L376" title="All 2 branches missed.">        for (EngineStatusSubscriber subscriber : statusSubscriberList) {</span>
+<span class="nc" id="L377">            subscriber.onEngineStatusChanged(newStatus);</span>
+<span class="nc" id="L378">        }</span>
+<span class="nc" id="L379">    }</span>
+
+    /**
+     * Runs the engine, including its main loop. This method is called only once per
+     * application startup, which is the reason the GameState provided is the -initial-
+     * state rather than a generic game state.
+     *
+     * @param initialState In at least one context (the PC facade) the GameState
+     *                     implementation provided as input may vary, depending if
+     *                     the application has or hasn't been started headless.
+     */
+    @Override
+    public synchronized void run(GameState initialState) {
+<span class="nc bnc" id="L392" title="All 2 branches missed.">        Preconditions.checkState(!running);</span>
+<span class="nc" id="L393">        running = true;</span>
+<span class="nc" id="L394">        initialize();</span>
+<span class="nc" id="L395">        changeStatus(StandardGameStatus.RUNNING);</span>
+
+        try {
+<span class="nc" id="L398">            rootContext.put(GameEngine.class, this);</span>
+<span class="nc" id="L399">            changeState(initialState);</span>
+
+<span class="nc" id="L401">            mainLoop(); // -THE- MAIN LOOP. Most of the application time and resources are spent here.</span>
+<span class="nc" id="L402">        } catch (Throwable e) {</span>
+<span class="nc" id="L403">            logger.error(&quot;Uncaught exception, attempting clean game shutdown&quot;, e);</span>
+<span class="nc" id="L404">            throw e;</span>
+        } finally {
+            try {
+<span class="nc" id="L407">                cleanup();</span>
+<span class="nc" id="L408">            } catch (RuntimeException t) {</span>
+<span class="nc" id="L409">                logger.error(&quot;Clean game shutdown after an uncaught exception failed&quot;, t);</span>
+<span class="nc" id="L410">            }</span>
+<span class="nc" id="L411">            running = false;</span>
+<span class="nc" id="L412">            shutdownRequested = false;</span>
+<span class="nc" id="L413">            changeStatus(StandardGameStatus.UNSTARTED);</span>
+        }
+<span class="nc" id="L415">    }</span>
+
+    /**
+     * The main loop runs until the EngineState is set back to INITIALIZED by shutdown()
+     * or until the OS requests the application's window to be closed. Engine cleanup
+     * and disposal occur afterwards.
+     */
+    private void mainLoop() {
+<span class="nc" id="L423">        PerformanceMonitor.startActivity(&quot;Other&quot;);</span>
+        // MAIN GAME LOOP
+<span class="nc bnc" id="L425" title="All 2 branches missed.">        while (tick()) {</span>
+            /* do nothing */
+        }
+<span class="nc" id="L428">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L429">    }</span>
+
+    /**
+     * Runs a single &quot;tick&quot; of the engine
+     * @return true if the loop requesting a tick should continue running
+     */
+    public boolean tick() {
+<span class="nc bnc" id="L436" title="All 2 branches missed.">        if (shutdownRequested) {</span>
+<span class="nc" id="L437">            return false;</span>
+        }
+
+<span class="nc" id="L440">        assetTypeManager.reloadChangedOnDisk();</span>
+
+<span class="nc" id="L442">        processPendingState();</span>
+
+<span class="nc bnc" id="L444" title="All 2 branches missed.">        if (currentState == null) {</span>
+<span class="nc" id="L445">            shutdown();</span>
+<span class="nc" id="L446">            return false;</span>
+        }
+
+<span class="nc" id="L449">        Iterator&lt;Float&gt; updateCycles = timeSubsystem.getEngineTime().tick();</span>
+<span class="nc" id="L450">        CoreRegistry.setContext(currentState.getContext());</span>
+<span class="nc" id="L451">        rootContext.get(NetworkSystem.class).setContext(currentState.getContext());</span>
+
+<span class="nc bnc" id="L453" title="All 2 branches missed.">        for (EngineSubsystem subsystem : allSubsystems) {</span>
+<span class="nc" id="L454">            try (Activity ignored = PerformanceMonitor.startActivity(subsystem.getName() + &quot; PreUpdate&quot;)) {</span>
+<span class="nc" id="L455">                subsystem.preUpdate(currentState, timeSubsystem.getEngineTime().getRealDelta());</span>
+            }
+<span class="nc" id="L457">        }</span>
+
+<span class="nc bnc" id="L459" title="All 2 branches missed.">        while (updateCycles.hasNext()) {</span>
+<span class="nc" id="L460">            float updateDelta = updateCycles.next(); // gameTime gets updated here!</span>
+<span class="nc" id="L461">            try (Activity ignored = PerformanceMonitor.startActivity(&quot;Main Update&quot;)) {</span>
+<span class="nc" id="L462">                currentState.update(updateDelta);</span>
+            }
+<span class="nc" id="L464">        }</span>
+
+        // Waiting processes are set by modules via GameThread.a/synch() methods.
+<span class="nc" id="L467">        GameThread.processWaitingProcesses();</span>
+
+<span class="nc bnc" id="L469" title="All 2 branches missed.">        for (EngineSubsystem subsystem : getSubsystems()) {</span>
+<span class="nc" id="L470">            try (Activity ignored = PerformanceMonitor.startActivity(subsystem.getName() + &quot; Subsystem postUpdate&quot;)) {</span>
+<span class="nc" id="L471">                subsystem.postUpdate(currentState, timeSubsystem.getEngineTime().getRealDelta());</span>
+            }
+<span class="nc" id="L473">        }</span>
+<span class="nc" id="L474">        assetTypeManager.disposedUnusedAssets();</span>
+
+<span class="nc" id="L476">        PerformanceMonitor.rollCycle();</span>
+<span class="nc" id="L477">        PerformanceMonitor.startActivity(&quot;Other&quot;);</span>
+<span class="nc" id="L478">        return true;</span>
+    }
+
+    public void cleanup() {
+<span class="nc" id="L482">        logger.info(&quot;Shutting down Terasology...&quot;);</span>
+<span class="nc" id="L483">        changeStatus(StandardGameStatus.SHUTTING_DOWN);</span>
+
+<span class="nc bnc" id="L485" title="All 2 branches missed.">        if (currentState != null) {</span>
+<span class="nc" id="L486">            currentState.dispose(true);</span>
+<span class="nc" id="L487">            currentState = null;</span>
+        }
+
+<span class="nc" id="L490">        Iterator&lt;EngineSubsystem&gt; preshutdownIter = allSubsystems.descendingIterator();</span>
+<span class="nc bnc" id="L491" title="All 2 branches missed.">        while (preshutdownIter.hasNext()) {</span>
+<span class="nc" id="L492">            EngineSubsystem subsystem = preshutdownIter.next();</span>
+            try {
+<span class="nc" id="L494">                subsystem.preShutdown();</span>
+<span class="nc" id="L495">            } catch (RuntimeException e) {</span>
+<span class="nc" id="L496">                logger.error(&quot;Error preparing to shutdown {} subsystem&quot;, subsystem.getName(), e);</span>
+<span class="nc" id="L497">            }</span>
+<span class="nc" id="L498">        }</span>
+
+<span class="nc" id="L500">        Iterator&lt;EngineSubsystem&gt; shutdownIter = allSubsystems.descendingIterator();</span>
+<span class="nc bnc" id="L501" title="All 2 branches missed.">        while (shutdownIter.hasNext()) {</span>
+<span class="nc" id="L502">            EngineSubsystem subsystem = shutdownIter.next();</span>
+            try {
+<span class="nc" id="L504">                subsystem.shutdown();</span>
+<span class="nc" id="L505">            } catch (RuntimeException e) {</span>
+<span class="nc" id="L506">                logger.error(&quot;Error shutting down {} subsystem&quot;, subsystem.getName(), e);</span>
+<span class="nc" id="L507">            }</span>
+<span class="nc" id="L508">        }</span>
+<span class="nc" id="L509">    }</span>
+
+    /**
+     * Causes the main loop to stop at the end of the current frame, cleanly ending
+     * the current GameState, all running task threads and disposing subsystems.
+     */
+    @Override
+    public void shutdown() {
+<span class="nc" id="L517">        shutdownRequested = true;</span>
+<span class="nc" id="L518">    }</span>
+
+    /**
+     * Changes the game state, i.e. to switch from the MainMenu to Ingame via Loading screen
+     * (each is a GameState). The change can be immediate, if there is no current game
+     * state set, or scheduled, when a current state exists and the new state is stored as
+     * pending. That been said, scheduled changes occurs in the main loop through the call
+     * processStateChanges(). As such, from a user perspective in normal circumstances,
+     * scheduled changes are likely to be perceived as immediate.
+     */
+    @Override
+    public void changeState(GameState newState) {
+<span class="nc bnc" id="L530" title="All 2 branches missed.">        if (currentState != null) {</span>
+<span class="nc" id="L531">            pendingState = newState;    // scheduled change</span>
+        } else {
+<span class="nc" id="L533">            switchState(newState);      // immediate change</span>
+        }
+<span class="nc" id="L535">    }</span>
+
+    private void processPendingState() {
+<span class="nc bnc" id="L538" title="All 2 branches missed.">        if (pendingState != null) {</span>
+<span class="nc" id="L539">            switchState(pendingState);</span>
+<span class="nc" id="L540">            pendingState = null;</span>
+        }
+<span class="nc" id="L542">    }</span>
+
+    private void switchState(GameState newState) {
+<span class="nc bnc" id="L545" title="All 2 branches missed.">        if (currentState != null) {</span>
+<span class="nc" id="L546">            currentState.dispose();</span>
+        }
+<span class="nc" id="L548">        currentState = newState;</span>
+<span class="nc" id="L549">        LoggingContext.setGameState(newState);</span>
+<span class="nc" id="L550">        newState.init(this);</span>
+<span class="nc" id="L551">        stateChangeSubscribers.forEach(StateChangeSubscriber::onStateChange);</span>
+<span class="nc" id="L552">        InputSystem inputSystem = rootContext.get(InputSystem.class);</span>
+<span class="nc" id="L553">        inputSystem.drainQueues();</span>
+<span class="nc" id="L554">    }</span>
+
+    @Override
+    public boolean hasPendingState() {
+<span class="nc bnc" id="L558" title="All 2 branches missed.">        return pendingState != null;</span>
+    }
+
+    @Override
+    public GameState getState() {
+<span class="nc" id="L563">        return currentState;</span>
+    }
+
+    @Override
+    public boolean isRunning() {
+<span class="nc" id="L568">        return running;</span>
+    }
+
+    public Iterable&lt;EngineSubsystem&gt; getSubsystems() {
+<span class="nc" id="L572">        return allSubsystems;</span>
+    }
+
+    @Override
+    public void subscribeToStateChange(StateChangeSubscriber subscriber) {
+<span class="nc" id="L577">        stateChangeSubscribers.add(subscriber);</span>
+<span class="nc" id="L578">    }</span>
+
+    @Override
+    public void unsubscribeToStateChange(StateChangeSubscriber subscriber) {
+<span class="nc" id="L582">        stateChangeSubscribers.remove(subscriber);</span>
+<span class="nc" id="L583">    }</span>
+
+    @Override
+    public Context createChildContext() {
+<span class="nc" id="L587">        return new ContextImpl(rootContext);</span>
+    }
+
+    /**
+     * Allows it to obtain objects directly from the context of the game engine. It exists only for situations in
+     * which no child context exists yet. If there is a child context then it automatically contains the objects of
+     * the engine context. Thus normal code should just work with the (child) context that is available to it
+     * instead of using this method.
+     *
+     * @return a object directly from the context of the game engine
+     */
+    public &lt;T&gt; T getFromEngineContext(Class&lt;? extends T&gt; type) {
+<span class="nc" id="L599">        return rootContext.get(type);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

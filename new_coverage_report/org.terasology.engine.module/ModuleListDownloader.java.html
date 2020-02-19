@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModuleListDownloader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.module</a> &gt; <span class="el_source">ModuleListDownloader.java</span></div><h1>ModuleListDownloader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.engine.module;
+
+import com.google.gson.stream.JsonReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.module.ModuleMetadata;
+import org.terasology.module.ModuleMetadataJsonAdapter;
+import org.terasology.module.ModuleRegistry;
+import org.terasology.module.TableModuleRegistry;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.util.concurrent.Callable;
+
+/**
+ * Downloads module meta-info from a given URL.
+ */
+public class ModuleListDownloader implements Callable&lt;ModuleRegistry&gt; {
+
+<span class="fc" id="L38">    private static final Logger logger = LoggerFactory.getLogger(ModuleListDownloader.class);</span>
+
+<span class="fc" id="L40">    private final ModuleMetadataJsonAdapter metaReader = new ModuleMetadataJsonAdapter();</span>
+
+    private final String serverAddress;
+
+<span class="fc" id="L44">    ModuleListDownloader(String serverAddress) {</span>
+<span class="fc" id="L45">        this.serverAddress = serverAddress;</span>
+
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        for (RemoteModuleExtension ext : RemoteModuleExtension.values()) {</span>
+<span class="fc" id="L48">            metaReader.registerExtension(ext.getKey(), ext.getValueType());</span>
+        }
+<span class="fc" id="L50">    }</span>
+
+    @Override
+    public ModuleRegistry call() throws IOException {
+<span class="nc" id="L54">        logger.info(&quot;Downloading modules ..&quot;);</span>
+
+<span class="nc" id="L56">        TableModuleRegistry modules = new TableModuleRegistry();</span>
+<span class="nc" id="L57">        URL url = new URL(&quot;http&quot;, serverAddress, &quot;/modules/list/latest&quot;);</span>
+<span class="nc" id="L58">        try (JsonReader reader = new JsonReader(new InputStreamReader(url.openStream(), TerasologyConstants.CHARSET))) {</span>
+
+<span class="nc" id="L60">            logger.info(&quot;Parsing content ..&quot;);</span>
+
+<span class="nc" id="L62">            reader.beginArray();</span>
+
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            while (reader.hasNext()) {</span>
+<span class="nc" id="L65">                ModuleMetadata meta = metaReader.read(reader);</span>
+<span class="nc" id="L66">                logger.debug(&quot;Read module {} - {}&quot;, meta.getId(), meta.getVersion());</span>
+<span class="nc" id="L67">                RemoteModule remoteModule = new RemoteModule(meta);</span>
+<span class="nc" id="L68">                modules.add(remoteModule);</span>
+<span class="nc" id="L69">            }</span>
+
+<span class="nc" id="L71">            reader.endArray();</span>
+
+<span class="nc" id="L73">            int count = modules.size();</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            logger.info(String.format(&quot;Retrieved %d %s&quot;, count, (count == 1) ? &quot;entry&quot; : &quot;entries&quot;));</span>
+        }
+<span class="nc" id="L76">        return modules;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

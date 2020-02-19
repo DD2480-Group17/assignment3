@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TeraDenseArray4Bit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.blockdata</a> &gt; <span class="el_source">TeraDenseArray4Bit.java</span></div><h1>TeraDenseArray4Bit.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.chunks.blockdata;
+
+import com.google.common.base.Preconditions;
+import org.terasology.world.chunks.deflate.TeraVisitingDeflator;
+
+
+/**
+ * TeraDenseArray4Bit implements a dense array with elements of 4 bit size.
+ * Its elements are in the range 0 - 15 and it increases memory efficiency by storing two elements per byte.
+ *
+ */
+public final class TeraDenseArray4Bit extends TeraDenseArrayByte {
+
+    public TeraDenseArray4Bit() {
+<span class="nc" id="L31">        super();</span>
+<span class="nc" id="L32">    }</span>
+
+    public TeraDenseArray4Bit(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L35">        super(sizeX, sizeY, sizeZ);</span>
+<span class="nc" id="L36">    }</span>
+
+    public TeraDenseArray4Bit(int sizeX, int sizeY, int sizeZ, byte[] data) {
+<span class="nc" id="L39">        super(sizeX, sizeY, sizeZ, data);</span>
+<span class="nc" id="L40">    }</span>
+
+    public TeraDenseArray4Bit(TeraArray in) {
+<span class="nc" id="L43">        super(in);</span>
+<span class="nc" id="L44">    }</span>
+
+    @Override
+    protected TeraArray createDense(byte[] arrayData) {
+<span class="nc" id="L48">        return new TeraDenseArray4Bit(getSizeX(), getSizeY(), getSizeZ(), arrayData);</span>
+    }
+
+    @Override
+    protected int rowSize() {
+<span class="nc" id="L53">        return getSizeXZHalf();</span>
+    }
+
+    @Override
+    public TeraArray deflate(TeraVisitingDeflator deflator) {
+<span class="nc" id="L58">        return Preconditions.checkNotNull(deflator).deflateDenseArray4Bit(data, rowSize(), getSizeX(), getSizeY(), getSizeZ());</span>
+    }
+
+    @Override
+    public int getElementSizeInBits() {
+<span class="nc" id="L63">        return 4;</span>
+    }
+
+    @Override
+    public int get(int x, int y, int z) {
+<span class="nc" id="L68">        int row = y * getSizeXZHalf();</span>
+<span class="nc" id="L69">        int pos = pos(x, z);</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        if (pos &lt; getSizeXZHalf()) {</span>
+<span class="nc" id="L71">            return TeraArrayUtils.getHi(data[row + pos]);</span>
+        }
+<span class="nc" id="L73">        pos = pos - getSizeXZHalf();</span>
+<span class="nc" id="L74">        return TeraArrayUtils.getLo(data[row + pos]);</span>
+    }
+
+    @Override
+    public int set(int x, int y, int z, int value) {
+<span class="nc" id="L79">        int row = y * getSizeXZHalf();</span>
+<span class="nc" id="L80">        int pos = pos(x, z);</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (pos &lt; getSizeXZHalf()) {</span>
+<span class="nc" id="L82">            byte raw = data[row + pos];</span>
+<span class="nc" id="L83">            byte old = TeraArrayUtils.getHi(raw);</span>
+<span class="nc" id="L84">            data[row + pos] = TeraArrayUtils.setHi(raw, value);</span>
+<span class="nc" id="L85">            return old;</span>
+        }
+<span class="nc" id="L87">        pos = pos - getSizeXZHalf();</span>
+<span class="nc" id="L88">        byte raw = data[row + pos];</span>
+<span class="nc" id="L89">        byte old = TeraArrayUtils.getLo(raw);</span>
+<span class="nc" id="L90">        data[row + pos] = TeraArrayUtils.setLo(raw, value);</span>
+<span class="nc" id="L91">        return old;</span>
+    }
+
+    @Override
+    public boolean set(int x, int y, int z, int value, int expected) {
+<span class="nc" id="L96">        int row = y * getSizeXZHalf();</span>
+<span class="nc" id="L97">        int pos = pos(x, z);</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (pos &lt; getSizeXZHalf()) {</span>
+<span class="nc" id="L99">            byte raw = data[row + pos];</span>
+<span class="nc" id="L100">            byte old = TeraArrayUtils.getHi(raw);</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">            if (old == expected) {</span>
+<span class="nc" id="L102">                data[row + pos] = TeraArrayUtils.setHi(raw, value);</span>
+<span class="nc" id="L103">                return true;</span>
+            }
+<span class="nc" id="L105">            return false;</span>
+        }
+<span class="nc" id="L107">        pos = pos - getSizeXZHalf();</span>
+<span class="nc" id="L108">        byte raw = data[row + pos];</span>
+<span class="nc" id="L109">        byte old = TeraArrayUtils.getLo(raw);</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        if (old == expected) {</span>
+<span class="nc" id="L111">            data[row + pos] = TeraArrayUtils.setLo(raw, value);</span>
+<span class="nc" id="L112">            return true;</span>
+        }
+<span class="nc" id="L114">        return false;</span>
+    }
+
+<span class="nc" id="L117">    public static class SerializationHandler extends TeraDenseArrayByte.SerializationHandler&lt;TeraDenseArray4Bit&gt; {</span>
+
+        @Override
+        public boolean canHandle(Class&lt;?&gt; clazz) {
+<span class="nc" id="L121">            return TeraDenseArray4Bit.class.equals(clazz);</span>
+        }
+
+        @Override
+        protected TeraDenseArray4Bit createArray(int sizeX, int sizeY, int sizeZ, byte[] data) {
+<span class="nc bnc" id="L126" title="All 2 branches missed.">            if (data == null) {</span>
+<span class="nc" id="L127">                return new TeraDenseArray4Bit(sizeX, sizeY, sizeZ);</span>
+            } else {
+<span class="nc" id="L129">                return new TeraDenseArray4Bit(sizeX, sizeY, sizeZ, data);</span>
+            }
+        }
+    }
+
+<span class="nc" id="L134">    public static class Factory implements TeraArray.Factory&lt;TeraDenseArray4Bit&gt; {</span>
+
+        @Override
+        public Class&lt;TeraDenseArray4Bit&gt; getArrayClass() {
+<span class="nc" id="L138">            return TeraDenseArray4Bit.class;</span>
+        }
+
+        @Override
+        public SerializationHandler createSerializationHandler() {
+<span class="nc" id="L143">            return new SerializationHandler();</span>
+        }
+
+        @Override
+        public TeraDenseArray4Bit create() {
+<span class="nc" id="L148">            return new TeraDenseArray4Bit();</span>
+        }
+
+        @Override
+        public TeraDenseArray4Bit create(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L153">            return new TeraDenseArray4Bit(sizeX, sizeY, sizeZ);</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

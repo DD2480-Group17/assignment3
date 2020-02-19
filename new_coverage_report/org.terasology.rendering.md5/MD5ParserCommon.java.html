@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MD5ParserCommon.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.md5</a> &gt; <span class="el_source">MD5ParserCommon.java</span></div><h1>MD5ParserCommon.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.md5;
+
+import org.terasology.math.geom.Matrix3f;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+
+/**
+ */
+public final class MD5ParserCommon {
+
+    public static final Matrix3f CORRECTION_MATRIX;
+    public static final Quat4f CORRECTION_QUATERNION;
+
+    private MD5ParserCommon() {
+    }
+
+    static {
+<span class="nc" id="L38">        CORRECTION_MATRIX = new Matrix3f(-1, 0, 0, 0, 0, 1, 0, 1, 0);</span>
+<span class="nc" id="L39">        CORRECTION_QUATERNION = new Quat4f(0, 0, 0, 1);</span>
+<span class="nc" id="L40">        CORRECTION_QUATERNION.set(CORRECTION_MATRIX);</span>
+<span class="nc" id="L41">    }</span>
+
+    public static Vector2f readUV(String u, String v) throws NumberFormatException {
+<span class="nc" id="L44">        return new Vector2f(Float.parseFloat(u), Float.parseFloat(v));</span>
+    }
+
+    public static Vector3f readVector3f(String x, String y, String z) throws NumberFormatException {
+<span class="nc" id="L48">        return new Vector3f(Float.parseFloat(x), Float.parseFloat(y), Float.parseFloat(z));</span>
+    }
+
+    public static Vector3f readVector3fAndCorrect(String x, String y, String z) throws NumberFormatException {
+<span class="nc" id="L52">        Vector3f result = new Vector3f(Float.parseFloat(x), Float.parseFloat(y), Float.parseFloat(z));</span>
+<span class="nc" id="L53">        CORRECTION_MATRIX.transform(result);</span>
+<span class="nc" id="L54">        return result;</span>
+    }
+
+    public static Quat4f readQuat4f(String xValue, String yValue, String zValue) throws NumberFormatException {
+<span class="nc" id="L58">        float x = Float.parseFloat(xValue);</span>
+<span class="nc" id="L59">        float y = Float.parseFloat(yValue);</span>
+<span class="nc" id="L60">        float z = Float.parseFloat(zValue);</span>
+<span class="nc" id="L61">        return correctQuat4f(completeQuat4f(x, y, z));</span>
+    }
+
+    public static Quat4f completeQuat4f(float x, float y, float z) {
+<span class="nc" id="L65">        float t = 1.0f - (x * x) - (y * y) - (z * z);</span>
+<span class="nc" id="L66">        float w = 0;</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (t &gt; 0.0f) {</span>
+<span class="nc" id="L68">            w = (float) -Math.sqrt(t);</span>
+        }
+<span class="nc" id="L70">        Quat4f result = new Quat4f(x, y, z, w);</span>
+<span class="nc" id="L71">        result.normalize();</span>
+<span class="nc" id="L72">        return result;</span>
+    }
+
+    public static Quat4f correctQuat4f(Quat4f rot) {
+<span class="nc" id="L76">        Quat4f result = new Quat4f(CORRECTION_QUATERNION);</span>
+<span class="nc" id="L77">        result.mul(rot);</span>
+<span class="nc" id="L78">        return result;</span>
+    }
+
+    public static Vector3f correctOffset(Vector3f offset) {
+<span class="nc" id="L82">        return CORRECTION_QUATERNION.rotate(offset, new Vector3f());</span>
+    }
+
+
+    public static String readToLine(BufferedReader reader, String startsWith) throws IOException {
+<span class="nc" id="L87">        String line = readNextLine(reader);</span>
+<span class="nc bnc" id="L88" title="All 4 branches missed.">        while (line != null &amp;&amp; !line.trim().startsWith(startsWith)) {</span>
+<span class="nc" id="L89">            line = readNextLine(reader);</span>
+        }
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (line == null) {</span>
+<span class="nc" id="L92">            throw new IOException(&quot;Failed to find expected line: \&quot;&quot; + startsWith + &quot;\&quot;&quot;);</span>
+        }
+<span class="nc" id="L94">        return line;</span>
+    }
+
+    public static String readNextLine(BufferedReader reader) throws IOException {
+<span class="nc" id="L98">        String line = reader.readLine();</span>
+<span class="nc bnc" id="L99" title="All 6 branches missed.">        while (line != null &amp;&amp; (line.isEmpty() || line.trim().startsWith(&quot;//&quot;))) {</span>
+<span class="nc" id="L100">            line = reader.readLine();</span>
+        }
+<span class="nc" id="L102">        return line;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

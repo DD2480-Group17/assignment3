@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JInputControllerDevice.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.input.lwjgl</a> &gt; <span class="el_source">JInputControllerDevice.java</span></div><h1>JInputControllerDevice.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.input.lwjgl;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import net.java.games.input.Component;
+import net.java.games.input.Component.Identifier;
+import net.java.games.input.Component.Identifier.Button;
+import net.java.games.input.Controller;
+import net.java.games.input.Controller.Type;
+import net.java.games.input.ControllerEnvironment;
+import net.java.games.input.ControllerEvent;
+import net.java.games.input.ControllerListener;
+import net.java.games.input.Event;
+import net.java.games.input.EventQueue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.ControllerConfig;
+import org.terasology.config.ControllerConfig.ControllerInfo;
+import org.terasology.input.ButtonState;
+import org.terasology.input.ControllerDevice;
+import org.terasology.input.ControllerId;
+import org.terasology.input.Input;
+import org.terasology.input.InputType;
+import org.terasology.input.device.ControllerAction;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+/**
+ * Retrieves information on connected controllers through JInput.
+ */
+public class JInputControllerDevice implements ControllerDevice {
+
+<span class="nc" id="L56">    private static final Logger logger = LoggerFactory.getLogger(JInputControllerDevice.class);</span>
+
+<span class="nc" id="L58">    private final Set&lt;Type&gt; filter = ImmutableSet.of(Type.KEYBOARD, Type.MOUSE, Type.UNKNOWN);</span>
+
+<span class="nc" id="L60">    private final Map&lt;Identifier, Integer&gt; buttonMap = ImmutableMap.&lt;Identifier, Integer&gt;builder()</span>
+<span class="nc" id="L61">            .put(Button._0, ControllerId.ZERO)</span>
+<span class="nc" id="L62">            .put(Button._1, ControllerId.ONE)</span>
+<span class="nc" id="L63">            .put(Button._2, ControllerId.TWO)</span>
+<span class="nc" id="L64">            .put(Button._3, ControllerId.THREE)</span>
+<span class="nc" id="L65">            .put(Button._4, ControllerId.FOUR)</span>
+<span class="nc" id="L66">            .put(Button._5, ControllerId.FIVE)</span>
+<span class="nc" id="L67">            .put(Button._6, ControllerId.SIX)</span>
+<span class="nc" id="L68">            .put(Button._7, ControllerId.SEVEN)</span>
+<span class="nc" id="L69">            .put(Button._8, ControllerId.EIGHT)</span>
+<span class="nc" id="L70">            .put(Button._9, ControllerId.NINE)</span>
+<span class="nc" id="L71">            .put(Button._10, ControllerId.TEN)</span>
+<span class="nc" id="L72">            .put(Button._11, ControllerId.ELEVEN)</span>
+<span class="nc" id="L73">            .build();</span>
+
+    private ControllerConfig config;
+    /* MUST be a CopyOnWriteArrayList! Or else you just get crashes when unplugging controllers. */
+<span class="nc" id="L77">    private final List&lt;Controller&gt; controllers = new CopyOnWriteArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L79">    public JInputControllerDevice(ControllerConfig config) {</span>
+<span class="nc" id="L80">        this.config = config;</span>
+<span class="nc" id="L81">        ControllerEnvironment env = ControllerEnvironment.getDefaultEnvironment();</span>
+
+        // Unfortunately, no existing implementation
+<span class="nc" id="L84">        env.addControllerListener(new ControllerListener() {</span>
+
+            @Override
+            public void controllerRemoved(ControllerEvent ev) {
+<span class="nc" id="L88">                Controller controller = ev.getController();</span>
+<span class="nc" id="L89">                logger.info(&quot;Controller disconnected: &quot; + controller.getName());</span>
+<span class="nc" id="L90">                removeController(controller);</span>
+<span class="nc" id="L91">            }</span>
+
+            @Override
+            public void controllerAdded(ControllerEvent ev) {
+<span class="nc" id="L95">                Controller controller = ev.getController();</span>
+<span class="nc" id="L96">                logger.info(&quot;Controller connected: &quot; + controller.getName());</span>
+<span class="nc" id="L97">                addController(controller);</span>
+<span class="nc" id="L98">            }</span>
+        });
+
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        for (Controller c : env.getControllers()) {</span>
+<span class="nc" id="L102">            addController(c);</span>
+        }
+<span class="nc" id="L104">    }</span>
+
+    @Override
+    public List&lt;String&gt; getControllers() {
+<span class="nc" id="L108">        List&lt;String&gt; ids = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        for (Controller controller : controllers) {</span>
+<span class="nc" id="L111">            ids.add(controller.getName());</span>
+<span class="nc" id="L112">        }</span>
+
+<span class="nc" id="L114">        return ids;</span>
+    }
+
+    @Override
+    public Queue&lt;ControllerAction&gt; getInputQueue() {
+<span class="nc" id="L119">        Queue&lt;ControllerAction&gt; result = new ArrayDeque&lt;&gt;();</span>
+<span class="nc" id="L120">        Event event = new Event();</span>
+
+<span class="nc" id="L122">        Iterator&lt;Controller&gt; it = controllers.iterator();</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        while (it.hasNext()) {</span>
+<span class="nc" id="L124">            Controller c = it.next();</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">            if (c.poll()) {</span>
+<span class="nc" id="L126">                EventQueue queue = c.getEventQueue();</span>
+
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                while (queue.getNextEvent(event)) {</span>
+<span class="nc" id="L129">                    ControllerAction action = convertEvent(c, event);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                    if (action != null) {</span>
+<span class="nc" id="L131">                        result.add(action);</span>
+                    }
+<span class="nc" id="L133">                }</span>
+<span class="nc" id="L134">            } else {</span>
+<span class="nc" id="L135">                removeController(c);</span>
+            }
+<span class="nc" id="L137">        }</span>
+
+<span class="nc" id="L139">        return result;</span>
+    }
+
+    private ControllerAction convertEvent(Controller c, Event event) {
+<span class="nc" id="L143">        Component comp = event.getComponent();</span>
+<span class="nc" id="L144">        Identifier id = comp.getIdentifier();</span>
+<span class="nc" id="L145">        float axisValue = comp.getPollData();</span>
+        Input input;
+<span class="nc" id="L147">        ButtonState state = ButtonState.UP;</span>
+
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        if (id instanceof Identifier.Button) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">            state = event.getValue() != 0 ? ButtonState.DOWN : ButtonState.UP;</span>
+<span class="nc" id="L151">            Integer buttonId = buttonMap.get(id);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            if (buttonId == null) {</span>
+<span class="nc" id="L153">                return null; //button not registered</span>
+            }
+<span class="nc" id="L155">            input = InputType.CONTROLLER_BUTTON.getInput(buttonId);</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        } else if (id instanceof Identifier.Axis) {</span>
+<span class="nc" id="L157">            ControllerInfo info = config.getController(c.getName());</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">            if (id.equals(Identifier.Axis.X)) {</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">                if (Math.abs(axisValue) &lt; info.getMovementDeadZone()) {</span>
+<span class="nc" id="L160">                    axisValue = 0;</span>
+                }
+<span class="nc" id="L162">                input = InputType.CONTROLLER_AXIS.getInput(ControllerId.X_AXIS);</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">            } else if (id.equals(Identifier.Axis.Y)) {</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                if (Math.abs(axisValue) &lt; info.getMovementDeadZone()) {</span>
+<span class="nc" id="L165">                    axisValue = 0;</span>
+                }
+<span class="nc" id="L167">                input = InputType.CONTROLLER_AXIS.getInput(ControllerId.Y_AXIS);</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">            } else if (id.equals(Identifier.Axis.Z)) {</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                if (Math.abs(axisValue) &lt; info.getMovementDeadZone()) {</span>
+<span class="nc" id="L170">                    axisValue = 0;</span>
+                }
+<span class="nc" id="L172">                input = InputType.CONTROLLER_AXIS.getInput(ControllerId.Z_AXIS);</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            } else if (id.equals(Identifier.Axis.RX)) {</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                if (Math.abs(axisValue) &lt; info.getRotationDeadZone()) {</span>
+<span class="nc" id="L175">                    axisValue = 0;</span>
+                }
+<span class="nc" id="L177">                input = InputType.CONTROLLER_AXIS.getInput(ControllerId.RX_AXIS);</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">            } else if (id.equals(Identifier.Axis.RY)) {</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">                if (Math.abs(axisValue) &lt; info.getRotationDeadZone()) {</span>
+<span class="nc" id="L180">                    axisValue = 0;</span>
+                }
+<span class="nc" id="L182">                input = InputType.CONTROLLER_AXIS.getInput(ControllerId.RY_AXIS);</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            } else if (id.equals(Identifier.Axis.POV)) {</span>
+                // the poll data float value is actually an ID in this case
+<span class="nc bnc" id="L185" title="All 4 branches missed.">                boolean isX = (axisValue == Component.POV.LEFT) || (axisValue == Component.POV.RIGHT);</span>
+<span class="nc bnc" id="L186" title="All 4 branches missed.">                boolean isY = (axisValue == Component.POV.UP) || (axisValue == Component.POV.DOWN);</span>
+<span class="nc bnc" id="L187" title="All 4 branches missed.">                if (isX || isY) {</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">                    input = InputType.CONTROLLER_AXIS.getInput(isX ? ControllerId.POVX_AXIS : ControllerId.POVY_AXIS);</span>
+<span class="nc bnc" id="L189" title="All 4 branches missed.">                    if ((axisValue == Component.POV.UP) || (axisValue == Component.POV.LEFT)) {</span>
+<span class="nc" id="L190">                         axisValue = -1;</span>
+                    }
+<span class="nc bnc" id="L192" title="All 4 branches missed.">                    if ((axisValue == Component.POV.DOWN) || (axisValue == Component.POV.RIGHT)) {</span>
+<span class="nc" id="L193">                        axisValue = 1;</span>
+                    }
+                } else {
+<span class="nc" id="L196">                    return null;  // TODO: handle 8-button POVs</span>
+                }
+<span class="nc" id="L198">            } else {</span>
+<span class="nc" id="L199">                return null; // unrecognized axis</span>
+            }
+<span class="nc" id="L201">        } else {</span>
+<span class="nc" id="L202">            return null; // unrecognized id (e.g. Identifier.Key)</span>
+        }
+
+<span class="nc" id="L205">        return new ControllerAction(input, c.getName(), state, axisValue);</span>
+    }
+
+    /**
+     * Removes a controller. Also works while iterating over the list.
+     * @param controller the controller to remove
+     */
+    private void removeController(Controller controller) {
+<span class="nc" id="L213">        controllers.remove(controller);</span>
+<span class="nc" id="L214">        logger.info(&quot;Removed controller: &quot; + controller.getName());</span>
+<span class="nc" id="L215">    }</span>
+
+    private void addController(Controller c) {
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if (filter.contains(c.getType())) {</span>
+<span class="nc" id="L219">            logger.debug(&quot;Ignoring controller: &quot; + c.getName());</span>
+<span class="nc" id="L220">            return;</span>
+        }
+
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        if (c.getControllers().length == 0) {</span>
+<span class="nc" id="L224">            controllers.add(c);</span>
+<span class="nc" id="L225">            logger.info(&quot;Registered controller: &quot; + c.getName());</span>
+        } else {
+<span class="nc bnc" id="L227" title="All 2 branches missed.">            for (Controller sub : c.getControllers()) {</span>
+<span class="nc" id="L228">                addController(sub);</span>
+            }
+        }
+<span class="nc" id="L231">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

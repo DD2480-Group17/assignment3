@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TextureAssetResolverTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.texture</a> &gt; <span class="el_source">TextureAssetResolverTest.java</span></div><h1>TextureAssetResolverTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.assets.texture;
+
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.rendering.nui.Color;
+import org.terasology.utilities.Assets;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.utilities.random.Random;
+
+import java.nio.ByteBuffer;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Tests texture asset resolvers.
+ */
+<span class="fc" id="L36">public class TextureAssetResolverTest extends TerasologyTestingEnvironment {</span>
+
+    @Test
+    public void testColorTextures() {
+
+<span class="fc" id="L41">        Random r = new FastRandom(123456);</span>
+
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        for (int i = 0; i &lt; 10; i++) {</span>
+<span class="fc" id="L44">            int rgba = r.nextInt();</span>
+<span class="fc" id="L45">            Color red = new Color(rgba);</span>
+<span class="fc" id="L46">            ResourceUrn textureUriForColor = TextureUtil.getTextureUriForColor(red);</span>
+<span class="fc" id="L47">            String simpleString = textureUriForColor.toString();</span>
+<span class="fc" id="L48">            Optional&lt;Texture&gt; tex = Assets.getTexture(simpleString);</span>
+<span class="fc" id="L49">            assertTrue(tex.isPresent());</span>
+<span class="fc" id="L50">            ByteBuffer dataBuffer = tex.get().getData().getBuffers()[0];</span>
+<span class="fc" id="L51">            int firstPixel = dataBuffer.asIntBuffer().get(0);</span>
+
+<span class="fc" id="L53">            assertEquals(rgba, firstPixel);</span>
+        }
+<span class="fc" id="L55">    }</span>
+
+    @Test
+    public void testNoiseTextures() {
+
+<span class="fc" id="L60">        int size = 256;</span>
+
+<span class="fc" id="L62">        ResourceUrn textureUriForWhiteNoise = TextureUtil.getTextureUriForWhiteNoise(size, 123354, 0, 255);</span>
+<span class="fc" id="L63">        String simpleString = textureUriForWhiteNoise.toString();</span>
+<span class="fc" id="L64">        Optional&lt;Texture&gt; tex = Assets.getTexture(simpleString);</span>
+
+<span class="fc" id="L66">        assertTrue(tex.isPresent());</span>
+<span class="fc" id="L67">        assertEquals(tex.get().getWidth(), size);</span>
+<span class="fc" id="L68">        assertEquals(tex.get().getHeight(), size);</span>
+<span class="fc" id="L69">    }</span>
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

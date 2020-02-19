@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Port.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.nui</a> &gt; <span class="el_source">Port.java</span></div><h1>Port.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.nui;
+
+import org.terasology.utilities.Assets;
+import org.terasology.math.geom.Rect2f;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+
+/**
+ * Represents a port at a RenderableNode. There are several types of ports:
+ * - InputPort (one per RenderableNode)
+ * - OutputPort (unlimited per RenderableNode, may be restricted by the type of the node)
+ * - InsertPort (&quot;virtual&quot; port, to allow connections placed between two existing ones)
+ * &lt;br&gt;&lt;br&gt;
+ * Input/Output ports may have a target. This is always of the opposite type.
+ * When setting a target to a port, the node of the InputPort is added to the child list of the node of the OutputPort.
+ *
+ */
+public abstract class Port extends CoreWidget {
+    protected RenderableNode node;
+    protected Rect2f rect;
+<span class="nc" id="L42">    private TextureRegion active = Assets.getTextureRegion(&quot;engine:checkboxChecked&quot;).get();</span>
+<span class="nc" id="L43">    private TextureRegion inactive = Assets.getTextureRegion(&quot;engine:checkbox&quot;).get();</span>
+
+<span class="nc" id="L45">    private InteractionListener connectListener = new BaseInteractionListener() {</span>
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc" id="L48">            node.getEditor().portClicked(Port.this);</span>
+<span class="nc" id="L49">            return true;</span>
+        }
+    };
+
+<span class="nc" id="L53">    protected Port(RenderableNode node) {</span>
+<span class="nc" id="L54">        this.node = node;</span>
+<span class="nc" id="L55">    }</span>
+
+    public int index() {
+<span class="nc" id="L58">        return node.getPortList().indexOfPort(this);</span>
+    }
+
+    public abstract void updateRect();
+
+    public RenderableNode getSourceNode() {
+<span class="nc" id="L64">        return node;</span>
+    }
+
+    public RenderableNode getTargetNode() {
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        return getTargetPort() != null ? getTargetPort().getSourceNode() : null;</span>
+    }
+
+    public abstract Port getTargetPort();
+
+    public boolean isInput() {
+<span class="nc" id="L74">        return false;</span>
+    }
+
+    public Rect2f getRect() {
+<span class="nc" id="L78">        return rect;</span>
+    }
+
+    public Vector2f mid() {
+<span class="nc" id="L82">        Vector2f mid = new Vector2f(rect.size());</span>
+<span class="nc" id="L83">        mid.scale(0.5f);</span>
+<span class="nc" id="L84">        mid.add(rect.min());</span>
+<span class="nc" id="L85">        return mid;</span>
+
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L91">        return getSourceNode() + &quot;[&quot; + index() + &quot;]&quot;;</span>
+    }
+
+    @Override
+    public boolean isVisible() {
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        return index() &lt; getSourceNode().getMaxChildren();</span>
+    }
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc" id="L101">        return sizeHint;</span>
+    }
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L106">        canvas.addInteractionRegion(connectListener);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (getTargetPort() != null) {</span>
+<span class="nc" id="L108">            canvas.drawTexture(active);</span>
+        } else {
+<span class="nc" id="L110">            canvas.drawTexture(inactive);</span>
+        }
+<span class="nc" id="L112">    }</span>
+
+    public static class OutputPort extends Port {
+
+        public OutputPort(RenderableNode renderableNode) {
+<span class="nc" id="L117">            super(renderableNode);</span>
+<span class="nc" id="L118">        }</span>
+
+        @Override
+        public void updateRect() {
+<span class="nc" id="L122">            this.rect = Rect2f.createFromMinAndSize(</span>
+<span class="nc" id="L123">                    index() + 0.4f,</span>
+                    4.05f,
+                    0.6f, 0.9f);
+<span class="nc" id="L126">        }</span>
+
+        public void setTarget(InputPort inputPort) {
+<span class="nc bnc" id="L129" title="All 2 branches missed.">            if (inputPort != null) {</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                if (inputPort.getTargetPort() != null) {</span>
+<span class="nc" id="L131">                    inputPort.getTargetPort().setTarget(null);</span>
+                }
+<span class="nc" id="L133">                node.withModel().setChild(index(), inputPort.getSourceNode());</span>
+            } else {
+<span class="nc" id="L135">                node.withModel().removeChild(index());</span>
+            }
+<span class="nc" id="L137">        }</span>
+
+        @Override
+        public InputPort getTargetPort() {
+<span class="nc" id="L141">            RenderableNode child = node.withModel().getChild(index());</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">            if (child != null) {</span>
+<span class="nc" id="L143">                return child.getInputPort();</span>
+            }
+<span class="nc" id="L145">            return null;</span>
+        }
+    }
+
+    public static class InsertOutputPort extends OutputPort {
+        public InsertOutputPort(RenderableNode renderableNode) {
+<span class="nc" id="L151">            super(renderableNode);</span>
+<span class="nc" id="L152">        }</span>
+
+        @Override
+        public void updateRect() {
+<span class="nc" id="L156">            this.rect = Rect2f.createFromMinAndSize(</span>
+<span class="nc" id="L157">                    index(),</span>
+                    4.05f,
+                    0.4f, 0.9f);
+<span class="nc" id="L160">        }</span>
+
+        @Override
+        public void setTarget(InputPort inputPort) {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">            if (inputPort != null) {</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                if (inputPort.getTargetPort() != null) {</span>
+<span class="nc" id="L166">                    inputPort.getTargetPort().setTarget(null);</span>
+                }
+<span class="nc" id="L168">                node.withModel().insertChild(index(), inputPort.getSourceNode());</span>
+            } else {
+<span class="nc" id="L170">                throw new IllegalStateException(&quot;Cannot remove target from an insert output port&quot;);</span>
+            }
+<span class="nc" id="L172">        }</span>
+
+        @Override
+        public boolean isVisible() {
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            return getSourceNode().getChildrenCount() &lt; getSourceNode().getMaxChildren();</span>
+        }
+
+        @Override
+        public InputPort getTargetPort() {
+<span class="nc" id="L181">            return null;</span>
+        }
+    }
+
+    public static class InputPort extends Port {
+        private OutputPort outputPort;
+
+        public InputPort(RenderableNode node) {
+<span class="nc" id="L189">            super(node);</span>
+<span class="nc" id="L190">        }</span>
+
+        @Override
+        public void updateRect() {
+<span class="nc" id="L194">            rect = Rect2f.createFromMinAndSize(4.5f, 0.05f, 1f, 1f);</span>
+<span class="nc" id="L195">        }</span>
+
+        public void setTarget(OutputPort port) {
+<span class="nc" id="L198">            this.outputPort = port;</span>
+<span class="nc" id="L199">        }</span>
+
+        @Override
+        public boolean isVisible() {
+<span class="nc" id="L203">            return true;</span>
+        }
+
+        @Override
+        public OutputPort getTargetPort() {
+<span class="nc" id="L208">            return outputPort;</span>
+        }
+
+        @Override
+        public boolean isInput() {
+<span class="nc" id="L213">            return true;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

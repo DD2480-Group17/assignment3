@@ -1,0 +1,494 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NUIEditorScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.editor.layers</a> &gt; <span class="el_source">NUIEditorScreen.java</span></div><h1>NUIEditorScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.editor.layers;
+
+import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
+import com.google.common.collect.Lists;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import com.google.gson.stream.JsonReader;
+import org.codehaus.plexus.util.ExceptionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.exceptions.InvalidUrnException;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.config.Config;
+import org.terasology.config.NUIEditorConfig;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.asset.UIElement;
+import org.terasology.rendering.nui.asset.UIFormat;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.editor.systems.NUIEditorSystem;
+import org.terasology.rendering.nui.editor.utils.NUIEditorItemRenderer;
+import org.terasology.rendering.nui.editor.utils.NUIEditorMenuTreeBuilder;
+import org.terasology.rendering.nui.editor.utils.NUIEditorNodeUtils;
+import org.terasology.rendering.nui.editor.utils.NUIEditorTextEntryBuilder;
+import org.terasology.rendering.nui.itemRendering.ToStringTextRenderer;
+import org.terasology.rendering.nui.widgets.JsonEditorTreeView;
+import org.terasology.rendering.nui.widgets.UIBox;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UIDropdownScrollable;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UITextEntry;
+import org.terasology.rendering.nui.widgets.treeView.JsonTree;
+import org.terasology.rendering.nui.widgets.treeView.JsonTreeConverter;
+import org.terasology.rendering.nui.widgets.treeView.JsonTreeValue;
+
+import javax.swing.JDialog;
+import javax.swing.JFileChooser;
+import javax.swing.LookAndFeel;
+import javax.swing.UIManager;
+import javax.swing.UnsupportedLookAndFeelException;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import java.awt.Component;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+/**
+ * The main NUI editor screen.
+ * Contains file selection, editing &amp; preview widgets.
+ */
+@SuppressWarnings(&quot;unchecked&quot;)
+<span class="nc" id="L80">public final class NUIEditorScreen extends AbstractEditorScreen {</span>
+
+<span class="nc" id="L82">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:nuiEditorScreen&quot;);</span>
+
+    // Editor widget identifiers.
+    private static final String AVAILABLE_ASSETS_ID = &quot;availableAssets&quot;;
+    private static final String EDITOR_TREE_VIEW_ID = &quot;editor&quot;;
+    private static final String SELECTED_SCREEN_ID = &quot;selectedScreen&quot;;
+    private static final String CREATE_NEW_SCREEN = &quot;New Screen&quot;;
+
+<span class="nc" id="L90">    private Logger logger = LoggerFactory.getLogger(NUIEditorScreen.class);</span>
+
+    /**
+     * Used to retrieve &amp; dispose of {@link UIElement} assets.
+     */
+    @In
+    private AssetManager assetManager;
+
+    /**
+     * Used to read from and write to {@link NUIEditorConfig}
+     */
+    @In
+    private Config config;
+
+    /**
+     * Used to toggle the editor screen on ESCAPE.
+     */
+    @In
+    private NUIEditorSystem nuiEditorSystem;
+
+    /**
+     * The box used to preview a NUI screen modified by the editor.
+     */
+    private UIBox selectedScreenBox;
+    /**
+     * The Urn of the currently edited asset.
+     */
+    private String selectedAsset;
+    /**
+     * The Urn of the asset that will be selected after a response to a user prompt.
+     */
+    private String selectedAssetPending;
+    /**
+     * The path to the currently selected asset. Null if no path for the asset exists.
+     */
+    private Path selectedAssetPath;
+    /**
+     * The widget used as an inline node editor.
+     */
+    private UITextEntry&lt;JsonTree&gt; inlineEditorEntry;
+    /**
+     * An alternative locale to be used for screen rendering.
+     */
+    private Locale alternativeLocale;
+
+    @Override
+    public void initialise() {
+        // Retrieve the widgets based on their identifiers.
+<span class="nc" id="L138">        UIDropdownScrollable&lt;String&gt; availableAssetDropdown = find(AVAILABLE_ASSETS_ID, UIDropdownScrollable.class);</span>
+<span class="nc" id="L139">        JsonEditorTreeView editor = find(EDITOR_TREE_VIEW_ID, JsonEditorTreeView.class);</span>
+<span class="nc" id="L140">        selectedScreenBox = find(SELECTED_SCREEN_ID, UIBox.class);</span>
+
+<span class="nc" id="L142">        super.setEditorSystem(nuiEditorSystem);</span>
+<span class="nc" id="L143">        super.setEditor(editor);</span>
+
+        // Populate the list of screens.
+<span class="nc" id="L146">        List&lt;String&gt; availableAssetList = Lists.newArrayList();</span>
+<span class="nc" id="L147">        availableAssetList.add(CREATE_NEW_SCREEN);</span>
+<span class="nc" id="L148">        availableAssetList.addAll(assetManager.getAvailableAssets(UIElement.class).stream().map(Object::toString).collect(Collectors.toList()));</span>
+<span class="nc" id="L149">        Collections.sort(availableAssetList);</span>
+
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        if (availableAssetDropdown != null) {</span>
+<span class="nc" id="L152">            availableAssetDropdown.setOptions(availableAssetList);</span>
+<span class="nc" id="L153">            availableAssetDropdown.bindSelection(new Binding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L156">                    return selectedAsset;</span>
+                }
+
+                @Override
+                public void set(String value) {
+                    // Construct a new screen tree (or de-serialize from an existing asset)
+<span class="nc" id="L162">                    selectedAssetPending = value;</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                    if (CREATE_NEW_SCREEN.equals(value)) {</span>
+<span class="nc" id="L164">                        selectedAssetPath = null;</span>
+<span class="nc" id="L165">                        resetState(NUIEditorNodeUtils.createNewScreen());</span>
+                    } else {
+<span class="nc" id="L167">                        selectAsset(new ResourceUrn(value));</span>
+                    }
+<span class="nc" id="L169">                }</span>
+            });
+        }
+
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (editor != null) {</span>
+<span class="nc" id="L174">            editor.subscribeTreeViewUpdate(() -&gt; {</span>
+<span class="nc" id="L175">                getEditor().addToHistory();</span>
+<span class="nc" id="L176">                resetPreviewWidget();</span>
+<span class="nc" id="L177">                updateConfig();</span>
+<span class="nc" id="L178">                setUnsavedChangesPresent(true);</span>
+<span class="nc" id="L179">                updateAutosave();</span>
+<span class="nc" id="L180">            });</span>
+
+<span class="nc" id="L182">            editor.setContextMenuTreeProducer(node -&gt; {</span>
+<span class="nc" id="L183">                NUIEditorMenuTreeBuilder nuiEditorMenuTreeBuilder = new NUIEditorMenuTreeBuilder();</span>
+<span class="nc" id="L184">                nuiEditorMenuTreeBuilder.setManager(getManager());</span>
+<span class="nc" id="L185">                nuiEditorMenuTreeBuilder.putConsumer(NUIEditorMenuTreeBuilder.OPTION_COPY, getEditor()::copyNode);</span>
+<span class="nc" id="L186">                nuiEditorMenuTreeBuilder.putConsumer(NUIEditorMenuTreeBuilder.OPTION_PASTE, getEditor()::pasteNode);</span>
+<span class="nc" id="L187">                nuiEditorMenuTreeBuilder.putConsumer(NUIEditorMenuTreeBuilder.OPTION_EDIT, this::editNode);</span>
+<span class="nc" id="L188">                nuiEditorMenuTreeBuilder.putConsumer(NUIEditorMenuTreeBuilder.OPTION_DELETE, getEditor()::deleteNode);</span>
+<span class="nc" id="L189">                nuiEditorMenuTreeBuilder.putConsumer(NUIEditorMenuTreeBuilder.OPTION_ADD_WIDGET, this::addWidget);</span>
+<span class="nc" id="L190">                nuiEditorMenuTreeBuilder.subscribeAddContextMenu(n -&gt; {</span>
+<span class="nc" id="L191">                    getEditor().fireUpdateListeners();</span>
+
+                    // Automatically edit a node that's been added.
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                    if (n.getValue().getType() == JsonTreeValue.Type.KEY_VALUE_PAIR) {</span>
+<span class="nc" id="L195">                        getEditor().getModel().getNode(getEditor().getSelectedIndex()).setExpanded(true);</span>
+
+<span class="nc" id="L197">                        getEditor().getModel().resetNodes();</span>
+<span class="nc" id="L198">                        getEditor().setSelectedIndex(getEditor().getModel().indexOf(n));</span>
+<span class="nc" id="L199">                        editNode(n);</span>
+                    }
+<span class="nc" id="L201">                });</span>
+<span class="nc" id="L202">                return nuiEditorMenuTreeBuilder.createPrimaryContextMenu(node);</span>
+            });
+
+<span class="nc" id="L205">            editor.setEditor(this::editNode, getManager());</span>
+        }
+
+<span class="nc" id="L208">        UIButton save = find(&quot;save&quot;, UIButton.class);</span>
+<span class="nc" id="L209">        save.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L212" title="All 4 branches missed.">                return CREATE_NEW_SCREEN.equals(selectedAsset) || areUnsavedChangesPresent();</span>
+            }
+        });
+<span class="nc" id="L215">        save.subscribe(button -&gt; {</span>
+            // Save the current look and feel.
+<span class="nc" id="L217">            LookAndFeel currentLookAndFeel = UIManager.getLookAndFeel();</span>
+
+            // (Temporarily) set the look and feel to the system default.
+            try {
+<span class="nc" id="L221">                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());</span>
+<span class="nc" id="L222">            } catch (ClassNotFoundException | IllegalAccessException | InstantiationException | UnsupportedLookAndFeelException ignored) {</span>
+<span class="nc" id="L223">            }</span>
+
+            // Configure the file chooser.
+<span class="nc" id="L226">            JFileChooser fileChooser = new JFileChooser() {</span>
+                @Override
+                protected JDialog createDialog(Component parent) {
+<span class="nc" id="L229">                    JDialog dialog = super.createDialog(parent);</span>
+<span class="nc" id="L230">                    dialog.setLocationByPlatform(true);</span>
+<span class="nc" id="L231">                    dialog.setAlwaysOnTop(true);</span>
+<span class="nc" id="L232">                    return dialog;</span>
+                }
+            };
+
+<span class="nc bnc" id="L236" title="All 2 branches missed.">            fileChooser.setSelectedFile(new File(CREATE_NEW_SCREEN.equals(selectedAsset)</span>
+<span class="nc" id="L237">                ? &quot;untitled.ui&quot; : selectedAsset.split(&quot;:&quot;)[1] + &quot;.ui&quot;));</span>
+<span class="nc" id="L238">            fileChooser.setFileFilter(new FileNameExtensionFilter(&quot;UI asset file (*.ui)&quot;, &quot;ui&quot;));</span>
+
+<span class="nc bnc" id="L240" title="All 2 branches missed.">            if (fileChooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {</span>
+<span class="nc" id="L241">                saveToFile(fileChooser.getSelectedFile());</span>
+<span class="nc" id="L242">                deleteAutosave();</span>
+            }
+
+            // Reload the look and feel.
+            try {
+<span class="nc" id="L247">                UIManager.setLookAndFeel(currentLookAndFeel);</span>
+<span class="nc" id="L248">            } catch (UnsupportedLookAndFeelException ignored) {</span>
+<span class="nc" id="L249">            }</span>
+<span class="nc" id="L250">        });</span>
+
+<span class="nc" id="L252">        UIButton override = find(&quot;override&quot;, UIButton.class);</span>
+<span class="nc" id="L253">        override.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L256" title="All 4 branches missed.">                return selectedAssetPath != null &amp;&amp; areUnsavedChangesPresent();</span>
+            }
+        });
+<span class="nc" id="L259">        override.subscribe(button -&gt; {</span>
+<span class="nc" id="L260">            saveToFile(selectedAssetPath);</span>
+<span class="nc" id="L261">            deleteAutosave();</span>
+<span class="nc" id="L262">        });</span>
+
+        // Set the handlers for the editor buttons.
+<span class="nc" id="L265">        WidgetUtil.trySubscribe(this, &quot;settings&quot;, button -&gt;</span>
+<span class="nc" id="L266">            getManager().pushScreen(NUIEditorSettingsScreen.ASSET_URI, NUIEditorSettingsScreen.class));</span>
+<span class="nc" id="L267">        WidgetUtil.trySubscribe(this, &quot;copy&quot;, button -&gt; copyJson());</span>
+<span class="nc" id="L268">        WidgetUtil.trySubscribe(this, &quot;paste&quot;, button -&gt; pasteJson());</span>
+<span class="nc" id="L269">        WidgetUtil.trySubscribe(this, &quot;undo&quot;, button -&gt; undo());</span>
+<span class="nc" id="L270">        WidgetUtil.trySubscribe(this, &quot;redo&quot;, button -&gt; redo());</span>
+<span class="nc" id="L271">        WidgetUtil.trySubscribe(this, &quot;close&quot;, button -&gt; nuiEditorSystem.toggleEditor());</span>
+
+<span class="nc" id="L273">        updateConfig();</span>
+<span class="nc" id="L274">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void selectAsset(ResourceUrn urn) {
+<span class="nc" id="L281">        boolean isLoaded = assetManager.isLoaded(urn, UIElement.class);</span>
+<span class="nc" id="L282">        Optional&lt;UIElement&gt; asset = assetManager.getAsset(urn, UIElement.class);</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">        if (asset.isPresent()) {</span>
+<span class="nc" id="L284">            UIElement element = asset.get();</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">            if (!isLoaded) {</span>
+<span class="nc" id="L286">                asset.get().dispose();</span>
+            }
+
+<span class="nc" id="L289">            AssetDataFile source = element.getSource();</span>
+<span class="nc" id="L290">            String content = null;</span>
+<span class="nc" id="L291">            try (JsonReader reader = new JsonReader(new InputStreamReader(source.openStream(), Charsets.UTF_8))) {</span>
+<span class="nc" id="L292">                reader.setLenient(true);</span>
+<span class="nc" id="L293">                content = new JsonParser().parse(reader).toString();</span>
+<span class="nc" id="L294">            } catch (IOException e) {</span>
+<span class="nc" id="L295">                logger.error(String.format(&quot;Could not load asset source file for %s&quot;, urn.toString()), e);</span>
+<span class="nc" id="L296">            }</span>
+
+<span class="nc bnc" id="L298" title="All 2 branches missed.">            if (content != null) {</span>
+<span class="nc" id="L299">                JsonTree node = JsonTreeConverter.serialize(new JsonParser().parse(content));</span>
+<span class="nc" id="L300">                selectedAssetPending = urn.toString();</span>
+<span class="nc" id="L301">                resetState(node);</span>
+            }
+        }
+<span class="nc" id="L304">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void resetStateInternal(JsonTree node) {
+<span class="nc" id="L311">        getEditor().setTreeViewModel(node, true);</span>
+<span class="nc" id="L312">        resetPreviewWidget();</span>
+
+<span class="nc" id="L314">        getEditor().clearHistory();</span>
+<span class="nc" id="L315">        updateConfig();</span>
+<span class="nc" id="L316">        selectedAsset = selectedAssetPending;</span>
+        try {
+<span class="nc" id="L318">            ResourceUrn urn = new ResourceUrn(selectedAsset);</span>
+<span class="nc" id="L319">            setSelectedAssetPath(urn);</span>
+<span class="nc" id="L320">        } catch (InvalidUrnException ignored) {</span>
+<span class="nc" id="L321">        }</span>
+<span class="nc" id="L322">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resetPreviewWidget() {
+        try {
+            // Serialize the editor's contents and update the widget.
+<span class="nc" id="L331">            JsonElement element = JsonTreeConverter.deserialize(getEditor().getRoot());</span>
+<span class="nc" id="L332">            UIWidget widget = new UIFormat().load(element, alternativeLocale).getRootWidget();</span>
+<span class="nc" id="L333">            selectedScreenBox.setContent(widget);</span>
+<span class="nc" id="L334">        } catch (Throwable t) {</span>
+<span class="nc" id="L335">            String truncatedStackTrace = Joiner.on(System.lineSeparator())</span>
+<span class="nc" id="L336">                .join(Arrays.copyOfRange(ExceptionUtils.getStackFrames(t), 0, 10));</span>
+<span class="nc" id="L337">            selectedScreenBox.setContent(new UILabel(truncatedStackTrace));</span>
+<span class="nc" id="L338">        }</span>
+<span class="nc" id="L339">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void updateConfig() {
+<span class="nc" id="L346">        NUIEditorConfig nuiEditorConfig = config.getNuiEditor();</span>
+
+<span class="nc" id="L348">        setDisableAutosave(nuiEditorConfig.isDisableAutosave());</span>
+        // Update the editor's item renderer.
+<span class="nc bnc" id="L350" title="All 2 branches missed.">        getEditor().setItemRenderer(nuiEditorConfig.isDisableIcons()</span>
+<span class="nc" id="L351">            ? new ToStringTextRenderer&lt;&gt;() : new NUIEditorItemRenderer(getEditor().getModel()));</span>
+
+        // Update the alternative locale. If it has been updated, change the preview widget's locale.
+<span class="nc bnc" id="L354" title="All 2 branches missed.">        if (nuiEditorConfig.getAlternativeLocale() != null</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">            &amp;&amp; !nuiEditorConfig.getAlternativeLocale().equals(alternativeLocale)) {</span>
+<span class="nc" id="L356">            alternativeLocale = nuiEditorConfig.getAlternativeLocale();</span>
+<span class="nc bnc" id="L357" title="All 2 branches missed.">            if (selectedAsset != null) {</span>
+<span class="nc" id="L358">                resetPreviewWidget();</span>
+            }
+        }
+<span class="nc" id="L361">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void editNode(JsonTree node) {
+<span class="nc" id="L368">        Class nodeClass = null;</span>
+
+        try {
+<span class="nc" id="L371">            Class parentClass = NUIEditorNodeUtils.getNodeInfo((JsonTree) node.getParent(), getManager()).getNodeClass();</span>
+
+<span class="nc bnc" id="L373" title="All 2 branches missed.">            if (parentClass != null) {</span>
+<span class="nc" id="L374">                nodeClass = parentClass.getDeclaredField(node.getValue().getKey()).getType();</span>
+            }
+<span class="nc" id="L376">        } catch (NullPointerException | NoSuchFieldException ignored) {</span>
+<span class="nc" id="L377">        }</span>
+
+<span class="nc bnc" id="L379" title="All 4 branches missed.">        if (nodeClass != null &amp;&amp; Enum.class.isAssignableFrom(nodeClass)) {</span>
+            // If the node is an enum, initialize and show the enum editor screen.
+<span class="nc" id="L381">            getManager().pushScreen(EnumEditorScreen.ASSET_URI, EnumEditorScreen.class);</span>
+<span class="nc" id="L382">            EnumEditorScreen enumEditorScreen = (EnumEditorScreen) getManager()</span>
+<span class="nc" id="L383">                .getScreen(EnumEditorScreen.ASSET_URI);</span>
+<span class="nc" id="L384">            enumEditorScreen.setNode(node);</span>
+<span class="nc" id="L385">            enumEditorScreen.setEnumClass(nodeClass);</span>
+<span class="nc" id="L386">            enumEditorScreen.subscribeClose(() -&gt; getEditor().fireUpdateListeners());</span>
+<span class="nc" id="L387">        } else {</span>
+<span class="nc" id="L388">            JsonTreeValue.Type type = node.getValue().getType();</span>
+
+            // Create the inline editor depending on the node's type.
+<span class="nc" id="L391">            inlineEditorEntry = null;</span>
+<span class="nc bnc" id="L392" title="All 2 branches missed.">            if (type == JsonTreeValue.Type.VALUE) {</span>
+<span class="nc" id="L393">                inlineEditorEntry = NUIEditorTextEntryBuilder.createValueEditor();</span>
+<span class="nc bnc" id="L394" title="All 2 branches missed.">            } else if (type == JsonTreeValue.Type.KEY_VALUE_PAIR) {</span>
+<span class="nc" id="L395">                inlineEditorEntry = NUIEditorTextEntryBuilder.createKeyValueEditor();</span>
+<span class="nc bnc" id="L396" title="All 2 branches missed.">            } else if (type == JsonTreeValue.Type.OBJECT</span>
+<span class="nc bnc" id="L397" title="All 4 branches missed.">                &amp;&amp; !(!node.isRoot() &amp;&amp; node.getParent().getValue().getType() == JsonTreeValue.Type.ARRAY)) {</span>
+<span class="nc" id="L398">                inlineEditorEntry = NUIEditorTextEntryBuilder.createObjectEditor();</span>
+<span class="nc bnc" id="L399" title="All 2 branches missed.">            } else if (type == JsonTreeValue.Type.ARRAY) {</span>
+<span class="nc" id="L400">                inlineEditorEntry = NUIEditorTextEntryBuilder.createArrayEditor();</span>
+            }
+
+<span class="nc bnc" id="L403" title="All 2 branches missed.">            if (inlineEditorEntry != null) {</span>
+<span class="nc" id="L404">                inlineEditorEntry.bindValue(new Binding&lt;JsonTree&gt;() {</span>
+                    @Override
+                    public JsonTree get() {
+<span class="nc" id="L407">                        return node;</span>
+                    }
+
+                    @Override
+                    public void set(JsonTree value) {
+<span class="nc bnc" id="L412" title="All 2 branches missed.">                        if (value != null) {</span>
+<span class="nc" id="L413">                            node.setValue(value.getValue());</span>
+<span class="nc" id="L414">                            getEditor().fireUpdateListeners();</span>
+                        }
+<span class="nc" id="L416">                    }</span>
+                });
+<span class="nc" id="L418">                getEditor().setAlternativeWidget(inlineEditorEntry);</span>
+<span class="nc" id="L419">                focusInlineEditor(node, inlineEditorEntry);</span>
+            }
+        }
+<span class="nc" id="L422">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void addWidget(JsonTree node) {
+<span class="nc" id="L429">        getManager().pushScreen(WidgetSelectionScreen.ASSET_URI, WidgetSelectionScreen.class);</span>
+
+        // Initialise and show the widget selection screen.
+<span class="nc" id="L432">        WidgetSelectionScreen widgetSelectionScreen = (WidgetSelectionScreen) getManager()</span>
+<span class="nc" id="L433">            .getScreen(WidgetSelectionScreen.ASSET_URI);</span>
+<span class="nc" id="L434">        widgetSelectionScreen.setNode(node);</span>
+<span class="nc" id="L435">        widgetSelectionScreen.subscribeClose(() -&gt; {</span>
+<span class="nc" id="L436">            node.setExpanded(true);</span>
+<span class="nc" id="L437">            JsonTree widget = node.getChildAt(node.getChildren().size() - 1);</span>
+<span class="nc" id="L438">            widget.setExpanded(true);</span>
+<span class="nc" id="L439">            getEditor().fireUpdateListeners();</span>
+
+            // Automatically edit the id of a newly added widget.
+<span class="nc" id="L442">            getEditor().getModel().resetNodes();</span>
+<span class="nc" id="L443">            getEditor().setSelectedIndex(getEditor().getModel().indexOf(widget.getChildWithKey(&quot;id&quot;)));</span>
+<span class="nc" id="L444">            editNode(widget.getChildWithKey(&quot;id&quot;));</span>
+<span class="nc" id="L445">        });</span>
+<span class="nc" id="L446">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected Path getAutosaveFile() {
+<span class="nc" id="L453">        return PathManager.getInstance().getHomePath().resolve(&quot;nuiEditorAutosave.json&quot;);</span>
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected String getSelectedAsset() {
+<span class="nc" id="L461">        return selectedAsset;</span>
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void setSelectedAsset(String selectedAsset) {
+<span class="nc" id="L470">        this.selectedAsset = selectedAsset;</span>
+
+        // Also prevent the asset being reset.
+<span class="nc" id="L473">        this.selectedAssetPending = selectedAsset;</span>
+<span class="nc" id="L474">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void setSelectedAssetPath(ResourceUrn urn) {
+<span class="nc" id="L481">        boolean isLoaded = assetManager.isLoaded(urn, UIElement.class);</span>
+<span class="nc" id="L482">        Optional&lt;UIElement&gt; asset = assetManager.getAsset(urn, UIElement.class);</span>
+<span class="nc bnc" id="L483" title="All 2 branches missed.">        if (asset.isPresent()) {</span>
+<span class="nc" id="L484">            UIElement element = asset.get();</span>
+<span class="nc bnc" id="L485" title="All 2 branches missed.">            if (!isLoaded) {</span>
+<span class="nc" id="L486">                asset.get().dispose();</span>
+            }
+
+<span class="nc" id="L489">            AssetDataFile source = element.getSource();</span>
+<span class="nc" id="L490">            selectedAssetPath = getPath(source);</span>
+        }
+<span class="nc" id="L492">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

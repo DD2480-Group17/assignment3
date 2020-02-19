@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Side.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.math</a> &gt; <span class="el_source">Side.java</span></div><h1>Side.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.math;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+
+import java.util.EnumMap;
+import java.util.EnumSet;
+
+/**
+ * The six sides of a block and a slew of related utility.
+ * &lt;br&gt;&lt;br&gt;
+ * Note that the FRONT of the block faces towards the player - this means Left and Right are a player's right and left.
+ * See Direction for an enumeration of directions in terms of the player's perspective.
+ *
+ */
+<span class="fc" id="L33">public enum Side {</span>
+<span class="fc" id="L34">    TOP(Vector3i.up(), true, false, true),</span>
+<span class="fc" id="L35">    BOTTOM(Vector3i.down(), true, false, true),</span>
+<span class="fc" id="L36">    LEFT(new Vector3i(-1, 0, 0), false, true, true),</span>
+<span class="fc" id="L37">    RIGHT(new Vector3i(1, 0, 0), false, true, true),</span>
+<span class="fc" id="L38">    FRONT(new Vector3i(0, 0, -1), true, true, false),</span>
+<span class="fc" id="L39">    BACK(new Vector3i(0, 0, 1), true, true, false);</span>
+
+<span class="fc" id="L41">    private static final EnumSet&lt;Side&gt; ALL_SIDES = EnumSet.allOf(Side.class);</span>
+
+    private static final EnumMap&lt;Side, Side&gt; reverseMap;
+    private static final ImmutableList&lt;Side&gt; horizontalSides;
+    private static final ImmutableList&lt;Side&gt; verticalSides;
+    private static final EnumMap&lt;Side, Side&gt; clockwiseYawSide;
+    private static final EnumMap&lt;Side, Side&gt; anticlockwiseYawSide;
+    private static final EnumMap&lt;Side, Side&gt; clockwisePitchSide;
+    private static final EnumMap&lt;Side, Side&gt; anticlockwisePitchSide;
+    private static final EnumMap&lt;Side, Side&gt; clockwiseRollSide;
+    private static final EnumMap&lt;Side, Side&gt; anticlockwiseRollSide;
+    private static final EnumMap&lt;Side, Direction&gt; conversionMap;
+    private static final EnumMap&lt;Side, ImmutableList&lt;Side&gt;&gt; tangents;
+
+    static {
+<span class="fc" id="L56">        tangents = new EnumMap&lt;&gt;(Side.class);</span>
+<span class="fc" id="L57">        tangents.put(TOP, ImmutableList.of(LEFT, RIGHT, FRONT, BACK));</span>
+<span class="fc" id="L58">        tangents.put(BOTTOM, ImmutableList.of(LEFT, RIGHT, FRONT, BACK));</span>
+<span class="fc" id="L59">        tangents.put(LEFT, ImmutableList.of(TOP, BOTTOM, FRONT, BACK));</span>
+<span class="fc" id="L60">        tangents.put(RIGHT, ImmutableList.of(TOP, BOTTOM, FRONT, BACK));</span>
+<span class="fc" id="L61">        tangents.put(FRONT, ImmutableList.of(TOP, BOTTOM, LEFT, RIGHT));</span>
+<span class="fc" id="L62">        tangents.put(BACK, ImmutableList.of(TOP, BOTTOM, LEFT, RIGHT));</span>
+
+<span class="fc" id="L64">        reverseMap = new EnumMap&lt;&gt;(Side.class);</span>
+<span class="fc" id="L65">        reverseMap.put(TOP, BOTTOM);</span>
+<span class="fc" id="L66">        reverseMap.put(LEFT, RIGHT);</span>
+<span class="fc" id="L67">        reverseMap.put(RIGHT, LEFT);</span>
+<span class="fc" id="L68">        reverseMap.put(FRONT, BACK);</span>
+<span class="fc" id="L69">        reverseMap.put(BACK, FRONT);</span>
+<span class="fc" id="L70">        reverseMap.put(BOTTOM, TOP);</span>
+
+<span class="fc" id="L72">        conversionMap = new EnumMap&lt;&gt;(Side.class);</span>
+<span class="fc" id="L73">        conversionMap.put(TOP, Direction.UP);</span>
+<span class="fc" id="L74">        conversionMap.put(BOTTOM, Direction.DOWN);</span>
+<span class="fc" id="L75">        conversionMap.put(BACK, Direction.FORWARD);</span>
+<span class="fc" id="L76">        conversionMap.put(FRONT, Direction.BACKWARD);</span>
+<span class="fc" id="L77">        conversionMap.put(RIGHT, Direction.LEFT);</span>
+<span class="fc" id="L78">        conversionMap.put(LEFT, Direction.RIGHT);</span>
+
+<span class="fc" id="L80">        clockwiseYawSide = new EnumMap&lt;&gt;(Side.class);</span>
+<span class="fc" id="L81">        anticlockwiseYawSide = new EnumMap&lt;&gt;(Side.class);</span>
+<span class="fc" id="L82">        clockwiseYawSide.put(Side.FRONT, Side.LEFT);</span>
+<span class="fc" id="L83">        anticlockwiseYawSide.put(Side.FRONT, Side.RIGHT);</span>
+<span class="fc" id="L84">        clockwiseYawSide.put(Side.RIGHT, Side.FRONT);</span>
+<span class="fc" id="L85">        anticlockwiseYawSide.put(Side.RIGHT, Side.BACK);</span>
+<span class="fc" id="L86">        clockwiseYawSide.put(Side.BACK, Side.RIGHT);</span>
+<span class="fc" id="L87">        anticlockwiseYawSide.put(Side.BACK, Side.LEFT);</span>
+<span class="fc" id="L88">        clockwiseYawSide.put(Side.LEFT, Side.BACK);</span>
+<span class="fc" id="L89">        anticlockwiseYawSide.put(Side.LEFT, Side.FRONT);</span>
+
+<span class="fc" id="L91">        clockwisePitchSide = Maps.newEnumMap(Side.class);</span>
+<span class="fc" id="L92">        anticlockwisePitchSide = Maps.newEnumMap(Side.class);</span>
+<span class="fc" id="L93">        clockwisePitchSide.put(Side.FRONT, Side.TOP);</span>
+<span class="fc" id="L94">        anticlockwisePitchSide.put(Side.FRONT, Side.BOTTOM);</span>
+<span class="fc" id="L95">        clockwisePitchSide.put(Side.BOTTOM, Side.FRONT);</span>
+<span class="fc" id="L96">        anticlockwisePitchSide.put(Side.BOTTOM, Side.BACK);</span>
+<span class="fc" id="L97">        clockwisePitchSide.put(Side.BACK, Side.BOTTOM);</span>
+<span class="fc" id="L98">        anticlockwisePitchSide.put(Side.BACK, Side.TOP);</span>
+<span class="fc" id="L99">        clockwisePitchSide.put(Side.TOP, Side.BACK);</span>
+<span class="fc" id="L100">        anticlockwisePitchSide.put(Side.TOP, Side.FRONT);</span>
+
+<span class="fc" id="L102">        clockwiseRollSide = Maps.newEnumMap(Side.class);</span>
+<span class="fc" id="L103">        anticlockwiseRollSide = Maps.newEnumMap(Side.class);</span>
+<span class="fc" id="L104">        clockwiseRollSide.put(Side.TOP, Side.LEFT);</span>
+<span class="fc" id="L105">        anticlockwiseRollSide.put(Side.TOP, Side.RIGHT);</span>
+<span class="fc" id="L106">        clockwiseRollSide.put(Side.LEFT, Side.BOTTOM);</span>
+<span class="fc" id="L107">        anticlockwiseRollSide.put(Side.LEFT, Side.TOP);</span>
+<span class="fc" id="L108">        clockwiseRollSide.put(Side.BOTTOM, Side.RIGHT);</span>
+<span class="fc" id="L109">        anticlockwiseRollSide.put(Side.BOTTOM, Side.LEFT);</span>
+<span class="fc" id="L110">        clockwiseRollSide.put(Side.RIGHT, Side.TOP);</span>
+<span class="fc" id="L111">        anticlockwiseRollSide.put(Side.RIGHT, Side.BOTTOM);</span>
+
+<span class="fc" id="L113">        horizontalSides = ImmutableList.of(LEFT, RIGHT, FRONT, BACK);</span>
+<span class="fc" id="L114">        verticalSides = ImmutableList.of(TOP, BOTTOM);</span>
+<span class="fc" id="L115">    }</span>
+
+    private final Vector3i vector3iDir;
+    private final boolean canYaw;
+    private final boolean canPitch;
+    private final boolean canRoll;
+
+<span class="fc" id="L122">     Side(Vector3i vector3i, boolean canPitch, boolean canYaw, boolean canRoll) {</span>
+<span class="fc" id="L123">        this.vector3iDir = vector3i;</span>
+<span class="fc" id="L124">        this.canPitch = canPitch;</span>
+<span class="fc" id="L125">        this.canYaw = canYaw;</span>
+<span class="fc" id="L126">        this.canRoll = canRoll;</span>
+<span class="fc" id="L127">    }</span>
+
+    /**
+     * @return The horizontal sides, for iteration
+     */
+    public static ImmutableList&lt;Side&gt; horizontalSides() {
+<span class="nc" id="L133">        return horizontalSides;</span>
+    }
+
+    /**
+     * @return The vertical sides, for iteration
+     */
+    public static ImmutableList&lt;Side&gt; verticalSides() {
+<span class="nc" id="L140">        return verticalSides;</span>
+    }
+
+    public static Side inDirection(int x, int y, int z) {
+<span class="fc bfc" id="L144" title="All 2 branches covered.">        if (TeraMath.fastAbs(x) &gt; TeraMath.fastAbs(y)) {</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">            if (TeraMath.fastAbs(x) &gt; TeraMath.fastAbs(z)) {</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">                return (x &gt; 0) ? RIGHT : LEFT;</span>
+            }
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        } else if (TeraMath.fastAbs(y) &gt; TeraMath.fastAbs(z)) {</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">            return (y &gt; 0) ? TOP : BOTTOM;</span>
+        }
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        return (z &gt; 0) ? BACK : FRONT;</span>
+    }
+
+    public static Side inDirection(Vector3f dir) {
+<span class="nc" id="L155">        return inDirection(dir.x, dir.y, dir.z);</span>
+    }
+
+    /**
+     * Determines which direction the player is facing
+     *
+     * @param x right/left
+     * @param y top/bottom
+     * @param z back/front
+     * @return Side enum with the appropriate direction
+     */
+    public static Side inDirection(double x, double y, double z) {
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        if (TeraMath.fastAbs(x) &gt; TeraMath.fastAbs(y)) {</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">            if (TeraMath.fastAbs(x) &gt; TeraMath.fastAbs(z)) {</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                return (x &gt; 0) ? RIGHT : LEFT;</span>
+            }
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        } else if (TeraMath.fastAbs(y) &gt; TeraMath.fastAbs(z)) {</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">            return (y &gt; 0) ? TOP : BOTTOM;</span>
+        }
+<span class="nc bnc" id="L174" title="All 2 branches missed.">        return (z &gt; 0) ? BACK : FRONT;</span>
+    }
+
+    /**
+     * Determines which horizontal direction the player is facing
+     *
+     * @param x right/left
+     * @param z back/front
+     * @return Side enum with the appropriate direction
+     */
+    public static Side inHorizontalDirection(double x, double z) {
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        if (TeraMath.fastAbs(x) &gt; TeraMath.fastAbs(z)) {</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">            return (x &gt; 0) ? RIGHT : LEFT;</span>
+        }
+<span class="nc bnc" id="L188" title="All 2 branches missed.">        return (z &gt; 0) ? BACK : FRONT;</span>
+    }
+
+    /**
+     * This provides a static EnumSet of all Sides defined in the enumeration. The result contains the same values as
+     * calling {@code Side#values} but this does not create a new copy on every call.
+     * &lt;br/&gt;
+     * &lt;b&gt;Warning:&lt;/b&gt; Do not change the content of the returned enum set! It will be reflected on all calls to this method.
+     * @return All available sides
+     */
+    public static EnumSet&lt;Side&gt; getAllSides() {
+<span class="fc" id="L199">        return ALL_SIDES;</span>
+    }
+
+    /**
+     * @return The vector3i in the direction of the side. Do not modify.
+     */
+    public Vector3i getVector3i() {
+<span class="fc" id="L206">        return vector3iDir;</span>
+    }
+
+    /**
+     * @return Whether this is one of the horizontal directions (LEFT, FRONT, RIGHT, BACK).
+     */
+    public boolean isHorizontal() {
+<span class="nc" id="L213">        return canYaw;</span>
+    }
+
+    /**
+     * @return Whether this is one of the vertical directions (TOP, BOTTOM).
+     */
+    public boolean isVertical() {
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">        return !canYaw;</span>
+    }
+
+    /**
+     * @return The opposite side to this side.
+     */
+    public Side reverse() {
+<span class="fc" id="L227">        return reverseMap.get(this);</span>
+    }
+
+    public Side yawClockwise(int turns) {
+<span class="fc bfc" id="L231" title="All 2 branches covered.">        if (!canYaw) {</span>
+<span class="fc" id="L232">            return this;</span>
+        }
+<span class="fc" id="L234">        int steps = turns;</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">        if (steps &lt; 0) {</span>
+<span class="fc" id="L236">            steps = -steps + 2;</span>
+        }
+<span class="fc" id="L238">        steps = steps % 4;</span>
+<span class="fc bfc" id="L239" title="All 4 branches covered.">        switch (steps) {</span>
+            case 1:
+<span class="fc" id="L241">                return clockwiseYawSide.get(this);</span>
+            case 2:
+<span class="fc" id="L243">                return reverseMap.get(this);</span>
+            case 3:
+<span class="fc" id="L245">                return anticlockwiseYawSide.get(this);</span>
+            default:
+<span class="fc" id="L247">                return this;</span>
+        }
+    }
+
+    public Side pitchClockwise(int turns) {
+<span class="fc bfc" id="L252" title="All 2 branches covered.">        if (!canPitch) {</span>
+<span class="fc" id="L253">            return this;</span>
+        }
+<span class="fc" id="L255">        int steps = turns;</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">        if (steps &lt; 0) {</span>
+<span class="fc" id="L257">            steps = -steps + 2;</span>
+        }
+<span class="fc" id="L259">        steps = steps % 4;</span>
+<span class="fc bfc" id="L260" title="All 4 branches covered.">        switch (steps) {</span>
+            case 1:
+<span class="fc" id="L262">                return clockwisePitchSide.get(this);</span>
+            case 2:
+<span class="fc" id="L264">                return reverseMap.get(this);</span>
+            case 3:
+<span class="fc" id="L266">                return anticlockwisePitchSide.get(this);</span>
+            default:
+<span class="fc" id="L268">                return this;</span>
+        }
+    }
+
+    public Direction toDirection() {
+<span class="fc" id="L273">        return conversionMap.get(this);</span>
+    }
+
+    public Side rollClockwise(int turns) {
+<span class="fc bfc" id="L277" title="All 2 branches covered.">        if (!canRoll) {</span>
+<span class="fc" id="L278">            return this;</span>
+        }
+<span class="fc" id="L280">        int steps = turns;</span>
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">        if (steps &lt; 0) {</span>
+<span class="nc" id="L282">            steps = -steps + 2;</span>
+        }
+<span class="fc" id="L284">        steps = steps % 4;</span>
+<span class="fc bfc" id="L285" title="All 4 branches covered.">        switch (steps) {</span>
+            case 1:
+<span class="fc" id="L287">                return clockwiseRollSide.get(this);</span>
+            case 2:
+<span class="fc" id="L289">                return reverseMap.get(this);</span>
+            case 3:
+<span class="fc" id="L291">                return anticlockwiseRollSide.get(this);</span>
+            default:
+<span class="fc" id="L293">                return this;</span>
+        }
+    }
+
+    public Vector3i getAdjacentPos(Vector3i position) {
+<span class="fc" id="L298">        Vector3i result = new Vector3i(position);</span>
+<span class="fc" id="L299">        result.add(vector3iDir);</span>
+<span class="fc" id="L300">        return result;</span>
+    }
+
+    public Side getRelativeSide(Direction direction) {
+<span class="fc bfc" id="L304" title="All 2 branches covered.">        if (direction == Direction.UP) {</span>
+<span class="fc" id="L305">            return pitchClockwise(1);</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">        } else if (direction == Direction.DOWN) {</span>
+<span class="fc" id="L307">            return pitchClockwise(-1);</span>
+<span class="fc bfc" id="L308" title="All 2 branches covered.">        } else if (direction == Direction.LEFT) {</span>
+<span class="fc" id="L309">            return yawClockwise(1);</span>
+<span class="fc bfc" id="L310" title="All 2 branches covered.">        } else if (direction == Direction.RIGHT) {</span>
+<span class="fc" id="L311">            return yawClockwise(-1);</span>
+<span class="fc bfc" id="L312" title="All 2 branches covered.">        } else if (direction == Direction.BACKWARD) {</span>
+<span class="fc" id="L313">            return reverse();</span>
+        } else {
+<span class="fc" id="L315">            return this;</span>
+        }
+    }
+
+    public Iterable&lt;Side&gt; tangents() {
+<span class="nc" id="L320">        return tangents.get(this);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

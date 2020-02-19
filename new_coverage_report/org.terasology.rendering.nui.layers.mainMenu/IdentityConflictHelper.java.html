@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IdentityConflictHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">IdentityConflictHelper.java</span></div><h1>IdentityConflictHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.identity.storageServiceClient.IdentityConflict;
+import org.terasology.identity.storageServiceClient.IdentityConflictSolution;
+import org.terasology.identity.storageServiceClient.StorageServiceWorker;
+import org.terasology.rendering.nui.NUIManager;
+
+public final class IdentityConflictHelper {
+
+    private StorageServiceWorker storageServiceWorker;
+    private NUIManager nuiManager;
+    private TranslationSystem translationSystem;
+
+<span class="nc" id="L30">    public IdentityConflictHelper(StorageServiceWorker storageServiceWorker, NUIManager nuiManager, TranslationSystem translationSystem) {</span>
+<span class="nc" id="L31">        this.storageServiceWorker = storageServiceWorker;</span>
+<span class="nc" id="L32">        this.nuiManager = nuiManager;</span>
+<span class="nc" id="L33">        this.translationSystem = translationSystem;</span>
+<span class="nc" id="L34">    }</span>
+
+    public void runSolver() {
+<span class="nc bnc" id="L37" title="All 2 branches missed.">        if (storageServiceWorker.hasConflictingIdentities()) {</span>
+<span class="nc" id="L38">            IdentityConflict conflict = storageServiceWorker.getNextConflict();</span>
+<span class="nc" id="L39">            ThreeButtonPopup conflictPopup = nuiManager.pushScreen(ThreeButtonPopup.ASSET_URI, ThreeButtonPopup.class);</span>
+<span class="nc" id="L40">            String message = String.format(translationSystem.translate(&quot;${engine:menu#storage-service-conflict-message}&quot;),</span>
+<span class="nc" id="L41">                    conflict.getServerId(), conflict.getLocalId(), conflict.getRemoteId());</span>
+<span class="nc" id="L42">            conflictPopup.setMessage(translationSystem.translate(&quot;${engine:menu#warning}&quot;), message);</span>
+<span class="nc" id="L43">            conflictPopup.setLeftButton(translationSystem.translate(&quot;${engine:menu#storage-service-conflict-keep-local}&quot;),</span>
+<span class="nc" id="L44">                    () -&gt; solveAndShowNext(IdentityConflictSolution.KEEP_LOCAL));</span>
+<span class="nc" id="L45">            conflictPopup.setCenterButton(translationSystem.translate(&quot;${engine:menu#storage-service-conflict-keep-remote}&quot;),</span>
+<span class="nc" id="L46">                    () -&gt; solveAndShowNext(IdentityConflictSolution.KEEP_REMOTE));</span>
+<span class="nc" id="L47">            conflictPopup.setRightButton(translationSystem.translate(&quot;${engine:menu#storage-service-conflict-ignore}&quot;),</span>
+<span class="nc" id="L48">                    () -&gt; solveAndShowNext(IdentityConflictSolution.IGNORE));</span>
+        }
+<span class="nc" id="L50">    }</span>
+
+    private void solveAndShowNext(IdentityConflictSolution solution) {
+<span class="nc" id="L53">        storageServiceWorker.solveNextConflict(solution);</span>
+<span class="nc" id="L54">        runSolver();</span>
+<span class="nc" id="L55">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

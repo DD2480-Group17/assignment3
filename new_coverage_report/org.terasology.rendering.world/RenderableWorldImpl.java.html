@@ -1,0 +1,495 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RenderableWorldImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.world</a> &gt; <span class="el_source">RenderableWorldImpl.java</span></div><h1>RenderableWorldImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.world;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.engine.subsystem.lwjgl.GLBufferPool;
+import org.terasology.math.Region3i;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.primitives.ChunkMesh;
+import org.terasology.rendering.primitives.ChunkTessellator;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
+import org.terasology.world.ChunkView;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.chunks.ChunkProvider;
+import org.terasology.world.chunks.RenderableChunk;
+import org.terasology.world.generation.Region;
+import org.terasology.world.generation.World;
+import org.terasology.world.generator.WorldGenerator;
+
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.PriorityQueue;
+
+/**
+ * TODO: write javadoc unless this class gets slated for removal, which might be.
+ */
+class RenderableWorldImpl implements RenderableWorld {
+
+    private static final int MAX_ANIMATED_CHUNKS = 64;
+    private static final int MAX_BILLBOARD_CHUNKS = 64;
+<span class="nc" id="L58">    private static final int MAX_LOADABLE_CHUNKS = ViewDistance.MEGA.getChunkDistance().x * ViewDistance.MEGA.getChunkDistance().y * ViewDistance.MEGA.getChunkDistance().z;</span>
+<span class="nc" id="L59">    private static final Vector3f CHUNK_CENTER_OFFSET = new Vector3f(0.5f, 0.5f, 0.5f);</span>
+
+<span class="nc" id="L61">    private static final Logger logger = LoggerFactory.getLogger(RenderableWorldImpl.class);</span>
+
+<span class="nc" id="L63">    private final int maxChunksForShadows = TeraMath.clamp(CoreRegistry.get(Config.class).getRendering().getMaxChunksUsedForShadowMapping(), 64, 1024);</span>
+
+    private final WorldProvider worldProvider;
+    private ChunkProvider chunkProvider;
+
+    private ChunkTessellator chunkTessellator;
+    private final ChunkMeshUpdateManager chunkMeshUpdateManager;
+<span class="nc" id="L70">    private final List&lt;RenderableChunk&gt; chunksInProximityOfCamera = Lists.newArrayListWithCapacity(MAX_LOADABLE_CHUNKS);</span>
+<span class="nc" id="L71">    private Region3i renderableRegion = Region3i.empty();</span>
+    private ViewDistance currentViewDistance;
+    private RenderQueuesHelper renderQueues;
+
+    private Camera playerCamera;
+    private Camera shadowMapCamera;
+
+<span class="nc" id="L78">    private Config config = CoreRegistry.get(Config.class);</span>
+<span class="nc" id="L79">    private RenderingConfig renderingConfig = config.getRendering();</span>
+
+    private int statDirtyChunks;
+    private int statVisibleChunks;
+    private int statIgnoredPhases;
+
+
+    RenderableWorldImpl(WorldProvider worldProvider,
+                               ChunkProvider chunkProvider,
+                               GLBufferPool bufferPool,
+<span class="nc" id="L89">                               Camera playerCamera) {</span>
+
+<span class="nc" id="L91">        this.worldProvider = worldProvider;</span>
+<span class="nc" id="L92">        this.chunkProvider = chunkProvider;</span>
+<span class="nc" id="L93">        chunkTessellator = new ChunkTessellator(bufferPool);</span>
+<span class="nc" id="L94">        chunkMeshUpdateManager = new ChunkMeshUpdateManager(chunkTessellator, worldProvider);</span>
+
+<span class="nc" id="L96">        this.playerCamera = playerCamera;</span>
+
+<span class="nc" id="L98">        renderQueues = new RenderQueuesHelper(new PriorityQueue&lt;&gt;(MAX_LOADABLE_CHUNKS, new ChunkFrontToBackComparator()),</span>
+                new PriorityQueue&lt;&gt;(MAX_LOADABLE_CHUNKS, new ChunkFrontToBackComparator()),
+                new PriorityQueue&lt;&gt;(MAX_LOADABLE_CHUNKS, new ChunkFrontToBackComparator()),
+                new PriorityQueue&lt;&gt;(MAX_LOADABLE_CHUNKS, new ChunkFrontToBackComparator()),
+                new PriorityQueue&lt;&gt;(MAX_LOADABLE_CHUNKS, new ChunkBackToFrontComparator()));
+<span class="nc" id="L103">    }</span>
+
+    @Override
+    public void onChunkLoaded(Vector3i chunkCoordinates) {
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (renderableRegion.encompasses(chunkCoordinates)) {</span>
+<span class="nc" id="L108">            Chunk chunk = chunkProvider.getChunk(chunkCoordinates);</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">            if (chunk != null) {</span>
+<span class="nc" id="L110">                chunksInProximityOfCamera.add(chunk);</span>
+<span class="nc" id="L111">                Collections.sort(chunksInProximityOfCamera, new ChunkFrontToBackComparator());</span>
+            } else {
+<span class="nc" id="L113">                logger.warn(&quot;Warning: onChunkLoaded called for a null chunk!&quot;);</span>
+            }
+        }
+<span class="nc" id="L116">    }</span>
+
+    @Override
+    public void onChunkUnloaded(Vector3i chunkCoordinates) {
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (renderableRegion.encompasses(chunkCoordinates)) {</span>
+            RenderableChunk chunk;
+<span class="nc" id="L122">            Iterator&lt;RenderableChunk&gt; iterator = chunksInProximityOfCamera.iterator();</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">            while (iterator.hasNext()) {</span>
+<span class="nc" id="L124">                chunk = iterator.next();</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                if (chunk.getPosition().equals(chunkCoordinates)) {</span>
+<span class="nc" id="L126">                    chunk.disposeMesh();</span>
+<span class="nc" id="L127">                    iterator.remove();</span>
+<span class="nc" id="L128">                    break;</span>
+                }
+            }
+        }
+<span class="nc" id="L132">    }</span>
+
+    /**
+     * @return true if pregeneration is complete
+     */
+    @Override
+    public boolean pregenerateChunks() {
+<span class="nc" id="L139">        boolean pregenerationIsComplete = true;</span>
+
+<span class="nc" id="L141">        chunkProvider.completeUpdate();</span>
+<span class="nc" id="L142">        chunkProvider.beginUpdate();</span>
+
+<span class="nc" id="L144">        World world = CoreRegistry.get(WorldGenerator.class).getWorld();</span>
+        RenderableChunk chunk;
+        ChunkMesh newMesh;
+        ChunkView localView;
+        Region worldData;
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        for (Vector3i chunkCoordinates : calculateRenderableRegion(renderingConfig.getViewDistance())) {</span>
+<span class="nc" id="L150">            chunk = chunkProvider.getChunk(chunkCoordinates);</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            if (chunk == null) {</span>
+<span class="nc" id="L152">                pregenerationIsComplete = false;</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            } else if (chunk.isDirty()) {</span>
+<span class="nc" id="L154">                localView = worldProvider.getLocalView(chunkCoordinates);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                if (localView == null) {</span>
+<span class="nc" id="L156">                    continue;</span>
+                }
+<span class="nc" id="L158">                chunk.setDirty(false);</span>
+
+<span class="nc" id="L160">                worldData = world.getWorldData(localView.getWorldRegion());</span>
+<span class="nc" id="L161">                newMesh = chunkTessellator.generateMesh(localView, worldData, ChunkConstants.SIZE_Y, 0);</span>
+<span class="nc" id="L162">                newMesh.generateVBOs();</span>
+
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                if (chunk.hasMesh()) {</span>
+<span class="nc" id="L165">                    chunk.getMesh().dispose();</span>
+                }
+<span class="nc" id="L167">                chunk.setMesh(newMesh);</span>
+
+<span class="nc" id="L169">                pregenerationIsComplete = false;</span>
+<span class="nc" id="L170">                break;</span>
+            }
+<span class="nc" id="L172">        }</span>
+<span class="nc" id="L173">        return pregenerationIsComplete;</span>
+    }
+
+    @Override
+    public void update() {
+
+<span class="nc" id="L179">        PerformanceMonitor.startActivity(&quot;Complete chunk update&quot;);</span>
+<span class="nc" id="L180">        chunkProvider.completeUpdate();</span>
+<span class="nc" id="L181">        PerformanceMonitor.endActivity();</span>
+
+<span class="nc" id="L183">        PerformanceMonitor.startActivity(&quot;Update Lighting&quot;);</span>
+<span class="nc" id="L184">        worldProvider.processPropagation();</span>
+<span class="nc" id="L185">        PerformanceMonitor.endActivity();</span>
+
+<span class="nc" id="L187">        PerformanceMonitor.startActivity(&quot;Begin chunk update&quot;);</span>
+<span class="nc" id="L188">        chunkProvider.beginUpdate();</span>
+<span class="nc" id="L189">        PerformanceMonitor.endActivity();</span>
+
+<span class="nc" id="L191">        PerformanceMonitor.startActivity(&quot;Update Close Chunks&quot;);</span>
+<span class="nc" id="L192">        updateChunksInProximity(calculateRenderableRegion(renderingConfig.getViewDistance()));</span>
+<span class="nc" id="L193">        PerformanceMonitor.endActivity();</span>
+
+<span class="nc" id="L195">    }</span>
+
+    /**
+     * Updates the list of chunks around the player.
+     *
+     * @return True if the list was changed
+     */
+    @Override
+    public boolean updateChunksInProximity(Region3i newRenderableRegion) {
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        if (!newRenderableRegion.equals(renderableRegion)) {</span>
+            Vector3i chunkPosition;
+            RenderableChunk chunk;
+
+<span class="nc" id="L208">            Iterator&lt;Vector3i&gt; chunksToRemove = renderableRegion.subtract(newRenderableRegion);</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            while (chunksToRemove.hasNext()) {</span>
+<span class="nc" id="L210">                chunkPosition = chunksToRemove.next();</span>
+<span class="nc" id="L211">                Iterator&lt;RenderableChunk&gt; nearbyChunks = chunksInProximityOfCamera.iterator();</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                while (nearbyChunks.hasNext()) {</span>
+<span class="nc" id="L213">                    chunk = nearbyChunks.next();</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                    if (chunk.getPosition().equals(chunkPosition)) {</span>
+<span class="nc" id="L215">                        chunk.disposeMesh();</span>
+<span class="nc" id="L216">                        nearbyChunks.remove();</span>
+<span class="nc" id="L217">                        break;</span>
+                    }
+                }
+<span class="nc" id="L220">            }</span>
+
+<span class="nc" id="L222">            boolean chunksHaveBeenAdded = false;</span>
+<span class="nc" id="L223">            Iterator&lt;Vector3i&gt; chunksToAdd = newRenderableRegion.subtract(renderableRegion);</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">            while (chunksToAdd.hasNext()) {</span>
+<span class="nc" id="L225">                chunkPosition = chunksToAdd.next();</span>
+<span class="nc" id="L226">                chunk = chunkProvider.getChunk(chunkPosition);</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                if (chunk != null) {</span>
+<span class="nc" id="L228">                    chunksInProximityOfCamera.add(chunk);</span>
+<span class="nc" id="L229">                    chunksHaveBeenAdded = true;</span>
+                }
+            }
+
+<span class="nc bnc" id="L233" title="All 2 branches missed.">            if (chunksHaveBeenAdded) {</span>
+<span class="nc" id="L234">                Collections.sort(chunksInProximityOfCamera, new ChunkFrontToBackComparator());</span>
+            }
+<span class="nc" id="L236">            renderableRegion = newRenderableRegion;</span>
+<span class="nc" id="L237">            return true;</span>
+        }
+
+<span class="nc" id="L240">        return false;</span>
+    }
+
+    @Override
+    public boolean updateChunksInProximity(ViewDistance newViewDistance) {
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        if (newViewDistance != currentViewDistance) {</span>
+<span class="nc" id="L246">            logger.info(&quot;New Viewing Distance: {}&quot;, newViewDistance);</span>
+<span class="nc" id="L247">            currentViewDistance = newViewDistance;</span>
+<span class="nc" id="L248">            return updateChunksInProximity(calculateRenderableRegion(newViewDistance));</span>
+        } else {
+<span class="nc" id="L250">            return false;</span>
+        }
+    }
+
+    private Region3i calculateRenderableRegion(ViewDistance newViewDistance) {
+<span class="nc" id="L255">        Vector3i cameraCoordinates = calcCameraCoordinatesInChunkUnits();</span>
+<span class="nc" id="L256">        Vector3i renderableRegionSize = newViewDistance.getChunkDistance();</span>
+<span class="nc" id="L257">        Vector3i renderableRegionExtents = new Vector3i(renderableRegionSize.x / 2, renderableRegionSize.y / 2, renderableRegionSize.z / 2);</span>
+<span class="nc" id="L258">        return Region3i.createFromCenterExtents(cameraCoordinates, renderableRegionExtents);</span>
+    }
+
+    /**
+     * Chunk position of the player.
+     *
+     * @return The player offset chunk
+     */
+    private Vector3i calcCameraCoordinatesInChunkUnits() {
+<span class="nc" id="L267">        Vector3f cameraCoordinates = playerCamera.getPosition();</span>
+<span class="nc" id="L268">        return new Vector3i((int) (cameraCoordinates.x / ChunkConstants.SIZE_X),</span>
+                (int) (cameraCoordinates.y / ChunkConstants.SIZE_Y),
+                (int) (cameraCoordinates.z / ChunkConstants.SIZE_Z));
+    }
+
+    @Override
+    public void generateVBOs() {
+<span class="nc" id="L275">        PerformanceMonitor.startActivity(&quot;Building Mesh VBOs&quot;);</span>
+        ChunkMesh pendingMesh;
+<span class="nc" id="L277">        chunkMeshUpdateManager.setCameraPosition(playerCamera.getPosition());</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">        for (RenderableChunk chunk : chunkMeshUpdateManager.availableChunksForUpdate()) {</span>
+
+<span class="nc bnc" id="L280" title="All 4 branches missed.">            if (chunk.hasPendingMesh() &amp;&amp; chunksInProximityOfCamera.contains(chunk)) {</span>
+<span class="nc" id="L281">                pendingMesh = chunk.getPendingMesh();</span>
+<span class="nc" id="L282">                pendingMesh.generateVBOs();</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">                if (chunk.hasMesh()) {</span>
+<span class="nc" id="L284">                    chunk.getMesh().dispose();</span>
+                }
+<span class="nc" id="L286">                chunk.setMesh(pendingMesh);</span>
+<span class="nc" id="L287">                chunk.setPendingMesh(null);</span>
+
+            } else {
+<span class="nc bnc" id="L290" title="All 2 branches missed.">                if (chunk.hasPendingMesh()) {</span>
+<span class="nc" id="L291">                    chunk.getPendingMesh().dispose();</span>
+<span class="nc" id="L292">                    chunk.setPendingMesh(null);</span>
+                }
+            }
+<span class="nc" id="L295">        }</span>
+<span class="nc" id="L296">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L297">    }</span>
+
+    /**
+     * Updates the currently visible chunks (in sight of the player).
+     */
+    @Override
+    public int queueVisibleChunks(boolean isFirstRenderingStageForCurrentFrame) {
+<span class="nc" id="L304">        PerformanceMonitor.startActivity(&quot;Queueing Visible Chunks&quot;);</span>
+<span class="nc" id="L305">        statDirtyChunks = 0;</span>
+<span class="nc" id="L306">        statVisibleChunks = 0;</span>
+<span class="nc" id="L307">        statIgnoredPhases = 0;</span>
+
+<span class="nc" id="L309">        int processedChunks = 0;</span>
+<span class="nc" id="L310">        int chunkCounter = 0;</span>
+        ChunkMesh mesh;
+<span class="nc" id="L312">        boolean isDynamicShadows = renderingConfig.isDynamicShadows();</span>
+
+<span class="nc bnc" id="L314" title="All 2 branches missed.">        for (RenderableChunk chunk : chunksInProximityOfCamera) {</span>
+<span class="nc bnc" id="L315" title="All 2 branches missed.">            if (isChunkValidForRender(chunk)) {</span>
+<span class="nc" id="L316">                mesh = chunk.getMesh();</span>
+
+<span class="nc bnc" id="L318" title="All 8 branches missed.">                if (isDynamicShadows &amp;&amp; isFirstRenderingStageForCurrentFrame &amp;&amp; chunkCounter &lt; maxChunksForShadows &amp;&amp; isChunkVisibleFromMainLight(chunk)) {</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">                    if (triangleCount(mesh, ChunkMesh.RenderPhase.OPAQUE) &gt; 0) {</span>
+<span class="nc" id="L320">                        renderQueues.chunksOpaqueShadow.add(chunk);</span>
+                    } else {
+<span class="nc" id="L322">                        statIgnoredPhases++;</span>
+                    }
+                }
+
+<span class="nc bnc" id="L326" title="All 2 branches missed.">                if (isChunkVisible(chunk)) {</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">                    if (triangleCount(mesh, ChunkMesh.RenderPhase.OPAQUE) &gt; 0) {</span>
+<span class="nc" id="L328">                        renderQueues.chunksOpaque.add(chunk);</span>
+                    } else {
+<span class="nc" id="L330">                        statIgnoredPhases++;</span>
+                    }
+
+<span class="nc bnc" id="L333" title="All 2 branches missed.">                    if (triangleCount(mesh, ChunkMesh.RenderPhase.REFRACTIVE) &gt; 0) {</span>
+<span class="nc" id="L334">                        renderQueues.chunksAlphaBlend.add(chunk);</span>
+                    } else {
+<span class="nc" id="L336">                        statIgnoredPhases++;</span>
+                    }
+
+<span class="nc bnc" id="L339" title="All 4 branches missed.">                    if (triangleCount(mesh, ChunkMesh.RenderPhase.ALPHA_REJECT) &gt; 0 &amp;&amp; chunkCounter &lt; MAX_BILLBOARD_CHUNKS) {</span>
+<span class="nc" id="L340">                        renderQueues.chunksAlphaReject.add(chunk);</span>
+                    } else {
+<span class="nc" id="L342">                        statIgnoredPhases++;</span>
+                    }
+
+<span class="nc" id="L345">                    statVisibleChunks++;</span>
+
+<span class="nc bnc" id="L347" title="All 2 branches missed.">                    if (statVisibleChunks &lt; MAX_ANIMATED_CHUNKS) {</span>
+<span class="nc" id="L348">                        chunk.setAnimated(true);</span>
+                    } else {
+<span class="nc" id="L350">                        chunk.setAnimated(false);</span>
+                    }
+                }
+
+<span class="nc bnc" id="L354" title="All 2 branches missed.">                if (isChunkVisibleReflection(chunk)) {</span>
+<span class="nc" id="L355">                    renderQueues.chunksOpaqueReflection.add(chunk);</span>
+                }
+
+                // Process all chunks in the area, not only the visible ones
+<span class="nc bnc" id="L359" title="All 6 branches missed.">                if (isFirstRenderingStageForCurrentFrame &amp;&amp; (chunk.isDirty() || !chunk.hasMesh())) {</span>
+<span class="nc" id="L360">                    statDirtyChunks++;</span>
+<span class="nc" id="L361">                    chunkMeshUpdateManager.queueChunkUpdate(chunk);</span>
+<span class="nc" id="L362">                    processedChunks++;</span>
+                }
+            }
+<span class="nc" id="L365">            chunkCounter++;</span>
+<span class="nc" id="L366">        }</span>
+
+<span class="nc" id="L368">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L369">        return processedChunks;</span>
+    }
+
+    private int triangleCount(ChunkMesh mesh, ChunkMesh.RenderPhase renderPhase) {
+<span class="nc bnc" id="L373" title="All 2 branches missed.">        if (mesh != null) {</span>
+<span class="nc" id="L374">            return mesh.triangleCount(renderPhase);</span>
+        } else {
+<span class="nc" id="L376">            return 0;</span>
+        }
+    }
+
+    @Override
+    public void dispose() {
+<span class="nc" id="L382">        chunkMeshUpdateManager.shutdown();</span>
+<span class="nc" id="L383">    }</span>
+
+    private boolean isChunkValidForRender(RenderableChunk chunk) {
+<span class="nc bnc" id="L386" title="All 4 branches missed.">        return chunk.isReady() &amp;&amp; areSurroundingChunksLoaded(chunk);</span>
+    }
+
+    private boolean areSurroundingChunksLoaded(RenderableChunk chunk) {
+<span class="nc bnc" id="L390" title="All 2 branches missed.">        return worldProvider.getWorldViewAround(chunk.getPosition()) != null;</span>
+    }
+
+    private boolean isChunkVisibleFromMainLight(RenderableChunk chunk) {
+<span class="nc" id="L394">        return isChunkVisible(shadowMapCamera, chunk); //TODO: find an elegant way</span>
+    }
+
+    private boolean isChunkVisible(RenderableChunk chunk) {
+<span class="nc" id="L398">        return isChunkVisible(playerCamera, chunk);</span>
+    }
+
+    private boolean isChunkVisible(Camera camera, RenderableChunk chunk) {
+<span class="nc" id="L402">        return camera.hasInSight(chunk.getAABB());</span>
+    }
+
+    private boolean isChunkVisibleReflection(RenderableChunk chunk) {
+<span class="nc" id="L406">        return playerCamera.getViewFrustumReflected().intersects(chunk.getAABB());</span>
+    }
+
+    @Override
+    public RenderQueuesHelper getRenderQueues() {
+<span class="nc" id="L411">        return renderQueues;</span>
+    }
+
+    @Override
+    public ChunkProvider getChunkProvider() {
+<span class="nc" id="L416">        return chunkProvider;</span>
+    }
+
+    @Override
+    public void setShadowMapCamera(Camera camera) {
+<span class="nc" id="L421">        this.shadowMapCamera = camera;</span>
+<span class="nc" id="L422">    }</span>
+
+    @Override
+    public String getMetrics() {
+<span class="nc" id="L426">        String stringToReturn = &quot;&quot;;</span>
+<span class="nc" id="L427">        stringToReturn += &quot;Dirty Chunks: &quot;;</span>
+<span class="nc" id="L428">        stringToReturn += statDirtyChunks;</span>
+<span class="nc" id="L429">        stringToReturn += &quot;\n&quot;;</span>
+<span class="nc" id="L430">        stringToReturn += &quot;Ignored Phases: &quot;;</span>
+<span class="nc" id="L431">        stringToReturn += statIgnoredPhases;</span>
+<span class="nc" id="L432">        stringToReturn += &quot;\n&quot;;</span>
+<span class="nc" id="L433">        stringToReturn += &quot;Visible Chunks: &quot;;</span>
+<span class="nc" id="L434">        stringToReturn += statVisibleChunks;</span>
+<span class="nc" id="L435">        stringToReturn += &quot;\n&quot;;</span>
+<span class="nc" id="L436">        return stringToReturn;</span>
+    }
+
+    private static float squaredDistanceToCamera(RenderableChunk chunk, Vector3f cameraPosition) {
+        // For performance reasons, to avoid instantiating too many vectors in a frequently called method,
+        // comments are in use instead of appropriately named vectors.
+<span class="nc" id="L442">        Vector3f result = chunk.getPosition().toVector3f(); // chunk position in chunk coordinates</span>
+<span class="nc" id="L443">        result.add(CHUNK_CENTER_OFFSET);                    // chunk center in chunk coordinates</span>
+
+<span class="nc" id="L445">        result.x *= ChunkConstants.SIZE_X;    // chunk center in world coordinates</span>
+<span class="nc" id="L446">        result.y *= ChunkConstants.SIZE_Y;</span>
+<span class="nc" id="L447">        result.z *= ChunkConstants.SIZE_Z;</span>
+
+<span class="nc" id="L449">        result.sub(cameraPosition); // camera to chunk vector</span>
+
+<span class="nc" id="L451">        return result.lengthSquared();</span>
+    }
+
+    // TODO: find the right place to check if the activeCamera has changed,
+    // TODO: so that the comparators can hold an up-to-date reference to it
+    // TODO: and avoid having to find it on a per-comparison basis.
+    private static class ChunkFrontToBackComparator implements Comparator&lt;RenderableChunk&gt; {
+
+        @Override
+        public int compare(RenderableChunk chunk1, RenderableChunk chunk2) {
+<span class="nc" id="L461">            Preconditions.checkNotNull(chunk1);</span>
+<span class="nc" id="L462">            Preconditions.checkNotNull(chunk2);</span>
+<span class="nc" id="L463">            Vector3f cameraPosition = CoreRegistry.get(WorldRenderer.class).getActiveCamera().getPosition();</span>
+<span class="nc" id="L464">            double distance1 = squaredDistanceToCamera(chunk1, cameraPosition);</span>
+<span class="nc" id="L465">            double distance2 = squaredDistanceToCamera(chunk2, cameraPosition);</span>
+
+            // Using Double.compare as simple d1 &lt; d2 comparison is flagged as problematic by Jenkins
+            // On the other hand Double.compare can return any positive/negative value apparently,
+            // hence the need for Math.signum().
+<span class="nc" id="L470">            return (int) Math.signum(Double.compare(distance1, distance2));</span>
+        }
+    }
+
+    private static class ChunkBackToFrontComparator implements Comparator&lt;RenderableChunk&gt; {
+
+        @Override
+        public int compare(RenderableChunk chunk1, RenderableChunk chunk2) {
+<span class="nc" id="L478">            Preconditions.checkNotNull(chunk1);</span>
+<span class="nc" id="L479">            Preconditions.checkNotNull(chunk2);</span>
+<span class="nc" id="L480">            Vector3f cameraPosition = CoreRegistry.get(WorldRenderer.class).getActiveCamera().getPosition();</span>
+<span class="nc" id="L481">            double distance1 = squaredDistanceToCamera(chunk1, cameraPosition);</span>
+<span class="nc" id="L482">            double distance2 = squaredDistanceToCamera(chunk2, cameraPosition);</span>
+
+<span class="nc bnc" id="L484" title="All 2 branches missed.">            if (distance1 == distance2) {</span>
+<span class="nc" id="L485">                return 0;</span>
+<span class="nc bnc" id="L486" title="All 2 branches missed.">            } else if (distance2 &gt; distance1) {</span>
+<span class="nc" id="L487">                return 1;</span>
+            } else {
+<span class="nc" id="L489">                return -1;</span>
+            }
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

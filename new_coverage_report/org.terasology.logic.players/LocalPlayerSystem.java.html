@@ -1,0 +1,521 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LocalPlayerSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.players</a> &gt; <span class="el_source">LocalPlayerSystem.java</span></div><h1>LocalPlayerSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.players;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.Time;
+import org.terasology.engine.subsystem.config.BindsManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.EventPriority;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RenderSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.input.ButtonState;
+import org.terasology.input.Input;
+import org.terasology.input.InputSystem;
+import org.terasology.input.binds.interaction.FrobButton;
+import org.terasology.input.binds.inventory.UseItemButton;
+import org.terasology.input.binds.movement.AutoMoveButton;
+import org.terasology.input.binds.movement.CrouchButton;
+import org.terasology.input.binds.movement.CrouchModeButton;
+import org.terasology.input.binds.movement.ForwardsMovementAxis;
+import org.terasology.input.binds.movement.ForwardsRealMovementAxis;
+import org.terasology.input.binds.movement.JumpButton;
+import org.terasology.input.binds.movement.RotationPitchAxis;
+import org.terasology.input.binds.movement.RotationYawAxis;
+import org.terasology.input.binds.movement.StrafeMovementAxis;
+import org.terasology.input.binds.movement.StrafeRealMovementAxis;
+import org.terasology.input.binds.movement.ToggleSpeedPermanentlyButton;
+import org.terasology.input.binds.movement.ToggleSpeedTemporarilyButton;
+import org.terasology.input.binds.movement.VerticalMovementAxis;
+import org.terasology.input.binds.movement.VerticalRealMovementAxis;
+import org.terasology.input.events.MouseAxisEvent;
+import org.terasology.input.events.MouseAxisEvent.MouseAxis;
+import org.terasology.logic.characters.CharacterComponent;
+import org.terasology.logic.characters.CharacterHeldItemComponent;
+import org.terasology.logic.characters.CharacterMoveInputEvent;
+import org.terasology.logic.characters.CharacterMovementComponent;
+import org.terasology.logic.characters.GazeMountPointComponent;
+import org.terasology.logic.characters.MovementMode;
+import org.terasology.logic.characters.events.OnItemUseEvent;
+import org.terasology.logic.characters.interactions.InteractionUtil;
+import org.terasology.logic.debug.MovementDebugCommands;
+import org.terasology.logic.delay.DelayManager;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.players.event.OnPlayerSpawnedEvent;
+import org.terasology.math.AABB;
+import org.terasology.math.Direction;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.NetworkMode;
+import org.terasology.network.NetworkSystem;
+import org.terasology.physics.engine.PhysicsEngine;
+import org.terasology.registry.In;
+import org.terasology.rendering.AABBRenderer;
+import org.terasology.rendering.BlockOverlayRenderer;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.cameras.PerspectiveCamera;
+import org.terasology.rendering.logic.MeshComponent;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockComponent;
+import org.terasology.world.block.regions.BlockRegionComponent;
+
+import java.util.List;
+
+// TODO: This needs a really good cleanup
+// TODO: Move more input stuff to a specific input system?
+// TODO: Camera should become an entity/component, so it can follow the player naturally
+<span class="nc" id="L87">public class LocalPlayerSystem extends BaseComponentSystem implements UpdateSubscriberSystem, RenderSystem {</span>
+
+    @In
+    NetworkSystem networkSystem;
+    @In
+    private LocalPlayer localPlayer;
+    @In
+    private WorldProvider worldProvider;
+    private Camera playerCamera;
+    @In
+    private MovementDebugCommands movementDebugCommands;
+    @In
+    private PhysicsEngine physics;
+    @In
+    private DelayManager delayManager;
+
+    @In
+    private Config config;
+    @In
+    private InputSystem inputSystem;
+
+    @In
+    private BindsManager bindsManager;
+
+    private float bobFactor;
+    private float lastStepDelta;
+
+    // Input
+<span class="nc" id="L115">    private Vector3f relativeMovement = new Vector3f();</span>
+    private boolean isAutoMove;
+<span class="nc" id="L117">    private boolean runPerDefault = true;</span>
+<span class="nc" id="L118">    private boolean run = runPerDefault;</span>
+<span class="nc" id="L119">    private boolean crouchPerDefault = false;</span>
+<span class="nc" id="L120">    private boolean crouch = false;</span>
+
+    private boolean jump;
+    private float lookPitch;
+    private float lookPitchDelta;
+    private float lookYaw;
+    private float lookYawDelta;
+
+    @In
+    private Time time;
+
+<span class="nc" id="L131">    private BlockOverlayRenderer aabbRenderer = new AABBRenderer(AABB.createEmpty());</span>
+
+<span class="nc" id="L133">    private int inputSequenceNumber = 1;</span>
+
+    private AABB aabb;
+
+    public void setPlayerCamera(Camera camera) {
+<span class="nc" id="L138">        playerCamera = camera;</span>
+<span class="nc" id="L139">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        if (!localPlayer.isValid()) {</span>
+<span class="nc" id="L144">            return;</span>
+        }
+
+<span class="nc" id="L147">        EntityRef entity = localPlayer.getCharacterEntity();</span>
+<span class="nc" id="L148">        CharacterMovementComponent characterMovementComponent = entity.getComponent(CharacterMovementComponent.class);</span>
+
+<span class="nc" id="L150">        processInput(entity, characterMovementComponent);</span>
+<span class="nc" id="L151">        updateCamera(characterMovementComponent, localPlayer.getViewPosition(), localPlayer.getViewRotation());</span>
+<span class="nc" id="L152">    }</span>
+
+    private void processInput(EntityRef entity, CharacterMovementComponent characterMovementComponent) {
+<span class="nc" id="L155">        lookYaw = (lookYaw - lookYawDelta) % 360;</span>
+<span class="nc" id="L156">        lookYawDelta = 0f;</span>
+<span class="nc" id="L157">        lookPitch = TeraMath.clamp(lookPitch + lookPitchDelta, -89, 89);</span>
+<span class="nc" id="L158">        lookPitchDelta = 0f;</span>
+
+<span class="nc" id="L160">        Vector3f relMove = new Vector3f(relativeMovement);</span>
+<span class="nc" id="L161">        relMove.y = 0;</span>
+
+        Quat4f viewRotation;
+<span class="nc bnc" id="L164" title="All 3 branches missed.">        switch (characterMovementComponent.mode) {</span>
+            case CROUCHING:
+            case WALKING:
+<span class="nc bnc" id="L167" title="All 2 branches missed.">                if (!config.getRendering().isVrSupport()) {</span>
+<span class="nc" id="L168">                    viewRotation = new Quat4f(TeraMath.DEG_TO_RAD * lookYaw, 0, 0);</span>
+<span class="nc" id="L169">                    playerCamera.setOrientation(viewRotation);</span>
+                }
+<span class="nc" id="L171">                playerCamera.getOrientation().rotate(relMove, relMove);</span>
+<span class="nc" id="L172">                break;</span>
+            case CLIMBING:
+                // Rotation is applied in KinematicCharacterMover
+<span class="nc" id="L175">                relMove.y += relativeMovement.y;</span>
+<span class="nc" id="L176">                break;</span>
+            default:
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                if (!config.getRendering().isVrSupport()) {</span>
+<span class="nc" id="L179">                    viewRotation = new Quat4f(TeraMath.DEG_TO_RAD * lookYaw, TeraMath.DEG_TO_RAD * lookPitch, 0);</span>
+<span class="nc" id="L180">                    playerCamera.setOrientation(viewRotation);</span>
+                }
+<span class="nc" id="L182">                playerCamera.getOrientation().rotate(relMove, relMove);</span>
+<span class="nc" id="L183">                relMove.y += relativeMovement.y;</span>
+                break;
+        }
+        // For some reason, Quat4f.rotate is returning NaN for valid inputs. This prevents those NaNs from causing trouble down the line.
+<span class="nc bnc" id="L187" title="All 6 branches missed.">        if (!Float.isNaN(relMove.getX()) &amp;&amp; !Float.isNaN(relMove.getY()) &amp;&amp; !Float.isNaN(relMove.getZ())) {</span>
+<span class="nc" id="L188">            entity.send(new CharacterMoveInputEvent(inputSequenceNumber++, lookPitch, lookYaw, relMove, run, crouch, jump, time.getGameDeltaInMs()));</span>
+        }
+<span class="nc" id="L190">        jump = false;</span>
+<span class="nc" id="L191">    }</span>
+
+    // To check if a valid key has been assigned, either primary or secondary and return it
+    private Input getValidKey(List&lt;Input&gt; inputs) {
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        for (Input input : inputs) {</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">            if (input != null) {</span>
+<span class="nc" id="L197">                return input;</span>
+            }
+<span class="nc" id="L199">        }</span>
+<span class="nc" id="L200">        return null;</span>
+    }
+
+    /**
+     * Auto move is disabled when the associated key is pressed again.
+     * This cancels the simulated repeated key stroke for the forward input button.
+     */
+    private void stopAutoMove() {
+<span class="nc" id="L208">        List&lt;Input&gt; inputs = bindsManager.getBindsConfig().getBinds(new SimpleUri(&quot;engine:forwards&quot;));</span>
+<span class="nc" id="L209">        Input forwardKey = getValidKey(inputs);</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">        if (forwardKey != null) {</span>
+<span class="nc" id="L211">            inputSystem.cancelSimulatedKeyStroke(forwardKey);</span>
+<span class="nc" id="L212">            isAutoMove = false;</span>
+        }
+
+<span class="nc" id="L215">    }</span>
+
+    /**
+     * Append the input for moving forward to the keyboard command queue to simulate pressing of the forward key.
+     * For an input that repeats, the key must be in Down state before Repeat state can be applied to it.
+     */
+    private void startAutoMove() {
+<span class="nc" id="L222">        isAutoMove = false;</span>
+<span class="nc" id="L223">        List&lt;Input&gt; inputs = bindsManager.getBindsConfig().getBinds(new SimpleUri(&quot;engine:forwards&quot;));</span>
+<span class="nc" id="L224">        Input forwardKey = getValidKey(inputs);</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        if (forwardKey != null) {</span>
+<span class="nc" id="L226">            isAutoMove = true;</span>
+<span class="nc" id="L227">            inputSystem.simulateSingleKeyStroke(forwardKey);</span>
+<span class="nc" id="L228">            inputSystem.simulateRepeatedKeyStroke(forwardKey);</span>
+        }
+<span class="nc" id="L230">    }</span>
+
+    @ReceiveEvent
+    public void onPlayerSpawn(OnPlayerSpawnedEvent event, EntityRef character) {
+<span class="nc bnc" id="L234" title="All 2 branches missed.">        if (character.equals(localPlayer.getCharacterEntity())) {</span>
+
+            // Change height as per PlayerSettings
+<span class="nc" id="L237">            Float height = config.getPlayer().getHeight();</span>
+<span class="nc" id="L238">            movementDebugCommands.playerHeight(localPlayer.getClientEntity(), height);</span>
+            // Change eyeHeight as per PlayerSettings
+<span class="nc" id="L240">            Float eyeHeight = config.getPlayer().getEyeHeight();</span>
+<span class="nc" id="L241">            GazeMountPointComponent gazeMountPointComponent = character.getComponent(GazeMountPointComponent.class);</span>
+<span class="nc" id="L242">            gazeMountPointComponent.translate = new Vector3f(0, eyeHeight, 0);</span>
+
+            // Trigger updating the player camera position as soon as the local player is spawned.
+            // This is not done while the game is still loading, since systems are not updated.
+            // RenderableWorldImpl pre-generates chunks around the player camera and therefore needs
+            // the correct location.
+<span class="nc" id="L248">            lookYaw = 0f;</span>
+<span class="nc" id="L249">            lookPitch = 0f;</span>
+<span class="nc" id="L250">            update(0);</span>
+        }
+<span class="nc" id="L252">    }</span>
+
+    @ReceiveEvent(components = CharacterComponent.class)
+    public void onMouseMove(MouseAxisEvent event, EntityRef entity) {
+<span class="nc" id="L256">        MouseAxis axis = event.getMouseAxis();</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if (axis == MouseAxis.X) {</span>
+<span class="nc" id="L258">            lookYawDelta = event.getValue();</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        } else if (axis == MouseAxis.Y) {</span>
+<span class="nc" id="L260">            lookPitchDelta = event.getValue();</span>
+        }
+<span class="nc" id="L262">        event.consume();</span>
+<span class="nc" id="L263">    }</span>
+
+    @ReceiveEvent(components = {CharacterComponent.class})
+    public void updateRotationYaw(RotationYawAxis event, EntityRef entity) {
+<span class="nc" id="L267">        lookYawDelta = event.getValue();</span>
+<span class="nc" id="L268">        event.consume();</span>
+<span class="nc" id="L269">    }</span>
+
+    @ReceiveEvent(components = {CharacterComponent.class})
+    public void updateRotationPitch(RotationPitchAxis event, EntityRef entity) {
+<span class="nc" id="L273">        lookPitchDelta = event.getValue();</span>
+<span class="nc" id="L274">        event.consume();</span>
+<span class="nc" id="L275">    }</span>
+
+    @ReceiveEvent(components = {CharacterComponent.class, CharacterMovementComponent.class})
+    public void onJump(JumpButton event, EntityRef entity) {
+<span class="nc bnc" id="L279" title="All 2 branches missed.">        if (event.getState() == ButtonState.DOWN) {</span>
+<span class="nc" id="L280">            jump = true;</span>
+<span class="nc" id="L281">            event.consume();</span>
+        } else {
+<span class="nc" id="L283">            jump = false;</span>
+        }
+<span class="nc" id="L285">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class})
+    public void updateForwardsMovement(ForwardsMovementAxis event, EntityRef entity) {
+<span class="nc" id="L289">        relativeMovement.z = event.getValue();</span>
+<span class="nc bnc" id="L290" title="All 4 branches missed.">        if (relativeMovement.z == 0f &amp;&amp; isAutoMove) {</span>
+<span class="nc" id="L291">            stopAutoMove();</span>
+        }
+<span class="nc" id="L293">        event.consume();</span>
+<span class="nc" id="L294">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class})
+    public void updateStrafeMovement(StrafeMovementAxis event, EntityRef entity) {
+<span class="nc" id="L298">        relativeMovement.x = event.getValue();</span>
+<span class="nc" id="L299">        event.consume();</span>
+<span class="nc" id="L300">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class})
+    public void updateVerticalMovement(VerticalMovementAxis event, EntityRef entity) {
+<span class="nc" id="L304">        relativeMovement.y = event.getValue();</span>
+<span class="nc" id="L305">        event.consume();</span>
+<span class="nc" id="L306">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class})
+    public void updateForwardsMovement(ForwardsRealMovementAxis event, EntityRef entity) {
+<span class="nc" id="L310">        relativeMovement.z = event.getValue();</span>
+<span class="nc" id="L311">        event.consume();</span>
+<span class="nc" id="L312">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class})
+    public void updateStrafeMovement(StrafeRealMovementAxis event, EntityRef entity) {
+<span class="nc" id="L316">        relativeMovement.x = event.getValue();</span>
+<span class="nc" id="L317">        event.consume();</span>
+<span class="nc" id="L318">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class})
+    public void updateVerticalMovement(VerticalRealMovementAxis event, EntityRef entity) {
+<span class="nc" id="L322">        relativeMovement.y = event.getValue();</span>
+<span class="nc" id="L323">        event.consume();</span>
+<span class="nc" id="L324">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class}, priority = EventPriority.PRIORITY_NORMAL)
+    public void onToggleSpeedTemporarily(ToggleSpeedTemporarilyButton event, EntityRef entity) {
+<span class="nc" id="L328">        boolean toggle = event.isDown();</span>
+<span class="nc" id="L329">        run = runPerDefault ^ toggle;</span>
+<span class="nc" id="L330">        event.consume();</span>
+<span class="nc" id="L331">    }</span>
+
+    // Crouches if button is pressed. Stands if button is released.
+    @ReceiveEvent(components = {ClientComponent.class}, priority = EventPriority.PRIORITY_NORMAL)
+    public void onCrouchTemporarily(CrouchButton event, EntityRef entity) {
+<span class="nc" id="L336">        boolean toggle = event.isDown();</span>
+<span class="nc" id="L337">        crouch = crouchPerDefault ^ toggle;</span>
+<span class="nc" id="L338">        event.consume();</span>
+<span class="nc" id="L339">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class}, priority = EventPriority.PRIORITY_NORMAL)
+    public void onCrouchMode(CrouchModeButton event, EntityRef entity) {
+<span class="nc bnc" id="L343" title="All 2 branches missed.">        if (event.isDown()) {</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">            crouchPerDefault = !crouchPerDefault;</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">            crouch = !crouch;</span>
+        }
+<span class="nc" id="L347">        event.consume();</span>
+<span class="nc" id="L348">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class}, priority = EventPriority.PRIORITY_NORMAL)
+    public void onAutoMoveMode(AutoMoveButton event, EntityRef entity) {
+<span class="nc bnc" id="L352" title="All 2 branches missed.">        if (event.isDown()) {</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">            if (!isAutoMove) {</span>
+<span class="nc" id="L354">                startAutoMove();</span>
+            } else {
+<span class="nc" id="L356">                stopAutoMove();</span>
+            }
+        }
+<span class="nc" id="L359">        event.consume();</span>
+<span class="nc" id="L360">    }</span>
+
+    @ReceiveEvent(components = {ClientComponent.class}, priority = EventPriority.PRIORITY_NORMAL)
+    public void onToggleSpeedPermanently(ToggleSpeedPermanentlyButton event, EntityRef entity) {
+<span class="nc bnc" id="L364" title="All 2 branches missed.">        if (event.isDown()) {</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">            runPerDefault = !runPerDefault;</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">            run = !run;</span>
+        }
+<span class="nc" id="L368">        event.consume();</span>
+<span class="nc" id="L369">    }</span>
+
+    @ReceiveEvent
+    public void onTargetChanged(PlayerTargetChangedEvent event, EntityRef entity) {
+<span class="nc" id="L373">        EntityRef target = event.getNewTarget();</span>
+<span class="nc bnc" id="L374" title="All 2 branches missed.">        if (target.exists()) {</span>
+<span class="nc" id="L375">            LocationComponent location = target.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L376" title="All 2 branches missed.">            if (location != null) {</span>
+<span class="nc" id="L377">                BlockComponent blockComp = target.getComponent(BlockComponent.class);</span>
+<span class="nc" id="L378">                BlockRegionComponent blockRegion = target.getComponent(BlockRegionComponent.class);</span>
+<span class="nc bnc" id="L379" title="All 4 branches missed.">                if (blockComp != null || blockRegion != null) {</span>
+<span class="nc" id="L380">                    Vector3f blockPos = location.getWorldPosition();</span>
+<span class="nc" id="L381">                    Block block = worldProvider.getBlock(blockPos);</span>
+<span class="nc" id="L382">                    aabb = block.getBounds(blockPos);</span>
+<span class="nc" id="L383">                } else {</span>
+<span class="nc" id="L384">                    MeshComponent mesh = target.getComponent(MeshComponent.class);</span>
+<span class="nc bnc" id="L385" title="All 4 branches missed.">                    if (mesh != null &amp;&amp; mesh.mesh != null) {</span>
+<span class="nc" id="L386">                        aabb = mesh.mesh.getAABB();</span>
+<span class="nc" id="L387">                        aabb = aabb.transform(location.getWorldRotation(), location.getWorldPosition(), location.getWorldScale());</span>
+                    }
+                }
+            }
+<span class="nc" id="L391">        } else {</span>
+<span class="nc" id="L392">            aabb = null;</span>
+        }
+<span class="nc" id="L394">    }</span>
+
+    @Override
+    public void renderOverlay() {
+        // Display the block the player is aiming at
+<span class="nc bnc" id="L399" title="All 2 branches missed.">        if (config.getRendering().isRenderPlacingBox()) {</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">            if (aabb != null) {</span>
+<span class="nc" id="L401">                aabbRenderer.setAABB(aabb);</span>
+<span class="nc" id="L402">                aabbRenderer.render();</span>
+            }
+        }
+<span class="nc" id="L405">    }</span>
+
+    public BlockOverlayRenderer getAABBRenderer() {
+<span class="nc" id="L408">        return aabbRenderer;</span>
+    }
+
+    public void setAABBRenderer(BlockOverlayRenderer newAABBRender) {
+<span class="nc" id="L412">        aabbRenderer = newAABBRender;</span>
+<span class="nc" id="L413">    }</span>
+
+    private void updateCamera(CharacterMovementComponent charMovementComp, Vector3f position, Quat4f rotation) {
+<span class="nc" id="L416">        playerCamera.getPosition().set(position);</span>
+<span class="nc" id="L417">        Vector3f viewDir = Direction.FORWARD.getVector3f();</span>
+<span class="nc" id="L418">        rotation.rotate(viewDir, playerCamera.getViewingDirection());</span>
+
+<span class="nc" id="L420">        float stepDelta = charMovementComp.footstepDelta - lastStepDelta;</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">        if (stepDelta &lt; 0) {</span>
+<span class="nc" id="L422">            stepDelta += 1;</span>
+        }
+<span class="nc" id="L424">        bobFactor += stepDelta;</span>
+<span class="nc" id="L425">        lastStepDelta = charMovementComp.footstepDelta;</span>
+
+<span class="nc bnc" id="L427" title="All 2 branches missed.">        if (playerCamera.isBobbingAllowed()) {</span>
+<span class="nc bnc" id="L428" title="All 2 branches missed.">            if (config.getRendering().isCameraBobbing()) {</span>
+<span class="nc" id="L429">                ((PerspectiveCamera) playerCamera).setBobbingRotationOffsetFactor(calcBobbingOffset(0.0f, 0.01f, 2.5f));</span>
+<span class="nc" id="L430">                ((PerspectiveCamera) playerCamera).setBobbingVerticalOffsetFactor(calcBobbingOffset((float) java.lang.Math.PI / 4f, 0.025f, 3f));</span>
+            } else {
+<span class="nc" id="L432">                ((PerspectiveCamera) playerCamera).setBobbingRotationOffsetFactor(0.0f);</span>
+<span class="nc" id="L433">                ((PerspectiveCamera) playerCamera).setBobbingVerticalOffsetFactor(0.0f);</span>
+            }
+        }
+
+<span class="nc bnc" id="L437" title="All 2 branches missed.">        if (charMovementComp.mode == MovementMode.GHOSTING) {</span>
+<span class="nc" id="L438">            playerCamera.extendFov(24);</span>
+        } else {
+<span class="nc" id="L440">            playerCamera.resetFov();</span>
+        }
+<span class="nc" id="L442">    }</span>
+
+    @ReceiveEvent(components = {CharacterComponent.class})
+    public void onFrobButton(FrobButton event, EntityRef character) {
+<span class="nc bnc" id="L446" title="All 2 branches missed.">        if (event.getState() != ButtonState.DOWN) {</span>
+<span class="nc" id="L447">            return;</span>
+        }
+
+<span class="nc" id="L450">        ResourceUrn activeInteractionScreenUri = InteractionUtil.getActiveInteractionScreenUri(character);</span>
+<span class="nc bnc" id="L451" title="All 2 branches missed.">        if (activeInteractionScreenUri != null) {</span>
+<span class="nc" id="L452">            InteractionUtil.cancelInteractionAsClient(character);</span>
+<span class="nc" id="L453">            return;</span>
+        }
+<span class="nc" id="L455">        boolean activeRequestSent = localPlayer.activateTargetAsClient();</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">        if (activeRequestSent) {</span>
+<span class="nc" id="L457">            event.consume();</span>
+        }
+<span class="nc" id="L459">    }</span>
+
+    @ReceiveEvent(components = {CharacterComponent.class})
+    public void onUseItemButton(UseItemButton event, EntityRef entity, CharacterHeldItemComponent characterHeldItemComponent) {
+<span class="nc bnc" id="L463" title="All 2 branches missed.">        if (!event.isDown()) {</span>
+<span class="nc" id="L464">            return;</span>
+        }
+
+<span class="nc" id="L467">        EntityRef selectedItemEntity = characterHeldItemComponent.selectedItem;</span>
+<span class="nc bnc" id="L468" title="All 2 branches missed.">        if (!selectedItemEntity.exists()) {</span>
+<span class="nc" id="L469">            return;</span>
+        }
+
+        boolean requestIsValid;
+<span class="nc bnc" id="L473" title="All 2 branches missed.">        if (networkSystem.getMode().isAuthority()) {</span>
+            // Let the ActivationRequest handler trigger the OnItemUseEvent if this is a local client
+<span class="nc" id="L475">            requestIsValid = true;</span>
+        } else {
+<span class="nc" id="L477">            OnItemUseEvent onItemUseEvent = new OnItemUseEvent();</span>
+<span class="nc" id="L478">            entity.send(onItemUseEvent);</span>
+<span class="nc bnc" id="L479" title="All 2 branches missed.">            requestIsValid = !onItemUseEvent.isConsumed();</span>
+        }
+
+<span class="nc bnc" id="L482" title="All 2 branches missed.">        if (requestIsValid) {</span>
+<span class="nc" id="L483">            localPlayer.activateOwnedEntityAsClient(selectedItemEntity);</span>
+<span class="nc" id="L484">            entity.saveComponent(characterHeldItemComponent);</span>
+<span class="nc" id="L485">            event.consume();</span>
+        }
+<span class="nc" id="L487">    }</span>
+
+    private float calcBobbingOffset(float phaseOffset, float amplitude, float frequency) {
+<span class="nc" id="L490">        return (float) java.lang.Math.sin((double) bobFactor * frequency + phaseOffset) * amplitude;</span>
+    }
+
+    @Override
+    public void renderOpaque() {
+
+<span class="nc" id="L496">    }</span>
+
+    @Override
+    public void renderAlphaBlend() {
+
+<span class="nc" id="L501">    }</span>
+
+    @Override
+    public void renderShadows() {
+<span class="nc" id="L505">    }</span>
+
+    /**
+     * Special getter that fetches the client entity via the NetworkSystem instead of the LocalPlayer.
+     * This can be needed in special cases where the local player isn't fully available (TODO: May be a bug?)
+     *
+     * @return the EntityRef that the networking system says is the client associated with this player
+     */
+    public EntityRef getClientEntityViaNetworkSystem() {
+<span class="nc bnc" id="L514" title="All 4 branches missed.">        if (networkSystem.getMode() != NetworkMode.NONE &amp;&amp; networkSystem.getServer() != null) {</span>
+<span class="nc" id="L515">            return networkSystem.getServer().getClientEntity();</span>
+        } else {
+<span class="nc" id="L517">            return null;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

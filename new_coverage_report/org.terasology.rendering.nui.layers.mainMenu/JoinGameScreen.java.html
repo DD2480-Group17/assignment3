@@ -1,0 +1,520 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JoinGameScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">JoinGameScreen.java</span></div><h1>JoinGameScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import com.google.common.base.Joiner;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.ServerInfo;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.GameThread;
+import org.terasology.engine.modes.StateLoading;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.identity.storageServiceClient.StorageServiceWorker;
+import org.terasology.input.Keyboard;
+import org.terasology.module.ModuleRegistry;
+import org.terasology.naming.NameVersion;
+import org.terasology.network.JoinStatus;
+import org.terasology.network.NetworkSystem;
+import org.terasology.network.PingService;
+import org.terasology.network.ServerInfoMessage;
+import org.terasology.network.ServerInfoService;
+import org.terasology.registry.In;
+import org.terasology.rendering.FontColor;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.BindHelper;
+import org.terasology.rendering.nui.databinding.IntToStringBinding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.itemRendering.StringTextRenderer;
+import org.terasology.rendering.nui.layouts.CardLayout;
+import org.terasology.rendering.nui.widgets.ActivateEventListener;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIList;
+import org.terasology.world.internal.WorldInfo;
+import org.terasology.world.time.WorldTime;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+/**
+ */
+<span class="nc" id="L72">public class JoinGameScreen extends CoreScreenLayer {</span>
+<span class="nc" id="L73">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:joinGameScreen&quot;);</span>
+
+<span class="nc" id="L75">    private static final Logger logger = LoggerFactory.getLogger(JoinGameScreen.class);</span>
+
+    @In
+    private Config config;
+
+    @In
+    private NetworkSystem networkSystem;
+
+    @In
+    private GameEngine engine;
+
+    @In
+    private ModuleManager moduleManager;
+
+    @In
+    private TranslationSystem translationSystem;
+
+    @In
+    private StorageServiceWorker storageServiceWorker;
+
+<span class="nc" id="L95">    private Map&lt;ServerInfo, Future&lt;ServerInfoMessage&gt;&gt; extInfo = new HashMap&lt;&gt;();</span>
+
+    private ServerInfoService infoService;
+
+    private ServerListDownloader downloader;
+
+    private UIList&lt;ServerInfo&gt; visibleList;
+
+<span class="nc" id="L103">    private List&lt;ServerInfo&gt; listedServers = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L105">    private Predicate&lt;ServerInfo&gt; activeServersOnly = ServerInfo::isActive;</span>
+
+    private boolean updateComplete;
+
+    @Override
+    public void initialise() {
+
+<span class="nc" id="L112">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+<span class="nc" id="L113">        downloader = new ServerListDownloader(config.getNetwork().getMasterServer());</span>
+
+<span class="nc" id="L115">        CardLayout cards = find(&quot;cards&quot;, CardLayout.class);</span>
+
+<span class="nc" id="L117">        UIList&lt;ServerInfo&gt; customServerList = find(&quot;customServerList&quot;, UIList.class);</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if (customServerList != null) {</span>
+<span class="nc" id="L119">            customServerList.setList(config.getNetwork().getServerInfos());</span>
+<span class="nc" id="L120">            configureServerList(customServerList);</span>
+        }
+
+<span class="nc" id="L123">        UIList&lt;ServerInfo&gt; onlineServerList = find(&quot;onlineServerList&quot;, UIList.class);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (onlineServerList != null) {</span>
+<span class="nc" id="L125">            onlineServerList.setList(listedServers);</span>
+<span class="nc" id="L126">            configureServerList(onlineServerList);</span>
+        }
+
+<span class="nc" id="L129">        ActivateEventListener activateCustom = e -&gt; {</span>
+<span class="nc" id="L130">            cards.setDisplayedCard(&quot;customServerListScrollArea&quot;);</span>
+<span class="nc" id="L131">            find(&quot;customButton&quot;, UIButton.class).setFamily(&quot;highlight&quot;);</span>
+<span class="nc" id="L132">            find(&quot;onlineButton&quot;, UIButton.class).setFamily(&quot;default&quot;);</span>
+<span class="nc" id="L133">            visibleList = customServerList;</span>
+<span class="nc" id="L134">        };</span>
+
+<span class="nc" id="L136">        WidgetUtil.trySubscribe(this, &quot;customButton&quot;, activateCustom);</span>
+
+<span class="nc" id="L138">        ActivateEventListener activateOnline = e -&gt; {</span>
+<span class="nc" id="L139">            cards.setDisplayedCard(&quot;onlineServerListScrollArea&quot;);</span>
+<span class="nc" id="L140">            find(&quot;customButton&quot;, UIButton.class).setFamily(&quot;default&quot;);</span>
+<span class="nc" id="L141">            find(&quot;onlineButton&quot;, UIButton.class).setFamily(&quot;highlight&quot;);</span>
+<span class="nc" id="L142">            visibleList = onlineServerList;</span>
+<span class="nc" id="L143">        };</span>
+<span class="nc" id="L144">        WidgetUtil.trySubscribe(this, &quot;onlineButton&quot;, activateOnline);</span>
+
+<span class="nc" id="L146">        bindCustomButtons();</span>
+<span class="nc" id="L147">        bindInfoLabels();</span>
+
+<span class="nc" id="L149">        WidgetUtil.trySubscribe(this, &quot;close&quot;, button -&gt; {</span>
+<span class="nc" id="L150">            config.save();</span>
+<span class="nc" id="L151">            triggerBackAnimation();</span>
+<span class="nc" id="L152">        });</span>
+
+<span class="nc" id="L154">        activateOnline.onActivated(null);</span>
+<span class="nc" id="L155">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L159">        super.onOpened();</span>
+
+<span class="nc" id="L161">        infoService = new ServerInfoService();</span>
+
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (!config.getPlayer().hasEnteredUsername()) {</span>
+<span class="nc" id="L164">            getManager().pushScreen(EnterUsernamePopup.ASSET_URI, EnterUsernamePopup.class);</span>
+        }
+
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        if (storageServiceWorker.hasConflictingIdentities()) {</span>
+<span class="nc" id="L168">            new IdentityConflictHelper(storageServiceWorker, getManager(), translationSystem).runSolver();</span>
+        }
+<span class="nc" id="L170">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L174">        super.update(delta);</span>
+
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        if (!updateComplete) {</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">            if (downloader.isDone()) {</span>
+<span class="nc" id="L178">                updateComplete = true;</span>
+            }
+
+<span class="nc" id="L181">            listedServers.clear();</span>
+<span class="nc" id="L182">            listedServers.addAll(Collections2.filter(downloader.getServers(), activeServersOnly));</span>
+        }
+<span class="nc" id="L184">    }</span>
+
+    @Override
+    public void onClosed() {
+<span class="nc" id="L188">        infoService.close();</span>
+
+<span class="nc" id="L190">        super.onClosed();</span>
+<span class="nc" id="L191">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L195">        return false;</span>
+    }
+
+    private void join(final String address, final int port) {
+<span class="nc" id="L199">        Callable&lt;JoinStatus&gt; operation = () -&gt; {</span>
+<span class="nc" id="L200">            JoinStatus joinStatus = networkSystem.join(address, port);</span>
+<span class="nc" id="L201">            return joinStatus;</span>
+        };
+
+<span class="nc" id="L204">        final WaitPopup&lt;JoinStatus&gt; popup = getManager().pushScreen(WaitPopup.ASSET_URI, WaitPopup.class);</span>
+<span class="nc" id="L205">        popup.setMessage(translationSystem.translate(&quot;${engine:menu#join-game-online}&quot;),</span>
+<span class="nc" id="L206">                translationSystem.translate(&quot;${engine:menu#connecting-to}&quot;)</span>
+                        + &quot; '&quot;
+                        + address
+                        + &quot;:&quot;
+                        + port
+                        + &quot;' - &quot;
+<span class="nc" id="L212">                        + translationSystem.translate(&quot;${engine:menu#please-wait}&quot;));</span>
+<span class="nc" id="L213">        popup.onSuccess(result -&gt; {</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">            if (result.getStatus() != JoinStatus.Status.FAILED) {</span>
+<span class="nc" id="L215">                engine.changeState(new StateLoading(result));</span>
+            } else {
+<span class="nc" id="L217">                MessagePopup screen = getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L218">                screen.setMessage(translationSystem.translate(&quot;${engine:menu#failed-to-join}&quot;),</span>
+<span class="nc" id="L219">                        translationSystem.translate(&quot;${engine:menu#could-not-connect-to-server}&quot;) + &quot; - &quot; + result.getErrorMessage());</span>
+            }
+<span class="nc" id="L221">        });</span>
+<span class="nc" id="L222">        popup.startOperation(operation, true);</span>
+
+<span class="nc" id="L224">    }</span>
+
+    private void configureServerList(final UIList&lt;ServerInfo&gt; serverList) {
+
+<span class="nc" id="L228">        serverList.subscribe((widget, item) -&gt; join(item.getAddress(), item.getPort()));</span>
+
+<span class="nc" id="L230">        serverList.subscribeSelection((widget, item) -&gt; {</span>
+<span class="nc" id="L231">            extInfo.remove(item);</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            if (item != null) {</span>
+<span class="nc" id="L233">                extInfo.put(item, infoService.requestInfo(item.getAddress(), item.getPort()));</span>
+<span class="nc" id="L234">                refreshPing();</span>
+            }
+<span class="nc" id="L236">        });</span>
+
+<span class="nc" id="L238">        serverList.setItemRenderer(new StringTextRenderer&lt;ServerInfo&gt;() {</span>
+            @Override
+            public String getString(ServerInfo value) {
+<span class="nc" id="L241">                return value.getName();</span>
+            }
+        });
+<span class="nc" id="L244">    }</span>
+
+    private void bindInfoLabels() {
+
+<span class="nc" id="L248">        final ReadOnlyBinding&lt;ServerInfo&gt; infoBinding = new ReadOnlyBinding&lt;ServerInfo&gt;() {</span>
+
+            @Override
+            public ServerInfo get() {
+<span class="nc" id="L252">                return visibleList.getSelection();</span>
+            }
+        };
+
+<span class="nc" id="L256">        UILabel name = find(&quot;name&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if (name != null) {</span>
+<span class="nc" id="L258">            name.bindText(BindHelper.bindBoundBeanProperty(&quot;name&quot;, infoBinding, ServerInfo.class, String.class));</span>
+        }
+
+<span class="nc" id="L261">        UILabel owner = find(&quot;owner&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">        if (owner != null) {</span>
+<span class="nc" id="L263">            owner.bindText(BindHelper.bindBoundBeanProperty(&quot;owner&quot;, infoBinding, ServerInfo.class, String.class));</span>
+        }
+
+<span class="nc" id="L266">        UILabel address = find(&quot;address&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">        if (address != null) {</span>
+<span class="nc" id="L268">            address.bindText(BindHelper.bindBoundBeanProperty(&quot;address&quot;, infoBinding, ServerInfo.class, String.class));</span>
+        }
+
+<span class="nc" id="L271">        UILabel port = find(&quot;port&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">        if (port != null) {</span>
+<span class="nc" id="L273">            port.bindText(new IntToStringBinding(BindHelper.bindBoundBeanProperty(&quot;port&quot;, infoBinding, ServerInfo.class, int.class)));</span>
+        }
+
+<span class="nc" id="L276">        UILabel onlinePlayers = find(&quot;onlinePlayers&quot;, UILabel.class);</span>
+<span class="nc" id="L277">        onlinePlayers.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc" id="L280">                Future&lt;ServerInfoMessage&gt; info = extInfo.get(visibleList.getSelection());</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">                if (info != null) {</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">                    if (info.isDone()) {</span>
+<span class="nc" id="L283">                        return getOnlinePlayersText(info);</span>
+                    } else {
+<span class="nc" id="L285">                        return translationSystem.translate(&quot;${engine:menu#join-server-requested}&quot;);</span>
+                    }
+                }
+<span class="nc" id="L288">                return null;</span>
+            }
+        });
+
+<span class="nc" id="L292">        UILabel modules = find(&quot;modules&quot;, UILabel.class);</span>
+<span class="nc" id="L293">        modules.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc" id="L296">                Future&lt;ServerInfoMessage&gt; info = extInfo.get(visibleList.getSelection());</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">                if (info != null) {</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">                    if (info.isDone()) {</span>
+<span class="nc" id="L299">                        return getModulesText(info);</span>
+                    } else {
+<span class="nc" id="L301">                        return translationSystem.translate(&quot;${engine:menu#join-server-requested}&quot;);</span>
+                    }
+                }
+<span class="nc" id="L304">                return null;</span>
+            }
+        });
+
+<span class="nc" id="L308">        UILabel worlds = find(&quot;worlds&quot;, UILabel.class);</span>
+<span class="nc" id="L309">        worlds.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc" id="L312">                Future&lt;ServerInfoMessage&gt; info = extInfo.get(visibleList.getSelection());</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">                if (info != null) {</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">                    if (info.isDone()) {</span>
+<span class="nc" id="L315">                        return getWorldText(info);</span>
+                    } else {
+<span class="nc" id="L317">                        return translationSystem.translate(&quot;${engine:menu#join-server-requested}&quot;);</span>
+                    }
+                }
+<span class="nc" id="L320">                return null;</span>
+            }
+        });
+
+<span class="nc" id="L324">        UIButton joinButton = find(&quot;join&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">        if (joinButton != null) {</span>
+<span class="nc" id="L326">            joinButton.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+
+                @Override
+                public Boolean get() {
+<span class="nc bnc" id="L330" title="All 2 branches missed.">                    return infoBinding.get() != null;</span>
+                }
+            });
+<span class="nc" id="L333">            joinButton.subscribe(button -&gt; {</span>
+<span class="nc" id="L334">                config.save();</span>
+<span class="nc" id="L335">                ServerInfo item = infoBinding.get();</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">                if (item != null) {</span>
+<span class="nc" id="L337">                    join(item.getAddress(), item.getPort());</span>
+                }
+<span class="nc" id="L339">            });</span>
+        }
+
+<span class="nc" id="L342">        UIButton refreshButton = find(&quot;refresh&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">        if (refreshButton != null) {</span>
+<span class="nc" id="L344">            refreshButton.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+
+                @Override
+                public Boolean get() {
+<span class="nc bnc" id="L348" title="All 2 branches missed.">                    return visibleList.getSelection() != null;</span>
+                }
+            });
+<span class="nc" id="L351">            refreshButton.subscribe(button -&gt; {</span>
+<span class="nc" id="L352">                refresh();</span>
+<span class="nc" id="L353">            });</span>
+        }
+<span class="nc" id="L355">    }</span>
+
+    private void bindCustomButtons() {
+
+<span class="nc" id="L359">        UIList&lt;?&gt; customServerList = find(&quot;customServerList&quot;, UIList.class);</span>
+<span class="nc" id="L360">        ReadOnlyBinding&lt;Boolean&gt; localSelectedServerOnly = new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L363" title="All 2 branches missed.">                return customServerList.getSelection() != null;</span>
+            }
+        };
+
+<span class="nc" id="L367">        UIButton add = find(&quot;add&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">        if (add != null) {</span>
+<span class="nc" id="L369">            add.subscribe(button -&gt; {</span>
+<span class="nc" id="L370">                AddServerPopup popup = getManager().pushScreen(AddServerPopup.ASSET_URI, AddServerPopup.class);</span>
+                // select the entry if added successfully
+<span class="nc" id="L372">                popup.onSuccess(item -&gt; {</span>
+<span class="nc" id="L373">                    config.getNetwork().addServerInfo(item);</span>
+<span class="nc" id="L374">                    visibleList.setSelection(item);</span>
+<span class="nc" id="L375">                });</span>
+<span class="nc" id="L376">            });</span>
+        }
+
+<span class="nc" id="L379">        UIButton edit = find(&quot;edit&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L380" title="All 2 branches missed.">        if (edit != null) {</span>
+<span class="nc" id="L381">            edit.bindEnabled(localSelectedServerOnly);</span>
+<span class="nc" id="L382">            edit.subscribe(button -&gt; {</span>
+<span class="nc" id="L383">                AddServerPopup popup = getManager().pushScreen(AddServerPopup.ASSET_URI, AddServerPopup.class);</span>
+<span class="nc" id="L384">                ServerInfo info = visibleList.getSelection();</span>
+<span class="nc" id="L385">                popup.setServerInfo(info);</span>
+
+                // editing invalidates the currently known info, so query it again
+<span class="nc" id="L388">                popup.onSuccess(item -&gt; extInfo.put(item, infoService.requestInfo(item.getAddress(), item.getPort())));</span>
+<span class="nc" id="L389">            });</span>
+        }
+
+<span class="nc" id="L392">        UIButton removeButton = find(&quot;remove&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L393" title="All 2 branches missed.">        if (removeButton != null) {</span>
+<span class="nc" id="L394">            removeButton.bindEnabled(localSelectedServerOnly);</span>
+<span class="nc" id="L395">            removeButton.subscribe(button -&gt; {</span>
+<span class="nc" id="L396">                ServerInfo info = visibleList.getSelection();</span>
+<span class="nc bnc" id="L397" title="All 2 branches missed.">                if (info != null) {</span>
+<span class="nc" id="L398">                    config.getNetwork().removeServerInfo(info);</span>
+<span class="nc" id="L399">                    extInfo.remove(info);</span>
+<span class="nc" id="L400">                    visibleList.setSelection(null);</span>
+                }
+<span class="nc" id="L402">            });</span>
+        }
+
+<span class="nc" id="L405">        UILabel downloadLabel = find(&quot;download&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L406" title="All 2 branches missed.">        if (downloadLabel != null) {</span>
+<span class="nc" id="L407">            downloadLabel.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L410">                    return translationSystem.translate(downloader.getStatus());</span>
+                }
+            });
+        }
+<span class="nc" id="L414">    }</span>
+
+    private String getWorldText(Future&lt;ServerInfoMessage&gt; info) {
+        try {
+<span class="nc" id="L418">            List&lt;String&gt; codedWorldInfo = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L419">            ServerInfoMessage serverInfoMessage = info.get();</span>
+
+<span class="nc bnc" id="L421" title="All 2 branches missed.">            if (serverInfoMessage == null) {</span>
+<span class="nc" id="L422">                return FontColor.getColored(translationSystem.translate(&quot;${engine:menu#connection-failed}&quot;), Color.RED);</span>
+            }
+
+<span class="nc bnc" id="L425" title="All 2 branches missed.">            for (WorldInfo wi : serverInfoMessage.getWorldInfoList()) {</span>
+<span class="nc" id="L426">                float timeInDays = wi.getTime() / (float) WorldTime.DAY_LENGTH;</span>
+<span class="nc" id="L427">                codedWorldInfo.add(String.format(&quot;%s (%.2f days)&quot;, wi.getTitle(), timeInDays));</span>
+<span class="nc" id="L428">            }</span>
+<span class="nc" id="L429">            return Joiner.on('\n').join(codedWorldInfo);</span>
+<span class="nc" id="L430">        } catch (ExecutionException | InterruptedException e) {</span>
+<span class="nc" id="L431">            return FontColor.getColored(translationSystem.translate(&quot;${engine:menu#connection-failed}&quot;), Color.RED);</span>
+        }
+    }
+
+    private String getOnlinePlayersText(Future&lt;ServerInfoMessage&gt; info) {
+        try {
+<span class="nc" id="L437">            List&lt;String&gt; codedWorldInfo = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L438">            ServerInfoMessage serverInfoMessage = info.get();</span>
+
+<span class="nc bnc" id="L440" title="All 2 branches missed.">            if (serverInfoMessage == null) {</span>
+<span class="nc" id="L441">                return FontColor.getColored(translationSystem.translate(&quot;${engine:menu#connection-failed}&quot;), Color.RED);</span>
+            }
+
+<span class="nc" id="L444">            codedWorldInfo.add(String.format(&quot;%d&quot;, serverInfoMessage.getOnlinePlayersAmount()));</span>
+<span class="nc" id="L445">            return Joiner.on('\n').join(codedWorldInfo);</span>
+<span class="nc" id="L446">        } catch (ExecutionException | InterruptedException e) {</span>
+<span class="nc" id="L447">            return FontColor.getColored(translationSystem.translate(&quot;${engine:menu#connection-failed}&quot;), Color.RED);</span>
+        }
+    }
+
+    private String getModulesText(Future&lt;ServerInfoMessage&gt; info) {
+        try {
+<span class="nc" id="L453">            ServerInfoMessage serverInfoMessage = info.get();</span>
+
+<span class="nc bnc" id="L455" title="All 2 branches missed.">            if (serverInfoMessage == null) {</span>
+<span class="nc" id="L456">                return FontColor.getColored(translationSystem.translate(&quot;${engine:menu#connection-failed}&quot;), Color.RED);</span>
+            }
+
+<span class="nc" id="L459">            List&lt;String&gt; codedModInfo = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L460">            ModuleRegistry reg = moduleManager.getRegistry();</span>
+<span class="nc bnc" id="L461" title="All 2 branches missed.">            for (NameVersion entry : serverInfoMessage.getModuleList()) {</span>
+<span class="nc bnc" id="L462" title="All 2 branches missed.">                boolean isInstalled = reg.getModule(entry.getName(), entry.getVersion()) != null;</span>
+<span class="nc bnc" id="L463" title="All 2 branches missed.">                Color color = isInstalled ? Color.GREEN : Color.RED;</span>
+<span class="nc" id="L464">                codedModInfo.add(FontColor.getColored(entry.toString(), color));</span>
+<span class="nc" id="L465">            }</span>
+<span class="nc" id="L466">            Collections.sort(codedModInfo, String.CASE_INSENSITIVE_ORDER);</span>
+<span class="nc" id="L467">            return Joiner.on('\n').join(codedModInfo);</span>
+<span class="nc" id="L468">        } catch (ExecutionException | InterruptedException e) {</span>
+<span class="nc" id="L469">            return FontColor.getColored(translationSystem.translate(&quot;${engine:menu#connection-failed}&quot;), Color.RED);</span>
+        }
+    }
+
+    private void refreshPing() {
+<span class="nc" id="L474">        String address = visibleList.getSelection().getAddress();</span>
+<span class="nc" id="L475">        int port = visibleList.getSelection().getPort();</span>
+<span class="nc" id="L476">        UILabel ping = find(&quot;ping&quot;, UILabel.class);</span>
+<span class="nc" id="L477">        ping.setText(&quot;Requested&quot;);</span>
+
+<span class="nc" id="L479">        Thread getPing = new Thread(() -&gt; {</span>
+<span class="nc" id="L480">            PingService pingService = new PingService(address, port);</span>
+            // we're not on the game thread, so we cannot modify GUI elements directly
+            try {
+<span class="nc" id="L483">                long responseTime = pingService.call();</span>
+<span class="nc bnc" id="L484" title="All 2 branches missed.">                if (visibleList.getSelection().getAddress().equals(address)) {</span>
+<span class="nc" id="L485">                    GameThread.asynch(() -&gt; ping.setText(responseTime + &quot; ms.&quot;));</span>
+                }
+<span class="nc" id="L487">            } catch (IOException e) {</span>
+<span class="nc" id="L488">                String text = translationSystem.translate(&quot;${engine:menu#connection-failed}&quot;);</span>
+<span class="nc" id="L489">                GameThread.asynch(() -&gt; ping.setText(FontColor.getColored(text, Color.RED)));</span>
+<span class="nc" id="L490">            }</span>
+<span class="nc" id="L491">        });</span>
+
+        // TODO: once the common thread pool is in place this could be posted there and the
+        // returned Future could be kept and cancelled as soon the selected menu entry changes
+<span class="nc" id="L495">        getPing.start();</span>
+<span class="nc" id="L496">    }</span>
+
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc bnc" id="L499" title="All 2 branches missed.">        if (event.isDown()) {</span>
+<span class="nc bnc" id="L500" title="All 2 branches missed.">            if (event.getKey() == Keyboard.Key.ESCAPE) {</span>
+<span class="nc bnc" id="L501" title="All 2 branches missed.">                if (isEscapeToCloseAllowed()) {</span>
+<span class="nc" id="L502">                    triggerBackAnimation();</span>
+<span class="nc" id="L503">                    return true;</span>
+                }
+<span class="nc bnc" id="L505" title="All 2 branches missed.">            } else if (event.getKey() == Keyboard.Key.R) {</span>
+<span class="nc" id="L506">                refresh();</span>
+            }
+        }
+<span class="nc" id="L509">        return false;</span>
+    }
+
+    public void refresh() {
+<span class="nc" id="L513">        ServerInfo i = visibleList.getSelection();</span>
+<span class="nc" id="L514">        visibleList.setSelection(null);</span>
+<span class="nc" id="L515">        extInfo.clear();</span>
+<span class="nc" id="L516">        visibleList.setSelection(i);</span>
+<span class="nc" id="L517">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

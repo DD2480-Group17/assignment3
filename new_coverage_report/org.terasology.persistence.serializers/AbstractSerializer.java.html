@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractSerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">AbstractSerializer.java</span></div><h1>AbstractSerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.serializers;
+
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.PersistedDataSerializer;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.reflection.TypeInfo;
+
+import java.util.Optional;
+
+/**
+ * The abstract class that all serializers derive from. It by default provides the ability to
+ * serialize/deserialize an object to/from a {@link PersistedData} using the given
+ * {@link PersistedDataSerializer}.
+ * &lt;p&gt;
+ * Implementors simply need to specify the type of {@link PersistedDataSerializer} to use
+ * and can provide convenience methods that use {@link #serialize(Object, TypeInfo)} and
+ * {@link #deserialize(PersistedData, TypeInfo)}.
+ */
+public abstract class AbstractSerializer {
+    protected final TypeHandlerLibrary typeHandlerLibrary;
+    protected final PersistedDataSerializer persistedDataSerializer;
+
+<span class="fc" id="L38">    protected AbstractSerializer(TypeHandlerLibrary typeHandlerLibrary, PersistedDataSerializer persistedDataSerializer) {</span>
+<span class="fc" id="L39">        this.typeHandlerLibrary = typeHandlerLibrary;</span>
+<span class="fc" id="L40">        this.persistedDataSerializer = persistedDataSerializer;</span>
+<span class="fc" id="L41">    }</span>
+
+    /**
+     * Serializes the given object to a {@link PersistedData} using the stored
+     * {@link #persistedDataSerializer} by loading a
+     * {@link org.terasology.persistence.typeHandling.TypeHandler TypeHandler} from the
+     * {@link #typeHandlerLibrary}.
+     *
+     * @param object   The object to serialize.
+     * @param typeInfo A {@link TypeInfo} specifying the type of the object to serialize.
+     * @param &lt;T&gt;      The type of the object to serialize.
+     * @return A {@link PersistedData}, if the serialization was successful. Serialization
+     * usually fails only because an appropriate type handler could not be found for the
+     * given type.
+     */
+    public &lt;T&gt; Optional&lt;PersistedData&gt; serialize(T object, TypeInfo&lt;T&gt; typeInfo) {
+<span class="fc" id="L57">        return typeHandlerLibrary.getTypeHandler(typeInfo)</span>
+<span class="fc" id="L58">                .map(typeHandler -&gt; typeHandler.serialize(object, persistedDataSerializer));</span>
+    }
+
+    /**
+     * Deserializes an object of the given type from a {@link PersistedData} using the stored
+     * {@link #persistedDataSerializer} by loading a
+     * {@link org.terasology.persistence.typeHandling.TypeHandler TypeHandler} from the
+     * {@link #typeHandlerLibrary}.
+     *
+     * @param data     The {@link PersistedData} containing the serialized representation of the object.
+     * @param typeInfo The {@link TypeInfo} specifying the type to deserialize the object as.
+     * @param &lt;T&gt;      The type to deserialize the object as.
+     * @return The deserialized object of type {@link T}, if the deserialization was successful.
+     * Deserialization usually fails when an appropriate type handler could not be found for the
+     * type {@link T} &lt;i&gt;or&lt;/i&gt; if the serialized object representation in {@code data} does
+     * not represent an object of type {@link T}.
+     */
+    public &lt;T&gt; Optional&lt;T&gt; deserialize(PersistedData data, TypeInfo&lt;T&gt; typeInfo) {
+<span class="fc" id="L76">        return typeHandlerLibrary.getTypeHandler(typeInfo).flatMap(typeHandler -&gt; typeHandler.deserialize(data));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BeforeEntityCreated.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem.entity.lifecycleEvents</a> &gt; <span class="el_source">BeforeEntityCreated.java</span></div><h1>BeforeEntityCreated.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem.entity.lifecycleEvents;
+
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.event.Event;
+import org.terasology.entitySystem.prefab.Prefab;
+
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * @deprecated Use the prefab delta system instead (create a json file under /deltas/moduleName/prefabs/prefabName.prefab with the desired changes)
+ */
+@Deprecated
+public class BeforeEntityCreated implements Event {
+    private Prefab prefab;
+    private Iterable&lt;Component&gt; components;
+<span class="fc" id="L35">    private Set&lt;Class&lt;? extends Component&gt;&gt; componentsToRemove = Sets.newLinkedHashSet();</span>
+<span class="fc" id="L36">    private Map&lt;Class&lt;? extends Component&gt;, Component&gt; componentsToAdd = Maps.newLinkedHashMap();</span>
+
+<span class="fc" id="L38">    public BeforeEntityCreated(Prefab prefab, Iterable&lt;Component&gt; components) {</span>
+<span class="fc" id="L39">        this.prefab = prefab;</span>
+<span class="fc" id="L40">        this.components = components;</span>
+<span class="fc" id="L41">    }</span>
+
+    public Prefab getPrefab() {
+<span class="nc" id="L44">        return prefab;</span>
+    }
+
+    public Iterable&lt;Component&gt; getOriginalComponents() {
+<span class="nc" id="L48">        return components;</span>
+    }
+
+    public void addComponent(Component component) {
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        if (componentsToAdd.containsKey(component.getClass())) {</span>
+<span class="nc" id="L53">            throw new IllegalArgumentException(&quot;Tried adding the same component multiple times&quot;);</span>
+        }
+<span class="nc" id="L55">        componentsToAdd.put(component.getClass(), component);</span>
+<span class="nc" id="L56">    }</span>
+
+    public void prohibitComponent(Class&lt;? extends Component&gt; componentClass) {
+<span class="nc" id="L59">        componentsToRemove.add(componentClass);</span>
+<span class="nc" id="L60">    }</span>
+
+    public Iterable&lt;Component&gt; getResultComponents() {
+<span class="fc" id="L63">        return IteratorImpl::new;</span>
+    }
+
+    private final class IteratorImpl implements Iterator&lt;Component&gt; {
+        private Iterator&lt;Component&gt; sourceIterator;
+        private Iterator&lt;Component&gt; addedIterator;
+
+        private Component next;
+
+<span class="fc" id="L72">        private IteratorImpl() {</span>
+<span class="fc" id="L73">            sourceIterator = components.iterator();</span>
+<span class="fc" id="L74">            addedIterator = componentsToAdd.values().iterator();</span>
+<span class="fc" id="L75">            next = getNext();</span>
+<span class="fc" id="L76">        }</span>
+
+        @Override
+        public boolean hasNext() {
+<span class="fc bfc" id="L80" title="All 2 branches covered.">            return next != null;</span>
+        }
+
+        @Override
+        public Component next() {
+<span class="fc" id="L85">            Component result = next;</span>
+<span class="fc" id="L86">            next = getNext();</span>
+<span class="fc" id="L87">            return result;</span>
+        }
+
+        private Component getNext() {
+<span class="fc bfc" id="L91" title="All 2 branches covered.">            while (sourceIterator.hasNext()) {</span>
+<span class="fc" id="L92">                final Component result = sourceIterator.next();</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">                if (componentsToAdd.containsKey(result.getClass())) {</span>
+<span class="nc" id="L94">                    throw new IllegalStateException(&quot;Requested to add component that was already defined for this entity&quot;);</span>
+                }
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">                if (componentsToRemove.contains(result.getClass())) {</span>
+<span class="nc" id="L97">                    continue;</span>
+                }
+<span class="fc" id="L99">                return result;</span>
+            }
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">            while (addedIterator.hasNext()) {</span>
+<span class="nc" id="L102">                final Component result = addedIterator.next();</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                if (componentsToRemove.contains(result.getClass())) {</span>
+<span class="nc" id="L104">                    continue;</span>
+                }
+<span class="nc" id="L106">                return result;</span>
+            }
+<span class="fc" id="L108">            return null;</span>
+        }
+
+        @Override
+        public void remove() {
+<span class="nc" id="L113">            throw new UnsupportedOperationException(&quot;Remove not supported for read-only iterator&quot;);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

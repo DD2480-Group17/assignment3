@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerPingSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.network</a> &gt; <span class="el_source">ServerPingSystem.java</span></div><h1>ServerPingSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.network;
+
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.network.events.DisconnectedEvent;
+import org.terasology.network.events.PingFromClientEvent;
+import org.terasology.network.events.PingFromServerEvent;
+import org.terasology.network.events.SubscribePingEvent;
+import org.terasology.network.events.UnSubscribePingEvent;
+import org.terasology.registry.In;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * This system implement the server ping to clients on need base.
+ * It runs on the server, pings to all clients who subscribe this function.
+ */
+@RegisterSystem(RegisterMode.AUTHORITY)
+<span class="nc" id="L43">public class ServerPingSystem extends BaseComponentSystem implements UpdateSubscriberSystem {</span>
+
+    private static final long PING_PERIOD = 200;
+
+    @In
+    private EntityManager entityManager;
+
+    @In
+    private LocalPlayer localPlayer;
+
+<span class="nc" id="L53">    private Map&lt;EntityRef, Instant&gt; startMap = new HashMap&lt;&gt;();</span>
+
+<span class="nc" id="L55">    private Map&lt;EntityRef, Instant&gt; endMap = new HashMap&lt;&gt;();</span>
+
+<span class="nc" id="L57">    private Map&lt;EntityRef, Long&gt; pingMap = new HashMap&lt;&gt;();</span>
+
+    private Instant lastPingTime;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L63">        lastPingTime = Instant.now();</span>
+<span class="nc" id="L64">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L68">        long time = Duration.between(lastPingTime, Instant.now()).toMillis();</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (time &gt; PING_PERIOD) {</span>
+
+            // Server ping to all clients only if there are clients who subscribe
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            if (entityManager.getCountOfEntitiesWith(PingSubscriberComponent.class) != 0) {</span>
+<span class="nc" id="L73">                Iterable&lt;EntityRef&gt; clients = entityManager.getEntitiesWith(ClientComponent.class);</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">                for (EntityRef client : clients) {</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                    if (client.equals(localPlayer.getClientEntity())) {</span>
+<span class="nc" id="L76">                        continue;</span>
+                    }
+
+                    // send ping only if client replied the last ping
+<span class="nc" id="L80">                    Instant lastPingFromClient = endMap.get(client);</span>
+<span class="nc" id="L81">                    Instant lastPingToClient = startMap.get(client);</span>
+                    // Only happens when server doesn't receive ping back yet
+<span class="nc bnc" id="L83" title="All 6 branches missed.">                    if (lastPingFromClient != null &amp;&amp; lastPingToClient != null &amp;&amp; lastPingFromClient.isBefore(lastPingToClient)) {</span>
+<span class="nc" id="L84">                        continue;</span>
+                    }
+
+<span class="nc" id="L87">                    Instant start = Instant.now();</span>
+<span class="nc" id="L88">                    startMap.put(client, start);</span>
+<span class="nc" id="L89">                    client.send(new PingFromServerEvent());</span>
+<span class="nc" id="L90">                }</span>
+            }
+
+            //update ping data for all clients
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            for (EntityRef client : entityManager.getEntitiesWith(PingSubscriberComponent.class)) {</span>
+                PingStockComponent pingStockComponent;
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                if (!client.hasComponent(PingStockComponent.class)) {</span>
+<span class="nc" id="L97">                    pingStockComponent = new PingStockComponent();</span>
+                } else {
+<span class="nc" id="L99">                    pingStockComponent = client.getComponent(PingStockComponent.class);</span>
+                }
+<span class="nc bnc" id="L101" title="All 4 branches missed.">                if (localPlayer != null &amp;&amp; localPlayer.getClientEntity() != null) {</span>
+<span class="nc" id="L102">                    pingMap.put(localPlayer.getClientEntity(), new Long(5));</span>
+                }
+<span class="nc" id="L104">                pingStockComponent.setValues(pingMap);</span>
+<span class="nc" id="L105">                client.addOrSaveComponent(pingStockComponent);</span>
+<span class="nc" id="L106">            }</span>
+
+<span class="nc" id="L108">            lastPingTime = Instant.now();</span>
+        }
+<span class="nc" id="L110">    }</span>
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onPingFromClient(PingFromClientEvent event, EntityRef entity) {
+<span class="nc" id="L114">        Instant end = Instant.now();</span>
+<span class="nc" id="L115">        endMap.put(entity, end);</span>
+<span class="nc" id="L116">        updatePing(entity);</span>
+<span class="nc" id="L117">    }</span>
+
+    private void updatePing(EntityRef entity) {
+<span class="nc bnc" id="L120" title="All 4 branches missed.">        if (startMap.containsKey(entity) &amp;&amp; endMap.containsKey(entity)) {</span>
+<span class="nc" id="L121">            long pingTime = Duration.between(startMap.get(entity), endMap.get(entity)).toMillis();</span>
+<span class="nc" id="L122">            pingMap.put(entity, pingTime);</span>
+        }
+<span class="nc" id="L124">    }</span>
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onDisconnected(DisconnectedEvent event, EntityRef entity) {
+<span class="nc" id="L128">        startMap.remove(entity);</span>
+<span class="nc" id="L129">        endMap.remove(entity);</span>
+<span class="nc" id="L130">        pingMap.remove(entity);</span>
+<span class="nc" id="L131">    }</span>
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onSubscribePing(SubscribePingEvent event, EntityRef entity) {
+<span class="nc" id="L135">        entity.addOrSaveComponent(new PingSubscriberComponent());</span>
+<span class="nc" id="L136">    }</span>
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onUnSubscribePing(UnSubscribePingEvent event, EntityRef entity) {
+<span class="nc" id="L140">        entity.removeComponent(PingSubscriberComponent.class);</span>
+<span class="nc" id="L141">        entity.removeComponent(PingStockComponent.class);</span>
+
+        //if there is no pingSubscriber, then clean the map
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (entityManager.getCountOfEntitiesWith(PingSubscriberComponent.class) == 0) {</span>
+<span class="nc" id="L145">            startMap.clear();</span>
+<span class="nc" id="L146">            endMap.clear();</span>
+<span class="nc" id="L147">            pingMap.clear();</span>
+        }
+<span class="nc" id="L149">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

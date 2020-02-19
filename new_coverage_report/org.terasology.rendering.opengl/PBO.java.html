@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PBO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.opengl</a> &gt; <span class="el_source">PBO.java</span></div><h1>PBO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.opengl;
+
+import org.lwjgl.BufferUtils;
+
+import java.nio.ByteBuffer;
+
+import static org.lwjgl.opengl.ARBBufferObject.*;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glBindFramebufferEXT;
+import static org.lwjgl.opengl.EXTPixelBufferObject.GL_PIXEL_PACK_BUFFER_EXT;
+import static org.lwjgl.opengl.GL11.glReadPixels;
+import static org.lwjgl.opengl.GL15.GL_READ_ONLY;
+
+public class PBO {
+    private int pboId;
+    private ByteBuffer cachedBuffer;
+
+<span class="nc" id="L33">    public PBO(int width, int height) {</span>
+<span class="nc" id="L34">        pboId = glGenBuffersARB();</span>
+
+<span class="nc" id="L36">        int byteSize = width * height * 4;</span>
+<span class="nc" id="L37">        cachedBuffer = BufferUtils.createByteBuffer(byteSize);</span>
+
+<span class="nc" id="L39">        bind();</span>
+<span class="nc" id="L40">        glBufferDataARB(GL_PIXEL_PACK_BUFFER_EXT, byteSize, GL_STREAM_READ_ARB);</span>
+<span class="nc" id="L41">        unbind();</span>
+<span class="nc" id="L42">    }</span>
+
+    public void bind() {
+<span class="nc" id="L45">        glBindBufferARB(GL_PIXEL_PACK_BUFFER_EXT, pboId);</span>
+<span class="nc" id="L46">    }</span>
+
+    public void unbind() {
+<span class="nc" id="L49">        glBindBufferARB(GL_PIXEL_PACK_BUFFER_EXT, 0);</span>
+<span class="nc" id="L50">    }</span>
+
+    public void copyFromFBO(int fboId, int width, int height, int format, int type) {
+<span class="nc" id="L53">        bind();</span>
+<span class="nc" id="L54">        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboId);</span>
+<span class="nc" id="L55">        glReadPixels(0, 0, width, height, format, type, 0);</span>
+<span class="nc" id="L56">        unbind();</span>
+<span class="nc" id="L57">        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);</span>
+<span class="nc" id="L58">    }</span>
+
+    public ByteBuffer readBackPixels() {
+<span class="nc" id="L61">        bind();</span>
+
+<span class="nc" id="L63">        cachedBuffer = glMapBufferARB(GL_PIXEL_PACK_BUFFER_EXT, GL_READ_ONLY, cachedBuffer);</span>
+
+        // Maybe fix for the issues appearing on some platforms where accessing the &quot;cachedBuffer&quot; causes a JVM exception and therefore a crash...
+<span class="nc" id="L66">        ByteBuffer resultBuffer = BufferUtils.createByteBuffer(cachedBuffer.capacity());</span>
+<span class="nc" id="L67">        resultBuffer.put(cachedBuffer);</span>
+<span class="nc" id="L68">        cachedBuffer.rewind();</span>
+<span class="nc" id="L69">        resultBuffer.flip();</span>
+
+<span class="nc" id="L71">        glUnmapBufferARB(GL_PIXEL_PACK_BUFFER_EXT);</span>
+<span class="nc" id="L72">        unbind();</span>
+
+<span class="nc" id="L74">        return resultBuffer;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

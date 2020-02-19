@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenALStreamingSoundSource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.audio.openAL.streamingSound</a> &gt; <span class="el_source">OpenALStreamingSoundSource.java</span></div><h1>OpenALStreamingSoundSource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.audio.openAL.streamingSound;
+
+import org.lwjgl.BufferUtils;
+import org.terasology.audio.openAL.BaseSoundSource;
+import org.terasology.audio.openAL.OpenALException;
+import org.terasology.audio.openAL.SoundPool;
+import org.terasology.audio.openAL.SoundSource;
+
+import java.nio.IntBuffer;
+
+import static org.lwjgl.openal.AL10.AL_BUFFER;
+import static org.lwjgl.openal.AL10.AL_BUFFERS_PROCESSED;
+import static org.lwjgl.openal.AL10.AL_PLAYING;
+import static org.lwjgl.openal.AL10.AL_SOURCE_STATE;
+import static org.lwjgl.openal.AL10.alGetSourcei;
+import static org.lwjgl.openal.AL10.alSourcePlay;
+import static org.lwjgl.openal.AL10.alSourceQueueBuffers;
+import static org.lwjgl.openal.AL10.alSourceRewind;
+import static org.lwjgl.openal.AL10.alSourceStop;
+import static org.lwjgl.openal.AL10.alSourceUnqueueBuffers;
+import static org.lwjgl.openal.AL10.alSourcei;
+
+public class OpenALStreamingSoundSource extends BaseSoundSource&lt;OpenALStreamingSound&gt; {
+
+    private OpenALStreamingSound audio;
+    
+    public OpenALStreamingSoundSource(SoundPool&lt;OpenALStreamingSound, OpenALStreamingSoundSource&gt; owningPool) {
+<span class="nc" id="L43">        super(owningPool);</span>
+<span class="nc" id="L44">    }</span>
+
+    @Override
+    public SoundSource&lt;OpenALStreamingSound&gt; stop() {
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (audio != null) {</span>
+<span class="nc" id="L49">            audio.reset();</span>
+        }
+<span class="nc" id="L51">        return super.stop();</span>
+    }
+
+    @Override
+    public boolean isLooping() {
+<span class="nc" id="L56">        return false;</span>
+    }
+    
+    @Override
+    public OpenALStreamingSound getAudio() {
+<span class="nc" id="L61">        return audio;</span>
+    }
+
+    @Override
+    // TODO: Implement looping support for streaming sounds
+    public OpenALStreamingSoundSource setLooping(boolean looping) {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (looping) {</span>
+<span class="nc" id="L68">            throw new UnsupportedOperationException(&quot;Looping is unsupported on streaming sounds!&quot;);</span>
+        }
+
+<span class="nc" id="L71">        return this;</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L76">        int buffersProcessed = alGetSourcei(this.getSourceId(), AL_BUFFERS_PROCESSED);</span>
+
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        while (buffersProcessed-- &gt; 0) {</span>
+<span class="nc" id="L79">            int buffer = alSourceUnqueueBuffers(this.getSourceId());</span>
+<span class="nc" id="L80">            OpenALException.checkState(&quot;Buffer unqueue&quot;);</span>
+
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            if (audio.updateBuffer(buffer)) {</span>
+<span class="nc" id="L83">                alSourceQueueBuffers(this.getSourceId(), buffer);</span>
+<span class="nc" id="L84">                OpenALException.checkState(&quot;Buffer refill&quot;);</span>
+            } else {
+<span class="nc" id="L86">                stop(); // we aren't playing anymore, because stream seems to end</span>
+            }
+<span class="nc" id="L88">        }</span>
+
+<span class="nc" id="L90">        super.update(delta);</span>
+<span class="nc" id="L91">    }</span>
+
+    @Override
+    protected void updateState() {
+        // Start playing if playback for stopped by end of buffers
+<span class="nc bnc" id="L96" title="All 4 branches missed.">        if (isPlaying() &amp;&amp; alGetSourcei(getSourceId(), AL_SOURCE_STATE) != AL_PLAYING) {</span>
+<span class="nc" id="L97">            alSourcePlay(this.getSourceId());</span>
+        }
+<span class="nc" id="L99">    }</span>
+
+    @Override
+    public OpenALStreamingSoundSource setAudio(OpenALStreamingSound sound) {
+<span class="nc" id="L103">        boolean isPlaying = this.isPlaying();</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        if (isPlaying) {</span>
+<span class="nc" id="L105">            alSourceStop(getSourceId());</span>
+<span class="nc" id="L106">            alSourceRewind(getSourceId());</span>
+        }
+
+<span class="nc" id="L109">        alSourcei(this.getSourceId(), AL_BUFFER, 0);</span>
+
+<span class="nc" id="L111">        this.audio = sound;</span>
+
+<span class="nc" id="L113">        sound.reset();</span>
+
+<span class="nc" id="L115">        int[] buffers = sound.getBuffers();</span>
+
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        for (int buffer : buffers) {</span>
+<span class="nc" id="L118">            sound.updateBuffer(buffer);</span>
+        }
+
+<span class="nc" id="L121">        alSourceQueueBuffers(this.getSourceId(), (IntBuffer) BufferUtils.createIntBuffer(buffers.length).put(buffers).flip());</span>
+
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (isPlaying) {</span>
+<span class="nc" id="L124">            this.play();</span>
+        }
+
+<span class="nc" id="L127">        return this;</span>
+    }
+
+    @Override
+    public void purge() {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if (isPlaying()) {</span>
+<span class="nc" id="L133">            alSourceStop(getSourceId());</span>
+<span class="nc" id="L134">            alSourceRewind(getSourceId());</span>
+        }
+
+<span class="nc" id="L137">        alSourcei(this.getSourceId(), AL_BUFFER, 0);</span>
+<span class="nc" id="L138">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

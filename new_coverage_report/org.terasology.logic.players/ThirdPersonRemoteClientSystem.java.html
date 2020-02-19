@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ThirdPersonRemoteClientSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.players</a> &gt; <span class="el_source">ThirdPersonRemoteClientSystem.java</span></div><h1>ThirdPersonRemoteClientSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.players;
+
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnChangedComponent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.characters.CharacterComponent;
+import org.terasology.logic.characters.CharacterHeldItemComponent;
+import org.terasology.logic.console.commandSystem.annotations.Command;
+import org.terasology.logic.console.commandSystem.annotations.CommandParam;
+import org.terasology.logic.location.Location;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.network.ClientComponent;
+import org.terasology.registry.In;
+import org.terasology.rendering.logic.VisualComponent;
+
+import java.util.Iterator;
+import java.util.Set;
+
+/**
+ * This client system handles displaying held items for all remote players in multiplayer session.
+ */
+@RegisterSystem(RegisterMode.CLIENT)
+<span class="nc" id="L53">public class ThirdPersonRemoteClientSystem extends BaseComponentSystem implements UpdateSubscriberSystem {</span>
+<span class="nc" id="L54">    private static final Logger logger = LoggerFactory.getLogger(ThirdPersonRemoteClientSystem.class);</span>
+
+    private static final int USEANIMATIONLENGTH = 200;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    @In
+    private LocalPlayerSystem localPlayerSystem;
+
+    @In
+    private EntityManager entityManager;
+
+    @In
+    private Time time;
+
+    /**
+     * Ensures held item mount point entity exists, attaches it to the character and sets its transform.
+     * @param event the activation that triggered the need to consider changing a held item
+     * @param character the character for which we need to consider the held item
+     * @param remotePersonHeldItemMountPointComponent data for the mount point on the remote character
+     */
+    @ReceiveEvent
+    public void ensureClientSideEntityOnHeldItemMountPoint(OnActivatedComponent event, EntityRef character,
+                                                           RemotePersonHeldItemMountPointComponent remotePersonHeldItemMountPointComponent) {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if (relatesToLocalPlayer(character)) {</span>
+<span class="nc" id="L80">            logger.debug(&quot;ensureClientSideEntityOnHeldItemMountPoint found its given character to relate to the local player, ignoring: {}&quot;, character);</span>
+<span class="nc" id="L81">            return;</span>
+        }
+
+        // In case we haven't dealt with a given remote player yet set up a non-persistent mount point
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (!remotePersonHeldItemMountPointComponent.mountPointEntity.exists()) {</span>
+<span class="nc" id="L86">            EntityBuilder builder = entityManager.newBuilder(&quot;engine:RemotePersonHeldItemMountPoint&quot;);</span>
+<span class="nc" id="L87">            builder.setPersistent(false);</span>
+<span class="nc" id="L88">            remotePersonHeldItemMountPointComponent.mountPointEntity = builder.build();</span>
+<span class="nc" id="L89">            character.saveComponent(remotePersonHeldItemMountPointComponent);</span>
+        }
+
+        // Link the mount point entity to the camera
+<span class="nc" id="L93">        Location.removeChild(character, remotePersonHeldItemMountPointComponent.mountPointEntity);</span>
+<span class="nc" id="L94">        Location.attachChild(character, remotePersonHeldItemMountPointComponent.mountPointEntity,</span>
+                remotePersonHeldItemMountPointComponent.translate,
+                new Quat4f(
+                        TeraMath.DEG_TO_RAD * remotePersonHeldItemMountPointComponent.rotateDegrees.y,
+                        TeraMath.DEG_TO_RAD * remotePersonHeldItemMountPointComponent.rotateDegrees.x,
+                        TeraMath.DEG_TO_RAD * remotePersonHeldItemMountPointComponent.rotateDegrees.z),
+                remotePersonHeldItemMountPointComponent.scale);
+
+<span class="nc" id="L102">    }</span>
+
+    @ReceiveEvent
+    public void ensureHeldItemIsMountedOnLoad(OnChangedComponent event, EntityRef clientEntity, ClientComponent clientComponent) {
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        if (relatesToLocalPlayer(clientEntity)) {</span>
+<span class="nc" id="L107">            logger.debug(&quot;ensureHeldItemIsMountedOnLoad found its given clientEntity to relate to the local player, ignoring: {}&quot;, clientEntity);</span>
+<span class="nc" id="L108">            return;</span>
+        }
+
+<span class="nc bnc" id="L111" title="All 4 branches missed.">        if (clientEntity.exists() &amp;&amp; clientComponent.character != EntityRef.NULL) {</span>
+<span class="nc" id="L112">            logger.debug(&quot;ensureHeldItemIsMountedOnLoad says a given clientEntity exists, has a character, and isn't related to the local player: {}&quot;, clientEntity);</span>
+<span class="nc" id="L113">            CharacterHeldItemComponent characterHeldItemComponent = clientComponent.character.getComponent(CharacterHeldItemComponent.class);</span>
+<span class="nc bnc" id="L114" title="All 4 branches missed.">            if (characterHeldItemComponent != null &amp;&amp; !(clientComponent.character.equals(localPlayer.getCharacterEntity()))) {</span>
+<span class="nc" id="L115">                linkHeldItemLocationForRemotePlayer(characterHeldItemComponent.selectedItem, clientComponent.character);</span>
+            }
+<span class="nc" id="L117">        } else {</span>
+<span class="nc" id="L118">            logger.debug(&quot;ensureHeldItemIsMountedOnLoad given a remote client, but one that didn't properly exist?&quot;);</span>
+        }
+<span class="nc" id="L120">    }</span>
+
+    @Command(shortDescription = &quot;Sets the held item mount point translation for remote characters&quot;)
+    public void setRemotePlayersHeldItemMountPointTranslations(@CommandParam(&quot;x&quot;) float x, @CommandParam(&quot;y&quot;) float y, @CommandParam(&quot;z&quot;) float z) {
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        for (EntityRef remotePlayer : entityManager.getEntitiesWith(RemotePersonHeldItemMountPointComponent.class)) {</span>
+<span class="nc" id="L125">            RemotePersonHeldItemMountPointComponent remoteMountPointComponent = remotePlayer.getComponent(RemotePersonHeldItemMountPointComponent.class);</span>
+<span class="nc" id="L126">            remoteMountPointComponent.translate.set(x, y, z);</span>
+<span class="nc" id="L127">        }</span>
+<span class="nc" id="L128">    }</span>
+
+    @Command(shortDescription = &quot;Sets the held item mount point rotation for remote characters&quot;)
+    public void setRemotePlayersHeldItemMountPointRotations(@CommandParam(&quot;x&quot;) float x, @CommandParam(&quot;y&quot;) float y, @CommandParam(&quot;z&quot;) float z) {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        for (EntityRef remotePlayer : entityManager.getEntitiesWith(RemotePersonHeldItemMountPointComponent.class)) {</span>
+<span class="nc" id="L133">            RemotePersonHeldItemMountPointComponent remoteMountPointComponent = remotePlayer.getComponent(RemotePersonHeldItemMountPointComponent.class);</span>
+<span class="nc" id="L134">            remoteMountPointComponent.rotateDegrees.set(x, y, z);</span>
+<span class="nc" id="L135">        }</span>
+<span class="nc" id="L136">    }</span>
+
+    @ReceiveEvent
+    public void onHeldItemActivated(OnActivatedComponent event, EntityRef player, CharacterHeldItemComponent heldItemComponent, CharacterComponent characterComponents) {
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if (relatesToLocalPlayer(player)) {</span>
+<span class="nc" id="L141">            logger.debug(&quot;onHeldItemActivated found its given player to relate to the local player, ignoring: {}&quot;, player);</span>
+<span class="nc" id="L142">            return;</span>
+        }
+
+<span class="nc" id="L145">        logger.debug(&quot;onHeldItemActivated says the given player is not the local player's character entity: {}&quot;, player);</span>
+<span class="nc" id="L146">        EntityRef newItem = heldItemComponent.selectedItem;</span>
+<span class="nc" id="L147">        linkHeldItemLocationForRemotePlayer(newItem, player);</span>
+<span class="nc" id="L148">    }</span>
+
+    @ReceiveEvent
+    public void onHeldItemChanged(OnChangedComponent event, EntityRef character, CharacterHeldItemComponent heldItemComponent, CharacterComponent characterComponents) {
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (relatesToLocalPlayer(character)) {</span>
+<span class="nc" id="L153">            logger.debug(&quot;onHeldItemChanged found its given character to relate to the local player, ignoring: {}&quot;, character);</span>
+<span class="nc" id="L154">            return;</span>
+        }
+
+<span class="nc" id="L157">        logger.debug(&quot;onHeldItemChanged says the given character is not the local player's character entity: {}&quot;, character);</span>
+<span class="nc" id="L158">        EntityRef newItem = heldItemComponent.selectedItem;</span>
+<span class="nc" id="L159">        linkHeldItemLocationForRemotePlayer(newItem, character);</span>
+<span class="nc" id="L160">    }</span>
+
+    /**
+     * Changes held item entity.
+     *
+     * Detaches old held item and removes its components. Adds components to new held item and
+     * attaches it to the mount point entity.
+     */
+    private void linkHeldItemLocationForRemotePlayer(EntityRef newItem, EntityRef player) {
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        if (relatesToLocalPlayer(player)) {</span>
+<span class="nc" id="L170">            logger.debug(&quot;linkHeldItemLocationForRemotePlayer called with an entity that relates to the local player, ignoring{}&quot;, player);</span>
+<span class="nc" id="L171">            return;</span>
+        }
+
+        // Find out if there is a current held item that maps to this player
+<span class="nc" id="L175">        EntityRef currentHeldItem = EntityRef.NULL;</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        for (EntityRef heldItemCandidate : entityManager.getEntitiesWith(ItemIsRemotelyHeldComponent.class)) {</span>
+<span class="nc" id="L177">            EntityRef remotePlayerCandidate = heldItemCandidate.getComponent(ItemIsRemotelyHeldComponent.class).remotePlayer;</span>
+<span class="nc" id="L178">            logger.debug(&quot;For held item candidate {} got its player candidate as {}&quot;, heldItemCandidate, remotePlayerCandidate);</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">            if (remotePlayerCandidate.equals(player)) {</span>
+<span class="nc" id="L180">                logger.debug(&quot;Thinking we found a match with player {} so counting this held item as relevant for processing&quot;, player);</span>
+<span class="nc" id="L181">                currentHeldItem = heldItemCandidate;</span>
+                // If we found an existing item yet the situation calls for emptying the players hand then we just need to remove the old item
+<span class="nc bnc" id="L183" title="All 2 branches missed.">                if (newItem.equals(EntityRef.NULL)) {</span>
+<span class="nc" id="L184">                    logger.debug(&quot;Found an existing held item but the new request was to no longer hold anything so destroying {}&quot;, currentHeldItem);</span>
+<span class="nc" id="L185">                    currentHeldItem.destroy();</span>
+<span class="nc" id="L186">                    return;</span>
+                }
+                break;
+            }
+<span class="nc" id="L190">        }</span>
+
+        // In the case of an actual change of item other than an empty hand we need to hook up a new held item entity
+<span class="nc bnc" id="L193" title="All 6 branches missed.">        if (newItem != null &amp;&amp; !newItem.equals(EntityRef.NULL) &amp;&amp; !newItem.equals(currentHeldItem)) {</span>
+<span class="nc" id="L194">            RemotePersonHeldItemMountPointComponent mountPointComponent = player.getComponent(RemotePersonHeldItemMountPointComponent.class);</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">            if (mountPointComponent != null) {</span>
+
+                //currentHeldItem is at this point the old item
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                if (currentHeldItem != EntityRef.NULL) {</span>
+<span class="nc" id="L199">                    currentHeldItem.destroy();</span>
+                }
+
+<span class="nc" id="L202">                currentHeldItem = entityManager.create();</span>
+<span class="nc" id="L203">                logger.debug(&quot;linkHeldItemLocationForRemotePlayer is now creating a new held item {}&quot;, currentHeldItem);</span>
+
+                // add the visually relevant components
+<span class="nc bnc" id="L206" title="All 2 branches missed.">                for (Component component : newItem.iterateComponents()) {</span>
+<span class="nc bnc" id="L207" title="All 4 branches missed.">                    if (component instanceof VisualComponent &amp;&amp; !(component instanceof FirstPersonHeldItemTransformComponent)) {</span>
+<span class="nc" id="L208">                        currentHeldItem.addComponent(component);</span>
+                    }
+<span class="nc" id="L210">                }</span>
+
+                // ensure world location is set
+<span class="nc" id="L213">                currentHeldItem.addComponent(new LocationComponent());</span>
+
+                // Map this held item to the player it is held by
+<span class="nc" id="L216">                ItemIsRemotelyHeldComponent itemIsRemotelyHeldComponent = new ItemIsRemotelyHeldComponent();</span>
+<span class="nc" id="L217">                itemIsRemotelyHeldComponent.remotePlayer = player;</span>
+<span class="nc" id="L218">                currentHeldItem.addComponent(itemIsRemotelyHeldComponent);</span>
+
+<span class="nc" id="L220">                RemotePersonHeldItemTransformComponent heldItemTransformComponent = currentHeldItem.getComponent(RemotePersonHeldItemTransformComponent.class);</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">                if (heldItemTransformComponent == null) {</span>
+<span class="nc" id="L222">                    heldItemTransformComponent = new RemotePersonHeldItemTransformComponent();</span>
+<span class="nc" id="L223">                    currentHeldItem.addComponent(heldItemTransformComponent);</span>
+                }
+
+<span class="nc" id="L226">                Location.attachChild(mountPointComponent.mountPointEntity, currentHeldItem,</span>
+                        heldItemTransformComponent.translate,
+                        new Quat4f(
+                                TeraMath.DEG_TO_RAD * heldItemTransformComponent.rotateDegrees.y,
+                                TeraMath.DEG_TO_RAD * heldItemTransformComponent.rotateDegrees.x,
+                                TeraMath.DEG_TO_RAD * heldItemTransformComponent.rotateDegrees.z),
+                        heldItemTransformComponent.scale);
+            }
+<span class="nc" id="L234">        } else {</span>
+<span class="nc" id="L235">            logger.info(&quot;Somehow ended up in the else during linkHeldItemLocationForRemotePlayer - current item was {} and new item {}&quot;, currentHeldItem, newItem);</span>
+        }
+<span class="nc" id="L237">    }</span>
+
+    /**
+     * Modifies the remote players' held item mount points to show and move their held items at their location. Clean up no longer needed held item entities.
+     *
+     * TODO: Also responsible for catching characters without current held item entities and then create them. Should be moved elsewhere
+     */
+    @Override
+    public void update(float delta) {
+
+        // Make a set of all held items that exist so we can review them and later toss any no longer needed
+<span class="nc" id="L248">        Set&lt;EntityRef&gt; heldItemsForReview = Sets.newHashSet(entityManager.getEntitiesWith(ItemIsRemotelyHeldComponent.class));</span>
+<span class="nc" id="L249">        logger.debug(&quot;As we start update we got the following known remote items to consider: {}&quot;, heldItemsForReview);</span>
+
+        // Note that the inclusion of PlayerCharacterComponent excludes &quot;characters&quot; like Gooey. In the future such critters may also want held items
+<span class="nc bnc" id="L252" title="All 2 branches missed.">        for (EntityRef remotePlayer : entityManager.getEntitiesWith(CharacterComponent.class, PlayerCharacterComponent.class)) {</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">            if (relatesToLocalPlayer(remotePlayer)) {</span>
+<span class="nc" id="L254">                logger.debug(&quot;ThirdPersonRemoteClientSystem's update is ignoring the local player: {}&quot;, remotePlayer);</span>
+<span class="nc" id="L255">                continue;</span>
+            }
+
+            // Find the associated held item entity for this player, if one exists
+<span class="nc" id="L259">            EntityRef currentHeldItem = EntityRef.NULL;</span>
+<span class="nc" id="L260">            Iterator&lt;EntityRef&gt; heldItermsIterator = heldItemsForReview.iterator();</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">            while (heldItermsIterator.hasNext()) {</span>
+<span class="nc" id="L262">                EntityRef heldItemCandidate = heldItermsIterator.next();</span>
+<span class="nc" id="L263">                logger.debug(&quot;Checking heldItemCandidate {} for remote player {}&quot;, heldItemCandidate, remotePlayer);</span>
+<span class="nc" id="L264">                ItemIsRemotelyHeldComponent itemIsRemotelyHeldComponent = heldItemCandidate.getComponent(ItemIsRemotelyHeldComponent.class);</span>
+<span class="nc" id="L265">                logger.debug(&quot;The held item's owner is {}&quot;, itemIsRemotelyHeldComponent.remotePlayer);</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">                if (itemIsRemotelyHeldComponent.remotePlayer.equals(remotePlayer)) {</span>
+<span class="nc" id="L267">                    logger.debug(&quot;Looks like we got a match for an existing item! Removing it from the set and processing it&quot;);</span>
+<span class="nc" id="L268">                    currentHeldItem = heldItemCandidate;</span>
+<span class="nc" id="L269">                    heldItermsIterator.remove();</span>
+<span class="nc" id="L270">                    break;</span>
+                }
+<span class="nc" id="L272">            }</span>
+
+<span class="nc" id="L274">            logger.debug(&quot;After searching for an existing held item the set is now: {}&quot;, heldItemsForReview);</span>
+
+            // If an associated held item entity does *not* exist yet, consider making one if the player has an item selected
+<span class="nc bnc" id="L277" title="All 2 branches missed.">            if (currentHeldItem == EntityRef.NULL) {</span>
+<span class="nc" id="L278">                logger.debug(&quot;During update we hit a player without a current held item entity. Checking {} to see if we should make one&quot;, remotePlayer);</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">                if (remotePlayer.hasComponent(CharacterHeldItemComponent.class)) {</span>
+<span class="nc" id="L280">                    CharacterHeldItemComponent characterHeldItemComponent = remotePlayer.getComponent(CharacterHeldItemComponent.class);</span>
+<span class="nc bnc" id="L281" title="All 4 branches missed.">                    if (characterHeldItemComponent != null &amp;&amp; !characterHeldItemComponent.selectedItem.equals(EntityRef.NULL)) {</span>
+<span class="nc" id="L282">                        logger.debug(&quot;Yep that player holds an item. Calling linkHeldItemLocationForRemotePlayer with item {}&quot;, characterHeldItemComponent.selectedItem);</span>
+<span class="nc" id="L283">                        linkHeldItemLocationForRemotePlayer(remotePlayer.getComponent(CharacterHeldItemComponent.class).selectedItem, remotePlayer);</span>
+                    }
+                }
+            }
+
+            // get the remote person mount point
+<span class="nc" id="L289">            CharacterHeldItemComponent characterHeldItemComponent = remotePlayer.getComponent(CharacterHeldItemComponent.class);</span>
+<span class="nc" id="L290">            RemotePersonHeldItemMountPointComponent mountPointComponent = remotePlayer.getComponent(RemotePersonHeldItemMountPointComponent.class);</span>
+<span class="nc bnc" id="L291" title="All 4 branches missed.">            if (characterHeldItemComponent == null || mountPointComponent == null) {</span>
+<span class="nc" id="L292">                continue;</span>
+            }
+
+<span class="nc" id="L295">            LocationComponent locationComponent = mountPointComponent.mountPointEntity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">            if (locationComponent == null) {</span>
+<span class="nc" id="L297">                continue;</span>
+            }
+
+<span class="nc" id="L300">            long timeElapsedSinceLastUsed = time.getGameTimeInMs() - characterHeldItemComponent.lastItemUsedTime;</span>
+<span class="nc" id="L301">            float animateAmount = 0f;</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">            if (timeElapsedSinceLastUsed &lt; USEANIMATIONLENGTH) {</span>
+                //TODO add other easing functions into utilities and use here?
+                // half way through the animation will be the maximum extent of rotation and translation
+<span class="nc" id="L305">                animateAmount = 1f - Math.abs(((float) timeElapsedSinceLastUsed / (float) USEANIMATIONLENGTH) - 0.5f);</span>
+            }
+<span class="nc" id="L307">            float addPitch = 15f * animateAmount;</span>
+<span class="nc" id="L308">            float addYaw = 10f * animateAmount;</span>
+<span class="nc" id="L309">            locationComponent.setLocalRotation(new Quat4f(</span>
+                    TeraMath.DEG_TO_RAD * (mountPointComponent.rotateDegrees.y + addYaw),
+                    TeraMath.DEG_TO_RAD * (mountPointComponent.rotateDegrees.x + addPitch),
+                    TeraMath.DEG_TO_RAD * mountPointComponent.rotateDegrees.z));
+<span class="nc" id="L313">            Vector3f offset = new Vector3f(0.05f * animateAmount, -0.24f * animateAmount, 0f);</span>
+<span class="nc" id="L314">            offset.add(mountPointComponent.translate);</span>
+<span class="nc" id="L315">            locationComponent.setLocalPosition(offset);</span>
+
+<span class="nc" id="L317">            mountPointComponent.mountPointEntity.saveComponent(locationComponent);</span>
+<span class="nc" id="L318">        }</span>
+
+<span class="nc" id="L320">        heldItemsForReview.forEach(remainingHeldItem -&gt; {</span>
+<span class="nc" id="L321">            logger.debug(&quot;After processing held items still had {} - destroying it&quot;, remainingHeldItem);</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">            if (remainingHeldItem.exists()) {</span>
+<span class="nc" id="L323">                remainingHeldItem.destroy();</span>
+            }
+<span class="nc" id="L325">        });</span>
+<span class="nc" id="L326">    }</span>
+
+    @Override
+    public void postBegin() {
+        /*
+        // Go through all known remote players already present and make sure they have their currently equipped items defined
+        // TODO: This catches the scenario in which a player logs in and can see other already-connected players' held items
+        // But it doesn't cover when a new player then connects later. Only when that player takes an action causing an event handled in this System
+        // The if (currentHeldItem == EntityRef.NULL) block in the update method catches BOTH scenarios, but is in a tick-loop
+        // This snippet plus a separate fix that catches join events by other players should be able to do the work as two one-time events only
+        for (EntityRef remotePlayer : entityManager.getEntitiesWith(CharacterComponent.class,
+                                                                    PlayerCharacterComponent.class,
+                                                                    CharacterHeldItemComponent.class,
+                                                                    RemotePersonHeldItemMountPointComponent.class)) {
+            if (!relatesToLocalPlayer(remotePlayer)) {
+                logger.info(&quot;Found a remote player to process during postBegin, selected item is {}&quot;, remotePlayer.getComponent(CharacterHeldItemComponent.class).selectedItem);
+                linkHeldItemLocationForRemotePlayer(remotePlayer.getComponent(CharacterHeldItemComponent.class).selectedItem, remotePlayer);
+            }
+        }
+        */
+<span class="nc" id="L346">    }</span>
+
+    /**
+     * Checks a given entity in a variety of ways to see if it is immediately related to a local player.
+     * TODO: Is a bit of a shotgun blast approach to throwing out undesired player/client/character entities. Needs a more surgical approach.
+     * @param entity the entity to check (probably a player, client, or character entity)
+     * @return true if any such check passes, otherwise false
+     */
+    private boolean relatesToLocalPlayer(EntityRef entity) {
+<span class="nc bnc" id="L355" title="All 4 branches missed.">        if (entity == null || entity.equals(EntityRef.NULL)) {</span>
+<span class="nc" id="L356">            logger.debug(&quot;checkForLocalPlayer given a bad entity (null or NullEntityRef - can't relate that to a local player!&quot;);</span>
+<span class="nc" id="L357">            return false;</span>
+        }
+
+<span class="nc bnc" id="L360" title="All 2 branches missed.">        if (entity.equals(localPlayer.getClientEntity())) {</span>
+<span class="nc" id="L361">            logger.debug(&quot;checkForLocalPlayer found a match to the localPlayer client entity! {}&quot;, entity);</span>
+<span class="nc" id="L362">            return true;</span>
+        }
+
+<span class="nc bnc" id="L365" title="All 2 branches missed.">        if (entity.equals(localPlayer.getCharacterEntity())) {</span>
+<span class="nc" id="L366">            logger.debug(&quot;checkForLocalPlayer found a match to the localPlayer character entity! {}&quot;, entity);</span>
+<span class="nc" id="L367">            return true;</span>
+        }
+
+<span class="nc bnc" id="L370" title="All 2 branches missed.">        if (entity.equals(localPlayer.getClientInfoEntity())) {</span>
+<span class="nc" id="L371">            logger.debug(&quot;checkForLocalPlayer found a match to the localPlayer client info entity! {}&quot;, entity);</span>
+<span class="nc" id="L372">            return true;</span>
+        }
+
+        // In case we're in a scenario where localPlayer is unreliable this is an alternative way to check
+        // This was needed in one case with headless + one client where an event triggered when localPlayer wasn't set right
+<span class="nc" id="L377">        EntityRef networkSystemProvidedClientEntity = localPlayerSystem.getClientEntityViaNetworkSystem();</span>
+<span class="nc bnc" id="L378" title="All 2 branches missed.">        if (entity.equals(networkSystemProvidedClientEntity)) {</span>
+<span class="nc" id="L379">            logger.debug(&quot;checkForLocalPlayer found its entity to match the network system provided local client entity! {}&quot;, entity);</span>
+        }
+
+<span class="nc bnc" id="L382" title="All 2 branches missed.">        if (entity.hasComponent(CharacterComponent.class)) {</span>
+<span class="nc" id="L383">            EntityRef controller = entity.getComponent(CharacterComponent.class).controller;</span>
+
+<span class="nc bnc" id="L385" title="All 2 branches missed.">            if (controller != null) {</span>
+<span class="nc bnc" id="L386" title="All 2 branches missed.">                if (controller.equals(localPlayer.getClientEntity())) {</span>
+<span class="nc" id="L387">                    logger.debug(&quot;checkForLocalPlayer found its entity to be a character whose controller matched the localPlayer client entity! {}&quot;, controller);</span>
+<span class="nc" id="L388">                    return true;</span>
+                }
+
+<span class="nc bnc" id="L391" title="All 2 branches missed.">                if (controller.equals(networkSystemProvidedClientEntity)) {</span>
+<span class="nc" id="L392">                    logger.debug(&quot;checkForLocalPlayer found its entity to be a character controller matching the network system provided local client entity! {}&quot;, controller);</span>
+<span class="nc" id="L393">                    return true;</span>
+                }
+            }
+        }
+
+<span class="nc" id="L398">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

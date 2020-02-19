@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PNGTextureFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.texture</a> &gt; <span class="el_source">PNGTextureFormat.java</span></div><h1>PNGTextureFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.assets.texture;
+
+import de.matthiasmann.twl.utils.PNGDecoder;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.file.PathMatcher;
+import java.util.List;
+
+/**
+ */
+public class PNGTextureFormat extends AbstractAssetFileFormat&lt;TextureData&gt; {
+
+    private Texture.FilterMode defaultFilterMode;
+    private PathMatcher pathMatcher;
+
+    public PNGTextureFormat(Texture.FilterMode defaultFilterMode, PathMatcher pathMatcher) {
+<span class="fc" id="L38">        super(&quot;png&quot;);</span>
+<span class="fc" id="L39">        this.defaultFilterMode = defaultFilterMode;</span>
+<span class="fc" id="L40">        this.pathMatcher = pathMatcher;</span>
+<span class="fc" id="L41">    }</span>
+
+    @Override
+    public TextureData load(ResourceUrn urn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="fc" id="L45">        try (InputStream pngStream = inputs.get(0).openStream()) {</span>
+<span class="fc" id="L46">            PNGDecoder decoder = new PNGDecoder(pngStream);</span>
+
+<span class="fc" id="L48">            ByteBuffer buf = ByteBuffer.allocateDirect(4 * decoder.getWidth() * decoder.getHeight());</span>
+<span class="fc" id="L49">            decoder.decode(buf, decoder.getWidth() * 4, PNGDecoder.Format.RGBA);</span>
+<span class="fc" id="L50">            buf.flip();</span>
+
+<span class="fc" id="L52">            int height = decoder.getHeight();</span>
+<span class="fc" id="L53">            int width = decoder.getWidth();</span>
+
+<span class="fc" id="L55">            Texture.FilterMode filterMode = defaultFilterMode;</span>
+<span class="fc" id="L56">            Texture.WrapMode wrapMode = Texture.WrapMode.CLAMP;</span>
+
+<span class="fc" id="L58">            return new TextureData(width, height, new ByteBuffer[]{buf}, wrapMode, filterMode);</span>
+<span class="nc" id="L59">        } catch (UnsupportedOperationException e) {</span>
+<span class="nc" id="L60">            throw new IOException(e);</span>
+        }
+    }
+
+    @Override
+    public PathMatcher getFileMatcher() {
+<span class="fc bfc" id="L66" title="All 4 branches covered.">        return path -&gt; super.getFileMatcher().matches(path) &amp;&amp; pathMatcher.matches(path);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

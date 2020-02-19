@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntitySerializerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence</a> &gt; <span class="el_source">EntitySerializerTest.java</span></div><h1>EntitySerializerTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence;
+
+import com.google.common.collect.Lists;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.assets.AssetFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.bootstrap.EntitySystemSetupUtil;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.entity.internal.EntityInfoComponent;
+import org.terasology.entitySystem.entity.internal.EntityScope;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.prefab.PrefabData;
+import org.terasology.entitySystem.prefab.internal.PojoPrefab;
+import org.terasology.entitySystem.stubs.GetterSetterComponent;
+import org.terasology.entitySystem.stubs.IntegerComponent;
+import org.terasology.entitySystem.stubs.MappedTypeComponent;
+import org.terasology.entitySystem.stubs.StringComponent;
+import org.terasology.network.NetworkSystem;
+import org.terasology.persistence.serializers.EntitySerializer;
+import org.terasology.protobuf.EntityData;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.testUtil.ModuleManagerFactory;
+import org.terasology.utilities.Assets;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.terasology.entitySystem.entity.internal.EntityScope.CHUNK;
+import static org.terasology.entitySystem.entity.internal.EntityScope.GLOBAL;
+
+/**
+ */
+<span class="fc" id="L60">public class EntitySerializerTest {</span>
+
+    private static Context context;
+    private static ModuleManager moduleManager;
+    private ComponentLibrary componentLibrary;
+    private EngineEntityManager entityManager;
+    private EntitySerializer entitySerializer;
+    private Prefab prefab;
+
+
+    @BeforeAll
+    public static void setupClass() throws Exception {
+<span class="fc" id="L72">        context = new ContextImpl();</span>
+<span class="fc" id="L73">        CoreRegistry.setContext(context);</span>
+<span class="fc" id="L74">        context.put(RecordAndReplayCurrentStatus.class, new RecordAndReplayCurrentStatus());</span>
+<span class="fc" id="L75">        moduleManager = ModuleManagerFactory.create();</span>
+<span class="fc" id="L76">        context.put(ModuleManager.class, moduleManager);</span>
+
+<span class="fc" id="L78">        ModuleAwareAssetTypeManager assetTypeManager = new ModuleAwareAssetTypeManager();</span>
+<span class="fc" id="L79">        assetTypeManager.registerCoreAssetType(Prefab.class,</span>
+                (AssetFactory&lt;Prefab, PrefabData&gt;) PojoPrefab::new, &quot;prefabs&quot;);
+<span class="fc" id="L81">        assetTypeManager.switchEnvironment(moduleManager.getEnvironment());</span>
+<span class="fc" id="L82">        context.put(AssetManager.class, assetTypeManager.getAssetManager());</span>
+<span class="fc" id="L83">    }</span>
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L87">        context.put(NetworkSystem.class, mock(NetworkSystem.class));</span>
+
+<span class="fc" id="L89">        EntitySystemSetupUtil.addReflectionBasedLibraries(context);</span>
+<span class="fc" id="L90">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="fc" id="L91">        entityManager = context.get(EngineEntityManager.class);</span>
+<span class="fc" id="L92">        entityManager.getComponentLibrary().register(new SimpleUri(&quot;test&quot;, &quot;gettersetter&quot;), GetterSetterComponent.class);</span>
+<span class="fc" id="L93">        entityManager.getComponentLibrary().register(new SimpleUri(&quot;test&quot;, &quot;string&quot;), StringComponent.class);</span>
+<span class="fc" id="L94">        entityManager.getComponentLibrary().register(new SimpleUri(&quot;test&quot;, &quot;integer&quot;), IntegerComponent.class);</span>
+<span class="fc" id="L95">        entitySerializer = new EntitySerializer(entityManager);</span>
+<span class="fc" id="L96">        componentLibrary = entityManager.getComponentLibrary();</span>
+
+<span class="fc" id="L98">        PrefabData prefabData = new PrefabData();</span>
+<span class="fc" id="L99">        prefabData.addComponent(new StringComponent(&quot;Value&quot;));</span>
+<span class="fc" id="L100">        prefab = Assets.generateAsset(new ResourceUrn(&quot;test:Test&quot;), prefabData, Prefab.class);</span>
+<span class="fc" id="L101">    }</span>
+
+    @Test
+    public void testDeltaNoUnchangedComponents() throws Exception {
+
+
+<span class="fc" id="L107">        EntityRef entity = entityManager.create(prefab);</span>
+
+<span class="fc" id="L109">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+
+<span class="fc" id="L111">        assertEquals(entity.getId(), entityData.getId());</span>
+<span class="fc" id="L112">        assertEquals(prefab.getName(), entityData.getParentPrefab());</span>
+<span class="fc" id="L113">        assertEquals(0, entityData.getComponentCount());</span>
+<span class="fc" id="L114">        assertEquals(0, entityData.getRemovedComponentCount());</span>
+<span class="fc" id="L115">    }</span>
+
+    @Test
+    public void testDeltaAddNewComponent() throws Exception {
+<span class="fc" id="L119">        EntityRef entity = entityManager.create(prefab);</span>
+<span class="fc" id="L120">        entity.addComponent(new IntegerComponent(1));</span>
+
+<span class="fc" id="L122">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+
+<span class="fc" id="L124">        assertEquals(entity.getId(), entityData.getId());</span>
+<span class="fc" id="L125">        assertEquals(prefab.getName(), entityData.getParentPrefab());</span>
+<span class="fc" id="L126">        assertEquals(1, entityData.getComponentCount());</span>
+<span class="fc" id="L127">        assertEquals(0, entityData.getRemovedComponentCount());</span>
+<span class="fc" id="L128">        EntityData.Component componentData = entityData.getComponent(0);</span>
+<span class="fc" id="L129">        assertEquals(&quot;test:integer&quot;, componentData.getType());</span>
+<span class="fc" id="L130">        assertEquals(1, componentData.getFieldCount());</span>
+<span class="fc" id="L131">        EntityData.NameValue field = componentData.getField(0);</span>
+<span class="fc" id="L132">        assertEquals(&quot;value&quot;, field.getName());</span>
+<span class="fc" id="L133">        assertEquals(1, field.getValue().getInteger(0));</span>
+<span class="fc" id="L134">    }</span>
+
+    @Test
+    public void testDeltaRemoveComponent() throws Exception {
+<span class="fc" id="L138">        EntityRef entity = entityManager.create(prefab);</span>
+<span class="fc" id="L139">        entity.removeComponent(StringComponent.class);</span>
+
+<span class="fc" id="L141">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+
+<span class="fc" id="L143">        assertEquals(entity.getId(), entityData.getId());</span>
+<span class="fc" id="L144">        assertEquals(prefab.getName(), entityData.getParentPrefab());</span>
+<span class="fc" id="L145">        assertEquals(0, entityData.getComponentCount());</span>
+<span class="fc" id="L146">        assertEquals(Lists.newArrayList(&quot;test:string&quot;), entityData.getRemovedComponentList());</span>
+<span class="fc" id="L147">    }</span>
+
+    @Test
+    public void testDeltaChangedComponent() throws Exception {
+<span class="fc" id="L151">        EntityRef entity = entityManager.create(prefab);</span>
+<span class="fc" id="L152">        StringComponent comp = entity.getComponent(StringComponent.class);</span>
+<span class="fc" id="L153">        comp.value = &quot;Delta&quot;;</span>
+<span class="fc" id="L154">        entity.saveComponent(comp);</span>
+<span class="fc" id="L155">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+
+<span class="fc" id="L157">        assertEquals(entity.getId(), entityData.getId());</span>
+<span class="fc" id="L158">        assertEquals(prefab.getName(), entityData.getParentPrefab());</span>
+<span class="fc" id="L159">        assertEquals(1, entityData.getComponentCount());</span>
+<span class="fc" id="L160">        assertEquals(0, entityData.getRemovedComponentCount());</span>
+<span class="fc" id="L161">        EntityData.Component componentData = entityData.getComponent(0);</span>
+<span class="fc" id="L162">        assertEquals(&quot;test:string&quot;, componentData.getType());</span>
+<span class="fc" id="L163">        assertEquals(Lists.newArrayList(EntityData.NameValue.newBuilder().setName(&quot;value&quot;).setValue(EntityData.Value.newBuilder().addString(&quot;Delta&quot;).build()).build()),</span>
+<span class="fc" id="L164">                componentData.getFieldList());</span>
+<span class="fc" id="L165">    }</span>
+
+    @Test
+    public void testDeltaLoadNoChange() throws Exception {
+<span class="fc" id="L169">        EntityRef entity = entityManager.create(&quot;test:Test&quot;);</span>
+<span class="fc" id="L170">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+<span class="fc" id="L171">        long nextId = entityManager.getNextId();</span>
+<span class="fc" id="L172">        entityManager.clear();</span>
+<span class="fc" id="L173">        entityManager.setNextId(nextId);</span>
+<span class="fc" id="L174">        EntityRef loadedEntity = entitySerializer.deserialize(entityData);</span>
+
+<span class="fc" id="L176">        assertTrue(loadedEntity.exists());</span>
+<span class="fc" id="L177">        assertTrue(loadedEntity.hasComponent(StringComponent.class));</span>
+<span class="fc" id="L178">        assertEquals(&quot;Value&quot;, loadedEntity.getComponent(StringComponent.class).value);</span>
+<span class="fc" id="L179">    }</span>
+
+    @Test
+    public void testDeltaLoadAddedComponent() throws Exception {
+<span class="fc" id="L183">        EntityRef entity = entityManager.create(&quot;test:Test&quot;);</span>
+<span class="fc" id="L184">        entity.addComponent(new IntegerComponent(2));</span>
+<span class="fc" id="L185">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+<span class="fc" id="L186">        long nextId = entityManager.getNextId();</span>
+<span class="fc" id="L187">        entityManager.clear();</span>
+<span class="fc" id="L188">        entityManager.setNextId(nextId);</span>
+<span class="fc" id="L189">        EntityRef loadedEntity = entitySerializer.deserialize(entityData);</span>
+
+<span class="fc" id="L191">        assertTrue(loadedEntity.exists());</span>
+<span class="fc" id="L192">        assertTrue(loadedEntity.hasComponent(StringComponent.class));</span>
+<span class="fc" id="L193">        assertEquals(&quot;Value&quot;, loadedEntity.getComponent(StringComponent.class).value);</span>
+<span class="fc" id="L194">        assertTrue(loadedEntity.hasComponent(IntegerComponent.class));</span>
+<span class="fc" id="L195">        assertEquals(2, loadedEntity.getComponent(IntegerComponent.class).value);</span>
+<span class="fc" id="L196">    }</span>
+
+    @Test
+    public void testDeltaLoadRemovedComponent() throws Exception {
+<span class="fc" id="L200">        EntityRef entity = entityManager.create(&quot;test:Test&quot;);</span>
+<span class="fc" id="L201">        entity.removeComponent(StringComponent.class);</span>
+<span class="fc" id="L202">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+<span class="fc" id="L203">        long nextId = entityManager.getNextId();</span>
+<span class="fc" id="L204">        entityManager.clear();</span>
+<span class="fc" id="L205">        entityManager.setNextId(nextId);</span>
+<span class="fc" id="L206">        EntityRef loadedEntity = entitySerializer.deserialize(entityData);</span>
+
+<span class="fc" id="L208">        assertTrue(loadedEntity.exists());</span>
+<span class="fc" id="L209">        assertFalse(loadedEntity.hasComponent(StringComponent.class));</span>
+<span class="fc" id="L210">    }</span>
+
+    @Test
+    public void testDeltaLoadChangedComponent() throws Exception {
+<span class="fc" id="L214">        EntityRef entity = entityManager.create(&quot;test:Test&quot;);</span>
+<span class="fc" id="L215">        StringComponent comp = entity.getComponent(StringComponent.class);</span>
+<span class="fc" id="L216">        comp.value = &quot;Delta&quot;;</span>
+<span class="fc" id="L217">        entity.saveComponent(comp);</span>
+<span class="fc" id="L218">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+<span class="fc" id="L219">        long nextId = entityManager.getNextId();</span>
+<span class="fc" id="L220">        entityManager.clear();</span>
+<span class="fc" id="L221">        entityManager.setNextId(nextId);</span>
+<span class="fc" id="L222">        EntityRef loadedEntity = entitySerializer.deserialize(entityData);</span>
+
+<span class="fc" id="L224">        assertTrue(loadedEntity.exists());</span>
+<span class="fc" id="L225">        assertTrue(loadedEntity.hasComponent(StringComponent.class));</span>
+<span class="fc" id="L226">        assertEquals(&quot;Delta&quot;, loadedEntity.getComponent(StringComponent.class).value);</span>
+<span class="fc" id="L227">    }</span>
+
+    @Test
+    public void testPrefabMaintainedOverSerialization() throws Exception {
+<span class="fc" id="L231">        EntityRef entity = entityManager.create(prefab);</span>
+
+<span class="fc" id="L233">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+<span class="fc" id="L234">        long nextId = entityManager.getNextId();</span>
+<span class="fc" id="L235">        entityManager.clear();</span>
+<span class="fc" id="L236">        entityManager.setNextId(nextId);</span>
+<span class="fc" id="L237">        EntityRef newEntity = entitySerializer.deserialize(entityData);</span>
+<span class="fc" id="L238">        assertTrue(newEntity.hasComponent(EntityInfoComponent.class));</span>
+<span class="fc" id="L239">        EntityInfoComponent comp = newEntity.getComponent(EntityInfoComponent.class);</span>
+<span class="fc" id="L240">        assertEquals(prefab, comp.parentPrefab);</span>
+<span class="fc" id="L241">    }</span>
+
+    @Test
+    public void testAlwaysRelevantPersisted() throws Exception {
+<span class="fc" id="L245">        EntityRef entity = entityManager.create(prefab);</span>
+<span class="fc" id="L246">        boolean defaultSetting = entity.isAlwaysRelevant();</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">        EntityScope newScope = defaultSetting ? CHUNK : GLOBAL;</span>
+<span class="fc" id="L248">        entity.setScope(newScope);</span>
+
+<span class="fc" id="L250">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+<span class="fc" id="L251">        long nextId = entityManager.getNextId();</span>
+<span class="fc" id="L252">        entityManager.clear();</span>
+<span class="fc" id="L253">        entityManager.setNextId(nextId);</span>
+<span class="fc" id="L254">        EntityRef newEntity = entitySerializer.deserialize(entityData);</span>
+<span class="fc" id="L255">        assertEquals(newScope, newEntity.getScope());</span>
+<span class="pc bpc" id="L256" title="1 of 2 branches missed.">        assertEquals(!defaultSetting, newEntity.isAlwaysRelevant());</span>
+<span class="fc" id="L257">    }</span>
+
+    @Test
+    public void testScopePersisted() {
+<span class="fc" id="L261">        EntityRef entity = entityManager.create(prefab);</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">        for (EntityScope scope : EntityScope.values()) {</span>
+<span class="fc" id="L263">            entity.setScope(scope);</span>
+
+<span class="fc" id="L265">            entity = serializeDeserializeEntity(entity);</span>
+
+<span class="fc" id="L267">            assertEquals(scope, entity.getScope());</span>
+        }
+<span class="fc" id="L269">    }</span>
+
+    @Test
+    public void testMappedTypeHandling() throws Exception {
+<span class="fc" id="L273">        componentLibrary.register(new SimpleUri(&quot;test&quot;, &quot;mappedtype&quot;), MappedTypeComponent.class);</span>
+
+<span class="fc" id="L275">        EntityRef entity = entityManager.create();</span>
+<span class="fc" id="L276">        entity.addComponent(new MappedTypeComponent());</span>
+<span class="fc" id="L277">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+<span class="fc" id="L278">        long nextId = entityManager.getNextId();</span>
+<span class="fc" id="L279">        entityManager.clear();</span>
+<span class="fc" id="L280">        entityManager.setNextId(nextId);</span>
+<span class="fc" id="L281">        EntityRef loadedEntity = entitySerializer.deserialize(entityData);</span>
+
+<span class="fc" id="L283">        assertTrue(loadedEntity.exists());</span>
+<span class="fc" id="L284">        assertTrue(loadedEntity.hasComponent(MappedTypeComponent.class));</span>
+<span class="fc" id="L285">    }</span>
+
+    private EntityRef serializeDeserializeEntity(EntityRef entity) {
+<span class="fc" id="L288">        EntityData.Entity entityData = entitySerializer.serialize(entity);</span>
+<span class="fc" id="L289">        long nextId = entityManager.getNextId();</span>
+<span class="fc" id="L290">        entityManager.clear();</span>
+<span class="fc" id="L291">        entityManager.setNextId(nextId);</span>
+<span class="fc" id="L292">        return entitySerializer.deserialize(entityData);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

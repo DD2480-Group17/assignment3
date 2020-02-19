@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ShaderManagerLwjgl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering</a> &gt; <span class="el_source">ShaderManagerLwjgl.java</span></div><h1>ShaderManagerLwjgl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering;
+
+import com.google.common.collect.Sets;
+import org.lwjgl.LWJGLUtil;
+import org.lwjgl.Sys;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL20;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.utilities.Assets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.material.MaterialData;
+import org.terasology.rendering.assets.shader.Shader;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.opengl.GLSLMaterial;
+
+import java.util.Optional;
+import java.util.Set;
+
+import static com.google.common.base.Preconditions.checkState;
+
+/**
+ * Provides support for loading and applying shaders.
+ */
+public class ShaderManagerLwjgl implements ShaderManager {
+<span class="nc" id="L45">    private static final Logger logger = LoggerFactory.getLogger(ShaderManagerLwjgl.class);</span>
+
+    private GLSLMaterial activeMaterial;
+    private GLSLMaterial defaultShaderProgram;
+    private GLSLMaterial defaultTexturedShaderProgram;
+
+<span class="nc" id="L51">    private Set&lt;GLSLMaterial&gt; progamaticShaders = Sets.newHashSet();</span>
+
+<span class="nc" id="L53">    public ShaderManagerLwjgl() {</span>
+<span class="nc" id="L54">        logger.info(&quot;Loading Terasology shader manager...&quot;);</span>
+<span class="nc" id="L55">        logger.info(&quot;LWJGL: {} / {}&quot;, Sys.getVersion(), LWJGLUtil.getPlatformName());</span>
+<span class="nc" id="L56">        logger.info(&quot;GL_VENDOR: {}&quot;, GL11.glGetString(GL11.GL_VENDOR));</span>
+<span class="nc" id="L57">        logger.info(&quot;GL_RENDERER: {}&quot;, GL11.glGetString(GL11.GL_RENDERER));</span>
+<span class="nc" id="L58">        logger.info(&quot;GL_VERSION: {}&quot;, GL11.glGetString(GL11.GL_VERSION));</span>
+<span class="nc" id="L59">        logger.info(&quot;SHADING_LANGUAGE VERSION: {}&quot;, GL11.glGetString(GL20.GL_SHADING_LANGUAGE_VERSION));</span>
+
+<span class="nc" id="L61">        String extStr = GL11.glGetString(GL11.GL_EXTENSIONS);</span>
+
+        // log shader extensions in smaller packages, 
+        // because the full string can be extremely long 
+<span class="nc" id="L65">        int extsPerLine = 8;</span>
+
+        // starting with OpenGL 3.0, extensions can also listed using
+        // GL_NUM_EXTENSIONS and glGetStringi(GL_EXTENSIONS, idx)
+<span class="nc" id="L69">        String[] exts = extStr.split(&quot; &quot;);</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        if (exts.length &gt; 0) {</span>
+<span class="nc" id="L71">            StringBuilder bldr = new StringBuilder(exts[0]);</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            for (int i = 1; i &lt; exts.length; i++) {</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                if (i % extsPerLine == 0) {</span>
+<span class="nc" id="L74">                    logger.info(&quot;EXTENSIONS: {}&quot;, bldr.toString());</span>
+<span class="nc" id="L75">                    bldr.setLength(0);</span>
+                } else {
+<span class="nc" id="L77">                    bldr.append(&quot; &quot;);</span>
+                }
+<span class="nc" id="L79">                bldr.append(exts[i]);</span>
+            }
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (bldr.length() &gt; 0) {</span>
+<span class="nc" id="L82">                logger.info(&quot;EXTENSIONS: {}&quot;, bldr.toString());</span>
+            }
+        }
+<span class="nc" id="L85">    }</span>
+
+    @Override
+    public void initShaders() {
+<span class="nc" id="L89">        defaultShaderProgram = addShaderProgram(&quot;default&quot;);</span>
+<span class="nc" id="L90">        defaultTexturedShaderProgram = addShaderProgram(&quot;defaultTextured&quot;);</span>
+
+        // TODO: Find a better way to do this
+<span class="nc" id="L93">        addShaderProgram(&quot;post&quot;);</span>
+<span class="nc" id="L94">        addShaderProgram(&quot;ssao&quot;);</span>
+<span class="nc" id="L95">        addShaderProgram(&quot;lightShafts&quot;);</span>
+<span class="nc" id="L96">        addShaderProgram(&quot;sobel&quot;);</span>
+<span class="nc" id="L97">        addShaderProgram(&quot;initialPost&quot;);</span>
+<span class="nc" id="L98">        addShaderProgram(&quot;prePostComposite&quot;);</span>
+<span class="nc" id="L99">        addShaderProgram(&quot;highPass&quot;);</span>
+<span class="nc" id="L100">        addShaderProgram(&quot;blur&quot;);</span>
+<span class="nc" id="L101">        addShaderProgram(&quot;downSampler&quot;);</span>
+<span class="nc" id="L102">        addShaderProgram(&quot;toneMapping&quot;);</span>
+<span class="nc" id="L103">        addShaderProgram(&quot;sky&quot;);</span>
+<span class="nc" id="L104">        addShaderProgram(&quot;chunk&quot;);</span>
+<span class="nc" id="L105">        addShaderProgram(&quot;particle&quot;);</span>
+<span class="nc" id="L106">        addShaderProgram(&quot;shadowMap&quot;);</span>
+<span class="nc" id="L107">        addShaderProgram(&quot;lightBufferPass&quot;);</span>
+<span class="nc" id="L108">        addShaderProgram(&quot;lightGeometryPass&quot;);</span>
+<span class="nc" id="L109">        addShaderProgram(&quot;ssaoBlur&quot;);</span>
+<span class="nc" id="L110">    }</span>
+
+    @Override
+    public void setActiveMaterial(Material material) {
+        // TODO: is this the best way to convert the material to the lwjgl version?  Do we need more checks?
+<span class="nc" id="L115">        GLSLMaterial glslMaterial = (GLSLMaterial) material;</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        if (!glslMaterial.equals(activeMaterial)) {</span>
+<span class="nc" id="L117">            activeMaterial = glslMaterial;</span>
+        }
+<span class="nc" id="L119">    }</span>
+
+    @Override
+    public void bindTexture(int slot, Texture texture) {
+<span class="nc bnc" id="L123" title="All 4 branches missed.">        if (activeMaterial != null &amp;&amp; !activeMaterial.isDisposed()) {</span>
+<span class="nc" id="L124">            GL13.glActiveTexture(GL13.GL_TEXTURE0 + slot);</span>
+            // TODO: Need to be cubemap aware, only need to clear bind when switching from cubemap to 2D and vice versa,
+            // TODO: Don't bind if already bound to the same
+<span class="nc" id="L127">            GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture.getId());</span>
+<span class="nc" id="L128">            GL13.glActiveTexture(GL13.GL_TEXTURE0);</span>
+        }
+<span class="nc" id="L130">    }</span>
+
+    @Override
+    public Material getActiveMaterial() {
+<span class="nc" id="L134">        return activeMaterial;</span>
+    }
+
+    @Override
+    public void recompileAllShaders() {
+<span class="nc" id="L139">        AssetManager assetManager = CoreRegistry.get(AssetManager.class);</span>
+<span class="nc" id="L140">        assetManager.getLoadedAssets(Shader.class).forEach(Shader::recompile);</span>
+
+<span class="nc" id="L142">        assetManager.getLoadedAssets(Material.class).forEach(Material::recompile);</span>
+
+<span class="nc" id="L144">        activeMaterial = null;</span>
+<span class="nc" id="L145">    }</span>
+
+    // TODO: discuss having a `public removeShaderProgram`, to dispose shader programs no longer in use by any node
+    public GLSLMaterial addShaderProgram(String title) {
+<span class="nc" id="L149">        String uri = &quot;engine:&quot; + title;</span>
+<span class="nc" id="L150">        Optional&lt;? extends Shader&gt; shader = Assets.getShader(uri);</span>
+<span class="nc" id="L151">        checkState(shader.isPresent(), &quot;Failed to resolve %s&quot;, uri);</span>
+<span class="nc" id="L152">        shader.get().recompile();</span>
+<span class="nc" id="L153">        GLSLMaterial material = (GLSLMaterial) Assets.generateAsset(new ResourceUrn(&quot;engine:prog.&quot; + title), new MaterialData(shader.get()), Material.class);</span>
+<span class="nc" id="L154">        progamaticShaders.add(material);</span>
+
+<span class="nc" id="L156">        return material;</span>
+    }
+
+    /**
+     * Enables the default shader program.
+     */
+    @Override
+    public void enableDefault() {
+<span class="nc" id="L164">        defaultShaderProgram.enable();</span>
+<span class="nc" id="L165">    }</span>
+
+    /**
+     * Enables the default shader program.
+     */
+    @Override
+    public void enableDefaultTextured() {
+<span class="nc" id="L172">        defaultTexturedShaderProgram.enable();</span>
+<span class="nc" id="L173">    }</span>
+
+    @Override
+    public void disableShader() {
+<span class="nc" id="L177">        GL20.glUseProgram(0);</span>
+<span class="nc" id="L178">        activeMaterial = null;</span>
+<span class="nc" id="L179">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

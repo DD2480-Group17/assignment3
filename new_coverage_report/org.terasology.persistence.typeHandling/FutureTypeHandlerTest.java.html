@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FutureTypeHandlerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling</a> &gt; <span class="el_source">FutureTypeHandlerTest.java</span></div><h1>FutureTypeHandlerTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling;
+
+import com.google.common.collect.Lists;
+import org.junit.jupiter.api.Test;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+import org.reflections.Reflections;
+import org.terasology.reflection.TypeInfo;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
+<span class="fc" id="L37">public class FutureTypeHandlerTest {</span>
+<span class="fc" id="L38">    private final Reflections reflections = new Reflections(getClass().getClassLoader());</span>
+
+<span class="fc" id="L40">    private final TypeHandlerLibrary typeHandlerLibrary =</span>
+<span class="fc" id="L41">            spy(TypeHandlerLibrary.withReflections(reflections));</span>
+
+    private static class RecursiveType&lt;T&gt; {
+        final T data;
+        final List&lt;RecursiveType&lt;T&gt;&gt; children;
+
+        @SafeVarargs
+<span class="nc" id="L48">        private RecursiveType(T data, RecursiveType&lt;T&gt;... children) {</span>
+<span class="nc" id="L49">            this.data = data;</span>
+<span class="nc" id="L50">            this.children = Lists.newArrayList(children);</span>
+<span class="nc" id="L51">        }</span>
+    }
+
+<span class="fc" id="L54">    private class ResultCaptor&lt;T&gt; implements Answer {</span>
+<span class="fc" id="L55">        private T result = null;</span>
+        public T getResult() {
+<span class="fc" id="L57">            return result;</span>
+        }
+
+        @Override
+        public T answer(InvocationOnMock invocationOnMock) throws Throwable {
+<span class="fc" id="L62">            result = (T) invocationOnMock.callRealMethod();</span>
+<span class="fc" id="L63">            return result;</span>
+        }
+    }
+
+    @Test
+    public void testRecursiveType() {
+<span class="fc" id="L69">        ResultCaptor&lt;Optional&lt;TypeHandler&lt;RecursiveType&lt;Integer&gt;&gt;&gt;&gt; resultCaptor = new ResultCaptor&lt;&gt;();</span>
+
+<span class="fc" id="L71">        doAnswer(resultCaptor).when(typeHandlerLibrary).getTypeHandler(</span>
+<span class="fc" id="L72">                eq(new TypeInfo&lt;RecursiveType&lt;Integer&gt;&gt;() {}.getType())</span>
+        );
+
+<span class="fc" id="L75">        TypeHandler&lt;RecursiveType&lt;Integer&gt;&gt; typeHandler =</span>
+<span class="fc" id="L76">                typeHandlerLibrary.getTypeHandler(</span>
+<span class="fc" id="L77">                        new TypeInfo&lt;RecursiveType&lt;Integer&gt;&gt;() {}</span>
+<span class="fc" id="L78">                ).get();</span>
+        
+<span class="fc" id="L80">        verify(typeHandlerLibrary, times(1)).getTypeHandler(</span>
+<span class="fc" id="L81">                eq(new TypeInfo&lt;RecursiveType&lt;Integer&gt;&gt;() {}.getType())</span>
+        );
+
+        // Optional#get() can throw NoSuchElementException
+<span class="fc" id="L85">        TypeHandler possibleFuture = assertDoesNotThrow(()-&gt; resultCaptor.getResult().get());</span>
+<span class="fc" id="L86">        assertTrue(possibleFuture instanceof FutureTypeHandler);</span>
+
+<span class="fc" id="L88">        FutureTypeHandler&lt;RecursiveType&lt;Integer&gt;&gt; future =</span>
+                (FutureTypeHandler&lt;RecursiveType&lt;Integer&gt;&gt;) possibleFuture;
+
+<span class="fc" id="L91">        assertEquals(typeHandler, future.typeHandler);</span>
+<span class="fc" id="L92">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

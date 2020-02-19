@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpaqueBlocksNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">OpaqueBlocksNode.java</span></div><h1>OpaqueBlocksNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.lwjgl.opengl.GL11;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.config.RenderingDebugConfig;
+import org.terasology.context.Context;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.AABBRenderer;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.rendering.dag.WireframeCapable;
+import org.terasology.rendering.dag.WireframeTrigger;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableFaceCulling;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.LookThrough;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture2D;
+import org.terasology.rendering.dag.stateChanges.SetWireframe;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.primitives.ChunkMesh;
+import org.terasology.rendering.world.RenderQueuesHelper;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.chunks.RenderableChunk;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+
+import static org.terasology.rendering.primitives.ChunkMesh.RenderPhase.OPAQUE;
+
+/**
+ * This node renders the opaque blocks in the world.
+ *
+ * In a typical world this is the majority of the world's landscape.
+ */
+public class OpaqueBlocksNode extends AbstractNode implements WireframeCapable, PropertyChangeListener {
+<span class="nc" id="L59">    private static final ResourceUrn CHUNK_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.chunk&quot;);</span>
+
+    private WorldRenderer worldRenderer;
+    private RenderQueuesHelper renderQueues;
+    private RenderingConfig renderingConfig;
+    private WorldProvider worldProvider;
+
+    private Material chunkMaterial;
+    private SetWireframe wireframeStateChange;
+    private EnableFaceCulling faceCullingStateChange;
+    private RenderingDebugConfig renderingDebugConfig;
+
+    private SubmersibleCamera activeCamera;
+
+    private boolean normalMappingIsEnabled;
+    private boolean parallaxMappingIsEnabled;
+
+    private StateChange setTerrainNormalsInputTexture;
+    private StateChange setTerrainHeightInputTexture;
+
+<span class="nc" id="L79">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.5f)
+    private float parallaxBias = 0.25f;
+<span class="nc" id="L82">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.50f)
+    private float parallaxScale = 0.5f;
+
+    public OpaqueBlocksNode(String nodeUri, Context context) {
+<span class="nc" id="L87">        super(nodeUri, context);</span>
+
+<span class="nc" id="L89">        renderQueues = context.get(RenderQueuesHelper.class);</span>
+<span class="nc" id="L90">        worldProvider = context.get(WorldProvider.class);</span>
+
+<span class="nc" id="L92">        worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L93">        activeCamera = worldRenderer.getActiveCamera();</span>
+<span class="nc" id="L94">        addDesiredStateChange(new LookThrough(activeCamera));</span>
+
+        // IF wireframe is enabled the WireframeTrigger will remove the face culling state change
+        // from the set of desired state changes.
+        // The alternative would have been to check here first if wireframe mode is enabled and *if not*
+        // add the face culling state change. However, if wireframe *is* enabled, the WireframeTrigger
+        // would attempt to remove the face culling state even though it isn't there, relying on the
+        // quiet behaviour of Set.remove(nonExistentItem). We therefore favored the first solution.
+<span class="nc" id="L102">        faceCullingStateChange = new EnableFaceCulling();</span>
+<span class="nc" id="L103">        addDesiredStateChange(faceCullingStateChange);</span>
+
+<span class="nc" id="L105">        wireframeStateChange = new SetWireframe(true);</span>
+<span class="nc" id="L106">        renderingDebugConfig = context.get(Config.class).getRendering().getDebug();</span>
+<span class="nc" id="L107">        new WireframeTrigger(renderingDebugConfig, this);</span>
+
+<span class="nc" id="L109">        addDesiredStateChange(new BindFbo(context.get(DisplayResolutionDependentFBOs.class).getGBufferPair().getLastUpdatedFbo()));</span>
+
+<span class="nc" id="L111">        addDesiredStateChange(new EnableMaterial(CHUNK_MATERIAL_URN));</span>
+
+<span class="nc" id="L113">        chunkMaterial = getMaterial(CHUNK_MATERIAL_URN);</span>
+
+<span class="nc" id="L115">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L116">        normalMappingIsEnabled = renderingConfig.isNormalMapping();</span>
+<span class="nc" id="L117">        renderingConfig.subscribe(RenderingConfig.NORMAL_MAPPING, this);</span>
+<span class="nc" id="L118">        parallaxMappingIsEnabled = renderingConfig.isParallaxMapping();</span>
+<span class="nc" id="L119">        renderingConfig.subscribe(RenderingConfig.PARALLAX_MAPPING, this);</span>
+
+<span class="nc" id="L121">        int textureSlot = 0;</span>
+<span class="nc" id="L122">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:terrain&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlas&quot;));</span>
+<span class="nc" id="L123">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:effects&quot;, CHUNK_MATERIAL_URN, &quot;textureEffects&quot;));</span>
+<span class="nc" id="L124">        setTerrainNormalsInputTexture = new SetInputTexture2D(textureSlot++, &quot;engine:terrainNormal&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlasNormal&quot;);</span>
+<span class="nc" id="L125">        setTerrainHeightInputTexture = new SetInputTexture2D(textureSlot, &quot;engine:terrainHeight&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlasHeight&quot;);</span>
+
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if (normalMappingIsEnabled) {</span>
+<span class="nc" id="L128">            addDesiredStateChange(setTerrainNormalsInputTexture);</span>
+        }
+
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (parallaxMappingIsEnabled) {</span>
+<span class="nc" id="L132">            addDesiredStateChange(setTerrainHeightInputTexture);</span>
+        }
+<span class="nc" id="L134">    }</span>
+
+    public void enableWireframe() {
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        if (!getDesiredStateChanges().contains(wireframeStateChange)) {</span>
+<span class="nc" id="L138">            removeDesiredStateChange(faceCullingStateChange);</span>
+<span class="nc" id="L139">            addDesiredStateChange(wireframeStateChange);</span>
+<span class="nc" id="L140">            worldRenderer.requestTaskListRefresh();</span>
+        }
+<span class="nc" id="L142">    }</span>
+
+    public void disableWireframe() {
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        if (getDesiredStateChanges().contains(wireframeStateChange)) {</span>
+<span class="nc" id="L146">            addDesiredStateChange(faceCullingStateChange);</span>
+<span class="nc" id="L147">            removeDesiredStateChange(wireframeStateChange);</span>
+<span class="nc" id="L148">            worldRenderer.requestTaskListRefresh();</span>
+        }
+<span class="nc" id="L150">    }</span>
+
+    /**
+     * Renders the world's opaque blocks, effectively, the world's landscape.
+     * Does not render semi-transparent blocks, i.e. semi-transparent vegetation.
+     *
+     * If RenderingDebugConfig.isRenderChunkBoundingBoxes() returns true
+     * this method also draws wireframe boxes around chunks, displaying
+     * their boundaries.
+     *
+     * Finally, takes advantage of the two methods
+     *
+     * - WorldRenderer.increaseTrianglesCount(int)
+     * - WorldRenderer.increaseNotReadyChunkCount(int)
+     *
+     * to publish some statistics over its own activity.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L169">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+        // Common Shader Parameters
+
+<span class="nc" id="L173">        chunkMaterial.setFloat(&quot;time&quot;, worldProvider.getTime().getDays(), true);</span>
+
+        // Specific Shader Parameters
+
+<span class="nc" id="L177">        chunkMaterial.setFloat(&quot;clip&quot;, 0.0f, true);</span>
+
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        if (parallaxMappingIsEnabled) {</span>
+<span class="nc" id="L180">            chunkMaterial.setFloat4(&quot;parallaxProperties&quot;, parallaxBias, parallaxScale, 0.0f, 0.0f, true);</span>
+        }
+
+        // Actual Node Processing
+
+<span class="nc" id="L185">        final Vector3f cameraPosition = activeCamera.getPosition();</span>
+
+<span class="nc" id="L187">        int numberOfRenderedTriangles = 0;</span>
+<span class="nc" id="L188">        int numberOfChunksThatAreNotReadyYet = 0;</span>
+
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        while (renderQueues.chunksOpaque.size() &gt; 0) {</span>
+<span class="nc" id="L191">            RenderableChunk chunk = renderQueues.chunksOpaque.poll();</span>
+
+<span class="nc bnc" id="L193" title="All 2 branches missed.">            if (chunk.hasMesh()) {</span>
+<span class="nc" id="L194">                final ChunkMesh chunkMesh = chunk.getMesh();</span>
+<span class="nc" id="L195">                final Vector3f chunkPosition = chunk.getPosition().toVector3f();</span>
+
+<span class="nc" id="L197">                chunkMesh.updateMaterial(chunkMaterial, chunkPosition, chunk.isAnimated());</span>
+<span class="nc" id="L198">                numberOfRenderedTriangles += chunkMesh.render(OPAQUE, chunkPosition, cameraPosition);</span>
+
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                if (renderingDebugConfig.isRenderChunkBoundingBoxes()) {</span>
+<span class="nc" id="L201">                    renderChunkBoundingBox(chunk, chunkPosition, cameraPosition);</span>
+                }
+
+<span class="nc" id="L204">            } else {</span>
+<span class="nc" id="L205">                numberOfChunksThatAreNotReadyYet++;</span>
+            }
+<span class="nc" id="L207">        }</span>
+
+<span class="nc" id="L209">        worldRenderer.increaseTrianglesCount(numberOfRenderedTriangles);</span>
+<span class="nc" id="L210">        worldRenderer.increaseNotReadyChunkCount(numberOfChunksThatAreNotReadyYet);</span>
+
+<span class="nc" id="L212">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L213">    }</span>
+
+    private void renderChunkBoundingBox(RenderableChunk chunk, Vector3f chunkPosition, Vector3f cameraPosition) {
+<span class="nc" id="L216">        GL11.glPushMatrix();</span>
+
+        // chunkPositionRelativeToCamera = chunkCoordinates * chunkDimensions - cameraCoordinate
+<span class="nc" id="L219">        final Vector3f chunkPositionRelativeToCamera =</span>
+                new Vector3f(chunkPosition.x * ChunkConstants.SIZE_X - cameraPosition.x,
+                        chunkPosition.y * ChunkConstants.SIZE_Y - cameraPosition.y,
+                        chunkPosition.z * ChunkConstants.SIZE_Z - cameraPosition.z);
+<span class="nc" id="L223">        GL11.glTranslatef(chunkPositionRelativeToCamera.x, chunkPositionRelativeToCamera.y, chunkPositionRelativeToCamera.z);</span>
+
+<span class="nc" id="L225">        new AABBRenderer(chunk.getAABB()).renderLocally();</span>
+
+<span class="nc" id="L227">        GL11.glPopMatrix(); // Resets the matrix stack after the rendering of a chunk.</span>
+<span class="nc" id="L228">    }</span>
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+<span class="nc" id="L232">        String propertyName = event.getPropertyName();</span>
+
+<span class="nc bnc" id="L234" title="All 3 branches missed.">        switch (propertyName) {</span>
+            case RenderingConfig.NORMAL_MAPPING:
+<span class="nc" id="L236">                normalMappingIsEnabled = renderingConfig.isNormalMapping();</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">                if (normalMappingIsEnabled) {</span>
+<span class="nc" id="L238">                    addDesiredStateChange(setTerrainNormalsInputTexture);</span>
+                } else {
+<span class="nc" id="L240">                    removeDesiredStateChange(setTerrainNormalsInputTexture);</span>
+                }
+<span class="nc" id="L242">                break;</span>
+
+            case RenderingConfig.PARALLAX_MAPPING:
+<span class="nc" id="L245">                parallaxMappingIsEnabled = renderingConfig.isParallaxMapping();</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">                if (parallaxMappingIsEnabled) {</span>
+<span class="nc" id="L247">                    addDesiredStateChange(setTerrainHeightInputTexture);</span>
+                } else {
+<span class="nc" id="L249">                    removeDesiredStateChange(setTerrainHeightInputTexture);</span>
+                }
+                break;
+
+            // default: no other cases are possible - see subscribe operations in initialize().
+        }
+
+<span class="nc" id="L256">        worldRenderer.requestTaskListRefresh();</span>
+<span class="nc" id="L257">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

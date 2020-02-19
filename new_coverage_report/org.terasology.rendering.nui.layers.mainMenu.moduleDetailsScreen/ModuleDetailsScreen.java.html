@@ -1,0 +1,487 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModuleDetailsScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu.moduleDetailsScreen</a> &gt; <span class="el_source">ModuleDetailsScreen.java</span></div><h1>ModuleDetailsScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu.moduleDetailsScreen;
+
+import org.codehaus.plexus.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.context.Context;
+import org.terasology.engine.module.DependencyResolutionFailedException;
+import org.terasology.engine.module.ExtraDataModuleExtension;
+import org.terasology.engine.module.ModuleInstaller;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.module.RemoteModuleExtension;
+import org.terasology.engine.module.StandardModuleExtension;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.module.DependencyInfo;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleMetadata;
+import org.terasology.naming.Version;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.itemRendering.AbstractItemRenderer;
+import org.terasology.rendering.nui.itemRendering.StringTextRenderer;
+import org.terasology.rendering.nui.layers.mainMenu.ConfirmPopup;
+import org.terasology.rendering.nui.layers.mainMenu.MessagePopup;
+import org.terasology.rendering.nui.layers.mainMenu.WaitPopup;
+import org.terasology.rendering.nui.layers.mainMenu.advancedGameSetupScreen.DownloadPopupProgressListener;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UIButtonWebBrowser;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIList;
+import org.terasology.rendering.nui.widgets.UIText;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+
+/**
+ * Shows detailed information about modules.
+ */
+<span class="nc" id="L70">public class ModuleDetailsScreen extends CoreScreenLayer {</span>
+
+<span class="nc" id="L72">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:moduleDetailsScreen&quot;);</span>
+
+<span class="nc" id="L74">    private static final Logger logger = LoggerFactory.getLogger(ModuleDetailsScreen.class);</span>
+
+<span class="nc" id="L76">    private static final DateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+    private static final String DEFAULT_GITHUB_MODULE_URL = &quot;https://github.com/Terasology/&quot;;
+<span class="nc" id="L78">    private static final List INTERNAL_MODULES = Arrays.asList(&quot;Core&quot;, &quot;engine&quot;, &quot;CoreSampleGameplay&quot;, &quot;BuilderSampleGameplay&quot;, &quot;BiomesAPI&quot;);</span>
+    @In
+    private ModuleManager moduleManager;
+    @In
+    private TranslationSystem translationSystem;
+    @In
+    private Context context;
+
+    private UIList&lt;DependencyInfo&gt; dependencies;
+<span class="nc" id="L87">    private final Binding&lt;DependencyInfo&gt; dependencyInfoBinding = new ReadOnlyBinding&lt;DependencyInfo&gt;() {</span>
+        @Override
+        public DependencyInfo get() {
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            if (dependencies.getSelection() != null) {</span>
+<span class="nc" id="L91">                return dependencies.getSelection();</span>
+            }
+<span class="nc" id="L93">            return null;</span>
+        }
+    };
+
+    private UIList&lt;Module&gt; modules;
+<span class="nc" id="L98">    private final Binding&lt;Module&gt; moduleInfoBinding = new ReadOnlyBinding&lt;Module&gt;() {</span>
+        @Override
+        public Module get() {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">            if (modules.getSelection() != null) {</span>
+<span class="nc" id="L102">                return modules.getSelection();</span>
+            }
+<span class="nc" id="L104">            return null;</span>
+        }
+    };
+    private UILabel moduleName;
+    private UILabel installedVersion;
+    private UILabel minSupportedVersion;
+    private UILabel maxSupportedVersion;
+    private UILabel onlineVersion;
+    private UILabel required;
+    private UIButtonWebBrowser openInBrowser;
+    private UIButton updateModuleButton;
+    private UIText description;
+    private UIButton close;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L120">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L122">        initWidgets();</span>
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (isScreenValid()) {</span>
+
+<span class="nc" id="L126">            setUpModules();</span>
+<span class="nc" id="L127">            setUpDependencies();</span>
+<span class="nc" id="L128">            setUpUpdateModuleButton();</span>
+<span class="nc" id="L129">            bindDependencyDescription();</span>
+
+<span class="nc" id="L131">            close.subscribe(button -&gt; triggerBackAnimation());</span>
+
+<span class="nc" id="L133">            description.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                    if (moduleInfoBinding.get() != null) {</span>
+<span class="nc" id="L137">                        return getModuleDescription(moduleInfoBinding.get());</span>
+                    }
+<span class="nc" id="L139">                    return &quot;&quot;;</span>
+                }
+            });
+        }
+<span class="nc" id="L143">    }</span>
+
+    private void initWidgets() {
+<span class="nc" id="L146">        moduleName = find(&quot;moduleName&quot;, UILabel.class);</span>
+<span class="nc" id="L147">        installedVersion = find(&quot;installedVersion&quot;, UILabel.class);</span>
+<span class="nc" id="L148">        minSupportedVersion = find(&quot;minSupportedVersion&quot;, UILabel.class);</span>
+<span class="nc" id="L149">        maxSupportedVersion = find(&quot;maxSupportedVersion&quot;, UILabel.class);</span>
+<span class="nc" id="L150">        onlineVersion = find(&quot;onlineVersion&quot;, UILabel.class);</span>
+<span class="nc" id="L151">        required = find(&quot;required&quot;, UILabel.class);</span>
+<span class="nc" id="L152">        modules = find(&quot;modules&quot;, UIList.class);</span>
+<span class="nc" id="L153">        dependencies = find(&quot;dependencies&quot;, UIList.class);</span>
+<span class="nc" id="L154">        openInBrowser = find(&quot;openInBrowser&quot;, UIButtonWebBrowser.class);</span>
+<span class="nc" id="L155">        updateModuleButton = find(&quot;update&quot;, UIButton.class);</span>
+<span class="nc" id="L156">        description = find(&quot;description&quot;, UIText.class);</span>
+<span class="nc" id="L157">        close = find(&quot;close&quot;, UIButton.class);</span>
+<span class="nc" id="L158">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L162">        super.onOpened();</span>
+
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        if (!isScreenValid()) {</span>
+<span class="nc" id="L165">            final MessagePopup popup = getManager().createScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L166">            popup.setMessage(translationSystem.translate(&quot;${engine:menu#game-details-errors-message-title}&quot;), translationSystem.translate(&quot;${engine:menu#game-details-errors-message-body}&quot;));</span>
+<span class="nc" id="L167">            popup.subscribeButton(e -&gt; triggerBackAnimation());</span>
+<span class="nc" id="L168">            getManager().pushScreen(popup);</span>
+            // disable child widgets
+<span class="nc" id="L170">            setEnabled(false);</span>
+        }
+<span class="nc" id="L172">    }</span>
+
+    private void setUpModules() {
+<span class="nc" id="L175">        modules.subscribeSelection(((widget, item) -&gt; {</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            if (item != null) {</span>
+<span class="nc" id="L177">                dependencies.setList(getSortedDependencies(item));</span>
+<span class="nc" id="L178">                dependencies.setSelection(null);</span>
+<span class="nc" id="L179">                dependencies.select(0);</span>
+<span class="nc" id="L180">                this.updateOpenInBrowserButton();</span>
+            }
+<span class="nc" id="L182">        }));</span>
+<span class="nc" id="L183">        modules.setItemRenderer(new StringTextRenderer&lt;Module&gt;() {</span>
+            @Override
+            public String getString(Module value) {
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                if (value != null) {</span>
+<span class="nc" id="L187">                    return value.getMetadata().getDisplayName().toString();</span>
+                }
+<span class="nc" id="L189">                return &quot;&quot;;</span>
+            }
+        });
+<span class="nc" id="L192">    }</span>
+
+    private List&lt;DependencyInfo&gt; getSortedDependencies(final Module module) {
+<span class="nc" id="L195">        return module.getMetadata()</span>
+<span class="nc" id="L196">                .getDependencies().stream()</span>
+<span class="nc" id="L197">                .sorted(Comparator.comparing(DependencyInfo::getId))</span>
+<span class="nc" id="L198">                .collect(Collectors.toList());</span>
+    }
+
+    private void updateOpenInBrowserButton() {
+<span class="nc" id="L202">        openInBrowser.setEnabled(false);</span>
+<span class="nc" id="L203">        final Module module = moduleInfoBinding.get();</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        if (module == null) {</span>
+<span class="nc" id="L205">            return;</span>
+        }
+<span class="nc" id="L207">        final String moduleOrigin = getOriginModuleUrl(moduleManager.getRegistry().getLatestModuleVersion(module.getMetadata().getId()));</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        if (StringUtils.isNotBlank(moduleOrigin)) {</span>
+<span class="nc" id="L209">            openInBrowser.setEnabled(true);</span>
+<span class="nc" id="L210">            openInBrowser.setUrl(moduleOrigin)</span>
+<span class="nc" id="L211">                    .setNuiManager(getManager())</span>
+<span class="nc" id="L212">                    .setTranslationSystem(translationSystem);</span>
+        }
+<span class="nc" id="L214">    }</span>
+
+    private void bindDependencyDescription() {
+
+<span class="nc" id="L218">        moduleName.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc bnc" id="L221" title="All 2 branches missed.">                if (dependencyInfoBinding.get() != null) {</span>
+<span class="nc" id="L222">                    return String.valueOf(dependencyInfoBinding.get().getId());</span>
+                }
+<span class="nc" id="L224">                return &quot;&quot;;</span>
+            }
+        });
+
+<span class="nc" id="L228">        installedVersion.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc bnc" id="L231" title="All 4 branches missed.">                if (dependencyInfoBinding.get() != null &amp;&amp; moduleManager.getRegistry().getLatestModuleVersion(dependencyInfoBinding.get().getId()) != null) {</span>
+<span class="nc" id="L232">                    return String.valueOf(moduleManager.getRegistry().getLatestModuleVersion(dependencyInfoBinding.get().getId()).getVersion());</span>
+                }
+<span class="nc" id="L234">                return &quot;&quot;;</span>
+            }
+        });
+
+<span class="nc" id="L238">        minSupportedVersion.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc bnc" id="L241" title="All 2 branches missed.">                if (dependencyInfoBinding.get() != null) {</span>
+<span class="nc" id="L242">                    return String.valueOf(dependencyInfoBinding.get().getMinVersion());</span>
+                }
+<span class="nc" id="L244">                return &quot;&quot;;</span>
+            }
+        });
+
+<span class="nc" id="L248">        maxSupportedVersion.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc bnc" id="L251" title="All 2 branches missed.">                if (dependencyInfoBinding.get() != null) {</span>
+<span class="nc" id="L252">                    return String.valueOf(dependencyInfoBinding.get().getMaxVersion());</span>
+                }
+<span class="nc" id="L254">                return &quot;&quot;;</span>
+            }
+        });
+
+<span class="nc" id="L258">        onlineVersion.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                if (dependencyInfoBinding.get() != null) {</span>
+<span class="nc" id="L262">                    return getOnlineVersion(dependencyInfoBinding.get());</span>
+                }
+<span class="nc" id="L264">                return &quot;&quot;;</span>
+            }
+        });
+
+<span class="nc" id="L268">        required.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc bnc" id="L271" title="All 2 branches missed.">                if (dependencyInfoBinding.get() != null) {</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">                    return String.valueOf(!dependencyInfoBinding.get().isOptional());</span>
+                }
+<span class="nc" id="L274">                return &quot;&quot;;</span>
+            }
+        });
+<span class="nc" id="L277">    }</span>
+
+    private void setUpDependencies() {
+<span class="nc" id="L280">        dependencies.setList(Collections.emptyList());</span>
+<span class="nc" id="L281">        dependencies.setItemRenderer(new AbstractItemRenderer&lt;DependencyInfo&gt;() {</span>
+            private String getString(DependencyInfo value) {
+<span class="nc bnc" id="L283" title="All 2 branches missed.">                if (value != null) {</span>
+<span class="nc" id="L284">                    return value.getId().toString();</span>
+                }
+<span class="nc" id="L286">                return &quot;&quot;;</span>
+            }
+
+            @Override
+            public void draw(DependencyInfo value, Canvas canvas) {
+<span class="nc bnc" id="L291" title="All 2 branches missed.">                if (moduleManager.getRegistry().getLatestModuleVersion(value.getId()) == null) {</span>
+<span class="nc" id="L292">                    canvas.setMode(&quot;invalid&quot;);</span>
+                } else {
+<span class="nc" id="L294">                    canvas.setMode(&quot;available&quot;);</span>
+                }
+<span class="nc" id="L296">                canvas.drawText(getString(value), canvas.getRegion());</span>
+<span class="nc" id="L297">            }</span>
+
+            @Override
+            public Vector2i getPreferredSize(DependencyInfo value, Canvas canvas) {
+<span class="nc" id="L301">                String text = getString(value);</span>
+<span class="nc" id="L302">                return new Vector2i(</span>
+<span class="nc" id="L303">                        canvas.getCurrentStyle().getFont().getWidth(text),</span>
+<span class="nc" id="L304">                        canvas.getCurrentStyle().getFont().getLineHeight());</span>
+            }
+        });
+<span class="nc" id="L307">        dependencies.subscribe(((widget, item) -&gt; {</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            if (item != null) {</span>
+<span class="nc" id="L309">                modules.getList().stream()</span>
+<span class="nc" id="L310">                        .filter(m -&gt; item.getId().equals(m.getId()))</span>
+<span class="nc" id="L311">                        .findFirst()</span>
+<span class="nc" id="L312">                        .ifPresent(m -&gt; modules.setSelection(m));</span>
+            }
+<span class="nc" id="L314">        }));</span>
+<span class="nc" id="L315">    }</span>
+
+    private void setUpUpdateModuleButton() {
+
+<span class="nc" id="L319">        updateModuleButton.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc" id="L322">                final String online = onlineVersion.getText();</span>
+<span class="nc" id="L323">                final String installed = installedVersion.getText();</span>
+<span class="nc bnc" id="L324" title="All 4 branches missed.">                if (StringUtils.isNotBlank(online) &amp;&amp; StringUtils.isNotBlank(installed)) {</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">                    return new Version(online).compareTo(new Version(installed)) &gt; 0;</span>
+                }
+<span class="nc" id="L327">                return false;</span>
+            }
+        });
+
+<span class="nc" id="L331">        updateModuleButton.subscribe((button -&gt; {</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">            if (dependencyInfoBinding.get() != null) {</span>
+<span class="nc" id="L333">                startDownloadingNewestModulesRequiredFor(dependencyInfoBinding.get());</span>
+            }
+<span class="nc" id="L335">        }));</span>
+<span class="nc" id="L336">    }</span>
+
+    private void startDownloadingNewestModulesRequiredFor(final DependencyInfo dependencyInfo) {
+        final Set&lt;Module&gt; modulesToDownload;
+        try {
+<span class="nc" id="L341">            modulesToDownload = moduleManager.getInstallManager().getAllModulesToDownloadFor(dependencyInfo.getId());</span>
+<span class="nc" id="L342">        } catch (DependencyResolutionFailedException ex) {</span>
+<span class="nc" id="L343">            MessagePopup messagePopup = getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L344">            messagePopup.setMessage(&quot;Error&quot;, ex.getMessage());</span>
+<span class="nc" id="L345">            return;</span>
+<span class="nc" id="L346">        }</span>
+<span class="nc" id="L347">        final ConfirmPopup confirmPopup = getManager().pushScreen(ConfirmPopup.ASSET_URI, ConfirmPopup.class);</span>
+<span class="nc" id="L348">        confirmPopup.setMessage(&quot;Confirm Download&quot;, modulesToDownload.size() + &quot; modules will be downloaded&quot;);</span>
+<span class="nc" id="L349">        confirmPopup.setOkHandler(() -&gt; downloadModules(modulesToDownload));</span>
+<span class="nc" id="L350">    }</span>
+
+    private void downloadModules(Iterable&lt;Module&gt; modulesToDownload) {
+<span class="nc" id="L353">        final WaitPopup&lt;List&lt;Module&gt;&gt; popup = getManager().pushScreen(WaitPopup.ASSET_URI, WaitPopup.class);</span>
+<span class="nc" id="L354">        ModuleInstaller operation = moduleManager.getInstallManager().createInstaller(modulesToDownload,</span>
+                new DownloadPopupProgressListener(popup));
+<span class="nc" id="L356">        popup.startOperation(operation, true);</span>
+<span class="nc" id="L357">    }</span>
+
+    private Set&lt;Module&gt; getAllModuleDependencies(final Collection&lt;Module&gt; modules) {
+<span class="nc" id="L360">        return modules.stream()</span>
+<span class="nc" id="L361">                .filter(Objects::nonNull)</span>
+<span class="nc" id="L362">                .map(Module::getMetadata)</span>
+<span class="nc" id="L363">                .map(ModuleMetadata::getDependencies)</span>
+<span class="nc" id="L364">                .flatMap(Collection::stream)</span>
+<span class="nc" id="L365">                .filter(dep -&gt; Objects.nonNull(dep.getId()))</span>
+<span class="nc" id="L366">                .map(dep -&gt; moduleManager.getRegistry().getLatestModuleVersion(dep.getId()))</span>
+<span class="nc" id="L367">                .filter(Objects::nonNull)</span>
+<span class="nc" id="L368">                .collect(Collectors.toSet());</span>
+    }
+
+    public void setModules(final Collection&lt;Module&gt; modules) {
+<span class="nc bnc" id="L372" title="All 2 branches missed.">        if (modules != null) {</span>
+<span class="nc" id="L373">            final Set&lt;Module&gt; mods = new HashSet&lt;&gt;(modules);</span>
+<span class="nc" id="L374">            mods.addAll(getAllModuleDependencies(modules));</span>
+<span class="nc" id="L375">            this.modules.setList(</span>
+<span class="nc" id="L376">                    mods.stream()</span>
+<span class="nc" id="L377">                            .sorted(Comparator.comparing(Module::getId))</span>
+<span class="nc" id="L378">                            .collect(Collectors.toList())</span>
+            );
+        }
+<span class="nc" id="L381">    }</span>
+
+    public void setSelectedModule(final Module selectedModule) {
+<span class="nc bnc" id="L384" title="All 2 branches missed.">        if (selectedModule != null) {</span>
+<span class="nc" id="L385">            this.modules.setSelection(selectedModule);</span>
+        } else {
+<span class="nc" id="L387">            this.modules.select(0);</span>
+        }
+<span class="nc" id="L389">    }</span>
+
+    private String getModuleDescription(final Module module) {
+<span class="nc bnc" id="L392" title="All 4 branches missed.">        if (module == null || module.getMetadata() == null) {</span>
+<span class="nc" id="L393">            return &quot;&quot;;</span>
+        }
+<span class="nc" id="L395">        final ModuleMetadata metadata = module.getMetadata();</span>
+
+<span class="nc" id="L397">        return translationSystem.translate(&quot;${engine:menu#game-details-module-id}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L398">                metadata.getId() +</span>
+                '\n' +
+<span class="nc" id="L400">                translationSystem.translate(&quot;${engine:menu#game-details-module-display-name}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L401">                metadata.getDisplayName() +</span>
+                '\n' +
+<span class="nc" id="L403">                translationSystem.translate(&quot;${engine:menu#game-details-module-version}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L404">                metadata.getVersion() +</span>
+                '\n' +
+<span class="nc" id="L406">                translationSystem.translate(&quot;${engine:menu#game-details-module-description}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L407">                metadata.getDescription() +</span>
+                '\n' +
+<span class="nc" id="L409">                translationSystem.translate(&quot;${engine:menu#game-details-module-permissions}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L410">                String.join(&quot;, &quot;, metadata.getRequiredPermissions()) +</span>
+                '\n' +
+<span class="nc" id="L412">                translationSystem.translate(&quot;${engine:menu#game-details-module-github}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L413">                getOriginModuleUrl(module) +</span>
+                '\n' +
+<span class="nc" id="L415">                translationSystem.translate(&quot;${engine:menu#game-details-module-author}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L416">                ExtraDataModuleExtension.getAuthor(module) +</span>
+                '\n' +
+<span class="nc" id="L418">                translationSystem.translate(&quot;${engine:menu#game-details-module-size}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L419">                getRemoteSize(module) +</span>
+                '\n' +
+<span class="nc" id="L421">                translationSystem.translate(&quot;${engine:menu#game-details-module-last-update-date}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L422">                getLastUpdateDate(module) +</span>
+                '\n' +
+<span class="nc" id="L424">                translationSystem.translate(&quot;${engine:menu#game-details-module-categories}&quot;) + &quot;: &quot; +</span>
+<span class="nc" id="L425">                getModuleTags(module);</span>
+    }
+
+    private String getOriginModuleUrl(Module module) {
+<span class="nc" id="L429">        final String origin = ExtraDataModuleExtension.getOrigin(module);</span>
+<span class="nc bnc" id="L430" title="All 4 branches missed.">        if (StringUtils.isBlank(origin) &amp;&amp; !INTERNAL_MODULES.contains(module.getId().toString())) {</span>
+<span class="nc" id="L431">            return DEFAULT_GITHUB_MODULE_URL + module.getId();</span>
+        }
+<span class="nc" id="L433">        return origin;</span>
+    }
+
+    private String getOnlineVersion(final DependencyInfo dependencyInfo) {
+<span class="nc" id="L437">        return moduleManager.getInstallManager().getRemoteRegistry().stream()</span>
+<span class="nc" id="L438">                .filter(module -&gt; module.getId().equals(dependencyInfo.getId()))</span>
+<span class="nc" id="L439">                .findFirst()</span>
+<span class="nc" id="L440">                .map(Module::getVersion)</span>
+<span class="nc" id="L441">                .map(String::valueOf)</span>
+<span class="nc" id="L442">                .orElse(&quot;&quot;);</span>
+    }
+
+    private String getRemoteSize(final Module module) {
+<span class="nc" id="L446">        return moduleManager.getInstallManager().getRemoteRegistry().stream()</span>
+<span class="nc" id="L447">                .filter(m -&gt; m.getId().equals(module.getId()))</span>
+<span class="nc" id="L448">                .findFirst()</span>
+<span class="nc" id="L449">                .map(Module::getMetadata)</span>
+<span class="nc" id="L450">                .map(RemoteModuleExtension::getArtifactSize)</span>
+<span class="nc" id="L451">                .map(m -&gt; m + &quot; bytes&quot;)</span>
+<span class="nc" id="L452">                .orElse(&quot;&quot;);</span>
+    }
+
+    private String getLastUpdateDate(final Module module) {
+<span class="nc" id="L456">        return moduleManager.getInstallManager().getRemoteRegistry().stream()</span>
+<span class="nc" id="L457">                .filter(m -&gt; m.getId().equals(module.getId()))</span>
+<span class="nc" id="L458">                .findFirst()</span>
+<span class="nc" id="L459">                .map(Module::getMetadata)</span>
+<span class="nc" id="L460">                .map(RemoteModuleExtension::getLastUpdated)</span>
+<span class="nc" id="L461">                .map(dateFormat::format)</span>
+<span class="nc" id="L462">                .orElse(&quot;&quot;);</span>
+    }
+
+    private String getModuleTags(final Module module) {
+<span class="nc" id="L466">        return StandardModuleExtension.booleanPropertySet().stream()</span>
+<span class="nc" id="L467">                .filter(ext -&gt; ext.isProvidedBy(module))</span>
+<span class="nc" id="L468">                .map(StandardModuleExtension::getKey)</span>
+<span class="nc" id="L469">                .collect(Collectors.joining(&quot;, &quot;));</span>
+    }
+
+    private boolean isScreenValid() {
+<span class="nc" id="L473">        if (Stream.of(moduleName, installedVersion, minSupportedVersion, maxSupportedVersion, close,</span>
+                onlineVersion, required, dependencies, modules, openInBrowser, updateModuleButton, description)
+<span class="nc bnc" id="L475" title="All 2 branches missed.">                .anyMatch(Objects::isNull)) {</span>
+<span class="nc" id="L476">            logger.error(&quot;Can't initialize screen correctly. At least one widget was missed!&quot;);</span>
+<span class="nc" id="L477">            return false;</span>
+        }
+<span class="nc" id="L479">        return true;</span>
+    }
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L484">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenVRUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.openvrprovider</a> &gt; <span class="el_source">OpenVRUtil.java</span></div><h1>OpenVRUtil.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.openvrprovider;
+
+import jopenvr.HmdMatrix34_t;
+import jopenvr.HmdMatrix44_t;
+import jopenvr.VRControllerState_t;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
+
+/**
+ * Utility functions that don't interact with the headset (conversions and the like).
+ */
+public final class OpenVRUtil {
+
+    private OpenVRUtil() {
+        // Not called
+    }
+
+    static void setSteamVRMatrix3ToMatrix4f(HmdMatrix34_t hmdMatrix, Matrix4f matrixToSet) {
+<span class="nc" id="L35">        matrixToSet.set(</span>
+                hmdMatrix.m[0], hmdMatrix.m[4], hmdMatrix.m[8], 0,
+                hmdMatrix.m[1], hmdMatrix.m[5], hmdMatrix.m[9], 0,
+                hmdMatrix.m[2], hmdMatrix.m[6], hmdMatrix.m[10], 0,
+                hmdMatrix.m[3], hmdMatrix.m[7], hmdMatrix.m[11], 1f
+        );
+<span class="nc" id="L41">    }</span>
+
+    static void setSteamVRMatrix44ToMatrix4f(HmdMatrix44_t hmdMatrix, Matrix4f matrixToSet) {
+<span class="nc" id="L44">        matrixToSet.set(</span>
+                hmdMatrix.m[0], hmdMatrix.m[4], hmdMatrix.m[8], hmdMatrix.m[12],
+                hmdMatrix.m[1], hmdMatrix.m[5], hmdMatrix.m[9], hmdMatrix.m[13],
+                hmdMatrix.m[2], hmdMatrix.m[6], hmdMatrix.m[10], hmdMatrix.m[14],
+                hmdMatrix.m[3], hmdMatrix.m[7], hmdMatrix.m[11], hmdMatrix.m[15]
+        );
+<span class="nc" id="L50">    }</span>
+
+    public static VRControllerState_t createZeroControllerState() {
+<span class="nc" id="L53">        VRControllerState_t state = new VRControllerState_t();</span>
+        // controller not connected, clear state
+<span class="nc" id="L55">        state.ulButtonPressed = 0;</span>
+
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        for (int i = 0; i &lt; 5; i++) {</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            if (state.rAxis[i] != null) {</span>
+<span class="nc" id="L59">                state.rAxis[i].x = 0.0f;</span>
+<span class="nc" id="L60">                state.rAxis[i].y = 0.0f;</span>
+            }
+        }
+<span class="nc" id="L63">        return state;</span>
+    }
+
+    public static boolean isPressed(long nButton, long uiButtonPressed) {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        return ((uiButtonPressed &amp; nButton) &gt; 0);</span>
+    }
+
+    public static boolean switchedDown(long nButton, long stateBefore, long stateAfter) {
+<span class="nc bnc" id="L71" title="All 4 branches missed.">        return (!isPressed(nButton, stateBefore) &amp;&amp; isPressed(nButton, stateAfter));</span>
+    }
+
+    public static boolean switchedUp(long nButton, long stateBefore, long stateAfter) {
+<span class="nc bnc" id="L75" title="All 4 branches missed.">        return (isPressed(nButton, stateBefore) &amp;&amp; !isPressed(nButton, stateAfter));</span>
+    }
+
+    /*
+    * Takes 3 unit vectors, representing an orthonormal basis, and generates a unit quaternion.
+     */
+    public static Vector4f getQuaternion(boolean normalizeAxes,
+                                  float xxInput, float xyInput, float xzInput,
+                                  float yxInput, float yyInput, float yzInput,
+                                  float zxInput, float zyInput, float zzInput) {
+<span class="nc" id="L85">        float xx = xxInput;</span>
+<span class="nc" id="L86">        float xy = xyInput;</span>
+<span class="nc" id="L87">        float xz = xzInput;</span>
+<span class="nc" id="L88">        float yx = yxInput;</span>
+<span class="nc" id="L89">        float yy = yyInput;</span>
+<span class="nc" id="L90">        float yz = yzInput;</span>
+<span class="nc" id="L91">        float zx = zxInput;</span>
+<span class="nc" id="L92">        float zy = zyInput;</span>
+<span class="nc" id="L93">        float zz = zzInput;</span>
+        float x;
+        float y;
+        float z;
+        float w;
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (normalizeAxes) {</span>
+<span class="nc" id="L99">            final float lx = 1f / new Vector3f(xx, xy, xz).length();</span>
+<span class="nc" id="L100">            final float ly = 1f / new Vector3f(yx, yy, yz).length();</span>
+<span class="nc" id="L101">            final float lz = 1f / new Vector3f(zx, zy, zz).length();</span>
+<span class="nc" id="L102">            xx *= lx;</span>
+<span class="nc" id="L103">            xy *= lx;</span>
+<span class="nc" id="L104">            xz *= lx;</span>
+<span class="nc" id="L105">            yx *= ly;</span>
+<span class="nc" id="L106">            yy *= ly;</span>
+<span class="nc" id="L107">            yz *= ly;</span>
+<span class="nc" id="L108">            zx *= lz;</span>
+<span class="nc" id="L109">            zy *= lz;</span>
+<span class="nc" id="L110">            zz *= lz;</span>
+        }
+        // the trace is the sum of the diagonal elements; see
+        // http://mathworld.wolfram.com/MatrixTrace.html
+<span class="nc" id="L114">        final float t = xx + yy + zz;</span>
+
+        // we protect the division by s by ensuring that s&gt;=1
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (t &gt;= 0) { // |w| &gt;= .5</span>
+<span class="nc" id="L118">            float s = (float) Math.sqrt(t + 1); // |s|&gt;=1 ...</span>
+<span class="nc" id="L119">            w = 0.5f * s;</span>
+<span class="nc" id="L120">            s = 0.5f / s; // so this division isn't bad</span>
+<span class="nc" id="L121">            x = (zy - yz) * s;</span>
+<span class="nc" id="L122">            y = (xz - zx) * s;</span>
+<span class="nc" id="L123">            z = (yx - xy) * s;</span>
+<span class="nc bnc" id="L124" title="All 4 branches missed.">        } else if ((xx &gt; yy) &amp;&amp; (xx &gt; zz)) {</span>
+<span class="nc" id="L125">            float s = (float) Math.sqrt(1.0 + xx - yy - zz); // |s|&gt;=1</span>
+<span class="nc" id="L126">            x = s * 0.5f; // |x| &gt;= .5</span>
+<span class="nc" id="L127">            s = 0.5f / s;</span>
+<span class="nc" id="L128">            y = (yx + xy) * s;</span>
+<span class="nc" id="L129">            z = (xz + zx) * s;</span>
+<span class="nc" id="L130">            w = (zy - yz) * s;</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        } else if (yy &gt; zz) {</span>
+<span class="nc" id="L132">            float s = (float) Math.sqrt(1.0 + yy - xx - zz); // |s|&gt;=1</span>
+<span class="nc" id="L133">            y = s * 0.5f; // |y| &gt;= .5</span>
+<span class="nc" id="L134">            s = 0.5f / s;</span>
+<span class="nc" id="L135">            x = (yx + xy) * s;</span>
+<span class="nc" id="L136">            z = (zy + yz) * s;</span>
+<span class="nc" id="L137">            w = (xz - zx) * s;</span>
+<span class="nc" id="L138">        } else {</span>
+<span class="nc" id="L139">            float s = (float) Math.sqrt(1.0 + zz - xx - yy); // |s|&gt;=1</span>
+<span class="nc" id="L140">            z = s * 0.5f; // |z| &gt;= .5</span>
+<span class="nc" id="L141">            s = 0.5f / s;</span>
+<span class="nc" id="L142">            x = (xz + zx) * s;</span>
+<span class="nc" id="L143">            y = (zy + yz) * s;</span>
+<span class="nc" id="L144">            w = (yx - xy) * s;</span>
+        }
+<span class="nc" id="L146">        return new Vector4f(x, y, z, w);</span>
+    }
+
+    /*
+    * Converts the rotation portion of a 4x4 matrix into a unit quaternion.
+     */
+    public static Vector4f convertToQuaternion(Matrix4f m1) {
+<span class="nc" id="L153">        return getQuaternion(true,</span>
+<span class="nc" id="L154">                m1.m00(), m1.m10(), m1.m20(),</span>
+<span class="nc" id="L155">                m1.m01(), m1.m11(), m1.m21(),</span>
+<span class="nc" id="L156">                m1.m02(), m1.m12(), m1.m22()</span>
+        );
+}
+
+    static Matrix4f createIdentityMatrix4f() {
+<span class="nc" id="L161">        return new Matrix4f(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

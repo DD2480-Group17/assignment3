@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DebugOverlay.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.ingame.metrics</a> &gt; <span class="el_source">DebugOverlay.java</span></div><h1>DebugOverlay.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.ingame.metrics;
+
+import org.terasology.config.Config;
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.input.cameraTarget.CameraTargetSystem;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.math.ChunkMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.persistence.StorageManager;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.primitives.ChunkTessellator;
+import org.terasology.world.WorldProvider;
+
+import java.util.Locale;
+
+/**
+ * Displays the content of the MetricsMode instances provided by the {@link DebugMetricsSystem}.
+ *
+ * See the {@link #toggleMetricsMode()} method to iterate through the MetricsMode instances available for display.
+ */
+<span class="nc" id="L42">public class DebugOverlay extends CoreScreenLayer {</span>
+
+    @In
+    private Config config;
+
+    @In
+    private CameraTargetSystem cameraTarget;
+
+    @In
+    private Time time;
+
+    @In
+    private EntityManager entityManager;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    @In
+    private WorldProvider worldProvider;
+
+    @In
+    private DebugMetricsSystem debugMetricsSystem;
+
+    private UILabel metricsLabel;
+
+    @In
+    private StorageManager storageManager;
+
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L73">        bindVisible(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc" id="L76">                return config.getSystem().isDebugEnabled();</span>
+            }
+        });
+
+<span class="nc" id="L80">        UILabel debugLine1 = find(&quot;debugLine1&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (debugLine1 != null) {</span>
+<span class="nc" id="L82">            debugLine1.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L85">                    double memoryUsage = ((double) Runtime.getRuntime().totalMemory() - (double) Runtime.getRuntime().freeMemory()) / 1048576.0;</span>
+<span class="nc" id="L86">                    return String.format(&quot;FPS: %.2f, Memory Usage: %.2f MB, Total Memory: %.2f MB, Max Memory: %.2f MB&quot;,</span>
+<span class="nc" id="L87">                            time.getFps(), memoryUsage, Runtime.getRuntime().totalMemory() / 1048576.0, Runtime.getRuntime().maxMemory() / 1048576.0);</span>
+                }
+            });
+        }
+
+<span class="nc" id="L92">        UILabel debugLine2 = find(&quot;debugLine2&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (debugLine2 != null) {</span>
+<span class="nc" id="L94">            debugLine2.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L97">                    return String.format(&quot;Active Entities: %s, Current Target: %s&quot;, entityManager.getActiveEntityCount(), cameraTarget.toString());</span>
+                }
+            });
+        }
+
+<span class="nc" id="L102">        UILabel debugLine3 = find(&quot;debugLine3&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        if (debugLine3 != null) {</span>
+<span class="nc" id="L104">            debugLine3.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L107">                    Vector3f pos = localPlayer.getPosition();</span>
+<span class="nc" id="L108">                    Vector3i chunkPos = ChunkMath.calcChunkPos((int) pos.x, (int) pos.y, (int) pos.z);</span>
+<span class="nc" id="L109">                    Vector3f rotation = localPlayer.getViewDirection();</span>
+<span class="nc" id="L110">                    Vector3f cameraPos = localPlayer.getViewPosition();</span>
+<span class="nc" id="L111">                    return String.format(Locale.US, &quot;Position: (%.2f, %.2f, %.2f), Chunk (%d, %d, %d), Eye (%.2f, %.2f, %.2f), Rot (%.2f, %.2f, %.2f)&quot;, pos.x, pos.y, pos.z,</span>
+<span class="nc" id="L112">                            chunkPos.x, chunkPos.y, chunkPos.z,</span>
+<span class="nc" id="L113">                            cameraPos.x, cameraPos.y, cameraPos.z,</span>
+<span class="nc" id="L114">                            rotation.x, rotation.y, rotation.z);</span>
+                }
+            });
+        }
+
+<span class="nc" id="L119">        UILabel debugLine4 = find(&quot;debugLine4&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (debugLine4 != null) {</span>
+<span class="nc" id="L121">            debugLine4.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L124">                    return String.format(&quot;Total VUs: %s, World Time: %.3f, Time Dilation: %.1f&quot;,</span>
+<span class="nc" id="L125">                            ChunkTessellator.getVertexArrayUpdateCount(),</span>
+<span class="nc" id="L126">                            worldProvider.getTime().getDays() - 0.0005f,    // use floor instead of rounding up</span>
+<span class="nc" id="L127">                            time.getGameTimeDilation());</span>
+                }
+            });
+        }
+
+<span class="nc" id="L132">        UILabel debugInfo = find(&quot;debugInfo&quot;, UILabel.class);</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (debugInfo != null) {</span>
+<span class="nc" id="L134">            debugInfo.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L137">                    return String.format(&quot;[H] : Debug Documentation&quot;);</span>
+                }
+            });
+        }
+
+<span class="nc" id="L142">        UILabel saveStatusLabel = find(&quot;saveStatusLabel&quot;, UILabel.class);</span>
+        // clients do not have a storage manager
+<span class="nc bnc" id="L144" title="All 4 branches missed.">        if (saveStatusLabel != null &amp;&amp; storageManager != null) {</span>
+<span class="nc" id="L145">            saveStatusLabel.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L148">                    return &quot;Saving... &quot;;</span>
+                }
+            });
+<span class="nc" id="L151">            saveStatusLabel.bindVisible(</span>
+<span class="nc" id="L152">                    new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+                        @Override
+                        public Boolean get() {
+<span class="nc" id="L155">                            return storageManager.isSaving();</span>
+                        }
+                    }
+            );
+        }
+
+<span class="nc" id="L161">        UILabel wireframeMode = find(&quot;wireframeMode&quot;, UILabel.class);</span>
+
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (wireframeMode != null) {</span>
+<span class="nc" id="L164">            wireframeMode.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L167">                    return &quot;WIREFRAME MODE&quot;;</span>
+                }
+            });
+<span class="nc" id="L170">            wireframeMode.bindVisible(</span>
+<span class="nc" id="L171">                    new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+                        @Override
+                        public Boolean get() {
+<span class="nc" id="L174">                            return config.getRendering().getDebug().isWireframe();</span>
+                        }
+                    }
+            );
+        }
+
+<span class="nc" id="L180">        UILabel chunkRenderMode = find(&quot;chunkBBRenderMode&quot;, UILabel.class);</span>
+
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        if (chunkRenderMode != null) {</span>
+<span class="nc" id="L183">            chunkRenderMode.bindText(new ReadOnlyBinding&lt;String&gt;() {</span>
+                @Override
+                public String get() {
+<span class="nc" id="L186">                    return &quot;CHUNK BOUNDING BOX RENDER MODE&quot;;</span>
+                }
+            });
+<span class="nc" id="L189">            chunkRenderMode.bindVisible(</span>
+<span class="nc" id="L190">                    new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+                        @Override
+                        public Boolean get() {
+<span class="nc" id="L193">                            return config.getRendering().getDebug().isRenderChunkBoundingBoxes();</span>
+                        }
+                    }
+            );
+        }
+
+<span class="nc" id="L199">        metricsLabel = find(&quot;metrics&quot;, UILabel.class);</span>
+<span class="nc" id="L200">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L204">        metricsLabel.setText(debugMetricsSystem.getCurrentMode().getMetrics());</span>
+<span class="nc" id="L205">    }</span>
+
+    @Override
+    public boolean isModal() {
+<span class="nc" id="L209">        return false;</span>
+    }
+
+    @Override
+    protected boolean isEscapeToCloseAllowed() {
+<span class="nc" id="L214">        return false;</span>
+    }
+
+    /**
+     * Moves forward through the MetricsMode instances and displays the content of the next available one.
+     */
+    public void toggleMetricsMode() {
+<span class="nc" id="L221">        MetricsMode mode = debugMetricsSystem.toggle();</span>
+<span class="nc" id="L222">        PerformanceMonitor.setEnabled(mode.isPerformanceManagerMode());</span>
+<span class="nc" id="L223">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

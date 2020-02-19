@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StorageManagerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.internal</a> &gt; <span class="el_source">StorageManagerTest.java</span></div><h1>StorageManagerTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.internal;
+
+import com.google.common.collect.Lists;
+import org.jboss.shrinkwrap.api.ShrinkWrap;
+import org.jboss.shrinkwrap.api.nio.file.ShrinkWrapFileSystems;
+import org.jboss.shrinkwrap.api.spec.JavaArchive;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.mockito.Matchers;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.engine.bootstrap.EntitySystemSetupUtil;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.stubs.EntityRefComponent;
+import org.terasology.entitySystem.stubs.StringComponent;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.network.Client;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.NetworkMode;
+import org.terasology.network.NetworkSystem;
+import org.terasology.persistence.ChunkStore;
+import org.terasology.persistence.PlayerStore;
+import org.terasology.persistence.StorageManager;
+import org.terasology.recording.CharacterStateEventPositionMap;
+import org.terasology.recording.DirectionAndOriginPosRecorderList;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.recording.RecordAndReplaySerializer;
+import org.terasology.recording.RecordAndReplayUtils;
+import org.terasology.recording.RecordedEventStore;
+import org.terasology.reflection.TypeRegistry;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.family.SymmetricFamily;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.loader.BlockFamilyDefinitionData;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkProvider;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+import org.terasology.world.chunks.internal.ChunkImpl;
+import org.terasology.world.internal.WorldInfo;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">@TestMethodOrder(MethodOrderer.OrderAnnotation.class)</span>
+<span class="fc" id="L86">public class StorageManagerTest extends TerasologyTestingEnvironment {</span>
+
+    public static final String PLAYER_ID = &quot;someId&quot;;
+<span class="fc" id="L89">    public static final Vector3i CHUNK_POS = new Vector3i(1, 2, 3);</span>
+
+    private static File temporaryFolder;
+
+    private ModuleEnvironment moduleEnvironment;
+    private ReadWriteStorageManager esm;
+    private EngineEntityManager entityManager;
+    private BlockManager blockManager;
+    private ExtraBlockDataManager extraDataManager;
+    private Block testBlock;
+    private Block testBlock2;
+    private EntityRef character;
+    private Path savePath;
+    private RecordAndReplaySerializer recordAndReplaySerializer;
+    private RecordAndReplayUtils recordAndReplayUtils;
+    private RecordAndReplayCurrentStatus recordAndReplayCurrentStatus;
+
+    @BeforeAll
+    static void createFolder() throws IOException {
+<span class="fc" id="L108">        File createdFolder = File.createTempFile(&quot;junit&quot;, &quot;&quot;, null);</span>
+<span class="fc" id="L109">        createdFolder.delete();</span>
+<span class="fc" id="L110">        createdFolder.mkdir();</span>
+<span class="fc" id="L111">        temporaryFolder = createdFolder;</span>
+<span class="fc" id="L112">    }</span>
+
+    @BeforeEach
+    public void setup() throws Exception {
+<span class="fc" id="L116">        super.setup();</span>
+<span class="fc" id="L117">        JavaArchive homeArchive = ShrinkWrap.create(JavaArchive.class);</span>
+<span class="fc" id="L118">        FileSystem vfs = ShrinkWrapFileSystems.newFileSystem(homeArchive);</span>
+<span class="fc" id="L119">        PathManager.getInstance().useOverrideHomePath(temporaryFolder.toPath());</span>
+<span class="fc" id="L120">        savePath = PathManager.getInstance().getSavePath(&quot;testSave&quot;);</span>
+
+<span class="pc bpc" id="L122" title="3 of 4 branches missed.">        assert !Files.isRegularFile(vfs.getPath(&quot;global.dat&quot;));</span>
+
+<span class="fc" id="L124">        entityManager = context.get(EngineEntityManager.class);</span>
+<span class="fc" id="L125">        moduleEnvironment = mock(ModuleEnvironment.class);</span>
+<span class="fc" id="L126">        blockManager = context.get(BlockManager.class);</span>
+<span class="fc" id="L127">        extraDataManager = context.get(ExtraBlockDataManager.class);</span>
+
+<span class="fc" id="L129">        ModuleManager moduleManager = mock(ModuleManager.class);</span>
+
+<span class="fc" id="L131">        when(moduleManager.getEnvironment()).thenReturn(moduleEnvironment);</span>
+
+<span class="fc" id="L133">        RecordedEventStore recordedEventStore = new RecordedEventStore();</span>
+<span class="fc" id="L134">        recordAndReplayUtils = new RecordAndReplayUtils();</span>
+<span class="fc" id="L135">        CharacterStateEventPositionMap characterStateEventPositionMap = new CharacterStateEventPositionMap();</span>
+<span class="fc" id="L136">        DirectionAndOriginPosRecorderList directionAndOriginPosRecorderList = new DirectionAndOriginPosRecorderList();</span>
+<span class="fc" id="L137">        recordAndReplaySerializer = new RecordAndReplaySerializer(entityManager, recordedEventStore, recordAndReplayUtils, characterStateEventPositionMap, directionAndOriginPosRecorderList, moduleManager, mock(TypeRegistry.class));</span>
+<span class="fc" id="L138">        recordAndReplayCurrentStatus = context.get(RecordAndReplayCurrentStatus.class);</span>
+
+
+<span class="fc" id="L141">        esm = new ReadWriteStorageManager(savePath, moduleEnvironment, entityManager, blockManager, extraDataManager,</span>
+                false, recordAndReplaySerializer, recordAndReplayUtils, recordAndReplayCurrentStatus);
+<span class="fc" id="L143">        context.put(StorageManager.class, esm);</span>
+
+<span class="fc" id="L145">        this.character = entityManager.create();</span>
+<span class="fc" id="L146">        Client client = createClientMock(PLAYER_ID, character);</span>
+<span class="fc" id="L147">        NetworkSystem networkSystem = mock(NetworkSystem.class);</span>
+<span class="fc" id="L148">        when(networkSystem.getMode()).thenReturn(NetworkMode.NONE);</span>
+<span class="fc" id="L149">        when(networkSystem.getPlayers()).thenReturn(Arrays.asList(client));</span>
+<span class="fc" id="L150">        context.put(NetworkSystem.class, networkSystem);</span>
+
+<span class="fc" id="L152">        AssetManager assetManager = context.get(AssetManager.class);</span>
+<span class="fc" id="L153">        BlockFamilyDefinitionData data = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L154">        data.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L155">        assetManager.loadAsset(new ResourceUrn(&quot;test:testblock&quot;), data, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L156">        assetManager.loadAsset(new ResourceUrn(&quot;test:testblock2&quot;), data, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L157">        testBlock = context.get(BlockManager.class).getBlock(&quot;test:testblock&quot;);</span>
+<span class="fc" id="L158">        testBlock2 = context.get(BlockManager.class).getBlock(&quot;test:testblock2&quot;);</span>
+
+<span class="fc" id="L160">        context.put(ChunkProvider.class, mock(ChunkProvider.class));</span>
+<span class="fc" id="L161">        WorldProvider worldProvider = mock(WorldProvider.class);</span>
+<span class="fc" id="L162">        when(worldProvider.getWorldInfo()).thenReturn(new WorldInfo());</span>
+<span class="fc" id="L163">        context.put(WorldProvider.class, worldProvider);</span>
+<span class="fc" id="L164">    }</span>
+
+    private Client createClientMock(String clientId, EntityRef charac) {
+<span class="fc" id="L167">        EntityRef clientEntity = createClientEntity(charac);</span>
+<span class="fc" id="L168">        Client client = mock(Client.class);</span>
+<span class="fc" id="L169">        when(client.getEntity()).thenReturn(clientEntity);</span>
+<span class="fc" id="L170">        when(client.getId()).thenReturn(clientId);</span>
+<span class="fc" id="L171">        return client;</span>
+    }
+
+    private EntityRef createClientEntity(EntityRef charac) {
+<span class="fc" id="L175">        ClientComponent clientComponent = new ClientComponent();</span>
+<span class="fc" id="L176">        clientComponent.local = true;</span>
+<span class="fc" id="L177">        clientComponent.character = charac;</span>
+<span class="fc" id="L178">        EntityRef clientEntity = entityManager.create(clientComponent);</span>
+<span class="fc" id="L179">        return clientEntity;</span>
+    }
+
+    @Test
+    @Order(1)
+    public void testGetUnstoredPlayerReturnsNewStor() {
+<span class="fc" id="L185">        PlayerStore store = esm.loadPlayerStore(PLAYER_ID);</span>
+<span class="fc" id="L186">        assertNotNull(store);</span>
+<span class="fc" id="L187">        assertEquals(new Vector3f(), store.getRelevanceLocation());</span>
+<span class="fc" id="L188">        assertFalse(store.hasCharacter());</span>
+<span class="fc" id="L189">        assertEquals(PLAYER_ID, store.getId());</span>
+<span class="fc" id="L190">    }</span>
+
+    @Test
+    public void testStoreAndRestoreOfPlayerWithoutCharacter() {
+        // remove character from player:
+<span class="fc" id="L195">        character.destroy();</span>
+
+<span class="fc" id="L197">        esm.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+<span class="fc" id="L198">        esm.finishSavingAndShutdown();</span>
+
+<span class="fc" id="L200">        PlayerStore restoredStore = esm.loadPlayerStore(PLAYER_ID);</span>
+<span class="fc" id="L201">        assertNotNull(restoredStore);</span>
+<span class="fc" id="L202">        assertFalse(restoredStore.hasCharacter());</span>
+<span class="fc" id="L203">        assertEquals(new Vector3f(), restoredStore.getRelevanceLocation());</span>
+<span class="fc" id="L204">    }</span>
+
+    @Test
+    public void testPlayerRelevanceLocationSurvivesStorage() {
+<span class="fc" id="L208">        Vector3f loc = new Vector3f(1, 2, 3);</span>
+<span class="fc" id="L209">        character.addComponent(new LocationComponent(loc));</span>
+
+<span class="fc" id="L211">        esm.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+<span class="fc" id="L212">        esm.finishSavingAndShutdown();</span>
+
+<span class="fc" id="L214">        PlayerStore restored = esm.loadPlayerStore(PLAYER_ID);</span>
+<span class="fc" id="L215">        assertEquals(loc, restored.getRelevanceLocation());</span>
+<span class="fc" id="L216">    }</span>
+
+    @Test
+    public void testCharacterSurvivesStorage() {
+<span class="fc" id="L220">        esm.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+<span class="fc" id="L221">        esm.finishSavingAndShutdown();</span>
+
+<span class="fc" id="L223">        PlayerStore restored = esm.loadPlayerStore(PLAYER_ID);</span>
+<span class="fc" id="L224">        restored.restoreEntities();</span>
+<span class="fc" id="L225">        assertTrue(restored.hasCharacter());</span>
+<span class="fc" id="L226">        assertEquals(character, restored.getCharacter());</span>
+<span class="fc" id="L227">    }</span>
+
+    @Test
+    public void testGlobalEntitiesStoredAndRestored() throws Exception {
+<span class="fc" id="L231">        EntityRef entity = entityManager.create(new StringComponent(&quot;Test&quot;));</span>
+<span class="fc" id="L232">        long entityId = entity.getId();</span>
+
+<span class="fc" id="L234">        esm.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+<span class="fc" id="L235">        esm.finishSavingAndShutdown();</span>
+
+<span class="fc" id="L237">        EntitySystemSetupUtil.addReflectionBasedLibraries(context);</span>
+<span class="fc" id="L238">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="fc" id="L239">        EngineEntityManager newEntityManager = context.get(EngineEntityManager.class);</span>
+
+<span class="fc" id="L241">        StorageManager newSM = new ReadWriteStorageManager(savePath, moduleEnvironment, newEntityManager, blockManager,</span>
+                extraDataManager, false, recordAndReplaySerializer, recordAndReplayUtils, recordAndReplayCurrentStatus);
+<span class="fc" id="L243">        newSM.loadGlobalStore();</span>
+
+<span class="fc" id="L245">        List&lt;EntityRef&gt; entities = Lists.newArrayList(newEntityManager.getEntitiesWith(StringComponent.class));</span>
+<span class="fc" id="L246">        assertEquals(1, entities.size());</span>
+<span class="fc" id="L247">        assertEquals(entityId, entities.get(0).getId());</span>
+<span class="fc" id="L248">    }</span>
+
+
+    @Test
+    public void testReferenceRemainsValidOverStorageRestoral() throws Exception {
+<span class="fc" id="L253">        EntityRef someEntity = entityManager.create();</span>
+<span class="fc" id="L254">        character.addComponent(new EntityRefComponent(someEntity));</span>
+
+<span class="fc" id="L256">        esm.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+<span class="fc" id="L257">        esm.finishSavingAndShutdown();</span>
+
+<span class="fc" id="L259">        EntitySystemSetupUtil.addReflectionBasedLibraries(context);</span>
+<span class="fc" id="L260">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="fc" id="L261">        EngineEntityManager newEntityManager = context.get(EngineEntityManager.class);</span>
+<span class="fc" id="L262">        StorageManager newSM = new ReadWriteStorageManager(savePath, moduleEnvironment, newEntityManager, blockManager,</span>
+                extraDataManager, false, recordAndReplaySerializer, recordAndReplayUtils, recordAndReplayCurrentStatus);
+<span class="fc" id="L264">        newSM.loadGlobalStore();</span>
+
+<span class="fc" id="L266">        PlayerStore restored = newSM.loadPlayerStore(PLAYER_ID);</span>
+<span class="fc" id="L267">        restored.restoreEntities();</span>
+<span class="fc" id="L268">        assertTrue(restored.getCharacter().getComponent(EntityRefComponent.class).entityRef.exists());</span>
+<span class="fc" id="L269">    }</span>
+
+    @Test
+    public void testGetUnstoredChunkReturnsNothing() {
+<span class="fc" id="L273">        esm.loadChunkStore(CHUNK_POS);</span>
+<span class="fc" id="L274">    }</span>
+
+    @Test
+    public void testStoreAndRestoreChunkStore() {
+<span class="fc" id="L278">        Chunk chunk = new ChunkImpl(CHUNK_POS, blockManager, extraDataManager);</span>
+<span class="fc" id="L279">        chunk.setBlock(0, 0, 0, testBlock);</span>
+<span class="fc" id="L280">        chunk.markReady();</span>
+<span class="fc" id="L281">        ChunkProvider chunkProvider = mock(ChunkProvider.class);</span>
+<span class="fc" id="L282">        when(chunkProvider.getAllChunks()).thenReturn(Arrays.asList(chunk));</span>
+<span class="fc" id="L283">        CoreRegistry.put(ChunkProvider.class, chunkProvider);</span>
+
+<span class="fc" id="L285">        esm.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+<span class="fc" id="L286">        esm.finishSavingAndShutdown();</span>
+
+<span class="fc" id="L288">        ChunkStore restored = esm.loadChunkStore(CHUNK_POS);</span>
+<span class="fc" id="L289">        assertNotNull(restored);</span>
+<span class="fc" id="L290">        assertEquals(CHUNK_POS, restored.getChunkPosition());</span>
+<span class="fc" id="L291">        assertNotNull(restored.getChunk());</span>
+<span class="fc" id="L292">        assertEquals(testBlock, restored.getChunk().getBlock(0, 0, 0));</span>
+<span class="fc" id="L293">    }</span>
+
+    @Test
+    public void testChunkSurvivesStorageSaveAndRestore() throws Exception {
+<span class="fc" id="L297">        Chunk chunk = new ChunkImpl(CHUNK_POS, blockManager, extraDataManager);</span>
+<span class="fc" id="L298">        chunk.setBlock(0, 0, 0, testBlock);</span>
+<span class="fc" id="L299">        chunk.setBlock(0, 4, 2, testBlock2);</span>
+<span class="fc" id="L300">        chunk.markReady();</span>
+<span class="fc" id="L301">        ChunkProvider chunkProvider = mock(ChunkProvider.class);</span>
+<span class="fc" id="L302">        when(chunkProvider.getAllChunks()).thenReturn(Arrays.asList(chunk));</span>
+<span class="fc" id="L303">        when(chunkProvider.getChunk(Matchers.any(Vector3i.class))).thenReturn(chunk);</span>
+<span class="fc" id="L304">        CoreRegistry.put(ChunkProvider.class, chunkProvider);</span>
+<span class="fc" id="L305">        boolean storeChunkInZips = true;</span>
+
+<span class="fc" id="L307">        esm.setStoreChunksInZips(storeChunkInZips);</span>
+<span class="fc" id="L308">        esm.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+<span class="fc" id="L309">        esm.finishSavingAndShutdown();</span>
+
+<span class="fc" id="L311">        EntitySystemSetupUtil.addReflectionBasedLibraries(context);</span>
+<span class="fc" id="L312">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="fc" id="L313">        EngineEntityManager newEntityManager = context.get(EngineEntityManager.class);</span>
+<span class="fc" id="L314">        StorageManager newSM = new ReadWriteStorageManager(savePath, moduleEnvironment, newEntityManager, blockManager,</span>
+                extraDataManager, storeChunkInZips, recordAndReplaySerializer, recordAndReplayUtils, recordAndReplayCurrentStatus);
+<span class="fc" id="L316">        newSM.loadGlobalStore();</span>
+
+<span class="fc" id="L318">        ChunkStore restored = newSM.loadChunkStore(CHUNK_POS);</span>
+<span class="fc" id="L319">        assertNotNull(restored);</span>
+<span class="fc" id="L320">        assertEquals(CHUNK_POS, restored.getChunkPosition());</span>
+<span class="fc" id="L321">        assertNotNull(restored.getChunk());</span>
+<span class="fc" id="L322">        assertEquals(testBlock, restored.getChunk().getBlock(0, 0, 0));</span>
+<span class="fc" id="L323">        assertEquals(testBlock2, restored.getChunk().getBlock(0, 4, 2));</span>
+<span class="fc" id="L324">    }</span>
+
+    @Test
+    public void testEntitySurvivesStorageInChunkStore() throws Exception {
+<span class="fc" id="L328">        Chunk chunk = new ChunkImpl(CHUNK_POS, blockManager, extraDataManager);</span>
+<span class="fc" id="L329">        chunk.setBlock(0, 0, 0, testBlock);</span>
+<span class="fc" id="L330">        chunk.markReady();</span>
+<span class="fc" id="L331">        ChunkProvider chunkProvider = mock(ChunkProvider.class);</span>
+<span class="fc" id="L332">        when(chunkProvider.getAllChunks()).thenReturn(Arrays.asList(chunk));</span>
+<span class="fc" id="L333">        CoreRegistry.put(ChunkProvider.class, chunkProvider);</span>
+<span class="fc" id="L334">        EntityRef entity = entityManager.create();</span>
+<span class="fc" id="L335">        long id = entity.getId();</span>
+<span class="fc" id="L336">        LocationComponent locationComponent = new LocationComponent();</span>
+<span class="fc" id="L337">        Vector3f positionInChunk = new Vector3f(chunk.getAABB().getMin());</span>
+<span class="fc" id="L338">        positionInChunk.x += 1;</span>
+<span class="fc" id="L339">        positionInChunk.y += 1;</span>
+<span class="fc" id="L340">        positionInChunk.z += 1;</span>
+<span class="fc" id="L341">        locationComponent.setWorldPosition(positionInChunk);</span>
+<span class="fc" id="L342">        entity.addComponent(locationComponent);</span>
+<span class="fc" id="L343">        esm.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+<span class="fc" id="L344">        esm.finishSavingAndShutdown();</span>
+
+<span class="fc" id="L346">        EntitySystemSetupUtil.addReflectionBasedLibraries(context);</span>
+<span class="fc" id="L347">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="fc" id="L348">        EngineEntityManager newEntityManager = context.get(EngineEntityManager.class);</span>
+<span class="fc" id="L349">        StorageManager newSM = new ReadWriteStorageManager(savePath, moduleEnvironment, newEntityManager, blockManager,</span>
+                extraDataManager, false, recordAndReplaySerializer, recordAndReplayUtils, recordAndReplayCurrentStatus);
+<span class="fc" id="L351">        newSM.loadGlobalStore();</span>
+
+<span class="fc" id="L353">        ChunkStore restored = newSM.loadChunkStore(CHUNK_POS);</span>
+<span class="fc" id="L354">        restored.restoreEntities();</span>
+<span class="fc" id="L355">        EntityRef ref = newEntityManager.getEntity(id);</span>
+<span class="fc" id="L356">        assertTrue(ref.exists());</span>
+<span class="fc" id="L357">        assertTrue(ref.isActive());</span>
+<span class="fc" id="L358">    }</span>
+
+
+    @Test
+    public void testCanSavePlayerWithoutUnloading() throws Exception {
+<span class="fc" id="L363">        esm.waitForCompletionOfPreviousSaveAndStartSaving();</span>
+<span class="fc" id="L364">        esm.finishSavingAndShutdown();</span>
+
+<span class="fc" id="L366">        assertTrue(character.isActive());</span>
+<span class="fc" id="L367">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

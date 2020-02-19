@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScrollableArea.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layouts</a> &gt; <span class="el_source">ScrollableArea.java</span></div><h1>ScrollableArea.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layouts;
+
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreLayout;
+import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.LayoutHint;
+import org.terasology.rendering.nui.SubRegion;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.events.NUIMouseWheelEvent;
+import org.terasology.rendering.nui.widgets.UIList;
+import org.terasology.rendering.nui.widgets.UIScrollbar;
+
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Objects;
+
+/**
+ * A layout that allows for a larger widget to be displayed in a smaller area with scrollbars.
+ * &lt;p&gt;
+ * Eg, If the widget is 100px tall and 20px wide, and the scrollable area is 20px wide and 20px tall
+ * then a vertical scrollbar will be shown. This will allow the user to scroll up and down through the large widget,
+ * as if they were moving a window over the widget.
+ */
+public class ScrollableArea extends CoreLayout {
+    private static final int SCROLL_MULTIPLIER = -42;
+
+    /**
+     * The UIWidget this layout contains.
+     */
+    @LayoutConfig
+    private UIWidget content;
+
+    /**
+     * Controls if the scrollable 'window' should stick to the bottom of the content
+     * False by default
+     */
+    @LayoutConfig
+    private boolean stickToBottom;
+
+    /**
+     * Controls if the widget can have a vertical scrollbar.
+     * True by default.
+     */
+<span class="nc" id="L63">    @LayoutConfig</span>
+    private boolean verticalScrollbar = true;
+
+    /**
+     * Controls if the widget can have a horizontal scrollbar.
+     * False by default.
+     */
+    @LayoutConfig
+    private boolean horizontalScrollbar;
+
+    /**
+     * The preferred width of the scrollable area.
+     * Set to null (blank) to use the width of the content
+     * &lt;p&gt;
+     * Null by default
+     */
+    @LayoutConfig
+    private Integer preferredWidth;
+
+    /**
+     * The preferred height of the scrollable area.
+     * Set to null (blank) to use the height of the content
+     * &lt;p&gt;
+     * Null by default
+     */
+    @LayoutConfig
+    private Integer preferredHeight;
+
+<span class="nc" id="L91">    private UIScrollbar verticalBar = new UIScrollbar(true);</span>
+<span class="nc" id="L92">    private UIScrollbar horizontalBar = new UIScrollbar(false);</span>
+    private boolean moveToBottomPending;
+    private boolean moveToTopPending;
+
+    /**
+     * Interaction listener for the scrollbar. Handles scrollwheel scrolling.
+     */
+<span class="nc" id="L99">    private InteractionListener scrollListener = new BaseInteractionListener() {</span>
+        @Override
+        public boolean onMouseWheel(NUIMouseWheelEvent event) {
+            // If there are two scrollbars, we assume vertical has priority
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            if (verticalScrollbar) {</span>
+<span class="nc" id="L104">                verticalBar.setValue(verticalBar.getValue() + event.getWheelTurns() * SCROLL_MULTIPLIER);</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            } else if (horizontalScrollbar) {</span>
+<span class="nc" id="L106">                horizontalBar.setValue(horizontalBar.getValue() + event.getWheelTurns() * SCROLL_MULTIPLIER);</span>
+            }
+<span class="nc" id="L108">            return true;</span>
+        }
+    };
+
+    /**
+     * Scrolls the equivalent of 1 mouse wheel.
+     * @param up If to scroll up or down.
+     */
+    public void scroll(boolean up) {
+<span class="nc" id="L117">        int moveAmount = -1;</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if (up) {</span>
+<span class="nc" id="L119">            moveAmount = 1;</span>
+        }
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        if (verticalScrollbar) {</span>
+<span class="nc" id="L122">            verticalBar.setValue(verticalBar.getValue() + moveAmount * SCROLL_MULTIPLIER);</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        } else if (horizontalScrollbar) {</span>
+<span class="nc" id="L124">            horizontalBar.setValue(horizontalBar.getValue() + moveAmount * SCROLL_MULTIPLIER);</span>
+        }
+<span class="nc" id="L126">    }</span>
+
+    /**
+     * Sets the amount of the scrollbar.
+     * @param moveAmount The position of the scrollbar as a percent.
+     */
+    public void setPosition(double moveAmount) {
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (verticalScrollbar) {</span>
+<span class="nc" id="L134">            moveAmount *= verticalBar.getRange();</span>
+<span class="nc" id="L135">            verticalBar.setValue((int) Math.round(moveAmount));</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        } else if (horizontalScrollbar) {</span>
+<span class="nc" id="L137">            moveAmount *= horizontalBar.getRange();</span>
+<span class="nc" id="L138">            horizontalBar.setValue((int) Math.round(moveAmount));</span>
+        }
+<span class="nc" id="L140">    }</span>
+
+    /* Default constructor for internal systems */
+<span class="nc" id="L143">    public ScrollableArea() {</span>
+<span class="nc" id="L144">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L148">        Vector2i canvasSize = canvas.size();</span>
+<span class="nc" id="L149">        Vector2i contentSize = canvas.calculateRestrictedSize(content, canvasSize);</span>
+
+<span class="nc" id="L151">        int horizontalScrollbarHeight = canvas.calculateRestrictedSize(horizontalBar, canvasSize).y;</span>
+<span class="nc" id="L152">        int verticalScrollbarWidth = canvas.calculateRestrictedSize(verticalBar, canvasSize).x;</span>
+
+<span class="nc" id="L154">        boolean verticalNeeded = shouldDrawWithAxisScrollbar(verticalScrollbar,</span>
+                horizontalScrollbar,
+                canvasSize.y,
+                canvasSize.x,
+                contentSize.y,
+                contentSize.x,
+                horizontalScrollbarHeight);
+
+<span class="nc" id="L162">        boolean horizontalNeeded = shouldDrawWithAxisScrollbar(horizontalScrollbar,</span>
+                verticalScrollbar,
+                canvasSize.x,
+                canvasSize.y,
+                contentSize.x,
+                contentSize.y,
+                verticalScrollbarWidth);
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (verticalNeeded) {</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            if (horizontalNeeded) {</span>
+<span class="nc" id="L172">                drawWithBoth(canvas, canvasSize.sub(verticalScrollbarWidth, horizontalScrollbarHeight), contentSize);</span>
+            } else {
+<span class="nc" id="L174">                drawWithJustVertical(canvas, canvasSize.sub(verticalScrollbarWidth, 0), contentSize);</span>
+            }
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        } else if (horizontalNeeded) {</span>
+<span class="nc" id="L177">            drawWithJustHorizontal(canvas, canvasSize.sub(0, horizontalScrollbarHeight), contentSize);</span>
+        } else {
+<span class="nc" id="L179">            drawWithNeither(canvas, canvasSize);</span>
+        }
+
+<span class="nc" id="L182">    }</span>
+
+    /**
+     * Checks if the area will need a scrollbar with the given size.
+     * Can be used for either vertical o r horizontal checks
+     *
+     * @param areaSize      The size of the scrollable area
+     * @param contentSize   The size of the content
+     * @param scrollbarSize The size of the scrollbar
+     * @return True if a scrollbar will be needed
+     */
+    private boolean willNeedScrollbar(int areaSize, int contentSize, int scrollbarSize) {
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        return areaSize &lt; contentSize + scrollbarSize;</span>
+    }
+
+    /**
+     * Checks if the area should display a scrollbar in a given axis.
+     * &lt;p&gt;
+     * This method has been written to work for both horizontal and vertical checks.
+     *
+     * @param axisScrollbarEnabled     Is the scrollbar in this axis enabled
+     * @param oppositeScrollbarEnabled Is the other scrollbar enabled
+     * @param axisAvailableSize        The maximum available size in this axis
+     * @param oppositeAvailableSize    The maximum size in the other axis.
+     * @param axisContentSize          The size of the content in this axis
+     * @param oppositeContentSize      The size of the content in the other axis
+     * @param oppositeScrollbarSize    The size of the scrollbar in the other axis
+     * @return True if this scrollbar should be drawn
+     */
+    private boolean shouldDrawWithAxisScrollbar(boolean axisScrollbarEnabled,
+                                                boolean oppositeScrollbarEnabled,
+                                                int axisAvailableSize,
+                                                int oppositeAvailableSize,
+                                                int axisContentSize,
+                                                int oppositeContentSize,
+                                                int oppositeScrollbarSize) {
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if (!axisScrollbarEnabled) {</span>
+            /* The scrollbar for this axis is disabled */
+<span class="nc" id="L220">            return false;</span>
+        } else {
+            /* Is the content definitely too big in this axis */
+<span class="nc bnc" id="L223" title="All 2 branches missed.">            if (willNeedScrollbar(axisAvailableSize, axisContentSize, 0)) {</span>
+<span class="nc" id="L224">                return true;</span>
+            } else {
+                /* Is the content definitely small enough in this axis */
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                if (willNeedScrollbar(axisAvailableSize, axisContentSize, oppositeScrollbarSize)) {</span>
+<span class="nc" id="L228">                    return true;</span>
+                } else {
+                    /* We only need this scrollbar if we need the other.
+                     * This is as the content will be covered by the other scrollbar if it exists
+                     */
+<span class="nc bnc" id="L233" title="All 4 branches missed.">                    return oppositeScrollbarEnabled &amp;&amp; willNeedScrollbar(oppositeAvailableSize, oppositeContentSize, 0);</span>
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Draws this widget with just a vertical scrollbar.
+     * If the content doesn't fit in the horizontal axis, it will be cropped.
+     *
+     * @param canvas        The canvas to draw on
+     * @param availableSize The available size for the layout. Does not include scrollbar size
+     * @param contentSize   The size of the content
+     */
+    private void drawWithJustVertical(Canvas canvas, Vector2i availableSize, Vector2i contentSize) {
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        boolean atBottom = verticalBar.getRange() == verticalBar.getValue();</span>
+
+<span class="nc" id="L251">        Rect2i contentRegion = Rect2i.createFromMinAndSize(Vector2i.zero(), availableSize);</span>
+<span class="nc" id="L252">        verticalBar.setRange(contentSize.y - contentRegion.height());</span>
+<span class="nc bnc" id="L253" title="All 6 branches missed.">        if ((stickToBottom &amp;&amp; atBottom) || moveToBottomPending) {</span>
+<span class="nc" id="L254">            verticalBar.setValue(verticalBar.getRange());</span>
+<span class="nc" id="L255">            moveToBottomPending = false;</span>
+        }
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if (moveToTopPending) {</span>
+<span class="nc" id="L258">            verticalBar.setValue(0);</span>
+<span class="nc" id="L259">            moveToTopPending = false;</span>
+        }
+
+<span class="nc" id="L262">        canvas.addInteractionRegion(scrollListener);</span>
+<span class="nc" id="L263">        int scrollbarWidth = canvas.calculateRestrictedSize(verticalBar, availableSize).x;</span>
+<span class="nc" id="L264">        canvas.drawWidget(verticalBar,</span>
+<span class="nc" id="L265">                Rect2i.createFromMinAndSize(</span>
+                        new Vector2i(availableSize.x, 0),
+                        new Vector2i(scrollbarWidth, availableSize.y)));
+
+<span class="nc" id="L269">        try (SubRegion ignored = canvas.subRegion(contentRegion, true)) {</span>
+<span class="nc" id="L270">            canvas.drawWidget(content, Rect2i.createFromMinAndSize(0, -verticalBar.getValue(), availableSize.x, contentSize.y));</span>
+        }
+<span class="nc" id="L272">    }</span>
+
+    /**
+     * Draw the widget with just a horizontal scrollbar.
+     * &lt;p&gt;
+     * If the content doesn't fit in the vertical axis, it will be cropped
+     *
+     * @param canvas        The canvas to draw on
+     * @param availableSize The available size for the layout. Does not include scrollbar size
+     * @param contentSize   The size of the widget to draw
+     */
+    private void drawWithJustHorizontal(Canvas canvas, Vector2i availableSize, Vector2i contentSize) {
+<span class="nc" id="L284">        Rect2i contentRegion = Rect2i.createFromMinAndSize(Vector2i.zero(), availableSize);</span>
+
+<span class="nc" id="L286">        canvas.addInteractionRegion(scrollListener);</span>
+<span class="nc" id="L287">        horizontalBar.setRange(contentSize.x - contentRegion.width());</span>
+<span class="nc" id="L288">        int scrollbarHeight = canvas.calculateRestrictedSize(verticalBar, availableSize).y;</span>
+<span class="nc" id="L289">        canvas.drawWidget(horizontalBar,</span>
+<span class="nc" id="L290">                Rect2i.createFromMinAndSize(</span>
+                        new Vector2i(0, availableSize.y),
+                        new Vector2i(availableSize.x, scrollbarHeight)));
+
+<span class="nc" id="L294">        try (SubRegion ignored = canvas.subRegion(contentRegion, true)) {</span>
+<span class="nc" id="L295">            canvas.drawWidget(content, Rect2i.createFromMinAndSize(-horizontalBar.getValue(), 0, contentSize.x, availableSize.y));</span>
+        }
+<span class="nc" id="L297">    }</span>
+
+    /**
+     * Draw the widget with both the horizontal and vertical scrollbars
+     *
+     * @param canvas        The canvas to draw on
+     * @param availableSize The available size for the layout. This does not include the scrollbar sizes
+     * @param contentSize   The size of the widget to draw
+     */
+    private void drawWithBoth(Canvas canvas,
+                              Vector2i availableSize,
+                              Vector2i contentSize) {
+<span class="nc bnc" id="L309" title="All 2 branches missed.">        boolean atBottom = verticalBar.getRange() == verticalBar.getValue();</span>
+
+<span class="nc" id="L311">        Rect2i contentRegion = Rect2i.createFromMinAndSize(Vector2i.zero(), availableSize);</span>
+
+<span class="nc" id="L313">        verticalBar.setRange(contentSize.y - contentRegion.height());</span>
+<span class="nc" id="L314">        horizontalBar.setRange(contentSize.x - contentRegion.width());</span>
+<span class="nc bnc" id="L315" title="All 6 branches missed.">        if ((stickToBottom &amp;&amp; atBottom) || moveToBottomPending) {</span>
+<span class="nc" id="L316">            verticalBar.setValue(verticalBar.getRange());</span>
+<span class="nc" id="L317">            moveToBottomPending = false;</span>
+        }
+<span class="nc bnc" id="L319" title="All 2 branches missed.">        if (moveToTopPending) {</span>
+<span class="nc" id="L320">            verticalBar.setValue(0);</span>
+<span class="nc" id="L321">            moveToTopPending = false;</span>
+        }
+
+<span class="nc" id="L324">        canvas.addInteractionRegion(scrollListener);</span>
+<span class="nc" id="L325">        canvas.drawWidget(verticalBar,</span>
+<span class="nc" id="L326">                Rect2i.createFromMinAndSize(</span>
+                        new Vector2i(availableSize.x, 0),
+<span class="nc" id="L328">                        canvas.calculateRestrictedSize(verticalBar, availableSize)));</span>
+<span class="nc" id="L329">        canvas.drawWidget(horizontalBar,</span>
+<span class="nc" id="L330">                Rect2i.createFromMinAndSize(</span>
+                        new Vector2i(0, availableSize.y),
+<span class="nc" id="L332">                        canvas.calculateRestrictedSize(horizontalBar, availableSize)));</span>
+
+<span class="nc" id="L334">        try (SubRegion ignored = canvas.subRegion(contentRegion, true)) {</span>
+<span class="nc" id="L335">            canvas.drawWidget(content, Rect2i.createFromMinAndSize(-horizontalBar.getValue(), -verticalBar.getValue(), contentSize.x, contentSize.y));</span>
+        }
+<span class="nc" id="L337">    }</span>
+
+    /**
+     * Draws the widget with neither a horizontal or vertical scrollbar.
+     * &lt;p&gt;
+     * If the widget is too large in either axis, it will be cropped
+     *
+     * @param canvas        The canvas to use
+     * @param availableSize The available size for the layout
+     */
+    private void drawWithNeither(Canvas canvas, Vector2i availableSize) {
+<span class="nc" id="L348">        canvas.drawWidget(content, Rect2i.createFromMinAndSize(Vector2i.zero(), availableSize));</span>
+<span class="nc" id="L349">    }</span>
+
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc" id="L354">        Vector2i pf = canvas.calculatePreferredSize(content);</span>
+<span class="nc bnc" id="L355" title="All 4 branches missed.">        return new Vector2i(preferredWidth == null ? pf.x : preferredWidth, preferredHeight == null ? pf.y : preferredHeight);</span>
+    }
+
+    @Override
+    public Vector2i getMaxContentSize(Canvas canvas) {
+<span class="nc" id="L360">        return new Vector2i(Integer.MAX_VALUE, Integer.MAX_VALUE);</span>
+    }
+
+    @Override
+    public Iterator&lt;UIWidget&gt; iterator() {
+<span class="nc bnc" id="L365" title="All 2 branches missed.">        if (content != null) {</span>
+<span class="nc" id="L366">            return Collections.singletonList(content).iterator();</span>
+        }
+<span class="nc" id="L368">        return Collections.emptyIterator();</span>
+    }
+
+    @Override
+    public void addWidget(UIWidget element, LayoutHint hint) {
+<span class="nc" id="L373">        content = element;</span>
+<span class="nc" id="L374">    }</span>
+
+    @Override
+    public void removeWidget(UIWidget element) {
+<span class="nc bnc" id="L378" title="All 2 branches missed.">        if (Objects.equals(element, content)) {</span>
+<span class="nc" id="L379">            content = null;</span>
+        }
+<span class="nc" id="L381">    }</span>
+
+    @Override
+    public void removeAllWidgets() {
+<span class="nc" id="L385">        content = null;</span>
+<span class="nc" id="L386">    }</span>
+
+    /**
+     * Moves the layout to display the bottom of the widget.
+     * Equivalent to scrolling all the way down
+     */
+    public void moveToBottom() {
+<span class="nc" id="L393">        moveToBottomPending = true;</span>
+<span class="nc" id="L394">    }</span>
+
+    /**
+     * Moves the layout to display the bottom of the widget.
+     * Equivalent to scrolling all the way up
+     */
+    public void moveToTop() {
+<span class="nc" id="L401">        moveToTopPending = true;</span>
+<span class="nc" id="L402">    }</span>
+
+    /**
+     * @param widget The widget to display
+     */
+    public void setContent(UIWidget widget) {
+<span class="nc" id="L408">        this.content = widget;</span>
+<span class="nc" id="L409">    }</span>
+
+    /**
+     * @param width  The preferred width of the area
+     * @param height The preferred height of the area
+     */
+    public void setPreferredSize(Integer width, Integer height) {
+<span class="nc" id="L416">        preferredWidth = width;</span>
+<span class="nc" id="L417">        preferredHeight = height;</span>
+<span class="nc" id="L418">    }</span>
+
+    /**
+     * @return True if the 'window' of this layout will stick to the bottom
+     */
+    public boolean isStickToBottom() {
+<span class="nc" id="L424">        return stickToBottom;</span>
+    }
+
+    /**
+     * @param stickToBottom Controls if the 'window' of this layout will stick to the bottom
+     */
+    public void setStickToBottom(boolean stickToBottom) {
+<span class="nc" id="L431">        this.stickToBottom = stickToBottom;</span>
+<span class="nc" id="L432">    }</span>
+
+    /**
+     * @param horizontalScrollbar Controls if the widget can have a horizontal scrollbar
+     */
+    public void setHorizontalScrollbar(boolean horizontalScrollbar) {
+<span class="nc" id="L438">        this.horizontalScrollbar = horizontalScrollbar;</span>
+<span class="nc" id="L439">    }</span>
+
+    /**
+     * @param verticalScrollbar Controls if the widget can have a vertical scrollbar
+     */
+    public void setVerticalScrollbar(boolean verticalScrollbar) {
+<span class="nc" id="L445">        this.verticalScrollbar = verticalScrollbar;</span>
+<span class="nc" id="L446">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

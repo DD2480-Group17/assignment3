@@ -1,0 +1,1008 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ColladaLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.collada</a> &gt; <span class="el_source">ColladaLoader.java</span></div><h1>ColladaLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.collada;
+
+import com.google.common.collect.Lists;
+import gnu.trove.list.TFloatList;
+import gnu.trove.list.TIntList;
+import gnu.trove.list.array.TFloatArrayList;
+import gnu.trove.list.array.TIntArrayList;
+import org.eaxy.Document;
+import org.eaxy.Element;
+import org.eaxy.ElementSet;
+import org.eaxy.NonMatchingPathException;
+import org.eaxy.Xml;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.rendering.assets.skeletalmesh.Bone;
+import org.terasology.rendering.assets.skeletalmesh.SkeletalMeshData;
+import org.terasology.rendering.assets.skeletalmesh.SkeletalMeshDataBuilder;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Importer for Collada data exchange model files.
+ * &lt;br&gt;&lt;br&gt;
+ * The development of this loader was greatly influenced by
+ * http://www.wazim.com/Collada_Tutorial_1.htm
+ * &lt;br&gt;&lt;br&gt;
+ * TODO: Consider documenting this class similar to what has been done at this web page:
+ * &lt;br&gt;&lt;br&gt;
+ * http://docs.garagegames.com/torque-3d/official/content/documentation/Artist%20Guide/Formats/ColladaLoader.html
+ *
+ */
+
+<span class="nc" id="L60">public class ColladaLoader {</span>
+
+<span class="nc" id="L62">    private static final Logger logger = LoggerFactory.getLogger(ColladaLoader.class);</span>
+
+    protected TFloatList vertices;
+    protected TFloatList texCoord0;
+    protected TFloatList texCoord1;
+    protected TFloatList normals;
+    protected TFloatList colors;
+    protected TIntList indices;
+    protected double unitsPerMeter;
+
+    protected SkeletalMeshDataBuilder skeletonBuilder;
+
+    public SkeletalMeshData parseSkeletalMeshData(InputStream inputStream) throws ColladaParseException, IOException {
+<span class="nc" id="L75">        Document document = Xml.readAndClose(inputStream);</span>
+<span class="nc" id="L76">        Element rootElement = document.getRootElement();</span>
+
+<span class="nc" id="L78">        parseMeshData(rootElement);</span>
+<span class="nc" id="L79">        parseSkeletalMeshData(rootElement);</span>
+<span class="nc" id="L80">        return skeletonBuilder.build();</span>
+    }
+
+    public void parseMeshData(InputStream inputStream) throws ColladaParseException, IOException {
+<span class="nc" id="L84">        Document document = Xml.readAndClose(inputStream);</span>
+<span class="nc" id="L85">        Element rootElement = document.getRootElement();</span>
+
+<span class="nc" id="L87">        parseMeshData(rootElement);</span>
+<span class="nc" id="L88">    }</span>
+
+    public TFloatList getVertices() {
+<span class="nc" id="L91">        return vertices;</span>
+    }
+
+    public TFloatList getTexCoord0() {
+<span class="nc" id="L95">        return texCoord0;</span>
+    }
+
+    public TFloatList getTexCoord1() {
+<span class="nc" id="L99">        return texCoord1;</span>
+    }
+
+    public TFloatList getNormals() {
+<span class="nc" id="L103">        return normals;</span>
+    }
+
+    public TFloatList getColors() {
+<span class="nc" id="L107">        return colors;</span>
+    }
+
+    public TIntList getIndices() {
+<span class="nc" id="L111">        return indices;</span>
+    }
+
+    public double getUnitsPerMeter() {
+<span class="nc" id="L115">        return unitsPerMeter;</span>
+    }
+
+    private void createMd5JointForElementAndParent(Map&lt;String, MD5Joint&gt; md5JointBySidMap,
+            Element element, MD5Joint parentMD5Joint) throws ColladaParseException {
+<span class="nc" id="L120">        MD5Joint joint = createMD5Joint(element);</span>
+<span class="nc" id="L121">        joint.element = element;</span>
+<span class="nc" id="L122">        joint.parent = parentMD5Joint;</span>
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (null != parentMD5Joint) {</span>
+<span class="nc" id="L125">            parentMD5Joint.addChild(joint);</span>
+        }
+
+<span class="nc" id="L128">        ElementSet elementChildSet = element.find(&quot;node&quot;);</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        for (Element childElement : elementChildSet) {</span>
+<span class="nc" id="L130">            createMd5JointForElementAndParent(md5JointBySidMap, childElement, joint);</span>
+<span class="nc" id="L131">        }</span>
+
+<span class="nc" id="L133">        String sid = element.attr(&quot;sid&quot;);</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (null != sid) {</span>
+<span class="nc" id="L135">            md5JointBySidMap.put(sid, joint);</span>
+        }
+<span class="nc" id="L137">    }</span>
+
+    protected void parseSkeletalMeshData(Element rootElement) throws ColladaParseException {
+
+<span class="nc" id="L141">        List&lt;MD5Joint&gt; md5JointList = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L143">        skeletonBuilder = new SkeletalMeshDataBuilder();</span>
+
+        // TODO: we need a better way to construct the parent/child nodes, especially for the non-joint nodes
+        // MAYBE we can construct all of the nodes up-front, and then fill in the missing data for the ones of type JOINT later
+        // And only keep the MD5 nodes in the final list if they are used?
+
+<span class="nc" id="L149">        Map&lt;String, MD5Joint&gt; md5JointBySidMap = new HashMap&lt;&gt;();</span>
+
+<span class="nc" id="L151">        MD5Joint parentMD5Joint = null;</span>
+<span class="nc" id="L152">        ElementSet nodeParentSet = rootElement.find(&quot;library_visual_scenes&quot;, &quot;visual_scene&quot;, &quot;node&quot;);</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        for (Element element : nodeParentSet) {</span>
+<span class="nc" id="L154">            createMd5JointForElementAndParent(md5JointBySidMap, element, parentMD5Joint);</span>
+<span class="nc" id="L155">        }</span>
+
+<span class="nc" id="L157">        ElementSet controllerSet = rootElement.find(&quot;library_controllers&quot;, &quot;controller&quot;);</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        for (Element controller : controllerSet) {</span>
+<span class="nc" id="L159">            ElementSet skinSet = controller.find(&quot;skin&quot;);</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">            if (1 != skinSet.size()) {</span>
+<span class="nc" id="L161">                throw new ColladaParseException(&quot;Found &quot; + skinSet.size() + &quot; skin sets for controller id=&quot; + controller.id() + &quot; name=&quot; + controller.name());</span>
+            }
+<span class="nc" id="L163">            Element skin = skinSet.first();</span>
+
+<span class="nc" id="L165">            ElementSet jointsSet = skin.find(&quot;joints&quot;);</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">            if (1 != jointsSet.size()) {</span>
+<span class="nc" id="L167">                throw new ColladaParseException(&quot;Found &quot; + jointsSet.size() + &quot; joints sets for controller id=&quot; + controller.id() + &quot; name=&quot; + controller.name());</span>
+            }
+<span class="nc" id="L169">            Element joints = jointsSet.first();</span>
+
+<span class="nc" id="L171">            ElementSet vertexWeightsSet = skin.find(&quot;vertex_weights&quot;);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">            if (1 != vertexWeightsSet.size()) {</span>
+<span class="nc" id="L173">                throw new ColladaParseException(&quot;Found &quot; + vertexWeightsSet.size() + &quot; vertex weights sets for controller id=&quot; + controller.id() + &quot; name=&quot;</span>
+<span class="nc" id="L174">                        + controller.name());</span>
+            }
+<span class="nc" id="L176">            Element vertexWeights = vertexWeightsSet.first();</span>
+<span class="nc" id="L177">            String vertexWeightsCountString = vertexWeights.attr(&quot;count&quot;);</span>
+<span class="nc" id="L178">            int vertexWeightsCount = Integer.parseInt(vertexWeightsCountString);</span>
+
+<span class="nc" id="L180">            String[] jointNameArray = {};</span>
+            float[] inverseBindMatrixArray;
+            Quat4f[] rotationArray;
+<span class="nc" id="L183">            ElementSet jointsInputSet = joints.find(&quot;input&quot;);</span>
+<span class="nc" id="L184">            List&lt;Input&gt; inputList = parseInputs(jointsInputSet);</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">            for (Input jointsInput : inputList) {</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                if (&quot;JOINT&quot;.equals(jointsInput.semantic)) {</span>
+<span class="nc" id="L187">                    Element jointNameSourceElement = skin.select(jointsInput.sourceName);</span>
+<span class="nc" id="L188">                    Source jointNameSource = parseSource(jointNameSourceElement);</span>
+<span class="nc" id="L189">                    jointNameArray = jointNameSource.nameValues;</span>
+                }
+<span class="nc bnc" id="L191" title="All 2 branches missed.">                if (&quot;INV_BIND_MATRIX&quot;.equals(jointsInput.semantic)) {</span>
+<span class="nc" id="L192">                    Element jointMatrixSourceElement = skin.select(jointsInput.sourceName);</span>
+<span class="nc" id="L193">                    Source jointMatrixSource = parseSource(jointMatrixSourceElement);</span>
+<span class="nc" id="L194">                    inverseBindMatrixArray = jointMatrixSource.floatValues;</span>
+
+<span class="nc" id="L196">                    rotationArray = quad4fArrayFromFloat16ArrayData(inverseBindMatrixArray);</span>
+                }
+<span class="nc" id="L198">            }</span>
+
+<span class="nc" id="L200">            List&lt;MD5Weight&gt; md5WeightList = Lists.newArrayList();</span>
+
+<span class="nc" id="L202">            float[] weightsArray = {};</span>
+
+<span class="nc" id="L204">            ElementSet vertexWeightsInputSet = vertexWeights.find(&quot;input&quot;);</span>
+<span class="nc" id="L205">            List&lt;Input&gt; vertexWeightsInputList = parseInputs(vertexWeightsInputSet);</span>
+
+            // TODO: for now, assume the offsets will always perfectly match the sorted-by-offset list indexes
+<span class="nc" id="L208">            Collections.sort(vertexWeightsInputList, (i1, i2) -&gt; i1.offset - i2.offset);</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            for (int i = 0; i &lt; vertexWeightsInputList.size(); i++) {</span>
+<span class="nc" id="L210">                Input input = vertexWeightsInputList.get(i);</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                if (input.offset != i) {</span>
+<span class="nc" id="L212">                    throw new ColladaParseException(&quot;vertex weights input list offset does not match list index for vertex weights input &quot; + input</span>
+<span class="nc" id="L213">                            + &quot; for controller id=&quot; + controller.id() + &quot; name=&quot; + controller.name());</span>
+                }
+            }
+
+<span class="nc bnc" id="L217" title="All 2 branches missed.">            for (Input vertexWeightsInput : vertexWeightsInputList) {</span>
+                //                if (&quot;JOINT&quot;.equals(vertexWeightsInput.semantic)) {
+                //                    Element jointNameSourceElement =  skin.select(vertexWeightsInput.sourceName);
+                //                    Source jointNameSource = parseSource(jointNameSourceElement);
+                //                    jointNameArray = jointNameSource.nameValues;
+                //                }
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                if (&quot;WEIGHT&quot;.equals(vertexWeightsInput.semantic)) {</span>
+<span class="nc" id="L224">                    Element jointMatrixSourceElement = skin.select(vertexWeightsInput.sourceName);</span>
+<span class="nc" id="L225">                    Source weightsArraySource = parseSource(jointMatrixSourceElement);</span>
+<span class="nc" id="L226">                    weightsArray = weightsArraySource.floatValues;</span>
+                }
+<span class="nc" id="L228">            }</span>
+
+<span class="nc" id="L230">            ElementSet vertexWeightsVCountDataSet = vertexWeights.find(&quot;vcount&quot;);</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">            if (1 != vertexWeightsVCountDataSet.size()) {</span>
+<span class="nc" id="L232">                throw new ColladaParseException(&quot;Found &quot; + vertexWeightsVCountDataSet.size()</span>
+<span class="nc" id="L233">                + &quot; vertex weights vcount sets for controller id=&quot; + controller.id() + &quot; name=&quot; + controller.name());</span>
+            }
+<span class="nc" id="L235">            Element vertexWeightsVCountData = vertexWeightsVCountDataSet.first();</span>
+<span class="nc" id="L236">            String vertexWeightsVCountString = vertexWeightsVCountData.text();</span>
+<span class="nc" id="L237">            String[] vertexWeightsVCountStrings = getItemsInString(vertexWeightsVCountString);</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">            if (vertexWeightsVCountStrings.length != vertexWeightsCount) {</span>
+<span class="nc" id="L239">                throw new ColladaParseException(&quot;Expected &quot; + vertexWeightsCount + &quot; but was &quot;</span>
+<span class="nc" id="L240">                        + vertexWeightsVCountStrings.length + &quot; for controller id=&quot; + controller.id() + &quot; name=&quot; + controller.name());</span>
+            }
+
+<span class="nc" id="L243">            ElementSet vertexWeightsVDataSet = vertexWeights.find(&quot;v&quot;);</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            if (1 != vertexWeightsVDataSet.size()) {</span>
+<span class="nc" id="L245">                throw new ColladaParseException(&quot;Found &quot; + vertexWeightsVDataSet.size()</span>
+<span class="nc" id="L246">                + &quot; vertex weights v sets for controller id=&quot; + controller.id() + &quot; name=&quot; + controller.name());</span>
+            }
+<span class="nc" id="L248">            Element vertexWeightsVData = vertexWeightsVDataSet.first();</span>
+<span class="nc" id="L249">            String vertexWeightsVDataString = vertexWeightsVData.text();</span>
+<span class="nc" id="L250">            String[] vertexWeightsVStrings = getItemsInString(vertexWeightsVDataString);</span>
+            //            if (vertexWeightsVStrings.length != (vertexWeightsCount * vertexWeightsInputList.size())) {
+            //                throw new ColladaParseException(&quot;Expected &quot; + vertexWeightsCount + &quot; * input count of &quot;
+            //                                                + vertexWeightsInputList.size() + &quot; but was &quot;
+            //                                                + vertexWeightsVStrings.length + &quot; for controller id=&quot; + controller.id() + &quot; name=&quot; + controller.name());
+            //            }
+
+            // TODO: these aren't actually needed once we are populating MD5Weight records
+<span class="nc" id="L258">            String[] vertexWeightsJointNameArray = new String[vertexWeightsCount];</span>
+<span class="nc" id="L259">            float[] vertexWeightsArray = new float[vertexWeightsCount];</span>
+
+<span class="nc" id="L261">            int vertexWeightsVDataIndex = -1;</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">            for (int vertexWeightsIndex = 0; vertexWeightsIndex &lt; vertexWeightsCount; vertexWeightsIndex++) {</span>
+
+<span class="nc" id="L264">                MD5Weight md5Weight = new MD5Weight();</span>
+<span class="nc" id="L265">                Vector3f vertexPosition = new Vector3f();</span>
+<span class="nc" id="L266">                vertexPosition.x = vertices.get(3 * vertexWeightsIndex + 0);</span>
+<span class="nc" id="L267">                vertexPosition.y = vertices.get(3 * vertexWeightsIndex + 1);</span>
+<span class="nc" id="L268">                vertexPosition.z = vertices.get(3 * vertexWeightsIndex + 2);</span>
+<span class="nc" id="L269">                md5Weight.position = vertexPosition;</span>
+<span class="nc" id="L270">                md5WeightList.add(md5Weight);</span>
+
+<span class="nc" id="L272">                String vCountString = vertexWeightsVCountStrings[vertexWeightsIndex];</span>
+<span class="nc" id="L273">                int vCount = Integer.parseInt(vCountString);</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                for (int vCountIndex = 0; vCountIndex &lt; vCount; vCountIndex++) {</span>
+<span class="nc bnc" id="L275" title="All 2 branches missed.">                    for (Input vertexWeightsInput : vertexWeightsInputList) {</span>
+                        // vCount varies each time
+<span class="nc" id="L277">                        ++vertexWeightsVDataIndex;</span>
+
+<span class="nc" id="L279">                        String indexString = vertexWeightsVStrings[vertexWeightsVDataIndex];</span>
+<span class="nc" id="L280">                        int index = Integer.parseInt(indexString);</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">                        if (-1 == index) {</span>
+<span class="nc" id="L282">                            throw new ColladaParseException(&quot;We do not support indexing into the bind shape yet&quot;);</span>
+                        }
+
+<span class="nc bnc" id="L285" title="All 2 branches missed.">                        if (&quot;JOINT&quot;.equals(vertexWeightsInput.semantic)) {</span>
+<span class="nc" id="L286">                            md5Weight.jointIndex = index;</span>
+<span class="nc" id="L287">                            vertexWeightsJointNameArray[vertexWeightsIndex] = jointNameArray[index];</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">                            if (vertexWeightsJointNameArray[vertexWeightsIndex] == null){</span>
+<span class="nc" id="L289">                                logger.debug(&quot;No jointNameArray in index: &quot; + index);</span>
+<span class="nc" id="L290">                                throw new ColladaParseException(&quot;No jointNameArray in index: &quot; + index);</span>
+                            }
+<span class="nc bnc" id="L292" title="All 2 branches missed.">                        } else if (&quot;WEIGHT&quot;.equals(vertexWeightsInput.semantic)) {</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">                            if (weightsArray == null) {</span>
+<span class="nc" id="L294">                                logger.debug(&quot;No weights in weightsArray&quot;);</span>
+<span class="nc" id="L295">                                throw new ColladaParseException(&quot;No weights in weightsArray&quot;);</span>
+                            }
+<span class="nc" id="L297">                            md5Weight.bias = weightsArray[index];</span>
+<span class="nc" id="L298">                            vertexWeightsArray[vertexWeightsIndex] = weightsArray[index];</span>
+                            // logger.debug(String.valueOf(vertexWeightsVDataIndex) + &quot;: &quot; + &quot;weight=&quot; + vertexWeightsArray[vertexWeightsIndex]);
+                        } else {
+<span class="nc" id="L301">                            throw new ColladaParseException(&quot;Found unexpected vertex weights Input semantic &quot; + vertexWeightsInput.semantic +</span>
+<span class="nc" id="L302">                                    &quot; for controller id=&quot; + controller.id() + &quot; name=&quot; + controller.name());</span>
+                        }
+<span class="nc" id="L304">                    }</span>
+                }
+            }
+
+<span class="nc" id="L308">            MD5Mesh md5Mesh = new MD5Mesh();</span>
+<span class="nc" id="L309">            md5Mesh.weightList = md5WeightList;</span>
+
+<span class="nc bnc" id="L311" title="All 2 branches missed.">            if (jointNameArray == null) {</span>
+<span class="nc" id="L312">                throw new ColladaParseException(&quot;a jointName is null in jointNmaeArray&quot;);</span>
+            }
+
+            // Find a node with sid=&quot;joint-name&quot;
+<span class="nc bnc" id="L316" title="All 2 branches missed.">            for (String jointName : jointNameArray) {</span>
+
+<span class="nc" id="L318">                MD5Joint md5Joint = md5JointBySidMap.get(jointName);</span>
+
+<span class="nc bnc" id="L320" title="All 2 branches missed.">                if (null == md5Joint) {</span>
+<span class="nc" id="L321">                    throw new ColladaParseException(&quot;Cannot find joint node for node sid value for joint &quot; + jointName + &quot; in nodes for library_visual_scenes&quot;);</span>
+                }
+
+<span class="nc" id="L324">                md5JointList.add(md5Joint);</span>
+            }
+<span class="nc" id="L326">        }</span>
+
+<span class="nc" id="L328">        Deque&lt;MD5Joint&gt; jointsToProcess = new LinkedList&lt;&gt;(md5JointList);</span>
+<span class="nc bnc" id="L329" title="All 2 branches missed.">        while (!jointsToProcess.isEmpty()) {</span>
+<span class="nc" id="L330">            MD5Joint joint = jointsToProcess.pop();</span>
+<span class="nc" id="L331">            MD5Joint parentJoint = joint.parent;</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">            if (null != parentJoint) {</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">                if (!md5JointList.contains(parentJoint)) {</span>
+<span class="nc" id="L334">                    md5JointList.add(parentJoint);</span>
+<span class="nc" id="L335">                    jointsToProcess.push(parentJoint);</span>
+                }
+            }
+<span class="nc" id="L338">        }</span>
+
+<span class="nc bnc" id="L340" title="All 2 branches missed.">        for (MD5Joint joint : md5JointList) {</span>
+<span class="nc bnc" id="L341" title="All 2 branches missed.">            if (null == joint.position) {</span>
+<span class="nc" id="L342">                throw new ColladaParseException(&quot;no joint position for joint with element id &quot; + joint.element.id());</span>
+            }
+<span class="nc bnc" id="L344" title="All 2 branches missed.">            if (null == joint.orientation) {</span>
+<span class="nc" id="L345">                throw new ColladaParseException(&quot;no joint orientation for joint with element id &quot; + joint.element.id());</span>
+            }
+            // index argument is not used for anything currently, so we'll just set it to -1
+<span class="nc" id="L348">            joint.bone = new Bone(-1, joint.name, joint.position, joint.orientation);</span>
+<span class="nc" id="L349">        }</span>
+
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        for (MD5Joint joint : md5JointList) {</span>
+            // We can probably skip unused end nodes
+<span class="nc bnc" id="L353" title="All 2 branches missed.">            joint.childList.stream().filter(childJoint -&gt; childJoint.bone != null).forEach(childJoint -&gt;</span>
+<span class="nc" id="L354">            joint.bone.addChild(childJoint.bone));</span>
+<span class="nc" id="L355">        }</span>
+
+<span class="nc bnc" id="L357" title="All 2 branches missed.">        for (MD5Joint joint : md5JointList) {</span>
+<span class="nc" id="L358">            skeletonBuilder.addBone(joint.bone);</span>
+<span class="nc" id="L359">        }</span>
+
+        // Now if you have come this far, you should be able to read the geometry data,
+        // as well as the skeleton and skinning data from COLLADA documents. And you should be able to draw
+        // the model in raw triangles, as well as draw the skeleton. Although I haven't discussed how you
+        // can accumulate the world matrices for each joint and then draw in world coordinates for debugging
+        // purposes but I think I gave a hint that we have to multiply parent joint's world matrix with current
+        // joint's Joint matrix and save the result in current joint's world matrix. We have to start this
+        // process from the root bone. So that we don't have dirty world matrices from parents, and the root
+        // Joint's world matrix becomes the Joint matrix, since root don't have any parent. If you are also
+        // reading the COLLADA specification version 1.5 you can find the skinning equation so you should also
+        // be able to put the model in bind shape. How can we animate this model is still not covered and will
+        // be covered in the following sections.
+
+        // THIS IS THE TARGET GOAL:
+
+        /*
+        Bones
+        - String name
+        - int index
+        - V3 object position
+        - Quat4f obj rotation
+        - parent / children bones
+
+        SkeletalMesh
+
+
+        // This part may not be required if we can implement SkeletalMeshData methods without it
+
+        //////////////
+
+        public SkeletalMeshData(List&lt;Bone&gt; bones, List&lt;BoneWeight&gt; weights,
+           List&lt;Vector2f&gt; uvs,
+           TIntList vertexStartWeights, TIntList vertexWeightCounts,
+           TIntList indices) {
+
+        BoneWeight
+        Vector3f position = new Vector3f();
+        float bias;
+        int boneIndex;
+        Vector3f normal = new Vector3f();
+
+        //////////////
+
+
+           public Collection&lt;Bone&gt; getBones();
+           public Bone getRootBone();
+           public Bone getBone(String name);
+
+           public int getVertexCount();
+
+           public List&lt;Vector3f&gt; getBindPoseVertexPositions();
+           public List&lt;Vector3f&gt; getVertexPositions(List&lt;Vector3f&gt; bonePositions, List&lt;Quat4f&gt; boneRotations);
+
+           public List&lt;Vector3f&gt; getBindPoseVertexNormals();
+           public List&lt;Vector3f&gt; getVertexNormals(List&lt;Vector3f&gt; bonePositions, List&lt;Quat4f&gt; boneRotations);
+
+           public TIntList getIndices();
+           public List&lt;Vector2f&gt; getUVs();
+         */
+<span class="nc" id="L419">    }</span>
+
+    private MD5Joint createMD5Joint(Element jointNodeElement) throws ColladaParseException {
+<span class="nc" id="L422">        MD5Joint md5Joint = new MD5Joint();</span>
+
+<span class="nc" id="L424">        ElementSet matrixSet = jointNodeElement.find(&quot;matrix&quot;);</span>
+<span class="nc bnc" id="L425" title="All 2 branches missed.">        if (1 == matrixSet.size()) {</span>
+<span class="nc" id="L426">            Element matrix = matrixSet.first();</span>
+
+<span class="nc" id="L428">            String floatStringArray = matrix.text();</span>
+<span class="nc" id="L429">            String[] floatStrings = getItemsInString(floatStringArray);</span>
+<span class="nc bnc" id="L430" title="All 2 branches missed.">            if (floatStrings.length != 16) {</span>
+<span class="nc" id="L431">                throw new ColladaParseException(&quot;Found float list of &quot; + floatStrings.length + &quot; instead of 16 for joint matrix sets for element &quot; + jointNodeElement.id());</span>
+            }
+<span class="nc" id="L433">            float[] matrixDataArray = new float[16];</span>
+<span class="nc bnc" id="L434" title="All 2 branches missed.">            for (int i = 0; i &lt; floatStrings.length; i++) {</span>
+<span class="nc" id="L435">                String floatString = floatStrings[i];</span>
+<span class="nc" id="L436">                matrixDataArray[i] = Float.parseFloat(floatString);</span>
+            }
+
+<span class="nc" id="L439">            Quat4f[] jointMatrix = quad4fArrayFromFloat16ArrayData(matrixDataArray);</span>
+<span class="nc" id="L440">            Vector3f[] positionVectorArray = positionFromFloat16ArrayData(matrixDataArray);</span>
+<span class="nc" id="L441">            md5Joint.position = positionVectorArray[0];</span>
+<span class="nc" id="L442">            md5Joint.orientation = jointMatrix[0];</span>
+<span class="nc bnc" id="L443" title="All 2 branches missed.">        } else if (1 &lt; matrixSet.size()) {</span>
+<span class="nc" id="L444">            throw new ColladaParseException(&quot;Found &quot; + matrixSet.size() + &quot; joint matrix sets for element &quot; + jointNodeElement.id());</span>
+            // } else {
+            // TODO: Might be translation, rotation pairs instead of a matrix
+            // Or might be an unused joint node
+            //            throw new ColladaParseException(&quot;Found &quot; + matrixSet.size() + &quot; joint matrix sets for element &quot; + jointNodeElement.id());
+        }
+
+        //        boolean isJointNode;
+        //        String jointType = jointNodeElement.attr(&quot;type&quot;);
+        //        if (&quot;JOINT&quot;.equals(jointType)) {
+        //            isJointNode = true;
+        //        } else if (&quot;NODE&quot;.equals(jointType)) {
+        //            isJointNode = false;
+        //        } else {
+        //            throw new ColladaParseException(&quot;Found unknown node type of &quot; + jointType + &quot; for joint matrix sets&quot; + errorLocation);
+        //        }
+
+<span class="nc" id="L461">        md5Joint.element = jointNodeElement;</span>
+<span class="nc" id="L462">        md5Joint.name = jointNodeElement.id();</span>
+
+<span class="nc" id="L464">        md5Joint.childList = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L466">        return md5Joint;</span>
+    }
+
+    private Quat4f[] quad4fArrayFromFloat16ArrayData(float[] inverseBindMatrixArray) {
+<span class="nc" id="L470">        Quat4f[] rotationArray = new Quat4f[inverseBindMatrixArray.length / 16];</span>
+<span class="nc bnc" id="L471" title="All 2 branches missed.">        for (int i = 0; i &lt; inverseBindMatrixArray.length / 16; ++i) {</span>
+<span class="nc" id="L472">            int offset = i * 16;</span>
+<span class="nc" id="L473">            Matrix4f matrix4f = new Matrix4f(Arrays.copyOfRange(inverseBindMatrixArray, offset, offset + 16));</span>
+<span class="nc" id="L474">            Quat4f rotation = new Quat4f();</span>
+<span class="nc" id="L475">            rotation.set(matrix4f);</span>
+<span class="nc" id="L476">            rotationArray[i] = rotation;</span>
+        }
+
+<span class="nc" id="L479">        return rotationArray;</span>
+    }
+
+    private Vector3f[] positionFromFloat16ArrayData(float[] inverseBindMatrixArray) {
+<span class="nc" id="L483">        Vector3f[] translationVectorArray = new Vector3f[inverseBindMatrixArray.length / 16];</span>
+<span class="nc bnc" id="L484" title="All 2 branches missed.">        for (int i = 0; i &lt; inverseBindMatrixArray.length / 16; ++i) {</span>
+<span class="nc" id="L485">            int offset = i * 16;</span>
+<span class="nc" id="L486">            Matrix4f matrix4f = new Matrix4f(Arrays.copyOfRange(inverseBindMatrixArray, offset, offset + 16));</span>
+<span class="nc" id="L487">            Vector3f translationVector = matrix4f.getTranslation();</span>
+<span class="nc" id="L488">            translationVectorArray[i] = translationVector;</span>
+        }
+
+<span class="nc" id="L491">        return translationVectorArray;</span>
+    }
+
+    protected void parseMeshData(Element rootElement) throws ColladaParseException {
+
+<span class="nc" id="L496">        vertices = new TFloatArrayList();</span>
+<span class="nc" id="L497">        texCoord0 = new TFloatArrayList();</span>
+<span class="nc" id="L498">        texCoord1 = new TFloatArrayList();</span>
+<span class="nc" id="L499">        normals = new TFloatArrayList();</span>
+<span class="nc" id="L500">        colors = new TFloatArrayList();</span>
+<span class="nc" id="L501">        indices = new TIntArrayList();</span>
+<span class="nc" id="L502">        int vertCount = 0;</span>
+
+<span class="nc" id="L504">        ElementSet upAxisSet = rootElement.find(&quot;asset&quot;, &quot;up_axis&quot;);</span>
+<span class="nc bnc" id="L505" title="All 2 branches missed.">        if (1 != upAxisSet.size()) {</span>
+<span class="nc" id="L506">            throw new ColladaParseException(&quot;Found multiple up_axis asset values&quot;);</span>
+        }
+<span class="nc" id="L508">        Element upAxisElement = upAxisSet.first();</span>
+<span class="nc" id="L509">        String upAxis = upAxisElement.text();</span>
+
+<span class="nc" id="L511">        ElementSet unitSet = rootElement.find(&quot;asset&quot;, &quot;unit&quot;);</span>
+<span class="nc bnc" id="L512" title="All 2 branches missed.">        if (1 != unitSet.size()) {</span>
+<span class="nc" id="L513">            throw new ColladaParseException(&quot;Found multiple unit asset values&quot;);</span>
+        }
+<span class="nc" id="L515">        Element unitElement = unitSet.first();</span>
+<span class="nc" id="L516">        String unitsPerMeterString = unitElement.attr(&quot;meter&quot;);</span>
+<span class="nc bnc" id="L517" title="All 2 branches missed.">        if (null != unitsPerMeterString) {</span>
+<span class="nc" id="L518">            unitsPerMeter = Double.parseDouble(unitsPerMeterString);</span>
+        }
+
+<span class="nc" id="L521">        boolean yUp = &quot;Y_UP&quot;.equals(upAxis);</span>
+<span class="nc" id="L522">        boolean zUp = &quot;Z_UP&quot;.equals(upAxis);</span>
+<span class="nc" id="L523">        boolean xUp = &quot;X_UP&quot;.equals(upAxis);</span>
+<span class="nc bnc" id="L524" title="All 2 branches missed.">        if (xUp) {</span>
+<span class="nc" id="L525">            throw new ColladaParseException(&quot;Not supporting X_UP as the upAxis value yet.&quot;);</span>
+        }
+
+        // TODO: we shouldn't just cram everything into a single mesh, but should expect separate meshes with differing materials
+
+<span class="nc" id="L530">        ElementSet geometrySet = rootElement.find(&quot;library_geometries&quot;, &quot;geometry&quot;);</span>
+<span class="nc bnc" id="L531" title="All 2 branches missed.">        for (Element geometry : geometrySet) {</span>
+
+<span class="nc" id="L533">            ElementSet meshSet = geometry.find(&quot;mesh&quot;);</span>
+
+<span class="nc bnc" id="L535" title="All 2 branches missed.">            if (1 != meshSet.size()) {</span>
+<span class="nc" id="L536">                throw new ColladaParseException(&quot;Found &quot; + meshSet.size() + &quot; mesh sets for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+            }
+
+<span class="nc" id="L539">            logger.info(&quot;Parsing geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+
+<span class="nc bnc" id="L541" title="All 2 branches missed.">            for (Element mesh : meshSet) {</span>
+
+<span class="nc" id="L543">                ElementSet trianglesSet = mesh.find(&quot;triangles&quot;);</span>
+<span class="nc bnc" id="L544" title="All 2 branches missed.">                for (Element triangles : trianglesSet) {</span>
+<span class="nc" id="L545">                    vertCount = parseTriangles(rootElement, vertices, texCoord0,</span>
+                            normals, indices, colors,
+                            vertCount, geometry, mesh, triangles,
+                            yUp, zUp);
+<span class="nc" id="L549">                }</span>
+
+<span class="nc" id="L551">                ElementSet polylistSet = mesh.find(&quot;polylist&quot;);</span>
+<span class="nc bnc" id="L552" title="All 2 branches missed.">                for (Element polylist : polylistSet) {</span>
+
+<span class="nc" id="L554">                    ElementSet vCountSet = polylist.find(&quot;vcount&quot;);</span>
+<span class="nc bnc" id="L555" title="All 2 branches missed.">                    if (1 != vCountSet.size()) {</span>
+<span class="nc" id="L556">                        throw new ColladaParseException(&quot;Found &quot; + vCountSet.size() + &quot; vcount sets for polylist in geometry id=&quot;</span>
+<span class="nc" id="L557">                                + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                    }
+<span class="nc" id="L559">                    Element vCountElement = vCountSet.first();</span>
+
+<span class="nc" id="L561">                    TIntList vcountList = new TIntArrayList();</span>
+<span class="nc" id="L562">                    String[] vCountStrings = getItemsInString(vCountElement.text());</span>
+<span class="nc bnc" id="L563" title="All 2 branches missed.">                    for (String string : vCountStrings) {</span>
+
+<span class="nc" id="L565">                        int vCount = Integer.parseInt(string);</span>
+<span class="nc" id="L566">                        vcountList.add(vCount);</span>
+                    }
+
+<span class="nc" id="L569">                    vertCount = parseFaces(rootElement, vcountList, vertices, texCoord0,</span>
+                            normals, indices, colors,
+                            vertCount, geometry, mesh, polylist,
+                            yUp, zUp);
+<span class="nc" id="L573">                }</span>
+<span class="nc" id="L574">            }</span>
+<span class="nc" id="L575">        }</span>
+<span class="nc" id="L576">    }</span>
+
+    private int parseTriangles(Element rootElement, TFloatList verticesParam, TFloatList texCoord0Param,
+            TFloatList normalsParam, TIntList indicesParam, TFloatList colorsParam,
+            int vertCountParam, Element geometry, Element mesh,
+            Element triangles, boolean yUp, boolean zUp) throws ColladaParseException {
+<span class="nc" id="L582">        return parseFaces(rootElement, null, verticesParam, texCoord0Param,</span>
+                normalsParam, indicesParam, colorsParam,
+                vertCountParam, geometry, mesh, triangles,
+                yUp, zUp);
+    }
+
+    private int parseFaces(Element rootElement, TIntList vcountList, TFloatList verticesParam, TFloatList texCoord0Param,
+            TFloatList normalsParam, TIntList indicesParam, TFloatList colorsParam,
+            int vertCountParam, Element geometry, Element mesh, Element faces,
+            boolean yUp, boolean zUp) throws ColladaParseException {
+<span class="nc" id="L592">        int vertCount = vertCountParam;</span>
+<span class="nc" id="L593">        String faceCountString = faces.attr(&quot;count&quot;);</span>
+<span class="nc" id="L594">        int faceCount = Integer.parseInt(faceCountString);</span>
+<span class="nc" id="L595">        ElementSet faceInputSet = faces.find(&quot;input&quot;);</span>
+<span class="nc" id="L596">        List&lt;Input&gt; faceInputs = parseInputs(faceInputSet);</span>
+
+<span class="nc" id="L598">        String facesMaterial = faces.attr(&quot;material&quot;);</span>
+
+<span class="nc" id="L600">        float[] vertexColors = null;</span>
+<span class="nc" id="L601">        ElementSet libraryMaterialsSet = rootElement.find(&quot;library_materials&quot;);</span>
+<span class="nc bnc" id="L602" title="All 2 branches missed.">        if (0 != libraryMaterialsSet.size()) {</span>
+<span class="nc bnc" id="L603" title="All 2 branches missed.">            if (1 != libraryMaterialsSet.size()) {</span>
+<span class="nc" id="L604">                throw new ColladaParseException(&quot;Found &quot; + libraryMaterialsSet.size() + &quot; library Material sets for geometry id=&quot;</span>
+<span class="nc" id="L605">                        + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+            }
+<span class="nc" id="L607">            Element libraryMaterials = libraryMaterialsSet.first();</span>
+
+            Element material;
+            try {
+                // TODO: this one isn't standard like the others, and sometimes it doesn't exist
+<span class="nc" id="L612">                material = libraryMaterials.select(&quot;#&quot; + facesMaterial);</span>
+<span class="nc bnc" id="L613" title="All 2 branches missed.">                if (null == material) {</span>
+<span class="nc" id="L614">                    throw new ColladaParseException(&quot;No material for &quot; + facesMaterial + &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                }
+<span class="nc" id="L616">                ElementSet instanceEffectSet = material.find(&quot;instance_effect&quot;);</span>
+<span class="nc bnc" id="L617" title="All 2 branches missed.">                if (1 != instanceEffectSet.size()) {</span>
+<span class="nc" id="L618">                    throw new ColladaParseException(&quot;Found &quot; + instanceEffectSet.size() + &quot; instance_effect sets for material &quot; + facesMaterial + &quot; for geometry id=&quot;</span>
+<span class="nc" id="L619">                            + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                }
+<span class="nc" id="L621">                Element instanceEffect = instanceEffectSet.first();</span>
+
+<span class="nc" id="L623">                String effectUrl = instanceEffect.attr(&quot;url&quot;);</span>
+
+<span class="nc" id="L625">                ElementSet libraryEffectsSet = rootElement.find(&quot;library_effects&quot;);</span>
+<span class="nc bnc" id="L626" title="All 2 branches missed.">                if (0 != libraryEffectsSet.size()) {</span>
+<span class="nc bnc" id="L627" title="All 2 branches missed.">                    if (1 != libraryEffectsSet.size()) {</span>
+<span class="nc" id="L628">                        throw new ColladaParseException(&quot;Found &quot; + libraryEffectsSet.size() + &quot; library effects sets for geometry id=&quot; + geometry.id() + &quot; name=&quot;</span>
+<span class="nc" id="L629">                                + geometry.name());</span>
+                    }
+<span class="nc" id="L631">                    Element libraryEffects = libraryEffectsSet.first();</span>
+
+<span class="nc" id="L633">                    Element effect = libraryEffects.select(effectUrl);</span>
+<span class="nc bnc" id="L634" title="All 2 branches missed.">                    if (null == effect) {</span>
+<span class="nc" id="L635">                        throw new ColladaParseException(&quot;No effect for &quot; + effectUrl + &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                    }
+
+<span class="nc" id="L638">                    ElementSet colorSet = effect.find(&quot;profile_COMMON&quot;, &quot;technique&quot;, &quot;lambert&quot;, &quot;diffuse&quot;, &quot;color&quot;);</span>
+<span class="nc bnc" id="L639" title="All 2 branches missed.">                    if (1 == colorSet.size()) {</span>
+<span class="nc" id="L640">                        Element color = colorSet.first();</span>
+
+<span class="nc" id="L642">                        String colorListString = color.text();</span>
+<span class="nc" id="L643">                        String[] colorString = getItemsInString(colorListString);</span>
+<span class="nc bnc" id="L644" title="All 2 branches missed.">                        if (4 != colorString.length) {</span>
+<span class="nc" id="L645">                            throw new ColladaParseException(&quot;mesh only supports 4-float color arrays but color list was '&quot; + colorListString + &quot;' for geometry id=&quot;</span>
+<span class="nc" id="L646">                                    + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                        }
+<span class="nc" id="L648">                        vertexColors = new float[colorString.length];</span>
+<span class="nc bnc" id="L649" title="All 2 branches missed.">                        for (int i = 0; i &lt; colorString.length; i++) {</span>
+<span class="nc" id="L650">                            vertexColors[i] = Float.parseFloat(colorString[i]);</span>
+                        }
+                    }
+                }
+<span class="nc" id="L654">            } catch (NonMatchingPathException e) {</span>
+                // If we don't find the material, then we're done.
+<span class="nc" id="L656">                logger.debug(&quot;Material not found, skipping&quot;, e);</span>
+<span class="nc" id="L657">            }</span>
+        }
+
+<span class="nc bnc" id="L660" title="All 2 branches missed.">        for (Input faceInput : faceInputs) {</span>
+<span class="nc bnc" id="L661" title="All 2 branches missed.">            if (&quot;VERTEX&quot;.equals(faceInput.semantic)) {</span>
+<span class="nc" id="L662">                ElementSet verticesSet = mesh.find(&quot;vertices&quot;);</span>
+<span class="nc bnc" id="L663" title="All 2 branches missed.">                if (1 != verticesSet.size()) {</span>
+<span class="nc" id="L664">                    throw new ColladaParseException(&quot;Found &quot; + verticesSet.size() + &quot; vertices sets for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                }
+<span class="nc" id="L666">                Element verticesElement = verticesSet.first();</span>
+<span class="nc" id="L667">                ElementSet verticesInputSet = verticesElement.find(&quot;input&quot;);</span>
+<span class="nc" id="L668">                List&lt;Input&gt; verticesInputs = parseInputs(verticesInputSet);</span>
+<span class="nc bnc" id="L669" title="All 2 branches missed.">                for (Input vertexInput : verticesInputs) {</span>
+<span class="nc bnc" id="L670" title="All 2 branches missed.">                    if (&quot;POSITION&quot;.equals(vertexInput.semantic)) {</span>
+<span class="nc" id="L671">                        Element vertexSourceElement = mesh.select(vertexInput.sourceName);</span>
+<span class="nc" id="L672">                        faceInput.vertexPositionSource = parseSource(vertexSourceElement);</span>
+<span class="nc bnc" id="L673" title="All 2 branches missed.">                    } else if (&quot;NORMAL&quot;.equals(vertexInput.semantic)) {</span>
+<span class="nc" id="L674">                        Element normalSourceElement = mesh.select(vertexInput.sourceName);</span>
+<span class="nc" id="L675">                        faceInput.vertexNormalSource = parseSource(normalSourceElement);</span>
+<span class="nc" id="L676">                    } else {</span>
+<span class="nc" id="L677">                        throw new ColladaParseException(&quot;Found unexpected vertex Input semantic &quot; + vertexInput.semantic +</span>
+<span class="nc" id="L678">                                &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                    }
+<span class="nc" id="L680">                }</span>
+<span class="nc bnc" id="L681" title="All 2 branches missed.">            } else if (&quot;NORMAL&quot;.equals(faceInput.semantic)) {</span>
+<span class="nc" id="L682">                Element normalSourceElement = mesh.select(faceInput.sourceName);</span>
+<span class="nc" id="L683">                faceInput.normalSource = parseSource(normalSourceElement);</span>
+<span class="nc bnc" id="L684" title="All 2 branches missed.">                if (3 != faceInput.normalSource.stride) {</span>
+<span class="nc" id="L685">                    throw new ColladaParseException(&quot;Found stride of &quot; + faceInput.normalSource.stride</span>
+                            + &quot; for triangle Input semantic &quot; + faceInput.semantic +
+<span class="nc" id="L687">                            &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                }
+<span class="nc bnc" id="L689" title="All 2 branches missed.">            } else if (&quot;TEXCOORD&quot;.equals(faceInput.semantic)) {</span>
+<span class="nc" id="L690">                Element texCoordSourceElement = mesh.select(faceInput.sourceName);</span>
+<span class="nc" id="L691">                faceInput.texCoordSource = parseSource(texCoordSourceElement);</span>
+
+<span class="nc bnc" id="L693" title="All 2 branches missed.">                if (2 != faceInput.texCoordSource.stride) {</span>
+<span class="nc" id="L694">                    logger.warn(&quot;Found non-2 stride of &quot; + faceInput.texCoordSource.stride</span>
+                            + &quot; for vertex Input semantic &quot; + faceInput.semantic +
+<span class="nc" id="L696">                            &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name()</span>
+                            + &quot;. Ignoring all but first two texture coordinate values.&quot;);
+                }
+
+<span class="nc" id="L700">            } else {</span>
+<span class="nc" id="L701">                throw new ColladaParseException(&quot;Found unexpected triangle Input semantic &quot; + faceInput.semantic +</span>
+<span class="nc" id="L702">                        &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+            }
+<span class="nc" id="L704">        }</span>
+<span class="nc" id="L705">        ElementSet faceDataSet = faces.find(&quot;p&quot;);</span>
+<span class="nc bnc" id="L706" title="All 2 branches missed.">        if (1 != faceDataSet.size()) {</span>
+<span class="nc" id="L707">            throw new ColladaParseException(&quot;Found &quot; + faceDataSet.size() + &quot; triangleData sets for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+        }
+<span class="nc" id="L709">        Element faceData = faceDataSet.first();</span>
+<span class="nc" id="L710">        String faceDataString = faceData.text();</span>
+<span class="nc" id="L711">        String[] facesStrings = getItemsInString(faceDataString);</span>
+
+        // TODO: for now, assume the offsets will always perfectly match the sorted-by-offset list indexes
+<span class="nc" id="L714">        Collections.sort(faceInputs, (i1, i2) -&gt; i1.offset - i2.offset);</span>
+<span class="nc bnc" id="L715" title="All 2 branches missed.">        for (int i = 0; i &lt; faceInputs.size(); i++) {</span>
+<span class="nc" id="L716">            Input input = faceInputs.get(i);</span>
+<span class="nc bnc" id="L717" title="All 2 branches missed.">            if (input.offset != i) {</span>
+<span class="nc" id="L718">                throw new ColladaParseException(&quot;Triangle input list offset does not match list index for triangle input &quot; + input + &quot; for geometry id=&quot; + geometry.id()</span>
+<span class="nc" id="L719">                + &quot; name=&quot; + geometry.name());</span>
+            }
+        }
+
+<span class="nc" id="L723">        int facesDataIndex = -1;</span>
+<span class="nc bnc" id="L724" title="All 2 branches missed.">        for (int faceIndex = 0; faceIndex &lt; faceCount; faceIndex++) {</span>
+<span class="nc" id="L725">            int vCount = 3; // default to 3 for triangles so we don't have to create a vcountList</span>
+<span class="nc bnc" id="L726" title="All 2 branches missed.">            if (null != vcountList) {</span>
+<span class="nc" id="L727">                vCount = vcountList.get(faceIndex);</span>
+            }
+<span class="nc bnc" id="L729" title="All 2 branches missed.">            for (int vertexIndex = 0; vertexIndex &lt; vCount; vertexIndex++) {</span>
+<span class="nc bnc" id="L730" title="All 2 branches missed.">                for (Input faceInput : faceInputs) {</span>
+<span class="nc" id="L731">                    ++facesDataIndex;</span>
+<span class="nc" id="L732">                    String indexString = facesStrings[facesDataIndex];</span>
+<span class="nc" id="L733">                    int index = Integer.parseInt(indexString);</span>
+
+<span class="nc bnc" id="L735" title="All 2 branches missed.">                    if (&quot;VERTEX&quot;.equals(faceInput.semantic)) {</span>
+<span class="nc" id="L736">                        int vertexStride = faceInput.vertexPositionSource.stride;</span>
+<span class="nc bnc" id="L737" title="All 2 branches missed.">                        if (3 != vertexStride) {</span>
+<span class="nc" id="L738">                            throw new ColladaParseException(&quot;Found non-3 stride of &quot; + faceInput.vertexPositionSource.stride</span>
+                                    + &quot; for vertex Input semantic &quot; + faceInput.semantic +
+<span class="nc" id="L740">                                    &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                        }
+                        // TODO: probably should consider parameter indexes instead of assuming X,Y,Z order
+<span class="nc" id="L743">                        float vertexX = faceInput.vertexPositionSource.floatValues[index * vertexStride + 0];</span>
+<span class="nc" id="L744">                        float vertexY = faceInput.vertexPositionSource.floatValues[index * vertexStride + 1];</span>
+<span class="nc" id="L745">                        float vertexZ = faceInput.vertexPositionSource.floatValues[index * vertexStride + 2];</span>
+                        // See http://docs.garagegames.com/torque-3d/official/content/documentation/Artist%20Guide/Formats/ColladaLoader.html
+                        // for up_axis coordinate systems
+<span class="nc bnc" id="L748" title="All 2 branches missed.">                        if (yUp) {</span>
+<span class="nc" id="L749">                            verticesParam.add(vertexX);</span>
+<span class="nc" id="L750">                            verticesParam.add(vertexY);</span>
+<span class="nc" id="L751">                            verticesParam.add(vertexZ);</span>
+<span class="nc bnc" id="L752" title="All 2 branches missed.">                        } else if (zUp) {</span>
+<span class="nc" id="L753">                            verticesParam.add(vertexX);</span>
+<span class="nc" id="L754">                            verticesParam.add(vertexZ);</span>
+<span class="nc" id="L755">                            verticesParam.add(vertexY); // negated compared to z in yUp</span>
+                            // TODO: Y is not negated relative to the orgin like it probably needs to be.
+                            //                        } else if (xUp) {
+                            //                            verticesParam.add(vertexY); // negated compared to x in yUp
+                            //                            verticesParam.add(vertexX);
+                            //                            verticesParam.add(vertexZ);
+                        }
+
+<span class="nc bnc" id="L763" title="All 2 branches missed.">                        if (null != vertexColors) {</span>
+<span class="nc bnc" id="L764" title="All 2 branches missed.">                            for (float vertexColor : vertexColors) {</span>
+<span class="nc" id="L765">                                colorsParam.add(vertexColor);</span>
+                            }
+                        }
+
+                        // TODO: Sometimes we get the normal attached to the triangle, sometimes to the vertex
+<span class="nc bnc" id="L770" title="All 2 branches missed.">                        if (null != faceInput.vertexNormalSource) {</span>
+<span class="nc" id="L771">                            int normalStride = faceInput.vertexNormalSource.stride;</span>
+<span class="nc bnc" id="L772" title="All 2 branches missed.">                            if (3 != normalStride) {</span>
+<span class="nc" id="L773">                                throw new ColladaParseException(&quot;Found non-3 stride of &quot; + faceInput.vertexNormalSource.stride</span>
+                                        + &quot; for vertex Input semantic &quot; + faceInput.semantic +
+<span class="nc" id="L775">                                        &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                            }
+                            // TODO: probably should consider parameter indexes instead of assuming X,Y,Z order
+<span class="nc" id="L778">                            float normalX = faceInput.vertexNormalSource.floatValues[index * normalStride + 0];</span>
+<span class="nc" id="L779">                            float normalY = faceInput.vertexNormalSource.floatValues[index * normalStride + 1];</span>
+<span class="nc" id="L780">                            float normalZ = faceInput.vertexNormalSource.floatValues[index * normalStride + 2];</span>
+<span class="nc bnc" id="L781" title="All 2 branches missed.">                            if (yUp) {</span>
+<span class="nc" id="L782">                                normalsParam.add(normalX);</span>
+<span class="nc" id="L783">                                normalsParam.add(normalY);</span>
+<span class="nc" id="L784">                                normalsParam.add(normalZ);</span>
+<span class="nc bnc" id="L785" title="All 2 branches missed.">                            } else if (zUp) {</span>
+<span class="nc" id="L786">                                normalsParam.add(normalX);</span>
+<span class="nc" id="L787">                                normalsParam.add(normalZ);</span>
+<span class="nc" id="L788">                                normalsParam.add(normalY);</span>
+                            }
+                        }
+
+                        //                        // TODO: how to triangulate faces on the fly
+                        //                        indicesParam.add(vertCount++);
+
+<span class="nc bnc" id="L795" title="All 2 branches missed.">                    } else if (&quot;NORMAL&quot;.equals(faceInput.semantic)) {</span>
+                        // TODO: Sometimes we get the normal attached to the triangle, sometimes to the vertex
+
+<span class="nc" id="L798">                        int normalStride = faceInput.normalSource.stride;</span>
+<span class="nc bnc" id="L799" title="All 2 branches missed.">                        if (3 != normalStride) {</span>
+<span class="nc" id="L800">                            throw new ColladaParseException(&quot;Found non-3 stride of &quot; + faceInput.normalSource.stride</span>
+                                    + &quot; for vertex Input semantic &quot; + faceInput.semantic +
+<span class="nc" id="L802">                                    &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                        }
+                        // TODO: probably should consider parameter indexes instead of assuming X,Y,Z order
+<span class="nc" id="L805">                        float normalX = faceInput.normalSource.floatValues[index * normalStride + 0];</span>
+<span class="nc" id="L806">                        float normalY = faceInput.normalSource.floatValues[index * normalStride + 1];</span>
+<span class="nc" id="L807">                        float normalZ = faceInput.normalSource.floatValues[index * normalStride + 2];</span>
+<span class="nc bnc" id="L808" title="All 2 branches missed.">                        if (yUp) {</span>
+<span class="nc" id="L809">                            normalsParam.add(normalX);</span>
+<span class="nc" id="L810">                            normalsParam.add(normalY);</span>
+<span class="nc" id="L811">                            normalsParam.add(normalZ);</span>
+<span class="nc bnc" id="L812" title="All 2 branches missed.">                        } else if (zUp) {</span>
+<span class="nc" id="L813">                            normalsParam.add(normalX);</span>
+<span class="nc" id="L814">                            normalsParam.add(normalZ);</span>
+<span class="nc" id="L815">                            normalsParam.add(normalY);</span>
+                        }
+<span class="nc bnc" id="L817" title="All 2 branches missed.">                    } else if (&quot;TEXCOORD&quot;.equals(faceInput.semantic)) {</span>
+<span class="nc" id="L818">                        int texCoordStride = faceInput.texCoordSource.stride;</span>
+<span class="nc bnc" id="L819" title="All 2 branches missed.">                        if (2 &gt; texCoordStride) {</span>
+<span class="nc" id="L820">                            throw new ColladaParseException(&quot;Found non-2 stride of &quot; + faceInput.texCoordSource.stride</span>
+                                    + &quot; for vertex Input semantic &quot; + faceInput.semantic +
+<span class="nc" id="L822">                                    &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                        }
+                        // TODO: probably should consider parameter indexes instead of assuming S,T order
+<span class="nc" id="L825">                        float texCoordS = faceInput.texCoordSource.floatValues[index * texCoordStride + 0];</span>
+<span class="nc" id="L826">                        float texCoordT = faceInput.texCoordSource.floatValues[index * texCoordStride + 1];</span>
+
+                        // For texture coordinates, COLLADA's right-handed coordinate system applies;
+                        // therefore, an ST texture coordinate of [0,0] maps to the lower-left texel of a texture image
+<span class="nc" id="L830">                        texCoord0Param.add(texCoordS);</span>
+<span class="nc" id="L831">                        texCoord0Param.add(1 - texCoordT);</span>
+                        // texCoord0.add(texCoordT);
+<span class="nc" id="L833">                    } else {</span>
+<span class="nc" id="L834">                        throw new ColladaParseException(&quot;Found unexpected triangle Input semantic &quot; + faceInput.semantic +</span>
+<span class="nc" id="L835">                                &quot; for geometry id=&quot; + geometry.id() + &quot; name=&quot; + geometry.name());</span>
+                    }
+<span class="nc" id="L837">                }</span>
+            }
+
+<span class="nc bnc" id="L840" title="All 2 branches missed.">            for (int i = 0; i &lt; vCount - 2; ++i) {</span>
+<span class="nc" id="L841">                indices.add(vertCount);</span>
+<span class="nc" id="L842">                indices.add(vertCount + i + 1);</span>
+<span class="nc" id="L843">                indices.add(vertCount + i + 2);</span>
+            }
+<span class="nc" id="L845">            vertCount += vCount;</span>
+
+        }
+<span class="nc" id="L848">        return vertCount;</span>
+    }
+
+    private List&lt;Input&gt; parseInputs(ElementSet inputElementSet) {
+<span class="nc" id="L852">        List&lt;Input&gt; inputList = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L853" title="All 2 branches missed.">        for (Element inputElement : inputElementSet) {</span>
+<span class="nc" id="L854">            Input input = new Input();</span>
+<span class="nc" id="L855">            inputList.add(input);</span>
+
+<span class="nc" id="L857">            input.semantic = inputElement.attr(&quot;semantic&quot;);</span>
+<span class="nc" id="L858">            input.sourceName = inputElement.attr(&quot;source&quot;);</span>
+<span class="nc" id="L859">            String offsetString = inputElement.attr(&quot;offset&quot;);</span>
+<span class="nc bnc" id="L860" title="All 2 branches missed.">            if (null != offsetString) {</span>
+<span class="nc" id="L861">                input.offset = Integer.parseInt(offsetString);</span>
+            }
+<span class="nc" id="L863">        }</span>
+
+<span class="nc" id="L865">        return inputList;</span>
+    }
+
+    private Source parseSource(Element sourceElement) throws ColladaParseException {
+<span class="nc" id="L869">        Source source = new Source();</span>
+
+<span class="nc" id="L871">        ElementSet accessorSet = sourceElement.find(&quot;technique_common&quot;, &quot;accessor&quot;);</span>
+<span class="nc bnc" id="L872" title="All 2 branches missed.">        if (1 != accessorSet.size()) {</span>
+<span class="nc" id="L873">            throw new ColladaParseException(&quot;Found &quot; + accessorSet.size() + &quot; accessor sets for sourceElement id=&quot; + sourceElement.id() + &quot; name=&quot; + sourceElement.name());</span>
+        }
+<span class="nc" id="L875">        Element accessor = accessorSet.first();</span>
+<span class="nc" id="L876">        String accessorCount = accessor.attr(&quot;count&quot;);</span>
+<span class="nc" id="L877">        source.count = Integer.parseInt(accessorCount);</span>
+<span class="nc" id="L878">        String accessorStride = accessor.attr(&quot;stride&quot;);</span>
+<span class="nc bnc" id="L879" title="All 2 branches missed.">        if (null != accessorStride) {</span>
+<span class="nc" id="L880">            source.stride = Integer.parseInt(accessorStride);</span>
+        }
+<span class="nc" id="L882">        String accessorSource = accessor.attr(&quot;source&quot;);</span>
+<span class="nc" id="L883">        source.accessorSource = accessorSource;</span>
+
+<span class="nc" id="L885">        ElementSet paramSet = accessor.find(&quot;param&quot;);</span>
+<span class="nc" id="L886">        int paramSize = paramSet.size();</span>
+<span class="nc" id="L887">        source.parameterNames = new String[paramSize];</span>
+<span class="nc" id="L888">        source.parameterTypes = new String[paramSize];</span>
+<span class="nc bnc" id="L889" title="All 2 branches missed.">        for (int i = 0; i &lt; paramSize; i++) {</span>
+<span class="nc" id="L890">            Element param = paramSet.get(i);</span>
+<span class="nc" id="L891">            source.parameterNames[i] = param.attr(&quot;name&quot;);</span>
+<span class="nc" id="L892">            source.parameterTypes[i] = param.attr(&quot;type&quot;);</span>
+        }
+
+<span class="nc" id="L895">        Element objectArray = sourceElement.select(accessorSource);</span>
+<span class="nc bnc" id="L896" title="All 2 branches missed.">        if (null == objectArray) {</span>
+<span class="nc" id="L897">            throw new ColladaParseException(&quot;Unable to find id &quot; + accessorSource + &quot; for float array in sourceElement id=&quot; + sourceElement.id() + &quot; name=&quot;</span>
+<span class="nc" id="L898">                    + sourceElement.name());</span>
+        }
+<span class="nc" id="L900">        String arraySizeString = objectArray.attr(&quot;count&quot;);</span>
+<span class="nc" id="L901">        int arraySize = Integer.parseInt(arraySizeString);</span>
+<span class="nc" id="L902">        String objectArrayDataString = objectArray.text().trim();</span>
+
+        // TODO: we should really parse each parameter type, but we'll assume they are homogeneneous for now
+<span class="nc bnc" id="L905" title="All 2 branches missed.">        if ((&quot;float&quot;.equalsIgnoreCase(source.parameterTypes[0]))</span>
+<span class="nc bnc" id="L906" title="All 2 branches missed.">                || (&quot;float4x4&quot;.equalsIgnoreCase(source.parameterTypes[0]))) {</span>
+<span class="nc" id="L907">            source.floatValues = new float[arraySize];</span>
+<span class="nc" id="L908">            String[] floatStrings = getItemsInString(objectArrayDataString);</span>
+<span class="nc bnc" id="L909" title="All 2 branches missed.">            if (floatStrings.length != arraySize) {</span>
+<span class="nc" id="L910">                throw new ColladaParseException(&quot;Expected float array size &quot; + arraySize + &quot; but was &quot; + floatStrings.length + &quot; for sourceElement id=&quot; + sourceElement.id()</span>
+                + &quot; name=&quot;
+<span class="nc" id="L912">                + sourceElement.name());</span>
+            }
+<span class="nc bnc" id="L914" title="All 2 branches missed.">            for (int i = 0; i &lt; floatStrings.length; i++) {</span>
+<span class="nc" id="L915">                String floatString = floatStrings[i];</span>
+<span class="nc" id="L916">                source.floatValues[i] = Float.parseFloat(floatString);</span>
+            }
+<span class="nc bnc" id="L918" title="All 2 branches missed.">        } else if (&quot;name&quot;.equalsIgnoreCase(source.parameterTypes[0])) {</span>
+<span class="nc" id="L919">            source.nameValues = new String[arraySize];</span>
+<span class="nc" id="L920">            String[] nameStrings = getItemsInString(objectArrayDataString);</span>
+<span class="nc bnc" id="L921" title="All 2 branches missed.">            if (nameStrings.length != arraySize) {</span>
+<span class="nc" id="L922">                throw new ColladaParseException(&quot;Expected name array size &quot; + arraySize + &quot; but was &quot; + nameStrings.length + &quot; for sourceElement id=&quot; + sourceElement.id()</span>
+                + &quot; name=&quot;
+<span class="nc" id="L924">                + sourceElement.name());</span>
+            }
+<span class="nc bnc" id="L926" title="All 2 branches missed.">            for (int i = 0; i &lt; nameStrings.length; i++) {</span>
+<span class="nc" id="L927">                source.nameValues[i] = nameStrings[i];</span>
+            }
+<span class="nc" id="L929">        } else {</span>
+<span class="nc" id="L930">            throw new ColladaParseException(&quot;Unsupported parameter type &quot; + source.parameterTypes[0]);</span>
+        }
+<span class="nc" id="L932">        return source;</span>
+    }
+
+    private String[] getItemsInString(String dataString) {
+<span class="nc" id="L936">        String string = dataString.replaceAll(&quot;\n&quot;, &quot; &quot;);</span>
+<span class="nc" id="L937">        string = string.replaceAll(&quot;\t&quot;, &quot; &quot;);</span>
+<span class="nc" id="L938">        string = string.replaceAll(&quot;\r&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L939" title="All 2 branches missed.">        while (string.contains(&quot;  &quot;)) {</span>
+<span class="nc" id="L940">            string = string.replaceAll(&quot;  &quot;, &quot; &quot;);</span>
+        }
+<span class="nc" id="L942">        string = string.trim();</span>
+<span class="nc" id="L943">        String[] floatStrings = string.split(&quot; &quot;);</span>
+<span class="nc" id="L944">        return floatStrings;</span>
+    }
+
+<span class="nc" id="L947">    private class Input {</span>
+        public String semantic;
+        public String sourceName;
+        public int offset;
+
+        public Source vertexPositionSource;
+        public Source vertexNormalSource;
+        public Source normalSource;
+        public Source texCoordSource;
+    }
+
+<span class="nc" id="L958">    private class Source {</span>
+        public float[] floatValues;
+        public String[] nameValues;
+        public String accessorSource;
+        public int count;
+        public int stride;
+        public String[] parameterNames;
+        public String[] parameterTypes;
+    }
+
+<span class="nc" id="L968">    private static class MD5Joint {</span>
+        private String name;
+        private Vector3f position;
+        private Quat4f orientation;
+
+        private Element element;
+        private MD5Joint parent;
+<span class="nc" id="L975">        private List&lt;MD5Joint&gt; childList = new ArrayList&lt;&gt;();</span>
+        private Bone bone;
+
+        public void addChild(MD5Joint joint) {
+<span class="nc" id="L979">            childList.add(joint);</span>
+<span class="nc" id="L980">        }</span>
+
+        @Override
+        public String toString() {
+<span class="nc" id="L984">            return &quot;name=&quot; + name</span>
+                    + &quot;, element=&quot; + element
+                    + &quot;, position=&quot; + position
+                    + &quot;, orientation=&quot; + orientation;
+        }
+    }
+
+    private static class MD5Weight {
+        int jointIndex;
+        float bias;
+        Vector3f position;
+
+        @Override
+        public String toString() {
+<span class="nc" id="L998">            return &quot;jointIndex=&quot; + jointIndex</span>
+                    + &quot;, bias=&quot; + bias
+                    + &quot;, position=&quot; + position;
+        }
+    }
+
+    private static class MD5Mesh {
+        List&lt;MD5Weight&gt; weightList;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

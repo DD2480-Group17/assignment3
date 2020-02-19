@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.entitySystem.metadata</a> &gt; <span class="el_source">ComponentMetadata.java</span></div><h1>ComponentMetadata.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.entitySystem.metadata;
+
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import org.terasology.engine.SimpleUri;
+import org.terasology.entitySystem.Component;
+import org.terasology.network.Replicate;
+import org.terasology.reflection.copy.CopyStrategy;
+import org.terasology.reflection.copy.CopyStrategyLibrary;
+import org.terasology.reflection.metadata.ClassMetadata;
+import org.terasology.reflection.reflect.InaccessibleFieldException;
+import org.terasology.reflection.reflect.ReflectFactory;
+import org.terasology.world.block.ForceBlockActive;
+import org.terasology.world.block.RequiresBlockLifecycleEvents;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
+import java.util.List;
+
+/**
+ * Metadata on a component class and its fields.
+ *
+ */
+public class ComponentMetadata&lt;T extends Component&gt; extends ClassMetadata&lt;T, ComponentFieldMetadata&lt;T, ?&gt;&gt; {
+
+    private boolean replicated;
+    private boolean replicatedFromOwner;
+    private boolean referenceOwner;
+    private boolean forceBlockActive;
+    private boolean retainUnalteredOnBlockChange;
+    private boolean blockLifecycleEventsRequired;
+    private List&lt;Annotation&gt; annotations;
+
+    /**
+     * @param uri            The uri to identify the component with.
+     * @param type           The type to create the metadata for
+     * @param factory        A reflection library to provide class construction and field get/set functionality
+     * @param copyStrategies A copy strategy library
+     * @throws NoSuchMethodException If the component has no default constructor
+     */
+    public ComponentMetadata(SimpleUri uri, Class&lt;T&gt; type, ReflectFactory factory, CopyStrategyLibrary copyStrategies) throws NoSuchMethodException {
+<span class="fc" id="L58">        super(uri, type, factory, copyStrategies, Predicates.&lt;Field&gt;alwaysTrue());</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        replicated = type.getAnnotation(Replicate.class) != null;</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        blockLifecycleEventsRequired = type.getAnnotation(RequiresBlockLifecycleEvents.class) != null;</span>
+<span class="fc" id="L61">        ForceBlockActive forceBlockActiveAnnotation = type.getAnnotation(ForceBlockActive.class);</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (forceBlockActiveAnnotation != null) {</span>
+<span class="fc" id="L63">            forceBlockActive = true;</span>
+<span class="fc" id="L64">            retainUnalteredOnBlockChange = forceBlockActiveAnnotation.retainUnalteredOnBlockChange();</span>
+        }
+
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        for (ComponentFieldMetadata&lt;T, ?&gt; field : getFields()) {</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">            if (field.isReplicated()) {</span>
+<span class="fc" id="L69">                replicated = true;</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">                if (field.getReplicationInfo().value().isReplicateFromOwner()) {</span>
+<span class="nc" id="L71">                    replicatedFromOwner = true;</span>
+                }
+            }
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            if (field.isOwnedReference()) {</span>
+<span class="fc" id="L75">                referenceOwner = true;</span>
+            }
+<span class="fc" id="L77">        }</span>
+
+<span class="fc" id="L79">        annotations = Lists.newArrayList(type.getAnnotations());</span>
+<span class="fc" id="L80">    }</span>
+
+    @Override
+    protected &lt;U&gt; ComponentFieldMetadata&lt;T, U&gt; createField(Field field, CopyStrategy&lt;U&gt; copyStrategy, ReflectFactory factory) throws InaccessibleFieldException {
+<span class="fc" id="L84">        return new ComponentFieldMetadata&lt;&gt;(this, field, copyStrategy, factory, false);</span>
+    }
+
+    /**
+     * @return Whether this component owns any references
+     */
+    public boolean isReferenceOwner() {
+<span class="fc" id="L91">        return referenceOwner;</span>
+    }
+
+    /**
+     * @return Whether this component replicates any fields from owner to server
+     */
+    public boolean isReplicatedFromOwner() {
+<span class="nc" id="L98">        return replicatedFromOwner;</span>
+    }
+
+    /**
+     * @return Whether this component needs to be replicated
+     */
+    public boolean isReplicated() {
+<span class="fc" id="L105">        return replicated;</span>
+    }
+
+    /**
+     * @return Whether this component forces a block active
+     */
+    public boolean isForceBlockActive() {
+<span class="fc" id="L112">        return forceBlockActive;</span>
+    }
+
+    /**
+     * @return Whether this component should be retained unaltered on block change
+     */
+    public boolean isRetainUnalteredOnBlockChange() {
+<span class="fc" id="L119">        return retainUnalteredOnBlockChange;</span>
+    }
+
+    /**
+     * @return Whether this component makes a block valid for block lifecycle events
+     */
+    public boolean isBlockLifecycleEventsRequired() {
+<span class="nc" id="L126">        return blockLifecycleEventsRequired;</span>
+    }
+
+    public T getAnnotation(final Class&lt;T&gt; type) {
+<span class="nc" id="L130">        return Iterables.getOnlyElement(Iterables.filter(annotations, type), null);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

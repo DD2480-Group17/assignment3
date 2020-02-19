@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OggStreamingSoundData.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.audio.formats</a> &gt; <span class="el_source">OggStreamingSoundData.java</span></div><h1>OggStreamingSoundData.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.audio.formats;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.audio.StreamingSoundData;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+
+/**
+ *
+ */
+public class OggStreamingSoundData implements StreamingSoundData {
+
+<span class="nc" id="L35">    private static Logger logger = LoggerFactory.getLogger(OggStreamingSoundData.class);</span>
+
+    private final AssetDataFile stream;
+    private OggReader reader;
+
+<span class="nc" id="L40">    public OggStreamingSoundData(AssetDataFile stream) {</span>
+<span class="nc" id="L41">        this.stream = stream;</span>
+<span class="nc" id="L42">        reset();</span>
+<span class="nc" id="L43">    }</span>
+
+    @Override
+    public ByteBuffer readNextInto(ByteBuffer dataBuffer) {
+        try {
+<span class="nc" id="L48">            reader.read(dataBuffer, 0, dataBuffer.capacity());</span>
+<span class="nc" id="L49">            dataBuffer.flip();</span>
+<span class="nc" id="L50">            return dataBuffer;</span>
+<span class="nc" id="L51">        } catch (IOException e) {</span>
+<span class="nc" id="L52">            throw new RuntimeException(&quot;Error reading from sound stream&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public int getChannels() {
+<span class="nc" id="L58">        return reader.getChannels();</span>
+    }
+
+    @Override
+    public int getBufferBits() {
+<span class="nc" id="L63">        return 16;</span>
+    }
+
+    @Override
+    public int getSamplingRate() {
+<span class="nc" id="L68">        return reader.getRate();</span>
+    }
+
+    @Override
+    public void reset() {
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if (reader != null) {</span>
+<span class="nc" id="L74">            dispose();</span>
+        }
+        try {
+<span class="nc" id="L77">           reader = AccessController.doPrivileged((PrivilegedExceptionAction&lt;OggReader&gt;) () -&gt; new OggReader(stream.openStream()));</span>
+<span class="nc" id="L78">        } catch (PrivilegedActionException e) {</span>
+<span class="nc" id="L79">            throw new RuntimeException(&quot;Failed to reset ogg stream&quot;, e);</span>
+<span class="nc" id="L80">        }</span>
+<span class="nc" id="L81">    }</span>
+
+    @Override
+    public void dispose() {
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (reader != null) {</span>
+            try {
+<span class="nc" id="L87">                reader.close();</span>
+<span class="nc" id="L88">            } catch (IOException e) {</span>
+<span class="nc" id="L89">                logger.error(&quot;Failed to close ogg streaming&quot;, e);</span>
+<span class="nc" id="L90">            }</span>
+<span class="nc" id="L91">            reader = null;</span>
+        }
+<span class="nc" id="L93">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

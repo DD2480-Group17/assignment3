@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PolymorphicTypeAdapterFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.gson</a> &gt; <span class="el_source">PolymorphicTypeAdapterFactory.java</span></div><h1>PolymorphicTypeAdapterFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.gson;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.TypeAdapter;
+import com.google.gson.TypeAdapterFactory;
+import com.google.gson.internal.Streams;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
+
+import java.io.IOException;
+import java.util.Map;
+
+/**
+ * A {@link TypeAdapterFactory} that generates type adapters which read and write type information for
+ * sub-types of the given base type. The type information allows the generated type adapters to dynamically
+ * identify which sub-type instance is being read or written when it is given a base type reference.
+ *
+ * @param &lt;T&gt; The base type.
+ */
+public class PolymorphicTypeAdapterFactory&lt;T&gt; implements TypeAdapterFactory {
+    private static final String TYPE_FIELD_NAME = &quot;@type&quot;;
+
+    private final Class&lt;T&gt; baseClass;
+
+<span class="fc" id="L45">    private PolymorphicTypeAdapterFactory(Class&lt;T&gt; baseClass) {</span>
+<span class="fc" id="L46">        this.baseClass = baseClass;</span>
+<span class="fc" id="L47">    }</span>
+
+    public static &lt;T&gt; PolymorphicTypeAdapterFactory&lt;T&gt; of(Class&lt;T&gt; baseClass) {
+<span class="fc" id="L50">        return new PolymorphicTypeAdapterFactory&lt;&gt;(baseClass);</span>
+    }
+
+    @Override
+    public &lt;R&gt; TypeAdapter&lt;R&gt; create(Gson gson, TypeToken&lt;R&gt; type) {
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (!baseClass.isAssignableFrom(type.getRawType())) {</span>
+<span class="fc" id="L56">            return null;</span>
+        }
+
+<span class="fc" id="L59">        return new TypeAdapter&lt;R&gt;() {</span>
+            @SuppressWarnings(&quot;unchecked&quot;)
+            @Override
+            public void write(JsonWriter out, R value) throws IOException {
+<span class="fc" id="L63">                Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="fc" id="L64">                String valueTypeName = valueClass.getName();</span>
+
+<span class="fc" id="L66">                TypeToken&lt;?&gt; valueType = TypeToken.get(valueClass);</span>
+<span class="fc" id="L67">                TypeAdapter&lt;R&gt; delegate = (TypeAdapter&lt;R&gt;)</span>
+<span class="fc" id="L68">                        gson.getDelegateAdapter(PolymorphicTypeAdapterFactory.this, valueType);</span>
+
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">                if (delegate == null) {</span>
+<span class="nc" id="L71">                    throw new JsonParseException(&quot;Could not serialize &quot; + valueClass.getName());</span>
+                }
+
+<span class="fc" id="L74">                JsonElement jsonElement = delegate.toJsonTree(value);</span>
+
+<span class="fc bfc" id="L76" title="All 2 branches covered.">                if (valueClass != baseClass) {</span>
+<span class="fc" id="L77">                    JsonObject jsonObject = jsonElement.getAsJsonObject();</span>
+
+<span class="fc" id="L79">                    JsonObject clone = new JsonObject();</span>
+<span class="fc" id="L80">                    clone.add(TYPE_FIELD_NAME, new JsonPrimitive(valueTypeName));</span>
+
+<span class="fc bfc" id="L82" title="All 2 branches covered.">                    for (Map.Entry&lt;String, JsonElement&gt; e : jsonObject.entrySet()) {</span>
+<span class="fc" id="L83">                        clone.add(e.getKey(), e.getValue());</span>
+<span class="fc" id="L84">                    }</span>
+
+<span class="fc" id="L86">                    Streams.write(clone, out);</span>
+<span class="fc" id="L87">                } else {</span>
+<span class="fc" id="L88">                    Streams.write(jsonElement, out);</span>
+                }
+<span class="fc" id="L90">            }</span>
+
+            @SuppressWarnings(&quot;unchecked&quot;)
+            @Override
+            public R read(JsonReader in) throws IOException {
+<span class="fc" id="L95">                JsonElement jsonElement = Streams.parse(in);</span>
+                Class&lt;?&gt; valueClass;
+
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">                if (jsonElement.isJsonObject()) {</span>
+<span class="fc" id="L99">                    JsonElement typeNameJsonElement = jsonElement.getAsJsonObject().remove(TYPE_FIELD_NAME);</span>
+
+<span class="fc bfc" id="L101" title="All 2 branches covered.">                    if (typeNameJsonElement != null) {</span>
+<span class="fc" id="L102">                        String typeName = typeNameJsonElement.getAsString();</span>
+
+                        try {
+<span class="fc" id="L105">                            valueClass = Class.forName(typeName);</span>
+<span class="nc" id="L106">                        } catch (ClassNotFoundException e) {</span>
+<span class="nc" id="L107">                            throw new JsonParseException(&quot;Could not find class &quot; + typeName);</span>
+<span class="fc" id="L108">                        }</span>
+<span class="fc" id="L109">                    } else {</span>
+<span class="fc" id="L110">                        valueClass = baseClass;</span>
+                    }
+<span class="fc" id="L112">                } else {</span>
+<span class="nc" id="L113">                    valueClass = baseClass;</span>
+                }
+
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">                if (!baseClass.isAssignableFrom(valueClass)) {</span>
+<span class="nc" id="L117">                    throw new JsonParseException(valueClass.getName() + &quot; does not derive from &quot; + baseClass.getName());</span>
+                }
+
+<span class="fc" id="L120">                TypeToken&lt;?&gt; valueType = TypeToken.get(valueClass);</span>
+<span class="fc" id="L121">                TypeAdapter&lt;R&gt; delegate = (TypeAdapter&lt;R&gt;)</span>
+<span class="fc" id="L122">                        gson.getDelegateAdapter(PolymorphicTypeAdapterFactory.this, valueType);</span>
+
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">                if (delegate == null) {</span>
+<span class="nc" id="L125">                    throw new JsonParseException(&quot;Could not deserialize &quot; + valueClass.getName());</span>
+                }
+
+<span class="fc" id="L128">                return delegate.fromJsonTree(jsonElement);</span>
+            }
+        };
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

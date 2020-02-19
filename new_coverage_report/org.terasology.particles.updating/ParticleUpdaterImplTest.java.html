@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParticleUpdaterImplTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.particles.updating</a> &gt; <span class="el_source">ParticleUpdaterImplTest.java</span></div><h1>ParticleUpdaterImplTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.particles.updating;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.particles.components.ParticleEmitterComponent;
+import org.terasology.particles.components.affectors.VelocityAffectorComponent;
+import org.terasology.particles.components.generators.EnergyRangeGeneratorComponent;
+import org.terasology.particles.functions.affectors.AffectorFunction;
+import org.terasology.particles.functions.affectors.VelocityAffectorFunction;
+import org.terasology.particles.functions.generators.EnergyRangeGeneratorFunction;
+import org.terasology.particles.functions.generators.GeneratorFunction;
+import org.terasology.physics.Physics;
+import org.terasology.physics.engine.PhysicsEngine;
+
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedList;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * Unit test for {@link ParticleUpdaterImpl}.
+ */
+<span class="fc" id="L45">public class ParticleUpdaterImplTest {</span>
+
+    private ParticleUpdater particleUpdater;
+    private BiMap&lt;Class&lt;Component&gt;, GeneratorFunction&gt; registeredGeneratorFunctions;
+    private BiMap&lt;Class&lt;Component&gt;, AffectorFunction&gt; registeredAffectorFunctions;
+
+    @BeforeEach
+    public void setUp() throws Exception {
+<span class="fc" id="L53">        Physics physics = mock(PhysicsEngine.class);</span>
+<span class="fc" id="L54">        particleUpdater = new ParticleUpdaterImpl(physics);</span>
+<span class="fc" id="L55">        registeredGeneratorFunctions = HashBiMap.create();</span>
+<span class="fc" id="L56">        registeredAffectorFunctions = HashBiMap.create();</span>
+<span class="fc" id="L57">    }</span>
+
+    @Test
+    public void testNullEmitterRegistration() {
+<span class="fc" id="L61">        Assertions.assertThrows(IllegalArgumentException.class,</span>
+<span class="nc" id="L62">                () -&gt; particleUpdater.register(null));</span>
+<span class="fc" id="L63">    }</span>
+
+    @Test
+    public void testNonEmitterRegistration() {
+<span class="fc" id="L67">        EntityRef emitterEntity = mock(EntityRef.class);</span>
+<span class="fc" id="L68">        when(emitterEntity.getComponent(ParticleEmitterComponent.class)).thenReturn(null);</span>
+
+<span class="fc" id="L70">        Assertions.assertThrows(IllegalArgumentException.class,</span>
+<span class="nc" id="L71">                ()-&gt; particleUpdater.register(emitterEntity));</span>
+<span class="fc" id="L72">    }</span>
+
+    @Test
+    public void testEmitterRegistration() {
+<span class="fc" id="L76">        EntityRef emitterEntity = mock(EntityRef.class);</span>
+<span class="fc" id="L77">        when(emitterEntity.getComponent(ParticleEmitterComponent.class)).thenReturn(new ParticleEmitterComponent());</span>
+
+<span class="fc" id="L79">        particleUpdater.register(emitterEntity);</span>
+<span class="fc" id="L80">    }</span>
+
+    private Iterator&lt;Component&gt; getTestGeneratorsAndAffectors() {
+<span class="fc" id="L83">        Collection&lt;Component&gt; components = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L84">        components.add(new EnergyRangeGeneratorComponent(0.5f, 1f));</span>
+<span class="fc" id="L85">        components.add(new VelocityAffectorComponent());</span>
+
+<span class="fc" id="L87">        EnergyRangeGeneratorFunction energyRangeGeneratorFunction = new EnergyRangeGeneratorFunction();</span>
+<span class="fc" id="L88">        registeredGeneratorFunctions.put(((GeneratorFunction) energyRangeGeneratorFunction).getComponentClass(), energyRangeGeneratorFunction);</span>
+
+<span class="fc" id="L90">        VelocityAffectorFunction velocityAffectorFunction = new VelocityAffectorFunction();</span>
+<span class="fc" id="L91">        registeredAffectorFunctions.put(((AffectorFunction) velocityAffectorFunction).getComponentClass(), velocityAffectorFunction);</span>
+
+<span class="fc" id="L93">        return components.iterator();</span>
+    }
+
+    @Test
+    public void testEmitterConfiguration() {
+<span class="fc" id="L98">        EntityRef emitterEntity = mock(EntityRef.class);</span>
+<span class="fc" id="L99">        Iterator&lt;Component&gt; componentIterator = getTestGeneratorsAndAffectors();</span>
+<span class="fc" id="L100">        when(emitterEntity.iterateComponents()).thenReturn(() -&gt; componentIterator);</span>
+
+<span class="fc" id="L102">        ParticleEmitterComponent particleEmitterComponent = new ParticleEmitterComponent();</span>
+<span class="fc" id="L103">        particleEmitterComponent.ownerEntity = emitterEntity;</span>
+<span class="fc" id="L104">        when(emitterEntity.getComponent(ParticleEmitterComponent.class)).thenReturn(particleEmitterComponent);</span>
+
+<span class="fc" id="L106">        particleUpdater.register(emitterEntity);</span>
+<span class="fc" id="L107">        particleUpdater.configureEmitter(particleEmitterComponent, registeredAffectorFunctions, registeredGeneratorFunctions);</span>
+
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        for (Component component : (Iterable&lt;Component&gt;) () -&gt; componentIterator) {</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">            if (registeredGeneratorFunctions.containsKey(component.getClass())) {</span>
+<span class="nc" id="L111">                assertTrue(particleEmitterComponent.generatorFunctionMap.containsKey(component));</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">            } else if (registeredGeneratorFunctions.containsKey(component.getClass())) {</span>
+<span class="nc" id="L113">                assertTrue(particleEmitterComponent.generatorFunctionMap.containsKey(component));</span>
+            }
+<span class="nc" id="L115">        }</span>
+<span class="fc" id="L116">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

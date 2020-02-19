@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseStrictlySparseFieldFacet2D.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.generation.facets.base</a> &gt; <span class="el_source">BaseStrictlySparseFieldFacet2D.java</span></div><h1>BaseStrictlySparseFieldFacet2D.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.generation.facets.base;
+
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.BaseVector2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.world.generation.Border3D;
+
+import java.util.*;
+
+/***
+ * A strictly-sparse (not necessarily defined at all points) alternative to {@link BaseFieldFacet2D}
+ */
+public abstract class BaseStrictlySparseFieldFacet2D extends BaseSparseFacet2D {
+<span class="nc" id="L29">    private HashMap&lt;BaseVector2i, Float&gt; data = new HashMap&lt;&gt;();</span>
+
+    public BaseStrictlySparseFieldFacet2D(Region3i targetRegion, Border3D border) {
+<span class="nc" id="L32">        super(targetRegion, border);</span>
+<span class="nc" id="L33">    }</span>
+
+    public Optional&lt;Float&gt; get(int x, int y) {
+<span class="nc" id="L36">        return get(new Vector2i(x, y));</span>
+    }
+
+    public Optional&lt;Float&gt; get(BaseVector2i pos) {
+<span class="nc" id="L40">        validateCoord(pos.x(), pos.y(), getRelativeRegion());</span>
+
+<span class="nc" id="L42">        return Optional.ofNullable(data.getOrDefault(pos, null));</span>
+    }
+
+    public Optional&lt;Float&gt; getWorld(int x, int y) {
+<span class="nc" id="L46">        validateCoord(x, y, getWorldRegion());</span>
+
+<span class="nc" id="L48">        return Optional.ofNullable(data.getOrDefault(worldToRelative(x, y), null));</span>
+    }
+
+    public Optional&lt;Float&gt; getWorld(BaseVector2i pos) {
+<span class="nc" id="L52">        return getWorld(pos.x(), pos.y());</span>
+    }
+
+    public void set(int x, int y, float value) {
+<span class="nc" id="L56">        set(new Vector2i(x, y), value);</span>
+<span class="nc" id="L57">    }</span>
+
+    public void set(BaseVector2i pos, float value) {
+<span class="nc" id="L60">        validateCoord(pos.x(), pos.y(), getRelativeRegion());</span>
+
+<span class="nc" id="L62">        data.put(pos, value);</span>
+<span class="nc" id="L63">    }</span>
+
+    public void setWorld(int x, int y, float value) {
+<span class="nc" id="L66">        validateCoord(x, y, getWorldRegion());</span>
+
+<span class="nc" id="L68">        data.put(worldToRelative(x, y), value);</span>
+<span class="nc" id="L69">    }</span>
+
+    public void setWorld(BaseVector2i pos, float value) {
+<span class="nc" id="L72">        setWorld(pos.x(), pos.y(), value);</span>
+<span class="nc" id="L73">    }</span>
+
+    public void unset(int x, int y) {
+<span class="nc" id="L76">        unset(new Vector2i(x, y));</span>
+<span class="nc" id="L77">    }</span>
+
+    public void unset(BaseVector2i pos) {
+<span class="nc" id="L80">        validateCoord(pos.x(), pos.y(), getRelativeRegion());</span>
+
+<span class="nc" id="L82">        data.remove(pos);</span>
+<span class="nc" id="L83">    }</span>
+
+    public void unsetWorld(int x, int y) {
+<span class="nc" id="L86">        validateCoord(x, y, getWorldRegion());</span>
+
+<span class="nc" id="L88">        data.remove(worldToRelative(x, y));</span>
+<span class="nc" id="L89">    }</span>
+
+    public void unsetWorld(BaseVector2i pos) {
+<span class="nc" id="L92">        unsetWorld(pos.x(), pos.y());</span>
+<span class="nc" id="L93">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

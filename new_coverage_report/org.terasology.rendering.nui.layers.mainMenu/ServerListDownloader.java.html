@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerListDownloader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">ServerListDownloader.java</span></div><h1>ServerListDownloader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.NetworkConfig;
+import org.terasology.config.ServerInfo;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+
+/**
+ * Downloads a list of servers from a given URL.
+ */
+class ServerListDownloader {
+
+<span class="nc" id="L44">    private static final Logger logger = LoggerFactory.getLogger(ServerListDownloader.class);</span>
+
+<span class="nc" id="L46">    private static final Gson GSON = new GsonBuilder().create();</span>
+
+<span class="nc" id="L48">    private final List&lt;ServerInfo&gt; servers = new CopyOnWriteArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L50">    private final Charset charset = StandardCharsets.UTF_8;</span>
+    private final String serverAddress;
+
+    /**
+     * The i18n key corresponding to the current status of the downloader
+     *
+     * &quot;volatile&quot; ensures the visibility of updates across different threads
+     */
+    private volatile String status;
+
+    private final Thread dlThread;
+
+<span class="nc" id="L62">     ServerListDownloader(String serverAddress) {</span>
+<span class="nc" id="L63">        this.serverAddress = serverAddress;</span>
+<span class="nc" id="L64">        dlThread = new Thread(this::download);</span>
+<span class="nc" id="L65">        dlThread.setName(&quot;ServerList Downloader&quot;);</span>
+<span class="nc" id="L66">        dlThread.start();</span>
+<span class="nc" id="L67">    }</span>
+
+    /**
+     * @return a &lt;b&gt;thread-safe&lt;/b&gt; list of servers
+     */
+    public List&lt;ServerInfo&gt; getServers() {
+<span class="nc" id="L73">        return Collections.unmodifiableList(servers);</span>
+    }
+
+    public boolean isDone() {
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        return !dlThread.isAlive();</span>
+    }
+
+    /**
+     * @return the i18n key corresponding to the current status of the downloader
+     */
+    public String getStatus() {
+<span class="nc" id="L84">        return status;</span>
+    }
+
+    // this is run on a parallel thread
+    private void download() {
+        try {
+            try {
+<span class="nc" id="L91">                download(serverAddress);</span>
+<span class="nc" id="L92">            } catch (Exception e) {</span>
+<span class="nc" id="L93">                String defaultAddress = new NetworkConfig().getMasterServer();</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                if (!defaultAddress.equals(serverAddress)) {</span>
+<span class="nc" id="L95">                    logger.warn(&quot;Download server list from {} failed. Trying default ..&quot;, serverAddress);</span>
+<span class="nc" id="L96">                    download(defaultAddress);</span>
+                } else {
+<span class="nc" id="L98">                    throw e;</span>
+                }
+<span class="nc" id="L100">            }</span>
+<span class="nc" id="L101">        } catch (Exception e) {</span>
+<span class="nc" id="L102">            status = &quot;${engine:menu#error-downloading-server-list}&quot;;</span>
+            // we catch Exception here to make sure that it's being logged
+            // alternative: re-throw as RuntimeException and use
+            // Thread.setUncaughtExceptionHandler()
+<span class="nc" id="L106">            logger.error(&quot;Error downloading online server list!&quot;, e);</span>
+<span class="nc" id="L107">        }</span>
+<span class="nc" id="L108">    }</span>
+
+    private void download(String address) throws IOException {
+<span class="nc" id="L111">        status = &quot;${engine:menu#downloading-server-list}&quot;;</span>
+
+<span class="nc" id="L113">        URL url = new URL(&quot;http&quot;, address, &quot;/servers/list&quot;);</span>
+<span class="nc" id="L114">        try (Reader reader = new InputStreamReader(url.openStream(), charset);</span>
+<span class="nc" id="L115">                JsonReader jsonReader = new JsonReader(reader)) {</span>
+
+<span class="nc" id="L117">            status = &quot;${engine:menu#parsing-content}&quot;;</span>
+
+<span class="nc" id="L119">            jsonReader.beginArray();</span>
+
+<span class="nc" id="L121">            TypeAdapter&lt;ServerInfo&gt; adapter = GSON.getAdapter(ServerInfo.class);</span>
+
+<span class="nc bnc" id="L123" title="All 2 branches missed.">            while (jsonReader.hasNext()) {</span>
+<span class="nc" id="L124">                ServerInfo entry = adapter.read(jsonReader);</span>
+<span class="nc" id="L125">                servers.add(entry);</span>
+
+<span class="nc" id="L127">                logger.info(&quot;Retrieved game server {}&quot;, entry);</span>
+
+                try {
+<span class="nc" id="L130">                    Thread.sleep(250);</span>
+<span class="nc" id="L131">                } catch (InterruptedException e) {</span>
+                    // ignore - this is just to create an animation anyway
+<span class="nc" id="L133">                }</span>
+<span class="nc" id="L134">            }</span>
+
+<span class="nc" id="L136">            jsonReader.endArray();</span>
+            
+<span class="nc bnc" id="L138" title="All 2 branches missed.">            if(servers.size() == 0) {</span>
+<span class="nc" id="L139">                status = String.format(&quot;Server Error!&quot;);</span>
+            }
+            else {
+<span class="nc" id="L142">                status = String.format(&quot;${engine:menu#server-list-complete}&quot;);</span>
+            }
+        }
+<span class="nc" id="L145">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

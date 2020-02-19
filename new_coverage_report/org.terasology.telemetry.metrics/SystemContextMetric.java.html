@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SystemContextMetric.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.telemetry.metrics</a> &gt; <span class="el_source">SystemContextMetric.java</span></div><h1>SystemContextMetric.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.telemetry.metrics;
+
+import com.snowplowanalytics.snowplow.tracker.events.Unstructured;
+import org.lwjgl.opengl.GL11;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.telemetry.TelemetryCategory;
+import org.terasology.telemetry.TelemetryField;
+
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * This is a metric for system context.
+ */
+@TelemetryCategory(id = &quot;systemContext&quot;,
+        displayName = &quot;${engine:menu#telemetry-system-context}&quot;,
+        isOneMapMetric = false
+)
+public final class SystemContextMetric extends Metric {
+
+    public static final String SCHEMA_OS = &quot;iglu:org.terasology/systemContext/jsonschema/1-0-0&quot;;
+    private Context contextInCoreRegistry;
+    private Map&lt;String, Boolean&gt; bindingMap;
+
+    @TelemetryField
+    private String osName;
+
+    @TelemetryField
+    private String osVersion;
+
+    @TelemetryField
+    private String osArchitecture;
+
+    @TelemetryField
+    private String javaVendor;
+
+    @TelemetryField
+    private String javaVersion;
+
+    @TelemetryField
+    private String jvmName;
+
+    @TelemetryField
+    private String jvmVersion;
+
+    @TelemetryField
+    private String openGLVendor;
+
+    @TelemetryField
+    private String openGLVersion;
+
+    @TelemetryField
+    private String openGLRenderer;
+
+    @TelemetryField
+    private int processorNumbers;
+
+    @TelemetryField
+    private long memoryMaxByte;
+
+<span class="nc" id="L79">    public SystemContextMetric(Context context) {</span>
+<span class="nc" id="L80">        bindingMap = context.get(Config.class).getTelemetryConfig().getMetricsUserPermissionConfig().getBindingMap();</span>
+
+<span class="nc" id="L82">        osName = System.getProperty(&quot;os.name&quot;);</span>
+<span class="nc" id="L83">        osVersion = System.getProperty(&quot;os.version&quot;);</span>
+<span class="nc" id="L84">        osArchitecture = System.getProperty(&quot;os.arch&quot;);</span>
+<span class="nc" id="L85">        javaVendor = System.getProperty(&quot;java.vendor&quot;);</span>
+<span class="nc" id="L86">        javaVersion = System.getProperty(&quot;java.version&quot;);</span>
+<span class="nc" id="L87">        jvmName = System.getProperty(&quot;java.vm.name&quot;);</span>
+<span class="nc" id="L88">        jvmVersion = System.getProperty(&quot;java.vm.version&quot;);</span>
+<span class="nc" id="L89">        contextInCoreRegistry = CoreRegistry.get(Context.class);</span>
+<span class="nc" id="L90">        DisplayDevice display = contextInCoreRegistry.get(DisplayDevice.class);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (!display.isHeadless()) {</span>
+<span class="nc" id="L92">            openGLVendor = GL11.glGetString(GL11.GL_VENDOR);</span>
+<span class="nc" id="L93">            openGLVersion = GL11.glGetString(GL11.GL_VERSION);</span>
+<span class="nc" id="L94">            openGLRenderer = GL11.glGetString(GL11.GL_RENDERER);</span>
+        } else {
+<span class="nc" id="L96">            openGLVendor = &quot;headless&quot;;</span>
+<span class="nc" id="L97">            openGLVersion = &quot;headless&quot;;</span>
+<span class="nc" id="L98">            openGLRenderer = &quot;headless&quot;;</span>
+        }
+<span class="nc" id="L100">        processorNumbers = Runtime.getRuntime().availableProcessors();</span>
+<span class="nc" id="L101">        memoryMaxByte = Runtime.getRuntime().maxMemory();</span>
+<span class="nc" id="L102">    }</span>
+
+    @Override
+    public Optional&lt;Unstructured&gt; getUnstructuredMetric() {
+<span class="nc" id="L106">        createTelemetryFieldToValue();</span>
+<span class="nc" id="L107">        Map&lt;String, Object&gt; filteredMetricMap = filterMetricMap(bindingMap);</span>
+<span class="nc" id="L108">        return getUnstructuredMetric(SCHEMA_OS, filteredMetricMap);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

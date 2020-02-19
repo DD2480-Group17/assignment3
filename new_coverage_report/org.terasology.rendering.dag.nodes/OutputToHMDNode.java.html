@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OutputToHMDNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">OutputToHMDNode.java</span></div><h1>OutputToHMDNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import jopenvr.JOpenVRLibrary;
+import org.lwjgl.opengl.GL11;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.dag.ConditionDependentNode;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FBOConfig;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.openvrprovider.OpenVRProvider;
+import org.terasology.rendering.world.WorldRenderer.RenderingStage;
+
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glBindFramebufferEXT;
+import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
+import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
+import static org.lwjgl.opengl.GL11.glClear;
+import static org.terasology.rendering.opengl.OpenGLUtils.renderFullscreenQuad;
+import static org.terasology.rendering.opengl.ScalingFactors.FULL_SCALE;
+import static org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs.FINAL_BUFFER;
+
+public class OutputToHMDNode extends ConditionDependentNode {
+<span class="nc" id="L43">    private static final SimpleUri LEFT_EYE_FBO_URI = new SimpleUri(&quot;engine:fbo.leftEye&quot;);</span>
+<span class="nc" id="L44">    private static final SimpleUri RIGHT_EYE_FBO_URI = new SimpleUri(&quot;engine:fbo.rightEye&quot;);</span>
+<span class="nc" id="L45">    private static final ResourceUrn DEFAULT_TEXTURED_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.defaultTextured&quot;);</span>
+    // TODO: make these configurable options
+
+    private OpenVRProvider vrProvider;
+
+    private FBO leftEyeFbo;
+    private FBO rightEyeFbo;
+    private FBO finalFbo;
+
+    /**
+     * Constructs an instance of this node. Specifically, initialize the vrProvider and pass the frame buffer
+     * information for the vrProvider to use.
+     */
+    public OutputToHMDNode(String nodeUri, Context context) {
+<span class="nc" id="L59">        super(nodeUri, context);</span>
+
+<span class="nc" id="L61">        vrProvider = context.get(OpenVRProvider.class);</span>
+<span class="nc bnc" id="L62" title="All 4 branches missed.">        requiresCondition(() -&gt; (context.get(Config.class).getRendering().isVrSupport() &amp;&amp; vrProvider.isInitialized()));</span>
+
+        // TODO: Consider reworking this, since it might cause problems later, when we support switching vr in-game.
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (this.isEnabled()) {</span>
+<span class="nc" id="L66">            DisplayResolutionDependentFBOs displayResolutionDependentFBOs = context.get(DisplayResolutionDependentFBOs.class);</span>
+
+<span class="nc" id="L68">            leftEyeFbo = requiresFBO(new FBOConfig(LEFT_EYE_FBO_URI, FULL_SCALE, FBO.Type.DEFAULT).useDepthBuffer(), displayResolutionDependentFBOs);</span>
+<span class="nc" id="L69">            rightEyeFbo = requiresFBO(new FBOConfig(RIGHT_EYE_FBO_URI, FULL_SCALE, FBO.Type.DEFAULT).useDepthBuffer(), displayResolutionDependentFBOs);</span>
+<span class="nc" id="L70">            finalFbo = displayResolutionDependentFBOs.get(FINAL_BUFFER);</span>
+
+<span class="nc" id="L72">            vrProvider.texType[0].handle = leftEyeFbo.getColorBufferTextureId();</span>
+<span class="nc" id="L73">            vrProvider.texType[0].eColorSpace = JOpenVRLibrary.EColorSpace.EColorSpace_ColorSpace_Gamma;</span>
+<span class="nc" id="L74">            vrProvider.texType[0].eType = JOpenVRLibrary.EGraphicsAPIConvention.EGraphicsAPIConvention_API_OpenGL;</span>
+<span class="nc" id="L75">            vrProvider.texType[0].write();</span>
+<span class="nc" id="L76">            vrProvider.texType[1].handle = rightEyeFbo.getColorBufferTextureId();</span>
+<span class="nc" id="L77">            vrProvider.texType[1].eColorSpace = JOpenVRLibrary.EColorSpace.EColorSpace_ColorSpace_Gamma;</span>
+<span class="nc" id="L78">            vrProvider.texType[1].eType = JOpenVRLibrary.EGraphicsAPIConvention.EGraphicsAPIConvention_API_OpenGL;</span>
+<span class="nc" id="L79">            vrProvider.texType[1].write();</span>
+
+<span class="nc" id="L81">            addDesiredStateChange(new EnableMaterial(DEFAULT_TEXTURED_MATERIAL_URN));</span>
+        }
+<span class="nc" id="L83">    }</span>
+
+    /**
+     * Actually perform the rendering-related tasks.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L90">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+<span class="nc" id="L91">        finalFbo.bindTexture();</span>
+<span class="nc" id="L92">        renderFinalStereoImage(worldRenderer.getCurrentRenderStage());</span>
+<span class="nc" id="L93">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L94">    }</span>
+
+    private void renderFinalStereoImage(RenderingStage renderingStage) {
+        // TODO: verify if we can use glCopyTexSubImage2D instead of pass-through shaders,
+        // TODO: in terms of code simplicity and performance.
+<span class="nc bnc" id="L99" title="All 3 branches missed.">        switch (renderingStage) {</span>
+            case LEFT_EYE:
+<span class="nc" id="L101">                vrProvider.updateState();</span>
+<span class="nc" id="L102">                leftEyeFbo.bind();</span>
+<span class="nc" id="L103">                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);</span>
+<span class="nc" id="L104">                renderFullscreenQuad();</span>
+<span class="nc" id="L105">                break;</span>
+
+            case RIGHT_EYE:
+<span class="nc" id="L108">                rightEyeFbo.bind();</span>
+<span class="nc" id="L109">                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);</span>
+<span class="nc" id="L110">                renderFullscreenQuad();</span>
+<span class="nc" id="L111">                vrProvider.submitFrame();</span>
+<span class="nc" id="L112">                GL11.glFinish();</span>
+                break;
+        }
+
+        // Bind the default FBO. The DAG does not recognize that this node has
+        // bound a different FBO, so as far as it is concerned, FBO 0 is still
+        // bound. As a result, without the below line, the image is only copied
+        // to the HMD - not to the screen as we would like. To get around this,
+        // we bind the default FBO here at the end.  This is a bit brittle
+        // because it assumes that FBO 0 is bound before this node is run.
+        // TODO: break this node into two different nodes that use addDesiredStateChange(BindFbo...))
+<span class="nc" id="L123">        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);</span>
+<span class="nc" id="L124">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MD5SkeletonLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.md5</a> &gt; <span class="el_source">MD5SkeletonLoader.java</span></div><h1>MD5SkeletonLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.rendering.md5;
+
+import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
+import gnu.trove.list.TIntList;
+import gnu.trove.list.array.TIntArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.rendering.assets.skeletalmesh.Bone;
+import org.terasology.rendering.assets.skeletalmesh.BoneWeight;
+import org.terasology.rendering.assets.skeletalmesh.SkeletalMeshData;
+import org.terasology.rendering.assets.skeletalmesh.SkeletalMeshDataBuilder;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+@RegisterAssetFileFormat
+public class MD5SkeletonLoader extends AbstractAssetFileFormat&lt;SkeletalMeshData&gt; {
+
+<span class="fc" id="L48">    private static final Logger logger = LoggerFactory.getLogger(MD5SkeletonLoader.class);</span>
+
+<span class="fc" id="L50">    private Pattern jointPattern = Pattern.compile(&quot;\&quot;(.*)\&quot;\\s+&quot; + MD5Patterns.INTEGER_PATTERN + </span>
+            &quot;\\s*&quot; + MD5Patterns.VECTOR3_PATTERN + &quot;\\s*&quot; + MD5Patterns.VECTOR3_PATTERN);
+<span class="fc" id="L52">    private Pattern vertPatten = Pattern.compile(&quot;vert\\s+&quot; + MD5Patterns.INTEGER_PATTERN + </span>
+            &quot;\\s+&quot; + MD5Patterns.VECTOR2_PATTERN + &quot;\\s+&quot; + MD5Patterns.INTEGER_PATTERN + 
+            &quot;\\s+&quot; + MD5Patterns.INTEGER_PATTERN);
+<span class="fc" id="L55">    private Pattern triPattern = Pattern.compile(&quot;tri\\s+&quot; + MD5Patterns.INTEGER_PATTERN + </span>
+            &quot;\\s+&quot; + MD5Patterns.INTEGER_PATTERN + &quot;\\s+&quot; + MD5Patterns.INTEGER_PATTERN + 
+            &quot;\\s+&quot; + MD5Patterns.INTEGER_PATTERN);
+<span class="fc" id="L58">    private Pattern weightPattern = Pattern.compile(&quot;weight\\s+&quot; + MD5Patterns.INTEGER_PATTERN + </span>
+            &quot;\\s+&quot; + MD5Patterns.INTEGER_PATTERN + &quot;\\s+&quot; + MD5Patterns.FLOAT_PATTERN + 
+            &quot;\\s+&quot; + MD5Patterns.VECTOR3_PATTERN);
+
+    public MD5SkeletonLoader() {
+<span class="fc" id="L63">        super(&quot;md5mesh&quot;);</span>
+<span class="fc" id="L64">    }</span>
+
+    @Override
+    public SkeletalMeshData load(ResourceUrn urn, List&lt;AssetDataFile&gt; inputs) throws IOException {
+<span class="nc" id="L68">        try (InputStream stream = inputs.get(0).openStream()) {</span>
+<span class="nc" id="L69">            MD5 md5 = parse(stream);</span>
+<span class="nc" id="L70">            SkeletalMeshDataBuilder skeletonBuilder = new SkeletalMeshDataBuilder();</span>
+<span class="nc" id="L71">            List&lt;Bone&gt; bones = Lists.newArrayListWithCapacity(md5.numJoints);</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            for (int i = 0; i &lt; md5.numJoints; ++i) {</span>
+<span class="nc" id="L73">                MD5Joint joint = md5.joints[i];</span>
+<span class="nc" id="L74">                Bone bone = new Bone(i, joint.name, joint.position, joint.orientation);</span>
+<span class="nc" id="L75">                bones.add(bone);</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                if (joint.parent != -1) {</span>
+<span class="nc" id="L77">                    bones.get(joint.parent).addChild(bone);</span>
+                }
+<span class="nc" id="L79">                skeletonBuilder.addBone(bone);</span>
+            }
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (md5.meshes.length &gt; 0) {</span>
+                // TODO: Support multiple mesh somehow?
+<span class="nc" id="L83">                MD5Mesh mesh = md5.meshes[0];</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">                for (MD5Weight weight : mesh.weightList) {</span>
+<span class="nc" id="L85">                    skeletonBuilder.addWeight(new BoneWeight(weight.position, weight.bias, weight.jointIndex));</span>
+                }
+
+<span class="nc" id="L88">                List&lt;Vector2f&gt; uvs = Lists.newArrayList();</span>
+<span class="nc" id="L89">                TIntList vertexStartWeight = new TIntArrayList(mesh.numVertices);</span>
+<span class="nc" id="L90">                TIntList vertexWeightCount = new TIntArrayList(mesh.numVertices);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                for (MD5Vertex vert : mesh.vertexList) {</span>
+<span class="nc" id="L92">                    uvs.add(vert.uv);</span>
+<span class="nc" id="L93">                    vertexStartWeight.add(vert.startWeight);</span>
+<span class="nc" id="L94">                    vertexWeightCount.add(vert.countWeight);</span>
+                }
+<span class="nc" id="L96">                skeletonBuilder.setVertexWeights(vertexStartWeight, vertexWeightCount);</span>
+<span class="nc" id="L97">                skeletonBuilder.setUvs(uvs);</span>
+<span class="nc" id="L98">                TIntList indices = new TIntArrayList(mesh.indexList.length);</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">                for (int i = 0; i &lt; mesh.numTriangles; ++i) {</span>
+<span class="nc" id="L100">                    indices.add(mesh.indexList[i * 3]);</span>
+<span class="nc" id="L101">                    indices.add(mesh.indexList[i * 3 + 2]);</span>
+<span class="nc" id="L102">                    indices.add(mesh.indexList[i * 3 + 1]);</span>
+                }
+<span class="nc" id="L104">                skeletonBuilder.setIndices(indices);</span>
+            }
+
+<span class="nc" id="L107">            return skeletonBuilder.build();</span>
+<span class="nc" id="L108">        } catch (NumberFormatException e) {</span>
+<span class="nc" id="L109">            throw new IOException(&quot;Error parsing &quot; + inputs.get(0).getFilename(), e);</span>
+        }
+    }
+
+    private MD5 parse(InputStream stream) throws IOException {
+<span class="nc" id="L114">        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, Charsets.UTF_8));</span>
+<span class="nc" id="L115">        MD5 md5 = new MD5();</span>
+<span class="nc" id="L116">        String line = MD5ParserCommon.readToLine(reader, &quot;MD5Version &quot;);</span>
+<span class="nc" id="L117">        md5.version = Integer.parseInt(line.split(&quot; &quot;, 3)[1]);</span>
+
+<span class="nc" id="L119">        line = MD5ParserCommon.readToLine(reader, &quot;commandline &quot;);</span>
+<span class="nc" id="L120">        Matcher commandlineMatch = Pattern.compile(MD5Patterns.COMMAND_LINE_PATTERN).matcher(line);</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        if (commandlineMatch.matches()) {</span>
+<span class="nc" id="L122">            md5.commandline = commandlineMatch.group(1);</span>
+        }
+
+<span class="nc" id="L125">        line = MD5ParserCommon.readToLine(reader, &quot;numJoints &quot;);</span>
+<span class="nc" id="L126">        md5.numJoints = Integer.parseInt(line.split(&quot; &quot;, 3)[1]);</span>
+<span class="nc" id="L127">        line = MD5ParserCommon.readToLine(reader, &quot;numMeshes &quot;);</span>
+<span class="nc" id="L128">        md5.numMeshes = Integer.parseInt(line.split(&quot; &quot;, 3)[1]);</span>
+
+<span class="nc" id="L130">        MD5ParserCommon.readToLine(reader, &quot;joints {&quot;);</span>
+<span class="nc" id="L131">        readJoints(reader, md5);</span>
+
+<span class="nc" id="L133">        md5.meshes = new MD5Mesh[md5.numMeshes];</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        for (int i = 0; i &lt; md5.numMeshes; ++i) {</span>
+<span class="nc" id="L135">            MD5ParserCommon.readToLine(reader, &quot;mesh {&quot;);</span>
+<span class="nc" id="L136">            md5.meshes[i] = readMesh(reader);</span>
+        }
+
+<span class="nc" id="L139">        return md5;</span>
+    }
+
+    private MD5Mesh readMesh(BufferedReader reader) throws IOException {
+<span class="nc" id="L143">        MD5Mesh mesh = new MD5Mesh();</span>
+<span class="nc" id="L144">        String line = MD5ParserCommon.readToLine(reader, &quot;numverts &quot;);</span>
+<span class="nc" id="L145">        mesh.numVertices = Integer.parseInt(line.trim().split(&quot; &quot;, 3)[1]);</span>
+<span class="nc" id="L146">        mesh.vertexList = new MD5Vertex[mesh.numVertices];</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        for (int i = 0; i &lt; mesh.numVertices; ++i) {</span>
+<span class="nc" id="L148">            line = MD5ParserCommon.readNextLine(reader);</span>
+<span class="nc" id="L149">            Matcher matcher = vertPatten.matcher(line);</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">            if (!matcher.find()) {</span>
+<span class="nc" id="L151">                throw new IOException(&quot;Invalid vertex line \&quot;&quot; + line + &quot;\&quot;&quot;);</span>
+            }
+<span class="nc" id="L153">            int index = Integer.parseInt(matcher.group(1));</span>
+<span class="nc" id="L154">            MD5Vertex vert = new MD5Vertex();</span>
+<span class="nc" id="L155">            vert.uv = MD5ParserCommon.readUV(matcher.group(2), matcher.group(3));</span>
+<span class="nc" id="L156">            vert.startWeight = Integer.parseInt(matcher.group(4));</span>
+<span class="nc" id="L157">            vert.countWeight = Integer.parseInt(matcher.group(5));</span>
+<span class="nc" id="L158">            mesh.vertexList[index] = vert;</span>
+        }
+
+<span class="nc" id="L161">        line = MD5ParserCommon.readToLine(reader, &quot;numtris &quot;);</span>
+<span class="nc" id="L162">        mesh.numTriangles = Integer.parseInt(line.trim().split(&quot; &quot;, 3)[1]);</span>
+<span class="nc" id="L163">        mesh.indexList = new int[mesh.numTriangles * 3];</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        for (int i = 0; i &lt; mesh.numTriangles; ++i) {</span>
+<span class="nc" id="L165">            line = MD5ParserCommon.readNextLine(reader);</span>
+<span class="nc" id="L166">            Matcher matcher = triPattern.matcher(line);</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">            if (!matcher.find()) {</span>
+<span class="nc" id="L168">                throw new IOException(&quot;Invalid triangle line \&quot;&quot; + line + &quot;\&quot;&quot;);</span>
+            }
+<span class="nc" id="L170">            int triIndex = Integer.parseInt(matcher.group(1));</span>
+<span class="nc" id="L171">            mesh.indexList[3 * triIndex] = Integer.parseInt(matcher.group(2));</span>
+<span class="nc" id="L172">            mesh.indexList[3 * triIndex + 1] = Integer.parseInt(matcher.group(3));</span>
+<span class="nc" id="L173">            mesh.indexList[3 * triIndex + 2] = Integer.parseInt(matcher.group(4));</span>
+        }
+
+<span class="nc" id="L176">        line = MD5ParserCommon.readToLine(reader, &quot;numweights &quot;);</span>
+<span class="nc" id="L177">        mesh.numWeights = Integer.parseInt(line.trim().split(&quot; &quot;, 3)[1]);</span>
+<span class="nc" id="L178">        mesh.weightList = new MD5Weight[mesh.numWeights];</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        for (int i = 0; i &lt; mesh.numWeights; ++i) {</span>
+<span class="nc" id="L180">            line = MD5ParserCommon.readNextLine(reader);</span>
+<span class="nc" id="L181">            Matcher matcher = weightPattern.matcher(line);</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            if (!matcher.find()) {</span>
+<span class="nc" id="L183">                throw new IOException(&quot;Invalid weight line \&quot;&quot; + line + &quot;\&quot;&quot;);</span>
+            }
+<span class="nc" id="L185">            int weightIndex = Integer.parseInt(matcher.group(1));</span>
+<span class="nc" id="L186">            MD5Weight weight = new MD5Weight();</span>
+<span class="nc" id="L187">            weight.jointIndex = Integer.parseInt(matcher.group(2));</span>
+<span class="nc" id="L188">            weight.bias = Float.parseFloat(matcher.group(3));</span>
+<span class="nc" id="L189">            weight.position = MD5ParserCommon.readVector3f(matcher.group(4), matcher.group(5), matcher.group(6));</span>
+<span class="nc" id="L190">            mesh.weightList[weightIndex] = weight;</span>
+        }
+<span class="nc" id="L192">        return mesh;</span>
+    }
+
+    private void readJoints(BufferedReader reader, MD5 md5) throws IOException {
+<span class="nc" id="L196">        md5.joints = new MD5Joint[md5.numJoints];</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        for (int i = 0; i &lt; md5.numJoints; ++i) {</span>
+<span class="nc" id="L198">            String line = MD5ParserCommon.readNextLine(reader);</span>
+<span class="nc" id="L199">            Matcher matcher = jointPattern.matcher(line);</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">            if (!matcher.find()) {</span>
+<span class="nc" id="L201">                throw new IOException(&quot;Invalid joint line: \&quot;&quot; + line + &quot;\&quot;&quot;);</span>
+            }
+<span class="nc" id="L203">            MD5Joint joint = new MD5Joint();</span>
+<span class="nc" id="L204">            joint.name = matcher.group(1);</span>
+<span class="nc" id="L205">            joint.parent = Integer.parseInt(matcher.group(2));</span>
+<span class="nc" id="L206">            joint.position = MD5ParserCommon.readVector3fAndCorrect(matcher.group(3), matcher.group(4), matcher.group(5));</span>
+<span class="nc" id="L207">            joint.orientation = MD5ParserCommon.readQuat4f(matcher.group(6), matcher.group(7), matcher.group(8));</span>
+<span class="nc" id="L208">            md5.joints[i] = joint;</span>
+<span class="nc" id="L209">            logger.trace(&quot;Read joint: {}&quot;, joint.name);</span>
+        }
+<span class="nc" id="L211">    }</span>
+
+    private static class MD5 {
+        int version;
+        String commandline;
+        int numJoints;
+        int numMeshes;
+
+        MD5Joint[] joints;
+        MD5Mesh[] meshes;
+    }
+
+    private static class MD5Joint {
+        String name;
+        int parent;
+        Vector3f position;
+        Quat4f orientation;
+    }
+
+    private static class MD5Mesh {
+        int numVertices;
+        MD5Vertex[] vertexList;
+        int numTriangles;
+        int[] indexList;
+        int numWeights;
+        MD5Weight[] weightList;
+    }
+
+    private static class MD5Vertex {
+        Vector2f uv;
+        int startWeight;
+        int countWeight;
+    }
+
+    private static class MD5Weight {
+        int jointIndex;
+        float bias;
+        Vector3f position;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,743 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CoreCommands.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.console.commands</a> &gt; <span class="el_source">CoreCommands.java</span></div><h1>CoreCommands.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.console.commands;
+
+import com.google.common.collect.Ordering;
+import com.google.common.collect.Streams;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.config.Config;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.Time;
+import org.terasology.engine.modes.StateLoading;
+import org.terasology.engine.modes.StateMainMenu;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityManager;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.prefab.PrefabManager;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.i18n.TranslationProject;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.logic.console.Console;
+import org.terasology.logic.console.ConsoleColors;
+import org.terasology.logic.console.commandSystem.ConsoleCommand;
+import org.terasology.logic.console.commandSystem.annotations.Command;
+import org.terasology.logic.console.commandSystem.annotations.CommandParam;
+import org.terasology.logic.console.commandSystem.annotations.Sender;
+import org.terasology.logic.console.suggesters.CommandNameSuggester;
+import org.terasology.logic.console.suggesters.ScreenSuggester;
+import org.terasology.logic.console.suggesters.SkinSuggester;
+import org.terasology.logic.inventory.events.DropItemEvent;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.permission.PermissionManager;
+import org.terasology.math.Direction;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.naming.Name;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.JoinStatus;
+import org.terasology.network.NetworkMode;
+import org.terasology.network.NetworkSystem;
+import org.terasology.network.PingService;
+import org.terasology.network.Server;
+import org.terasology.persistence.WorldDumper;
+import org.terasology.persistence.serializers.PrefabSerializer;
+import org.terasology.registry.In;
+import org.terasology.rendering.FontColor;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.asset.UIElement;
+import org.terasology.rendering.nui.editor.layers.NUIEditorScreen;
+import org.terasology.rendering.nui.editor.layers.NUISkinEditorScreen;
+import org.terasology.rendering.nui.editor.systems.NUIEditorSystem;
+import org.terasology.rendering.nui.editor.systems.NUISkinEditorSystem;
+import org.terasology.rendering.nui.layers.mainMenu.MessagePopup;
+import org.terasology.rendering.nui.layers.mainMenu.WaitPopup;
+import org.terasology.rendering.nui.skin.UISkin;
+import org.terasology.utilities.Assets;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.BlockUri;
+import org.terasology.world.block.family.BlockFamily;
+import org.terasology.world.block.items.BlockItemFactory;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+
+import java.io.IOException;
+import java.net.UnknownHostException;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import java.util.List;
+import java.util.Set;
+import java.util.LinkedList;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Arrays;
+
+/**
+ * Adds a series of useful commands to the game. Likely these could be moved to more fitting places over time.
+ */
+@RegisterSystem
+<span class="nc" id="L100">public class CoreCommands extends BaseComponentSystem {</span>
+
+    @In
+    private EntityManager entityManager;
+
+    @In
+    private PrefabManager prefabManager;
+
+    @In
+    private BlockManager blockManager;
+
+    @In
+    private Console console;
+
+    @In
+    private Time time;
+
+    @In
+    private GameEngine gameEngine;
+
+    @In
+    private NetworkSystem networkSystem;
+
+    @In
+    private DisplayDevice displayDevice;
+
+    @In
+    private NUIManager nuiManager;
+
+    @In
+    private NUIEditorSystem nuiEditorSystem;
+
+    @In
+    private NUISkinEditorSystem nuiSkinEditorSystem;
+
+    @In
+    private AssetManager assetManager;
+
+    @In
+    private TranslationSystem translationSystem;
+
+    @In
+    private Config config;
+
+    @In
+    private ModuleManager moduleManager;
+
+    /**
+     * Determine if command is matching one of criteria
+     *
+     * @param searchLowercase searched string
+     * @param command         ConsoleCommand to check if matches searched string
+     * @return boolean containing true if command matches searched string else false
+     */
+    private static boolean matchesSearch(String searchLowercase, ConsoleCommand command) {
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        return command.getName().toLowerCase().contains(searchLowercase)</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                || command.getDescription().toLowerCase().contains(searchLowercase)</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                || command.getHelpText().toLowerCase().contains(searchLowercase)</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                || command.getUsage().toLowerCase().contains(searchLowercase)</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">                || command.getRequiredPermission().toLowerCase().contains(searchLowercase);</span>
+    }
+
+    /**
+     * Determine if prefab is matching one of criteria
+     *
+     * @param searchLowercase searched String
+     * @param prefab          Prefab to check if matches searched string
+     * @return boolean containing true if prefab matches searched string else false
+     */
+    private static boolean matchesSearch(String searchLowercase, Prefab prefab) {
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        return prefab.getName().toLowerCase().contains(searchLowercase)</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">                || prefab.getUrn().toString().toLowerCase().contains(searchLowercase);</span>
+    }
+
+    /**
+     * Determine if block family matches one of criteria
+     *
+     * @param searchLowercase searched string
+     * @param def             BlockFamilyDefinition to be checked
+     * @return boolean containing true if blockFamilyDefinition matches searched string else false
+     */
+    private static boolean matchesSearch(String searchLowercase, BlockFamilyDefinition def) {
+<span class="nc" id="L182">        return def.getUrn().toString().toLowerCase().contains(searchLowercase);</span>
+    }
+
+    /**
+     * Search commands/prefabs/assets with matching name, description, help text, usage or required permission
+     *
+     * @param searched String which is used to search for match
+     * @return String containing result of search
+     */
+    @Command(shortDescription = &quot;Search commands/prefabs/assets&quot;,
+            helpText = &quot;Displays commands, prefabs, and assets with matching name, description, &quot;
+                    + &quot;help text, usage or required permission&quot;)
+    public String search(@CommandParam(&quot;searched&quot;) String searched) {
+<span class="nc" id="L195">        String searchLowercase = searched.toLowerCase();</span>
+
+<span class="nc" id="L197">        List&lt;String&gt; commands = findCommandMatches(searchLowercase);</span>
+<span class="nc" id="L198">        List&lt;String&gt; prefabs = findPrefabMatches(searchLowercase);</span>
+<span class="nc" id="L199">        List&lt;String&gt; blocks = findBlockMatches(searchLowercase);</span>
+
+        // String containing numbers of commands, prefabs and block that match searched string
+<span class="nc" id="L202">        String result = &quot;Found &quot; + commands.size() + &quot; command matches, &quot; + prefabs.size() +</span>
+<span class="nc" id="L203">                &quot; prefab matches and &quot; + blocks.size() + &quot; block matches when searching for '&quot; + searched + &quot;'.&quot;;</span>
+
+        // iterate through commands adding them to result
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        if (!commands.isEmpty()) {</span>
+<span class="nc" id="L207">            result += &quot;\nCommands:&quot;;</span>
+<span class="nc" id="L208">            result = commands.stream().reduce(result, (t, u) -&gt; t + &quot;\n    &quot; + u);</span>
+        }
+
+        // iterate through prefabs adding them to result
+<span class="nc bnc" id="L212" title="All 2 branches missed.">        if (!prefabs.isEmpty()) {</span>
+<span class="nc" id="L213">            result += &quot;\nPrefabs:&quot;;</span>
+<span class="nc" id="L214">            result = prefabs.stream().reduce(result, (t, u) -&gt; t + &quot;\n    &quot; + u);</span>
+        }
+
+        // iterate through blocks adding them to result
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if (!blocks.isEmpty()) {</span>
+<span class="nc" id="L219">            result += &quot;\nBlocks:&quot;;</span>
+<span class="nc" id="L220">            result = blocks.stream().reduce(result, (t, u) -&gt; t + &quot;\n    &quot; + u);</span>
+        }
+
+<span class="nc" id="L223">        return result;</span>
+    }
+
+    /**
+     * List commands that match searched string
+     *
+     * @param searchLowercase searched string lowercase
+     * @return List of commands that match searched string
+     */
+    private List&lt;String&gt; findCommandMatches(String searchLowercase) {
+<span class="nc" id="L233">        return console.getCommands().stream().filter(command -&gt; matchesSearch(searchLowercase, command))</span>
+<span class="nc" id="L234">                .map(ConsoleCommand::getUsage).collect(Collectors.toList());</span>
+    }
+
+    /**
+     * List prefabs that match searched string
+     *
+     * @param searchLowercase searched string
+     * @return List of prefabs that match searched string
+     */
+    private List&lt;String&gt; findPrefabMatches(String searchLowercase) {
+<span class="nc" id="L244">        return StreamSupport.stream(prefabManager.listPrefabs().spliterator(), false)</span>
+<span class="nc" id="L245">                .filter(prefab -&gt; matchesSearch(searchLowercase, prefab))</span>
+<span class="nc" id="L246">                .map(prefab -&gt; prefab.getUrn().toString()).collect(Collectors.toList());</span>
+    }
+
+    /**
+     * List blocks that match searched string
+     *
+     * @param searchLowercase searched string
+     * @return List of blocks that match searched string
+     */
+    private List&lt;String&gt; findBlockMatches(String searchLowercase) {
+<span class="nc" id="L256">        return assetManager.getAvailableAssets(BlockFamilyDefinition.class)</span>
+<span class="nc" id="L257">                .stream().&lt;Optional&lt;BlockFamilyDefinition&gt;&gt;map(urn -&gt; assetManager.getAsset(urn, BlockFamilyDefinition.class))</span>
+<span class="nc bnc" id="L258" title="All 6 branches missed.">                .filter(def -&gt; def.isPresent() &amp;&amp; def.get().isLoadable() &amp;&amp; matchesSearch(searchLowercase, def.get()))</span>
+<span class="nc" id="L259">                .map(r -&gt; new BlockUri(r.get().getUrn()).toString()).collect(Collectors.toList());</span>
+    }
+
+    /**
+     * Time dilation slows down the passage of time by affecting how the main game loop runs,
+     * with the goal being to handle high-latency situations by spreading out processing over a longer amount of time
+     *
+     * @param rate float time dilation
+     */
+    @Command(shortDescription = &quot;Alter the rate of time&quot;)
+    public void setTimeDilation(@CommandParam(&quot;dilation&quot;) float rate) {
+<span class="nc" id="L270">        time.setGameTimeDilation(rate);</span>
+<span class="nc" id="L271">    }</span>
+
+    /**
+     * Change the UI language
+     *
+     * @param langTag String containing language code to change
+     * @return String containing language or if not recognized error message
+     */
+    @Command(shortDescription = &quot;Changes the UI language&quot;)
+    public String setLanguage(@CommandParam(&quot;language-tag&quot;) String langTag) {
+<span class="nc" id="L281">        Locale locale = Locale.forLanguageTag(langTag);</span>
+<span class="nc" id="L282">        TranslationProject proj = translationSystem.getProject(new SimpleUri(&quot;engine:menu&quot;));</span>
+
+        // Try if language exists
+<span class="nc bnc" id="L285" title="All 2 branches missed.">        if (proj.getAvailableLocales().contains(locale)) {</span>
+<span class="nc" id="L286">            config.getSystem().setLocale(locale);</span>
+<span class="nc" id="L287">            nuiManager.invalidate();</span>
+<span class="nc" id="L288">            String nat = translationSystem.translate(&quot;${engine:menu#this-language-native}&quot;, locale);</span>
+<span class="nc" id="L289">            String eng = translationSystem.translate(&quot;${engine:menu#this-language-English}&quot;, locale);</span>
+<span class="nc" id="L290">            return String.format(&quot;Language set to %s (%s)&quot;, nat, eng);</span>
+        } else {
+<span class="nc" id="L292">            return &quot;Unrecognized locale! Try one of: &quot; + proj.getAvailableLocales();</span>
+        }
+    }
+
+    /**
+     * Shows a ui screen
+     *
+     * @param uri String containing ui screen name
+     * @return String containing Success if UI was change or Not found if screen is missing
+     */
+    @Command(shortDescription = &quot;Shows a ui screen&quot;, helpText = &quot;Can be used for debugging/testing, example: \&quot;showScreen migTestScreen\&quot;&quot;)
+    public String showScreen(@CommandParam(value = &quot;uri&quot;, suggester = ScreenSuggester.class) String uri) {
+<span class="nc bnc" id="L304" title="All 2 branches missed.">        return nuiManager.pushScreen(uri) != null ? &quot;Success&quot; : &quot;Not found&quot;;</span>
+    }
+
+    /**
+     * Reloads ui screen
+     *
+     * @param ui String containing ui screen name
+     * @return String containing Success if UI was reloaded or No unique resource found if more screens were found
+     */
+    @Command(shortDescription = &quot;Reloads a ui screen&quot;)
+    public String reloadScreen(@CommandParam(&quot;ui&quot;) String ui) {
+<span class="nc" id="L315">        Set&lt;ResourceUrn&gt; urns = assetManager.resolve(ui, UIElement.class);</span>
+<span class="nc bnc" id="L316" title="All 2 branches missed.">        if (urns.size() == 1) {</span>
+<span class="nc" id="L317">            ResourceUrn urn = urns.iterator().next();</span>
+<span class="nc" id="L318">            boolean wasOpen = nuiManager.isOpen(urn);</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">            if (wasOpen) {</span>
+<span class="nc" id="L320">                nuiManager.closeScreen(urn);</span>
+            }
+
+<span class="nc bnc" id="L323" title="All 2 branches missed.">            if (wasOpen) {</span>
+<span class="nc" id="L324">                nuiManager.pushScreen(urn);</span>
+            }
+<span class="nc" id="L326">            return &quot;Success&quot;;</span>
+        } else {
+<span class="nc" id="L328">            return &quot;No unique resource found&quot;;</span>
+        }
+    }
+
+    /**
+     * Opens the NUI editor for a ui screen
+     *
+     * @param uri String containing ui screen name
+     * @return String containing final message
+     */
+    @Command(shortDescription = &quot;Opens the NUI editor for a ui screen&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public String editScreen(@CommandParam(value = &quot;uri&quot;, suggester = ScreenSuggester.class) String uri) {
+<span class="nc bnc" id="L340" title="All 2 branches missed.">        if (!nuiEditorSystem.isEditorActive()) {</span>
+<span class="nc" id="L341">            nuiEditorSystem.toggleEditor();</span>
+        }
+<span class="nc" id="L343">        Set&lt;ResourceUrn&gt; urns = assetManager.resolve(uri, UIElement.class);</span>
+<span class="nc bnc" id="L344" title="All 3 branches missed.">        switch (urns.size()) {</span>
+            case 0:
+<span class="nc" id="L346">                return String.format(&quot;No asset found for screen '%s'&quot;, uri);</span>
+            case 1:
+<span class="nc" id="L348">                ResourceUrn urn = urns.iterator().next();</span>
+<span class="nc" id="L349">                ((NUIEditorScreen) nuiManager.getScreen(NUIEditorScreen.ASSET_URI)).selectAsset(urn);</span>
+<span class="nc" id="L350">                return &quot;Success&quot;;</span>
+            default:
+<span class="nc" id="L352">                return String.format(&quot;Multiple matches for screen '%s': {%s}&quot;, uri, Arrays.toString(urns.toArray()));</span>
+        }
+    }
+
+    /**
+     * Opens the NUI editor for a ui skin
+     *
+     * @param uri String containing name of ui skin
+     * @return String containing final message
+     */
+    @Command(shortDescription = &quot;Opens the NUI editor for a ui skin&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public String editSkin(@CommandParam(value = &quot;uri&quot;, suggester = SkinSuggester.class) String uri) {
+<span class="nc bnc" id="L364" title="All 2 branches missed.">        if (!nuiSkinEditorSystem.isEditorActive()) {</span>
+<span class="nc" id="L365">            nuiSkinEditorSystem.toggleEditor();</span>
+        }
+<span class="nc" id="L367">        Set&lt;ResourceUrn&gt; urns = assetManager.resolve(uri, UISkin.class);</span>
+<span class="nc bnc" id="L368" title="All 3 branches missed.">        switch (urns.size()) {</span>
+            case 0:
+<span class="nc" id="L370">                return String.format(&quot;No asset found for screen '%s'&quot;, uri);</span>
+            case 1:
+<span class="nc" id="L372">                ResourceUrn urn = urns.iterator().next();</span>
+<span class="nc" id="L373">                ((NUISkinEditorScreen) nuiManager.getScreen(NUISkinEditorScreen.ASSET_URI)).selectAsset(urn);</span>
+<span class="nc" id="L374">                return &quot;Success&quot;;</span>
+            default:
+<span class="nc" id="L376">                return String.format(&quot;Multiple matches for screen '%s': {%s}&quot;, uri, Arrays.toString(urns.toArray()));</span>
+        }
+    }
+
+    /**
+     * Switches to fullscreen or to windowed mode
+     *
+     * @return String containing final message
+     */
+    @Command(shortDescription = &quot;Toggles Fullscreen Mode&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public String fullscreen() {
+<span class="nc bnc" id="L387" title="All 2 branches missed.">        displayDevice.setFullscreen(!displayDevice.isFullscreen());</span>
+<span class="nc bnc" id="L388" title="All 2 branches missed.">        if (displayDevice.isFullscreen()) {</span>
+<span class="nc" id="L389">            return &quot;Switched to fullscreen mode&quot;;</span>
+        } else {
+<span class="nc" id="L391">            return &quot;Switched to windowed mode&quot;;</span>
+        }
+    }
+
+    /**
+     * Removes all entities of the given prefab
+     *
+     * @param prefabName String containing prefab name
+     */
+    @Command(shortDescription = &quot;Removes all entities of the given prefab&quot;, runOnServer = true)
+    public void destroyEntitiesUsingPrefab(@CommandParam(&quot;prefabName&quot;) String prefabName) {
+<span class="nc" id="L402">        Prefab prefab = entityManager.getPrefabManager().getPrefab(prefabName);</span>
+<span class="nc bnc" id="L403" title="All 2 branches missed.">        if (prefab != null) {</span>
+<span class="nc bnc" id="L404" title="All 2 branches missed.">            for (EntityRef entity : entityManager.getAllEntities()) {</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">                if (prefab.equals(entity.getParentPrefab())) {</span>
+<span class="nc" id="L406">                    entity.destroy();</span>
+                }
+<span class="nc" id="L408">            }</span>
+        }
+<span class="nc" id="L410">    }</span>
+
+    /**
+     * Triggers a graceful shutdown of the game after the current frame, attempting to dispose all game resources
+     */
+    @Command(shortDescription = &quot;Exits the game&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public void exit() {
+<span class="nc" id="L417">        gameEngine.shutdown();</span>
+<span class="nc" id="L418">    }</span>
+
+    /**
+     * Join a game
+     *
+     * @param address   String containing address of game server
+     * @param portParam Integer containing game server port
+     */
+    @Command(shortDescription = &quot;Join a game&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public void join(@CommandParam(&quot;address&quot;) final String address, @CommandParam(value = &quot;port&quot;, required = false) Integer portParam) {
+<span class="nc bnc" id="L428" title="All 2 branches missed.">        final int port = portParam != null ? portParam : TerasologyConstants.DEFAULT_PORT;</span>
+
+<span class="nc" id="L430">        Callable&lt;JoinStatus&gt; operation = () -&gt; networkSystem.join(address, port);</span>
+
+<span class="nc" id="L432">        final WaitPopup&lt;JoinStatus&gt; popup = nuiManager.pushScreen(WaitPopup.ASSET_URI, WaitPopup.class);</span>
+<span class="nc" id="L433">        popup.setMessage(&quot;Join Game&quot;, &quot;Connecting to '&quot; + address + &quot;:&quot; + port + &quot;' - please wait ...&quot;);</span>
+<span class="nc" id="L434">        popup.onSuccess(result -&gt; {</span>
+<span class="nc bnc" id="L435" title="All 2 branches missed.">            if (result.getStatus() != JoinStatus.Status.FAILED) {</span>
+<span class="nc" id="L436">                gameEngine.changeState(new StateLoading(result));</span>
+            } else {
+<span class="nc" id="L438">                MessagePopup screen = nuiManager.pushScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L439">                screen.setMessage(&quot;Failed to Join&quot;, &quot;Could not connect to server - &quot; + result.getErrorMessage());</span>
+            }
+<span class="nc" id="L441">        });</span>
+<span class="nc" id="L442">        popup.startOperation(operation, true);</span>
+<span class="nc" id="L443">    }</span>
+
+    /**
+     * Leaves the current game and returns to main menu
+     *
+     * @return String containing final message
+     */
+    @Command(shortDescription = &quot;Leaves the current game and returns to main menu&quot;,
+            requiredPermission = PermissionManager.NO_PERMISSION)
+    public String leave() {
+<span class="nc bnc" id="L453" title="All 2 branches missed.">        if (networkSystem.getMode() != NetworkMode.NONE) {</span>
+<span class="nc" id="L454">            gameEngine.changeState(new StateMainMenu());</span>
+<span class="nc" id="L455">            return &quot;Leaving..&quot;;</span>
+        } else {
+<span class="nc" id="L457">            return &quot;Not connected&quot;;</span>
+        }
+    }
+
+    /**
+     * Writes out information on entities having specific components to a text file for debugging
+     * If no component names provided - writes out information on all entities
+     *
+     * @param componentNames string contains one or several component names, if more then one name
+     *                       provided - they must be braced with double quotes and all names separated
+     *                       by space
+     * @return String containing information about number of entities saved
+     * @throws IOException thrown when error with saving file occures
+     */
+    @Command(shortDescription = &quot;Writes out information on all entities to a text file for debugging&quot;,
+            helpText = &quot;Writes entity information out into a file named \&quot;entityDump.txt\&quot;.&quot; +
+                    &quot; Supports list of component names, which will be used to only save entities that contains&quot; +
+                    &quot; one or more of those components. Names should be separated by spaces.&quot;)
+    public String dumpEntities(@CommandParam(value = &quot;componentNames&quot;, required = false) String... componentNames) throws IOException {
+        int savedEntityCount;
+<span class="nc" id="L477">        EngineEntityManager engineEntityManager = (EngineEntityManager) entityManager;</span>
+<span class="nc" id="L478">        PrefabSerializer prefabSerializer = new PrefabSerializer(engineEntityManager.getComponentLibrary(), engineEntityManager.getTypeSerializerLibrary());</span>
+<span class="nc" id="L479">        WorldDumper worldDumper = new WorldDumper(engineEntityManager, prefabSerializer);</span>
+<span class="nc bnc" id="L480" title="All 2 branches missed.">        if (componentNames.length == 0) {</span>
+<span class="nc" id="L481">            savedEntityCount = worldDumper .save(PathManager.getInstance().getHomePath().resolve(&quot;entityDump.txt&quot;));</span>
+        } else {
+<span class="nc" id="L483">            List&lt;Class&lt;? extends Component&gt;&gt; filterComponents = Arrays.stream(componentNames)</span>
+<span class="nc" id="L484">                    .map(String::trim) //Trim off whitespace</span>
+<span class="nc bnc" id="L485" title="All 2 branches missed.">                    .filter(o -&gt; !o.isEmpty()) //Remove empty strings</span>
+<span class="nc bnc" id="L486" title="All 2 branches missed.">                    .map(o -&gt; o.toLowerCase().endsWith(&quot;component&quot;) ? o : o + &quot;component&quot;) //All component class names finish with &quot;component&quot;</span>
+<span class="nc" id="L487">                    .map(o -&gt; Streams.stream(moduleManager.getEnvironment().getSubtypesOf(Component.class))</span>
+<span class="nc" id="L488">                            .filter(e -&gt; e.getSimpleName().equalsIgnoreCase(o))</span>
+<span class="nc" id="L489">                            .findFirst())</span>
+<span class="nc" id="L490">                    .filter(Optional::isPresent)</span>
+<span class="nc" id="L491">                    .map(Optional::get)</span>
+<span class="nc" id="L492">                    .collect(Collectors.toList());</span>
+<span class="nc bnc" id="L493" title="All 2 branches missed.">            if (!filterComponents.isEmpty()) {</span>
+<span class="nc" id="L494">                savedEntityCount = worldDumper.save(PathManager.getInstance().getHomePath().resolve(&quot;entityDump.txt&quot;), filterComponents);</span>
+            } else {
+<span class="nc" id="L496">                return &quot;Could not find components matching given names&quot;;</span>
+            }
+        }
+<span class="nc" id="L499">        return &quot;Number of entities saved: &quot; + savedEntityCount;</span>
+    }
+
+    /**
+     * Spawns an instance of a prefab in the world
+     *
+     * @param sender     Sender of command
+     * @param prefabName String containing prefab name
+     * @return String containing final message
+     */
+    @Command(shortDescription = &quot;Spawns an instance of a prefab in the world&quot;, runOnServer = true, requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String spawnPrefab(@Sender EntityRef sender, @CommandParam(&quot;prefabId&quot;) String prefabName) {
+<span class="nc" id="L511">        ClientComponent clientComponent = sender.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L512">        LocationComponent characterLocation = clientComponent.character.getComponent(LocationComponent.class);</span>
+
+
+<span class="nc" id="L515">        Vector3f spawnPos = characterLocation.getWorldPosition();</span>
+<span class="nc" id="L516">        Vector3f offset = new Vector3f(characterLocation.getWorldDirection());</span>
+<span class="nc" id="L517">        offset.scale(2);</span>
+<span class="nc" id="L518">        spawnPos.add(offset);</span>
+<span class="nc" id="L519">        Vector3f dir = new Vector3f(characterLocation.getWorldDirection());</span>
+<span class="nc" id="L520">        dir.y = 0;</span>
+<span class="nc bnc" id="L521" title="All 2 branches missed.">        if (dir.lengthSquared() &gt; 0.001f) {</span>
+<span class="nc" id="L522">            dir.normalize();</span>
+        } else {
+<span class="nc" id="L524">            dir.set(Direction.FORWARD.getVector3f());</span>
+        }
+<span class="nc" id="L526">        Quat4f rotation = Quat4f.shortestArcQuat(Direction.FORWARD.getVector3f(), dir);</span>
+
+<span class="nc" id="L528">        Optional&lt;Prefab&gt; prefab = Assets.getPrefab(prefabName);</span>
+<span class="nc bnc" id="L529" title="All 4 branches missed.">        if (prefab.isPresent() &amp;&amp; prefab.get().getComponent(LocationComponent.class) != null) {</span>
+<span class="nc" id="L530">            entityManager.create(prefab.get(), spawnPos, rotation);</span>
+<span class="nc" id="L531">            return &quot;Done&quot;;</span>
+<span class="nc bnc" id="L532" title="All 2 branches missed.">        } else if (!prefab.isPresent()) {</span>
+<span class="nc" id="L533">            return &quot;Unknown prefab&quot;;</span>
+        } else {
+<span class="nc" id="L535">            return &quot;Prefab cannot be spawned (no location component)&quot;;</span>
+        }
+    }
+
+    /**
+     * Spawns a block in front of the player
+     *
+     * @param sender    Sender of command
+     * @param blockName String containing name of block to spawn
+     * @return String containg final message
+     */
+    @Command(shortDescription = &quot;Spawns a block in front of the player&quot;, helpText = &quot;Spawns the specified block as a &quot; +
+            &quot;item in front of the player. You can simply pick it up.&quot;, runOnServer = true, requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String spawnBlock(@Sender EntityRef sender, @CommandParam(&quot;blockName&quot;) String blockName) {
+<span class="nc" id="L549">        ClientComponent clientComponent = sender.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L550">        LocationComponent characterLocation = clientComponent.character.getComponent(LocationComponent.class);</span>
+
+<span class="nc" id="L552">        Vector3f spawnPos = characterLocation.getWorldPosition();</span>
+<span class="nc" id="L553">        Vector3f offset = characterLocation.getWorldDirection();</span>
+<span class="nc" id="L554">        offset.scale(3);</span>
+<span class="nc" id="L555">        spawnPos.add(offset);</span>
+
+<span class="nc" id="L557">        BlockFamily block = blockManager.getBlockFamily(blockName);</span>
+<span class="nc bnc" id="L558" title="All 2 branches missed.">        if (block == null) {</span>
+<span class="nc" id="L559">            return &quot;&quot;;</span>
+        }
+
+<span class="nc" id="L562">        BlockItemFactory blockItemFactory = new BlockItemFactory(entityManager);</span>
+<span class="nc" id="L563">        EntityRef blockItem = blockItemFactory.newInstance(block);</span>
+
+<span class="nc" id="L565">        blockItem.send(new DropItemEvent(spawnPos));</span>
+<span class="nc" id="L566">        return &quot;Spawned block.&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Mass-drops the desired block however many times the player indicates&quot;,
+            helpText = &quot;First parameter indicates which block to drop, second parameter how many&quot;,
+            runOnServer = true, requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String bulkDrop(@Sender EntityRef sender, @CommandParam(&quot;blockName&quot;) String blockName, @CommandParam(&quot;value&quot;) int value) {
+
+        //This is a loop which gives the particular amount of block the player wants to spawn
+<span class="nc" id="L575">        ClientComponent clientComponent = sender.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L576">        LocationComponent characterLocation = clientComponent.character.getComponent(LocationComponent.class);</span>
+
+<span class="nc" id="L578">        Vector3f spawnPos = characterLocation.getWorldPosition();</span>
+<span class="nc" id="L579">        Vector3f offset = characterLocation.getWorldDirection();</span>
+
+<span class="nc" id="L581">        offset.scale(3);</span>
+<span class="nc" id="L582">        spawnPos.add(5, 10, 0);</span>
+<span class="nc" id="L583">        BlockFamily block = blockManager.getBlockFamily(blockName);</span>
+<span class="nc bnc" id="L584" title="All 2 branches missed.">        if (block == null) {</span>
+<span class="nc" id="L585">            return &quot;Sorry, your block is not found&quot;;</span>
+        }
+
+<span class="nc" id="L588">        BlockItemFactory blockItemFactory = new BlockItemFactory(entityManager);</span>
+<span class="nc bnc" id="L589" title="All 2 branches missed.">        if (value &gt; 5000) {</span>
+<span class="nc" id="L590">            return &quot;Value exceeds the maximum limit of 5000 blocks. your value: &quot; + value + &quot; blocks&quot;;</span>
+        }
+
+<span class="nc bnc" id="L593" title="All 2 branches missed.">        for (int i = 0; i &lt; value; i++) {</span>
+
+<span class="nc" id="L595">            EntityRef blockItem = blockItemFactory.newInstance(block);</span>
+<span class="nc" id="L596">            blockItem.send(new DropItemEvent(spawnPos));</span>
+        }
+
+        // this returns the block you have spawned and the amount
+<span class="nc" id="L600">        return &quot;Dropped &quot; + value + &quot; &quot; + blockName + &quot; Blocks :)&quot;;</span>
+    }
+
+    @Command(shortDescription = &quot;Sets up a typical bowling pin arrangement in front of the player. &quot;,
+            helpText = &quot;Spawns the specific block in a regular bowling pin pattern, Throw something at it!&quot;,
+            runOnServer = true, requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String bowlingPrep(@Sender EntityRef sender, @CommandParam(&quot;blockName&quot;) String blockName) {
+
+<span class="nc" id="L608">        ClientComponent clientComponent = sender.getComponent(ClientComponent.class);</span>
+<span class="nc" id="L609">        LocationComponent characterLocation = clientComponent.character.getComponent(LocationComponent.class);</span>
+
+<span class="nc" id="L611">        Vector3f spawnPos = characterLocation.getWorldPosition();</span>
+<span class="nc" id="L612">        Vector3f offset = characterLocation.getWorldDirection();</span>
+<span class="nc" id="L613">        offset.scale(5);</span>
+<span class="nc" id="L614">        spawnPos.add(offset);</span>
+<span class="nc" id="L615">        BlockFamily block = blockManager.getBlockFamily(blockName);</span>
+<span class="nc bnc" id="L616" title="All 2 branches missed.">        if (block == null) {</span>
+<span class="nc" id="L617">            return &quot;Sorry, your block is not found&quot;;</span>
+        }
+
+<span class="nc" id="L620">        BlockItemFactory blockItemFactory = new BlockItemFactory(entityManager);</span>
+<span class="nc" id="L621">        Vector3f startPos = new Vector3f(spawnPos);</span>
+
+<span class="nc" id="L623">        float deltax = 0.5f; // delta x is the distance between the pins in the rows.</span>
+<span class="nc" id="L624">        float deltaz = 1.0f; //delta z is the distance between the rows.</span>
+<span class="nc" id="L625">        float vectorY = 0.0f; //the height of the drop (to be modified to keep the bowlingPin upright)</span>
+        //rownumber loop is for selecting row
+<span class="nc bnc" id="L627" title="All 2 branches missed.">        for (int rownumber = 0; rownumber &lt; 4; rownumber++) {</span>
+<span class="nc" id="L628">            startPos.add(deltax * (4 - rownumber), vectorY, deltaz); //Spawn starting position for Rownumber</span>
+            // pinPosx loop is for vectorx position of bowling pin  in  a particular row
+<span class="nc bnc" id="L630" title="All 2 branches missed.">            for (int pinPosx = 0; pinPosx &lt;= rownumber; pinPosx++) {</span>
+<span class="nc" id="L631">                EntityRef blockItem = blockItemFactory.newInstance(block);</span>
+<span class="nc" id="L632">                blockItem.send(new DropItemEvent(startPos));</span>
+<span class="nc bnc" id="L633" title="All 2 branches missed.">                if (pinPosx &lt; rownumber) {</span>
+<span class="nc" id="L634">                    startPos.add(2 * deltax, 0, 0); // drift of position in vector x coordinate, for the last pin stop drifting</span>
+                }
+            }
+<span class="nc" id="L637">            startPos.add(-deltax * (rownumber + 4), 0, 0); // returns to start position</span>
+        }
+<span class="nc" id="L639">        return &quot;prepared 10 &quot; + blockName + &quot; in a bowling pin pattern :)&quot;;</span>
+    }
+
+    /**
+     * Your ping to the server
+     *
+     * @param sender Sender of command
+     * @return String containing ping or error message
+     */
+    @Command(shortDescription = &quot;Your ping to the server&quot;, helpText = &quot;The time it takes the packet &quot; +
+            &quot;to reach the server and back&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public String ping(@Sender EntityRef sender) {
+<span class="nc" id="L651">        Server server = networkSystem.getServer();</span>
+<span class="nc bnc" id="L652" title="All 2 branches missed.">        if (server == null) {</span>
+            //TODO: i18n
+<span class="nc bnc" id="L654" title="All 2 branches missed.">            if (networkSystem.getMode().isServer()) {</span>
+<span class="nc" id="L655">                return &quot;Your player is running on the server&quot;;</span>
+            } else {
+<span class="nc" id="L657">                return &quot;Please make sure you are connected to an online server (singleplayer doesn't count)&quot;;</span>
+            }
+        }
+<span class="nc" id="L660">        String[] remoteAddress = server.getRemoteAddress().split(&quot;-&quot;);</span>
+<span class="nc" id="L661">        String address = remoteAddress[1];</span>
+<span class="nc" id="L662">        int port = Integer.parseInt(remoteAddress[2]);</span>
+        try {
+<span class="nc" id="L664">            PingService pingService = new PingService(address, port);</span>
+<span class="nc" id="L665">            long delay = pingService.call();</span>
+<span class="nc" id="L666">            return String.format(&quot;%d ms&quot;, delay);</span>
+<span class="nc" id="L667">        } catch (UnknownHostException e) {</span>
+<span class="nc" id="L668">            return String.format(&quot;Error: Unknown host \&quot;%s\&quot; at %s:%s -- %s&quot;, remoteAddress[0], remoteAddress[1], remoteAddress[2], e);</span>
+<span class="nc" id="L669">        } catch (IOException e) {</span>
+<span class="nc" id="L670">            return String.format(&quot;Error: Failed to ping server \&quot;%s\&quot; at %s:%s -- %s&quot;, remoteAddress[0], remoteAddress[1], remoteAddress[2], e);</span>
+        }
+    }
+
+    /**
+     * Prints out short descriptions for all available commands, or a longer help text if a command is provided.
+     *
+     * @param commandName String containing command for which will be displayed help
+     * @return String containing short description of all commands or longer help text if command is provided
+     */
+    @Command(shortDescription = &quot;Prints out short descriptions for all available commands, or a longer help text if a command is provided.&quot;,
+            requiredPermission = PermissionManager.NO_PERMISSION)
+    public String help(@CommandParam(value = &quot;command&quot;, required = false, suggester = CommandNameSuggester.class) Name commandName) {
+<span class="nc bnc" id="L683" title="All 2 branches missed.">        if (commandName == null) {</span>
+<span class="nc" id="L684">            StringBuilder msg = new StringBuilder();</span>
+            // Get all commands, with appropriate sorting
+<span class="nc" id="L686">            List&lt;ConsoleCommand&gt; commands = Ordering.natural().immutableSortedCopy(console.getCommands());</span>
+
+<span class="nc bnc" id="L688" title="All 2 branches missed.">            for (ConsoleCommand cmd : commands) {</span>
+<span class="nc bnc" id="L689" title="All 2 branches missed.">                if (!msg.toString().isEmpty()) {</span>
+<span class="nc" id="L690">                    msg.append(Console.NEW_LINE);</span>
+                }
+
+<span class="nc" id="L693">                msg.append(FontColor.getColored(cmd.getUsage(), ConsoleColors.COMMAND));</span>
+<span class="nc" id="L694">                msg.append(&quot; - &quot;);</span>
+<span class="nc" id="L695">                msg.append(cmd.getDescription());</span>
+<span class="nc" id="L696">            }</span>
+
+<span class="nc" id="L698">            return msg.toString();</span>
+        } else {
+<span class="nc" id="L700">            ConsoleCommand cmd = console.getCommand(commandName);</span>
+<span class="nc bnc" id="L701" title="All 2 branches missed.">            if (cmd == null) {</span>
+<span class="nc" id="L702">                return &quot;No help available for command '&quot; + commandName + &quot;'. Unknown command.&quot;;</span>
+            } else {
+<span class="nc" id="L704">                StringBuilder msg = new StringBuilder();</span>
+
+<span class="nc" id="L706">                msg.append(&quot;=====================================================================================================================&quot;);</span>
+<span class="nc" id="L707">                msg.append(Console.NEW_LINE);</span>
+<span class="nc" id="L708">                msg.append(cmd.getUsage());</span>
+<span class="nc" id="L709">                msg.append(Console.NEW_LINE);</span>
+<span class="nc" id="L710">                msg.append(&quot;=====================================================================================================================&quot;);</span>
+<span class="nc" id="L711">                msg.append(Console.NEW_LINE);</span>
+<span class="nc bnc" id="L712" title="All 2 branches missed.">                if (!cmd.getHelpText().isEmpty()) {</span>
+<span class="nc" id="L713">                    msg.append(cmd.getHelpText());</span>
+<span class="nc" id="L714">                    msg.append(Console.NEW_LINE);</span>
+<span class="nc" id="L715">                    msg.append(&quot;=====================================================================================================================&quot;);</span>
+<span class="nc" id="L716">                    msg.append(Console.NEW_LINE);</span>
+<span class="nc bnc" id="L717" title="All 2 branches missed.">                } else if (!cmd.getDescription().isEmpty()) {</span>
+<span class="nc" id="L718">                    msg.append(cmd.getDescription());</span>
+<span class="nc" id="L719">                    msg.append(Console.NEW_LINE);</span>
+<span class="nc" id="L720">                    msg.append(&quot;=====================================================================================================================&quot;);</span>
+<span class="nc" id="L721">                    msg.append(Console.NEW_LINE);</span>
+                }
+<span class="nc bnc" id="L723" title="All 2 branches missed.">                if (!cmd.getRequiredPermission().isEmpty()) {</span>
+<span class="nc" id="L724">                    msg.append(&quot;Required permission level - &quot; + cmd.getRequiredPermission());</span>
+<span class="nc" id="L725">                    msg.append(Console.NEW_LINE);</span>
+<span class="nc" id="L726">                    msg.append(&quot;=====================================================================================================================&quot;);</span>
+<span class="nc" id="L727">                    msg.append(Console.NEW_LINE);</span>
+                }
+
+<span class="nc" id="L730">                return msg.toString();</span>
+            }
+        }
+    }
+
+    /**
+     * Clears the console window of previous messages.
+     */
+    @Command(shortDescription = &quot;Clears the console window of previous messages.&quot;, requiredPermission = PermissionManager.NO_PERMISSION)
+    public void clear() {
+<span class="nc" id="L740">        console.clear();</span>
+<span class="nc" id="L741">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

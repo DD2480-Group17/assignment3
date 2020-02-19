@@ -1,0 +1,670 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Block.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block</a> &gt; <span class="el_source">Block.java</span></div><h1>Block.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block;
+
+import com.google.common.collect.Maps;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.math.AABB;
+import org.terasology.math.Rotation;
+import org.terasology.math.Side;
+import org.terasology.math.TeraMath;
+import org.terasology.math.Transform;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.physics.shapes.CollisionShape;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.primitives.BlockMeshGenerator;
+import org.terasology.rendering.primitives.BlockMeshGeneratorSingleShape;
+import org.terasology.rendering.primitives.Tessellator;
+import org.terasology.utilities.Assets;
+import org.terasology.utilities.collection.EnumBooleanMap;
+import org.terasology.world.block.family.BlockFamily;
+import org.terasology.world.block.shapes.BlockMeshPart;
+import org.terasology.world.block.sounds.BlockSounds;
+import org.terasology.world.chunks.ChunkConstants;
+
+import java.math.RoundingMode;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Stores all information for a specific block type.
+ */
+public final class Block {
+
+    // TODO: Use directional light(s) when rendering instead of this
+<span class="fc" id="L55">    private static final Map&lt;BlockPart, Float&gt; DIRECTION_LIT_LEVEL = Maps.newEnumMap(BlockPart.class);</span>
+
+
+     // Initialize the LUTs
+    static {
+<span class="fc" id="L60">        DIRECTION_LIT_LEVEL.put(BlockPart.TOP, 0.9f);</span>
+<span class="fc" id="L61">        DIRECTION_LIT_LEVEL.put(BlockPart.BOTTOM, 0.9f);</span>
+<span class="fc" id="L62">        DIRECTION_LIT_LEVEL.put(BlockPart.FRONT, 1.0f);</span>
+<span class="fc" id="L63">        DIRECTION_LIT_LEVEL.put(BlockPart.BACK, 1.0f);</span>
+<span class="fc" id="L64">        DIRECTION_LIT_LEVEL.put(BlockPart.LEFT, 0.75f);</span>
+<span class="fc" id="L65">        DIRECTION_LIT_LEVEL.put(BlockPart.RIGHT, 0.75f);</span>
+<span class="fc" id="L66">        DIRECTION_LIT_LEVEL.put(BlockPart.CENTER, 0.8f);</span>
+<span class="fc" id="L67">    }</span>
+
+    private short id;
+    private BlockUri uri;
+<span class="fc" id="L71">    private String displayName = &quot;Untitled block&quot;;</span>
+    private BlockFamily family;
+<span class="fc" id="L73">    private Rotation rotation = Rotation.none();</span>
+
+    /* PROPERTIES */
+
+    // Overall behavioural
+    private boolean liquid;
+<span class="fc" id="L79">    private boolean attachmentAllowed = true;</span>
+    private boolean replacementAllowed;
+<span class="fc" id="L81">    private int hardness = 3;</span>
+    private boolean supportRequired;
+<span class="fc" id="L83">    private EnumBooleanMap&lt;Side&gt; fullSide = new EnumBooleanMap&lt;&gt;(Side.class);</span>
+    private BlockSounds sounds;
+
+    // Special rendering flags (TODO: clean this up)
+    private boolean water;
+    private boolean grass;
+    private boolean ice;
+
+    // Rendering related
+<span class="fc" id="L92">    private BlockMeshGenerator meshGenerator = new BlockMeshGeneratorSingleShape(this);</span>
+    private boolean translucent;
+    private boolean doubleSided;
+<span class="fc" id="L95">    private boolean shadowCasting = true;</span>
+    private boolean waving;
+    private byte luminance;
+<span class="fc" id="L98">    private Vector3f tint = new Vector3f(0, 0, 0);</span>
+<span class="fc" id="L99">    private Map&lt;BlockPart, BlockColorSource&gt; colorSource = Maps.newEnumMap(BlockPart.class);</span>
+<span class="fc" id="L100">    private Map&lt;BlockPart, Vector4f&gt; colorOffsets = Maps.newEnumMap(BlockPart.class);</span>
+
+    // Collision related
+    private boolean penetrable;
+<span class="fc" id="L104">    private boolean targetable = true;</span>
+    private boolean climbable;
+
+    // Physics
+<span class="fc" id="L108">    private float mass = 10;</span>
+<span class="fc" id="L109">    private boolean debrisOnDestroy = true;</span>
+<span class="fc" id="L110">    private float friction = 0.5f;</span>
+<span class="fc" id="L111">    private float restitution = 0.0f;</span>
+
+    // Entity integration
+    private Prefab prefab;
+    private boolean keepActive;
+<span class="fc" id="L116">    private EntityRef entity = EntityRef.NULL;</span>
+    private boolean lifecycleEventsRequired;
+
+    // Inventory settings
+    private boolean directPickup;
+<span class="fc" id="L121">    private boolean stackable = true;</span>
+
+<span class="fc" id="L123">    private BlockAppearance primaryAppearance = new BlockAppearance();</span>
+<span class="fc" id="L124">    private Map&lt;Side, BlockMeshPart&gt; lowLiquidMesh = Maps.newEnumMap(Side.class);</span>
+<span class="fc" id="L125">    private Map&lt;Side, BlockMeshPart&gt; topLiquidMesh = Maps.newEnumMap(Side.class);</span>
+
+    /* Collision */
+    private CollisionShape collisionShape;
+    private Vector3f collisionOffset;
+<span class="fc" id="L130">    private AABB bounds = AABB.createEmpty();</span>
+
+    /**
+     * Init. a new block with default properties in place.
+     */
+<span class="fc" id="L135">    public Block() {</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        for (BlockPart part : BlockPart.values()) {</span>
+<span class="fc" id="L137">            colorSource.put(part, DefaultColorSource.DEFAULT);</span>
+<span class="fc" id="L138">            colorOffsets.put(part, new Vector4f(1.0f, 1.0f, 1.0f, 1.0f));</span>
+        }
+<span class="fc" id="L140">    }</span>
+
+    public short getId() {
+<span class="fc" id="L143">        return id;</span>
+    }
+
+    public void setId(short id) {
+<span class="fc" id="L147">        this.id = id;</span>
+<span class="fc" id="L148">    }</span>
+
+    public BlockUri getURI() {
+<span class="fc" id="L151">        return uri;</span>
+    }
+
+    public void setUri(BlockUri uri) {
+<span class="fc" id="L155">        this.uri = uri;</span>
+<span class="fc" id="L156">    }</span>
+
+    public String getDisplayName() {
+<span class="nc" id="L159">        return displayName;</span>
+    }
+
+    public void setDisplayName(String displayName) {
+<span class="fc" id="L163">        this.displayName = displayName;</span>
+<span class="fc" id="L164">    }</span>
+
+    public BlockFamily getBlockFamily() {
+<span class="fc" id="L167">        return family;</span>
+    }
+
+    public void setBlockFamily(BlockFamily value) {
+<span class="fc" id="L171">        this.family = value;</span>
+<span class="fc" id="L172">    }</span>
+
+    public void setRotation(Rotation rotation) {
+<span class="fc" id="L175">        this.rotation = rotation;</span>
+<span class="fc" id="L176">    }</span>
+
+    public Rotation getRotation() {
+<span class="nc" id="L179">        return rotation;</span>
+    }
+
+    public Side getDirection() {
+<span class="nc" id="L183">        return rotation.rotate(Side.FRONT);</span>
+    }
+
+    /**
+     * @return Whether this block should be rendered Double Sided
+     */
+    public boolean isDoubleSided() {
+<span class="nc" id="L190">        return doubleSided;</span>
+    }
+
+    public void setDoubleSided(boolean doubleSided) {
+<span class="fc" id="L194">        this.doubleSided = doubleSided;</span>
+<span class="fc" id="L195">    }</span>
+
+    /**
+     * A liquid has some special handling around shape
+     *
+     * @return Whether this block is a liquid
+     */
+    public boolean isLiquid() {
+<span class="fc" id="L203">        return liquid;</span>
+    }
+
+    public void setLiquid(boolean liquid) {
+<span class="fc" id="L207">        this.liquid = liquid;</span>
+<span class="fc" id="L208">    }</span>
+
+    public boolean isWater() {
+<span class="nc" id="L211">        return water;</span>
+    }
+
+    public void setWater(boolean water) {
+<span class="fc" id="L215">        this.water = water;</span>
+<span class="fc" id="L216">    }</span>
+
+    public boolean isGrass() {
+<span class="nc" id="L219">        return grass;</span>
+    }
+
+    public void setGrass(boolean grass) {
+<span class="fc" id="L223">        this.grass = grass;</span>
+<span class="fc" id="L224">    }</span>
+
+    public boolean isIce() {
+<span class="nc" id="L227">        return ice;</span>
+    }
+
+    public void setIce(boolean ice) {
+<span class="fc" id="L231">        this.ice = ice;</span>
+<span class="fc" id="L232">    }</span>
+
+    /**
+     * @return The sound set used by this block. Never null.
+     */
+    public BlockSounds getSounds() {
+<span class="nc" id="L238">        return sounds;</span>
+    }
+
+    public void setSounds(BlockSounds sounds) {
+<span class="fc" id="L242">        this.sounds = sounds;</span>
+<span class="fc" id="L243">    }</span>
+
+    /**
+     * @return Whether this block is translucent/alpha masked
+     */
+    public boolean isTranslucent() {
+<span class="fc" id="L249">        return translucent;</span>
+    }
+
+    public void setTranslucent(boolean translucent) {
+<span class="fc" id="L253">        this.translucent = translucent;</span>
+<span class="fc" id="L254">    }</span>
+
+    /**
+     * @return The BlockMeshGenerator that is used in rendering, null if invisible.
+     */
+    public BlockMeshGenerator getMeshGenerator() {
+<span class="nc" id="L260">        return meshGenerator;</span>
+    }
+
+    /**
+     * @param meshGenerator The new BlockMeshGenerator to use in rendering this block.
+     *                      If meshGenerator is null then this block is invisible.
+     */
+    public void setMeshGenerator(BlockMeshGenerator meshGenerator) {
+<span class="nc" id="L268">        this.meshGenerator = meshGenerator;</span>
+<span class="nc" id="L269">    }</span>
+
+    /**
+     * @return Whether this block needs to be rendered at all
+     * @deprecated Use getMeshGenerator()==null instead.
+     */
+    @Deprecated
+    public boolean isInvisible() {
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        return meshGenerator == null;</span>
+    }
+
+    /**
+     * @param invisible Set if invisible
+     * @deprecated Use setMeshGenerator() instead.
+     */
+    @Deprecated
+    public void setInvisible(boolean invisible) {
+<span class="nc bnc" id="L286" title="All 2 branches missed.">        if (invisible) {</span>
+<span class="nc" id="L287">            this.meshGenerator = null;</span>
+        }
+<span class="nc" id="L289">    }</span>
+
+    /**
+     * A block is penetrable if it does not block solid objects.
+     *
+     * @return Whether this block allows solid objects to pass through it.
+     */
+    public boolean isPenetrable() {
+<span class="nc" id="L297">        return penetrable;</span>
+    }
+
+    public void setPenetrable(boolean penetrable) {
+<span class="fc" id="L301">        this.penetrable = penetrable;</span>
+<span class="fc" id="L302">    }</span>
+
+    /**
+     * @return Does this block create a slight shadow around it
+     */
+    // TODO: Remove this once SSAO is implemented?
+    public boolean isShadowCasting() {
+<span class="nc bnc" id="L309" title="All 4 branches missed.">        return shadowCasting &amp;&amp; luminance == 0;</span>
+    }
+
+    public void setShadowCasting(boolean shadowCasting) {
+<span class="fc" id="L313">        this.shadowCasting = shadowCasting;</span>
+<span class="fc" id="L314">    }</span>
+
+    /**
+     * @return Can this block be targetted for interactions
+     */
+    public boolean isTargetable() {
+<span class="nc" id="L320">        return targetable;</span>
+    }
+
+    /**
+     * @param targetable True if this block can be targetted for interactions
+     */
+    public void setTargetable(boolean targetable) {
+<span class="fc" id="L327">        this.targetable = targetable;</span>
+<span class="fc" id="L328">    }</span>
+
+    public boolean isClimbable() {
+<span class="nc" id="L331">        return climbable;</span>
+    }
+
+    public void setClimbable(boolean value) {
+<span class="fc" id="L335">        this.climbable = value;</span>
+<span class="fc" id="L336">    }</span>
+
+    /**
+     * @return Whether this block waves in the wind
+     */
+    public boolean isWaving() {
+<span class="nc" id="L342">        return waving;</span>
+    }
+
+    /**
+     * @param waving True to waves in the wind
+     */
+    public void setWaving(boolean waving) {
+<span class="fc" id="L349">        this.waving = waving;</span>
+<span class="fc" id="L350">    }</span>
+
+    /**
+     * @return Whether this block can be replaced freely by other blocks
+     */
+    public boolean isReplacementAllowed() {
+<span class="nc" id="L356">        return replacementAllowed;</span>
+    }
+
+    /**
+     * @param replacementAllowed True to allow replace freely by other blocks
+     */
+    public void setReplacementAllowed(boolean replacementAllowed) {
+<span class="fc" id="L363">        this.replacementAllowed = replacementAllowed;</span>
+<span class="fc" id="L364">    }</span>
+
+    /**
+     * @return Whether blocks can be attached to this block
+     */
+    public boolean isAttachmentAllowed() {
+<span class="nc" id="L370">        return attachmentAllowed;</span>
+    }
+
+    /**
+     * @param attachmentAllowed True to allow attach another block on this block
+     */
+    public void setAttachmentAllowed(boolean attachmentAllowed) {
+<span class="fc" id="L377">        this.attachmentAllowed = attachmentAllowed;</span>
+<span class="fc" id="L378">    }</span>
+
+    /**
+     * Check can a block attach in the side of this block
+     *
+     * @param side The side of attaching
+     * @return False if this block is not allowed attachment or the side of this block is not full side
+     */
+    public boolean canAttachTo(Side side) {
+<span class="nc bnc" id="L387" title="All 4 branches missed.">        return attachmentAllowed &amp;&amp; fullSide.get(side);</span>
+    }
+
+    /**
+     * @return Whether this block should be destroyed when no longer attached
+     */
+    public boolean isSupportRequired() {
+<span class="nc" id="L394">        return supportRequired;</span>
+    }
+
+    /**
+     * @param supportRequired True to set the block should destroyed when no longer attached
+     */
+    public void setSupportRequired(boolean supportRequired) {
+<span class="fc" id="L401">        this.supportRequired = supportRequired;</span>
+<span class="fc" id="L402">    }</span>
+
+    /**
+     * @return The entity prefab for this block
+     */
+    public Optional&lt;Prefab&gt; getPrefab() {
+<span class="fc" id="L408">        return Optional.ofNullable(prefab);</span>
+    }
+
+    public void setPrefab(Prefab value) {
+<span class="fc" id="L412">        this.prefab = value;</span>
+<span class="fc" id="L413">    }</span>
+
+    public boolean isKeepActive() {
+<span class="fc" id="L416">        return keepActive;</span>
+    }
+
+    public void setKeepActive(boolean keepActive) {
+<span class="fc" id="L420">        this.keepActive = keepActive;</span>
+<span class="fc" id="L421">    }</span>
+
+    public EntityRef getEntity() {
+<span class="fc" id="L424">        return entity;</span>
+    }
+
+    public void setEntity(EntityRef entity) {
+<span class="fc" id="L428">        this.entity = entity;</span>
+<span class="fc" id="L429">    }</span>
+
+    public void setLifecycleEventsRequired(boolean lifecycleEventsRequired) {
+<span class="nc" id="L432">        this.lifecycleEventsRequired = lifecycleEventsRequired;</span>
+<span class="nc" id="L433">    }</span>
+
+    public boolean isLifecycleEventsRequired() {
+<span class="nc" id="L436">        return lifecycleEventsRequired;</span>
+    }
+
+    /**
+     * @return Whether this block should go directly into a character's inventory when harvested
+     */
+    public boolean isDirectPickup() {
+<span class="nc" id="L443">        return directPickup;</span>
+    }
+
+    public void setDirectPickup(boolean directPickup) {
+<span class="fc" id="L447">        this.directPickup = directPickup;</span>
+<span class="fc" id="L448">    }</span>
+
+    public boolean isStackable() {
+<span class="nc" id="L451">        return stackable;</span>
+    }
+
+    public void setStackable(boolean stackable) {
+<span class="fc" id="L455">        this.stackable = stackable;</span>
+<span class="fc" id="L456">    }</span>
+
+    /**
+     * @return How much damage it takes to destroy the block
+     */
+    public int getHardness() {
+<span class="nc" id="L462">        return hardness;</span>
+    }
+
+    /**
+     * Indestructible if hardness is 0
+     *
+     * @param hardness how much damage it takes to destroy the block, indestructible if hardness is 0
+     */
+    public void setHardness(int hardness) {
+<span class="fc" id="L471">        this.hardness = hardness;</span>
+<span class="fc" id="L472">    }</span>
+
+    public boolean isDestructible() {
+<span class="nc bnc" id="L475" title="All 2 branches missed.">        return getHardness() &gt; 0;</span>
+    }
+
+    /**
+     * @return The light level produced by this block
+     */
+    public byte getLuminance() {
+<span class="fc" id="L482">        return luminance;</span>
+    }
+
+    /**
+     * @param luminance the light level produced by this block
+     */
+    public void setLuminance(byte luminance) {
+<span class="fc" id="L489">        this.luminance = (byte) TeraMath.clamp(luminance, 0, ChunkConstants.MAX_LIGHT);</span>
+<span class="fc" id="L490">    }</span>
+
+    public Vector3f getTint() {
+<span class="nc" id="L493">        return tint;</span>
+    }
+
+    public void setTint(Vector3f tint) {
+<span class="fc" id="L497">        this.tint.set(tint);</span>
+<span class="fc" id="L498">    }</span>
+
+    /**
+     * @return Whether physics debris of the block is created when the block is destroyed
+     */
+    public boolean isDebrisOnDestroy() {
+<span class="nc" id="L504">        return debrisOnDestroy;</span>
+    }
+
+    public void setDebrisOnDestroy(boolean debrisOnDestroy) {
+<span class="fc" id="L508">        this.debrisOnDestroy = debrisOnDestroy;</span>
+<span class="fc" id="L509">    }</span>
+
+    public float getMass() {
+<span class="nc" id="L512">        return mass;</span>
+    }
+
+    public void setMass(float mass) {
+<span class="fc" id="L516">        this.mass = mass;</span>
+<span class="fc" id="L517">    }</span>
+
+    public float getFriction() {
+<span class="nc" id="L520">        return friction;</span>
+    }
+
+    public void setFriction(float friction) {
+<span class="fc" id="L524">        this.friction = friction;</span>
+<span class="fc" id="L525">    }</span>
+
+    public float getRestitution() {
+<span class="nc" id="L528">        return restitution;</span>
+    }
+
+    public void setRestitution(float restitution) {
+<span class="fc" id="L532">        this.restitution = restitution;</span>
+<span class="fc" id="L533">    }</span>
+
+    public BlockAppearance getPrimaryAppearance() {
+<span class="nc" id="L536">        return primaryAppearance;</span>
+    }
+
+    public BlockAppearance getAppearance(Map&lt;Side, Block&gt; adjacentBlocks) {
+<span class="nc" id="L540">        return primaryAppearance;</span>
+    }
+
+    public void setPrimaryAppearance(BlockAppearance appearence) {
+<span class="fc" id="L544">        this.primaryAppearance = appearence;</span>
+<span class="fc" id="L545">    }</span>
+
+    public BlockColorSource getColorSource(BlockPart part) {
+<span class="nc" id="L548">        return colorSource.get(part);</span>
+    }
+
+    public void setColorSource(BlockColorSource colorSource) {
+<span class="nc bnc" id="L552" title="All 2 branches missed.">        for (BlockPart part : BlockPart.values()) {</span>
+<span class="nc" id="L553">            this.colorSource.put(part, colorSource);</span>
+        }
+<span class="nc" id="L555">    }</span>
+
+    public void setColorSource(BlockPart part, BlockColorSource value) {
+<span class="fc" id="L558">        this.colorSource.put(part, value);</span>
+<span class="fc" id="L559">    }</span>
+
+    public Vector4f getColorOffset(BlockPart part) {
+<span class="nc" id="L562">        return colorOffsets.get(part);</span>
+    }
+
+    public void setColorOffset(BlockPart part, Vector4f color) {
+<span class="fc" id="L566">        colorOffsets.put(part, color);</span>
+<span class="fc" id="L567">    }</span>
+
+    public void setColorOffsets(Vector4f color) {
+<span class="nc bnc" id="L570" title="All 2 branches missed.">        for (BlockPart part : BlockPart.values()) {</span>
+<span class="nc" id="L571">            colorOffsets.put(part, color);</span>
+        }
+<span class="nc" id="L573">    }</span>
+
+    /**
+     * @return Standalone mesh
+     * @deprecated Use getMeshGenerator() instead.
+     */
+    @Deprecated
+    public Mesh getMesh() {
+<span class="nc bnc" id="L581" title="All 2 branches missed.">        if (meshGenerator != null) {</span>
+<span class="nc" id="L582">            return meshGenerator.getStandaloneMesh();</span>
+        }
+<span class="nc" id="L584">        return new Tessellator().generateMesh(new ResourceUrn(&quot;engine&quot;, &quot;blockmesh&quot;, uri.toString()));</span>
+    }
+
+    public BlockMeshPart getLowLiquidMesh(Side side) {
+<span class="nc" id="L588">        return lowLiquidMesh.get(side);</span>
+    }
+
+    public void setLowLiquidMesh(Side side, BlockMeshPart meshPart) {
+<span class="nc" id="L592">        lowLiquidMesh.put(side, meshPart);</span>
+<span class="nc" id="L593">    }</span>
+
+    public BlockMeshPart getTopLiquidMesh(Side side) {
+<span class="nc" id="L596">        return topLiquidMesh.get(side);</span>
+    }
+
+    public void setTopLiquidMesh(Side side, BlockMeshPart meshPart) {
+<span class="nc" id="L600">        topLiquidMesh.put(side, meshPart);</span>
+<span class="nc" id="L601">    }</span>
+
+    /**
+     * @param side
+     * @return Is the given side of the block &quot;full&quot; (a full square filling the side)
+     */
+    public boolean isFullSide(Side side) {
+<span class="fc" id="L608">        return fullSide.get(side);</span>
+    }
+
+    public void setFullSide(Side side, boolean full) {
+<span class="fc" id="L612">        fullSide.put(side, full);</span>
+<span class="fc" id="L613">    }</span>
+
+    /**
+     * Set the collision box for the block
+     *
+     * @param offset The offset to the block's center
+     * @param shape  The shape of collision box
+     */
+    public void setCollision(Vector3f offset, CollisionShape shape) {
+<span class="fc" id="L622">        collisionShape = shape;</span>
+<span class="fc" id="L623">        collisionOffset = offset;</span>
+<span class="fc" id="L624">        bounds = shape.getAABB(new Transform(offset, new Quat4f(0, 0, 0, 1), 1.0f));</span>
+<span class="fc" id="L625">    }</span>
+
+    public CollisionShape getCollisionShape() {
+<span class="nc" id="L628">        return collisionShape;</span>
+    }
+
+    public Vector3f getCollisionOffset() {
+<span class="nc" id="L632">        return collisionOffset;</span>
+    }
+
+    public AABB getBounds(Vector3i pos) {
+<span class="nc" id="L636">        return bounds.move(pos.toVector3f());</span>
+    }
+
+    public AABB getBounds(Vector3f floatPos) {
+<span class="nc" id="L640">        return getBounds(new Vector3i(floatPos, RoundingMode.HALF_UP));</span>
+    }
+
+    public void renderWithLightValue(float sunlight, float blockLight) {
+<span class="nc bnc" id="L644" title="All 2 branches missed.">        if (meshGenerator == null) {</span>
+<span class="nc" id="L645">            return;</span>
+        }
+
+<span class="nc" id="L648">        Material mat = Assets.getMaterial(&quot;engine:prog.block&quot;).orElseThrow(() -&gt; new RuntimeException(&quot;Missing engine material&quot;));</span>
+<span class="nc" id="L649">        mat.activateFeature(ShaderProgramFeature.FEATURE_USE_MATRIX_STACK);</span>
+
+<span class="nc" id="L651">        mat.enable();</span>
+<span class="nc" id="L652">        mat.setFloat(&quot;sunlight&quot;, sunlight);</span>
+<span class="nc" id="L653">        mat.setFloat(&quot;blockLight&quot;, blockLight);</span>
+
+
+<span class="nc" id="L656">        Mesh mesh = meshGenerator.getStandaloneMesh();</span>
+<span class="nc bnc" id="L657" title="All 2 branches missed.">        if (mesh != null) {</span>
+<span class="nc" id="L658">            mesh.render();</span>
+        }
+
+<span class="nc" id="L661">        mat.deactivateFeature(ShaderProgramFeature.FEATURE_USE_MATRIX_STACK);</span>
+<span class="nc" id="L662">    }</span>
+
+    @Override
+    public String toString() {
+<span class="fc" id="L666">        return uri.toString();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,424 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TypeHandlerLibrary.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling</a> &gt; <span class="el_source">TypeHandlerLibrary.java</span></div><h1>TypeHandlerLibrary.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.persistence.typeHandling;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.reflections.Reflections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.math.IntegerRange;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.naming.Name;
+import org.terasology.persistence.typeHandling.coreTypes.BooleanTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.ByteArrayTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.ByteTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.CharacterTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.DoubleTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.FloatTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.IntTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.LongTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.NumberTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.RuntimeDelegatingTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.StringTypeHandler;
+import org.terasology.persistence.typeHandling.coreTypes.factories.ArrayTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.coreTypes.factories.CollectionTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.coreTypes.factories.EnumTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.coreTypes.factories.ObjectFieldMapTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.coreTypes.factories.StringMapTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.extensionTypes.ColorTypeHandler;
+import org.terasology.persistence.typeHandling.extensionTypes.NameTypeHandler;
+import org.terasology.persistence.typeHandling.extensionTypes.PrefabTypeHandler;
+import org.terasology.persistence.typeHandling.extensionTypes.TextureRegionTypeHandler;
+import org.terasology.persistence.typeHandling.extensionTypes.factories.AssetTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.extensionTypes.factories.TextureRegionAssetTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.mathTypes.IntegerRangeHandler;
+import org.terasology.persistence.typeHandling.mathTypes.Quat4fTypeHandler;
+import org.terasology.persistence.typeHandling.mathTypes.Vector2fTypeHandler;
+import org.terasology.persistence.typeHandling.mathTypes.Vector2iTypeHandler;
+import org.terasology.persistence.typeHandling.mathTypes.Vector3fTypeHandler;
+import org.terasology.persistence.typeHandling.mathTypes.Vector3iTypeHandler;
+import org.terasology.persistence.typeHandling.mathTypes.Vector4fTypeHandler;
+import org.terasology.persistence.typeHandling.mathTypes.factories.Rect2fTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.mathTypes.factories.Rect2iTypeHandlerFactory;
+import org.terasology.persistence.typeHandling.reflection.ModuleEnvironmentSandbox;
+import org.terasology.persistence.typeHandling.reflection.ReflectionsSandbox;
+import org.terasology.persistence.typeHandling.reflection.SerializationSandbox;
+import org.terasology.reflection.TypeInfo;
+import org.terasology.reflection.TypeRegistry;
+import org.terasology.reflection.metadata.ClassMetadata;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.reflection.reflect.ConstructorLibrary;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.Color;
+
+import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * A library of type handlers. This is used for the construction of class metadata.
+ * This library should be initialised by adding a number of base type handlers, describing how to serialize each supported type.
+ * It will then produce serializers for classes (through their ClassMetadata) on request.
+ */
+public class TypeHandlerLibrary {
+<span class="fc" id="L88">    private static final Logger logger = LoggerFactory.getLogger(TypeHandlerLibrary.class);</span>
+
+    private SerializationSandbox sandbox;
+
+<span class="fc" id="L92">    private List&lt;TypeHandlerFactory&gt; typeHandlerFactories = Lists.newArrayList();</span>
+
+<span class="fc" id="L94">    private Map&lt;TypeInfo&lt;?&gt;, TypeHandler&lt;?&gt;&gt; typeHandlerCache = Maps.newHashMap();</span>
+
+    /**
+     * In certain object graphs, creating a {@link TypeHandler} for a type may recursively
+     * require an {@link TypeHandler} for the same type. Without intervention, the recursive
+     * lookup would stack overflow. Thus, for type handlers in the process of being created,
+     * we return a delegate to the {@link TypeHandler} via {@link FutureTypeHandler} which is
+     * wired after the {@link TypeHandler} has been created.
+     */
+<span class="fc" id="L103">    private final ThreadLocal&lt;Map&lt;TypeInfo&lt;?&gt;, FutureTypeHandler&lt;?&gt;&gt;&gt; futureTypeHandlers = new ThreadLocal&lt;&gt;();</span>
+
+<span class="fc" id="L105">    private Map&lt;Type, InstanceCreator&lt;?&gt;&gt; instanceCreators = Maps.newHashMap();</span>
+    private ConstructorLibrary constructorLibrary;
+
+<span class="fc" id="L108">    private Map&lt;ClassMetadata&lt;?, ?&gt;, Serializer&gt; serializerMap = Maps.newHashMap();</span>
+
+<span class="fc" id="L110">    private TypeHandlerLibrary(SerializationSandbox sandbox) {</span>
+<span class="fc" id="L111">        this.sandbox = sandbox;</span>
+
+<span class="fc" id="L113">        constructorLibrary = new ConstructorLibrary(instanceCreators);</span>
+
+<span class="fc" id="L115">        addTypeHandlerFactory(new ObjectFieldMapTypeHandlerFactory(constructorLibrary));</span>
+
+<span class="fc" id="L117">        addTypeHandler(Boolean.class, new BooleanTypeHandler());</span>
+<span class="fc" id="L118">        addTypeHandler(Boolean.TYPE, new BooleanTypeHandler());</span>
+<span class="fc" id="L119">        addTypeHandler(Byte.class, new ByteTypeHandler());</span>
+<span class="fc" id="L120">        addTypeHandler(Byte.TYPE, new ByteTypeHandler());</span>
+<span class="fc" id="L121">        addTypeHandler(Character.class, new CharacterTypeHandler());</span>
+<span class="fc" id="L122">        addTypeHandler(Character.TYPE, new CharacterTypeHandler());</span>
+<span class="fc" id="L123">        addTypeHandler(Double.class, new DoubleTypeHandler());</span>
+<span class="fc" id="L124">        addTypeHandler(Double.TYPE, new DoubleTypeHandler());</span>
+<span class="fc" id="L125">        addTypeHandler(Float.class, new FloatTypeHandler());</span>
+<span class="fc" id="L126">        addTypeHandler(Float.TYPE, new FloatTypeHandler());</span>
+<span class="fc" id="L127">        addTypeHandler(Integer.class, new IntTypeHandler());</span>
+<span class="fc" id="L128">        addTypeHandler(Integer.TYPE, new IntTypeHandler());</span>
+<span class="fc" id="L129">        addTypeHandler(Long.class, new LongTypeHandler());</span>
+<span class="fc" id="L130">        addTypeHandler(Long.TYPE, new LongTypeHandler());</span>
+<span class="fc" id="L131">        addTypeHandler(String.class, new StringTypeHandler());</span>
+<span class="fc" id="L132">        addTypeHandler(Number.class, new NumberTypeHandler());</span>
+
+<span class="fc" id="L134">        addTypeHandlerFactory(new ArrayTypeHandlerFactory());</span>
+<span class="fc" id="L135">        addTypeHandler(byte[].class, new ByteArrayTypeHandler());</span>
+
+<span class="fc" id="L137">        addTypeHandlerFactory(new EnumTypeHandlerFactory());</span>
+<span class="fc" id="L138">        addTypeHandlerFactory(new CollectionTypeHandlerFactory(constructorLibrary));</span>
+<span class="fc" id="L139">        addTypeHandlerFactory(new StringMapTypeHandlerFactory());</span>
+
+<span class="fc" id="L141">    }</span>
+
+    /**
+     *
+     */
+    public TypeHandlerLibrary(Reflections reflections) {
+<span class="fc" id="L147">        this(new ReflectionsSandbox(reflections));</span>
+<span class="fc" id="L148">    }</span>
+
+    public TypeHandlerLibrary(ModuleManager moduleManager, TypeRegistry typeRegistry) {
+<span class="fc" id="L151">        this(new ModuleEnvironmentSandbox(moduleManager, typeRegistry));</span>
+<span class="fc" id="L152">    }</span>
+
+    /**
+     * Creates a copy of an existing serialization library. This copy is initialised with all type handlers that were added to the original, but does not retain any
+     * serializers or type handlers that were generated. This can be used to override specific types handlers from another type serializer.
+     *
+     * @param original The original type serialization library to copy.
+     */
+<span class="fc" id="L160">    public TypeHandlerLibrary(TypeHandlerLibrary original) {</span>
+<span class="fc" id="L161">        this.typeHandlerFactories.addAll(original.typeHandlerFactories);</span>
+<span class="fc" id="L162">        this.instanceCreators.putAll(original.instanceCreators);</span>
+<span class="fc" id="L163">        this.sandbox = original.sandbox;</span>
+<span class="fc" id="L164">    }</span>
+
+    public static TypeHandlerLibrary withReflections(Reflections reflections) {
+<span class="fc" id="L167">        TypeHandlerLibrary library = new TypeHandlerLibrary(reflections);</span>
+
+<span class="fc" id="L169">        populateWithDefaultHandlers(library);</span>
+
+<span class="fc" id="L171">        return library;</span>
+    }
+
+    public static TypeHandlerLibrary forModuleEnvironment(ModuleManager moduleManager, TypeRegistry typeRegistry) {
+<span class="fc" id="L175">        TypeHandlerLibrary library = new TypeHandlerLibrary(moduleManager, typeRegistry);</span>
+
+<span class="fc" id="L177">        populateWithDefaultHandlers(library);</span>
+
+<span class="fc" id="L179">        return library;</span>
+    }
+
+    private static void populateWithDefaultHandlers(TypeHandlerLibrary serializationLibrary) {
+<span class="fc" id="L183">        serializationLibrary.addTypeHandler(Color.class, new ColorTypeHandler());</span>
+<span class="fc" id="L184">        serializationLibrary.addTypeHandler(Quat4f.class, new Quat4fTypeHandler());</span>
+
+<span class="fc" id="L186">        serializationLibrary.addTypeHandlerFactory(new AssetTypeHandlerFactory());</span>
+
+<span class="fc" id="L188">        serializationLibrary.addTypeHandler(Name.class, new NameTypeHandler());</span>
+<span class="fc" id="L189">        serializationLibrary.addTypeHandler(TextureRegion.class, new TextureRegionTypeHandler());</span>
+
+<span class="fc" id="L191">        serializationLibrary.addTypeHandlerFactory(new TextureRegionAssetTypeHandlerFactory());</span>
+
+<span class="fc" id="L193">        serializationLibrary.addTypeHandler(Vector4f.class, new Vector4fTypeHandler());</span>
+<span class="fc" id="L194">        serializationLibrary.addTypeHandler(Vector3f.class, new Vector3fTypeHandler());</span>
+<span class="fc" id="L195">        serializationLibrary.addTypeHandler(Vector2f.class, new Vector2fTypeHandler());</span>
+<span class="fc" id="L196">        serializationLibrary.addTypeHandler(Vector3i.class, new Vector3iTypeHandler());</span>
+<span class="fc" id="L197">        serializationLibrary.addTypeHandler(Vector2i.class, new Vector2iTypeHandler());</span>
+<span class="fc" id="L198">        serializationLibrary.addTypeHandlerFactory(new Rect2iTypeHandlerFactory());</span>
+<span class="fc" id="L199">        serializationLibrary.addTypeHandlerFactory(new Rect2fTypeHandlerFactory());</span>
+<span class="fc" id="L200">        serializationLibrary.addTypeHandler(Prefab.class, new PrefabTypeHandler());</span>
+<span class="fc" id="L201">        serializationLibrary.addTypeHandler(IntegerRange.class, new IntegerRangeHandler());</span>
+<span class="fc" id="L202">    }</span>
+
+    /**
+     * Obtains a serializer for the given type
+     *
+     * @param type The ClassMetadata for the type of interest
+     * @return A serializer for serializing/deserializing the type
+     */
+    public Serializer getSerializerFor(ClassMetadata&lt;?, ?&gt; type) {
+<span class="fc" id="L211">        Serializer serializer = serializerMap.get(type);</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">        if (serializer == null) {</span>
+<span class="fc" id="L213">            Map&lt;FieldMetadata&lt;?, ?&gt;, TypeHandler&gt; fieldHandlerMap = getFieldHandlerMap(type);</span>
+<span class="fc" id="L214">            serializer = new Serializer(type, fieldHandlerMap);</span>
+<span class="fc" id="L215">            serializerMap.put(type, serializer);</span>
+        }
+<span class="fc" id="L217">        return serializer;</span>
+    }
+
+    /**
+     * Adds a new {@link TypeHandlerFactory} to the {@link TypeHandlerLibrary}. Factories
+     * added later are given a higher priority during {@link TypeHandler} generation.
+     */
+    public void addTypeHandlerFactory(TypeHandlerFactory typeHandlerFactory) {
+<span class="fc" id="L225">        typeHandlerFactories.add(typeHandlerFactory);</span>
+<span class="fc" id="L226">    }</span>
+
+    /**
+     * Adds a {@link TypeHandler} for the specified type to this {@link TypeHandlerLibrary} by
+     * adding to the library a new {@link TypeHandlerFactory} that returns the {@link TypeHandler}
+     * whenever the {@link TypeHandler} for the specified type is requested.
+     * &lt;p&gt;
+     * If the specified {@link SerializationSandbox} does not allow the addition of the given
+     * {@link TypeHandler} for the given type, the {@link TypeHandler} is not added to the
+     * library and false is returned.
+     *
+     * @param typeClass   The {@link Class} of the type handled by the {@link TypeHandler}.
+     * @param typeHandler The {@link TypeHandler} to add to the library.
+     * @param &lt;T&gt;         The type handled by the {@link TypeHandler}.
+     * @return True if the {@link TypeHandler} was successfully added, false otherwise.
+     */
+    public &lt;T&gt; boolean addTypeHandler(Class&lt;T&gt; typeClass, TypeHandler&lt;T&gt; typeHandler) {
+<span class="fc" id="L243">        return addTypeHandler(TypeInfo.of(typeClass), typeHandler);</span>
+    }
+
+    /**
+     * Adds a {@link TypeHandler} for the specified type to this {@link TypeHandlerLibrary} by
+     * adding to the library a new {@link TypeHandlerFactory} that returns the {@link TypeHandler}
+     * whenever the {@link TypeHandler} for the specified type is requested.
+     * &lt;p&gt;
+     * If the specified {@link SerializationSandbox} does not allow the addition of the given
+     * {@link TypeHandler} for the given type, the {@link TypeHandler} is not added to the
+     * library and false is returned.
+     *
+     * @param &lt;T&gt;         The type handled by the {@link TypeHandler}.
+     * @param type        The {@link TypeInfo} of the type handled by the {@link TypeHandler}.
+     * @param typeHandler The {@link TypeHandler} to add to the library.
+     * @return True if the {@link TypeHandler} was successfully added, false otherwise.
+     */
+    public &lt;T&gt; boolean addTypeHandler(TypeInfo&lt;T&gt; type, TypeHandler&lt;T&gt; typeHandler) {
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">        if (!sandbox.isValidTypeHandlerDeclaration(type, typeHandler)) {</span>
+<span class="nc" id="L262">            return false;</span>
+        }
+
+<span class="fc" id="L265">        TypeHandlerFactory factory = new TypeHandlerFactory() {</span>
+            @SuppressWarnings(&quot;unchecked&quot;)
+            @Override
+            public &lt;R&gt; Optional&lt;TypeHandler&lt;R&gt;&gt; create(TypeInfo&lt;R&gt; typeInfo, TypeHandlerContext context) {
+<span class="fc bfc" id="L269" title="All 2 branches covered.">                return typeInfo.equals(type) ? Optional.of((TypeHandler&lt;R&gt;) typeHandler) : Optional.empty();</span>
+            }
+        };
+
+<span class="fc" id="L273">        addTypeHandlerFactory(factory);</span>
+
+<span class="fc" id="L275">        return true;</span>
+    }
+
+    /**
+     * Adds an {@link InstanceCreator} to the {@link TypeHandlerLibrary} for the specified type.
+     */
+    public &lt;T&gt; void addInstanceCreator(Class&lt;T&gt; typeClass, InstanceCreator&lt;T&gt; instanceCreator) {
+<span class="nc" id="L282">        addInstanceCreator(TypeInfo.of(typeClass), instanceCreator);</span>
+<span class="nc" id="L283">    }</span>
+
+    /**
+     * Adds an {@link InstanceCreator} to the {@link TypeHandlerLibrary} for the specified type.
+     */
+    public &lt;T&gt; void addInstanceCreator(TypeInfo&lt;T&gt; typeInfo, InstanceCreator&lt;T&gt; instanceCreator) {
+<span class="nc" id="L289">        instanceCreators.put(typeInfo.getType(), instanceCreator);</span>
+<span class="nc" id="L290">    }</span>
+
+    /**
+     * Retrieves the {@link TypeHandler} for the specified type, if available.
+     * &lt;p&gt;
+     * Each {@link TypeHandlerFactory} added to this {@link TypeHandlerLibrary} is requested
+     * to generate a {@link TypeHandler} for the given type. Most recently added factories are
+     * requested first, hence a {@link TypeHandlerFactory} can override one that was added
+     * before it.
+     *
+     * @param type The {@link Type} describing the type for which to
+     *             retrieve the {@link TypeHandler}.
+     * @return The {@link TypeHandler} for the specified type, if available.
+     */
+    @SuppressWarnings({&quot;unchecked&quot;})
+    public Optional&lt;TypeHandler&lt;?&gt;&gt; getTypeHandler(Type type) {
+<span class="fc" id="L306">        TypeInfo typeInfo = TypeInfo.of(type);</span>
+<span class="fc" id="L307">        return (Optional&lt;TypeHandler&lt;?&gt;&gt;) getTypeHandler(typeInfo);</span>
+    }
+
+    /**
+     * Retrieves the {@link TypeHandler} for the specified type, if available.
+     * &lt;p&gt;
+     * Each {@link TypeHandlerFactory} added to this {@link TypeHandlerLibrary} is requested
+     * to generate a {@link TypeHandler} for the given type. Most recently added factories are
+     * requested first, hence a {@link TypeHandlerFactory} can override one that was added
+     * before it.
+     *
+     * @param typeClass The {@link Class} of the type for which to
+     *                  retrieve the {@link TypeHandler}.
+     * @param &lt;T&gt;       The type for which to retrieve the {@link TypeHandler}.
+     * @return The {@link TypeHandler} for the specified type, if available.
+     */
+    public &lt;T&gt; Optional&lt;TypeHandler&lt;T&gt;&gt; getTypeHandler(Class&lt;T&gt; typeClass) {
+<span class="fc" id="L324">        return getTypeHandler(TypeInfo.of(typeClass));</span>
+    }
+
+    /**
+     * Retrieves the {@link TypeHandler} for the specified type, if available.
+     * &lt;p&gt;
+     * Each {@link TypeHandlerFactory} added to this {@link TypeHandlerLibrary} is requested
+     * to generate a {@link TypeHandler} for the given type. Most recently added factories are
+     * requested first, hence a {@link TypeHandlerFactory} can override one that was added
+     * before it.
+     *
+     * @param type The {@link TypeInfo} describing the type for which to
+     *             retrieve the {@link TypeHandler}.
+     * @param &lt;T&gt;  The type for which to retrieve the {@link TypeHandler}.
+     * @return The {@link TypeHandler} for the specified type, if available.
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;T&gt; Optional&lt;TypeHandler&lt;T&gt;&gt; getTypeHandler(TypeInfo&lt;T&gt; type) {
+<span class="fc" id="L342">        TypeHandlerContext context = new TypeHandlerContext(this, sandbox);</span>
+
+<span class="fc bfc" id="L344" title="All 2 branches covered.">        if (typeHandlerCache.containsKey(type)) {</span>
+<span class="fc" id="L345">            return Optional.of((TypeHandler&lt;T&gt;) typeHandlerCache.get(type));</span>
+        }
+
+<span class="fc" id="L348">        Map&lt;TypeInfo&lt;?&gt;, FutureTypeHandler&lt;?&gt;&gt; futures = futureTypeHandlers.get();</span>
+<span class="fc" id="L349">        boolean cleanupFutureTypeHandlers = false;</span>
+
+<span class="fc bfc" id="L351" title="All 2 branches covered.">        if (futures == null) {</span>
+<span class="fc" id="L352">            cleanupFutureTypeHandlers = true;</span>
+<span class="fc" id="L353">            futures = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L354">            futureTypeHandlers.set(futures);</span>
+        }
+
+<span class="fc" id="L357">        FutureTypeHandler&lt;T&gt; future = (FutureTypeHandler&lt;T&gt;) futures.get(type);</span>
+
+<span class="fc bfc" id="L359" title="All 2 branches covered.">        if (future != null) {</span>
+<span class="fc" id="L360">            return Optional.of(future);</span>
+        }
+
+        try {
+<span class="fc" id="L364">            future = new FutureTypeHandler&lt;&gt;();</span>
+<span class="fc" id="L365">            futures.put(type, future);</span>
+
+            // TODO: Explore reversing typeHandlerFactories itself before building object
+<span class="fc bfc" id="L368" title="All 2 branches covered.">            for (int i = typeHandlerFactories.size() - 1; i &gt;= 0; i--) {</span>
+<span class="fc" id="L369">                TypeHandlerFactory typeHandlerFactory = typeHandlerFactories.get(i);</span>
+<span class="fc" id="L370">                Optional&lt;TypeHandler&lt;T&gt;&gt; typeHandler = typeHandlerFactory.create(type, context);</span>
+
+<span class="fc bfc" id="L372" title="All 2 branches covered.">                if (typeHandler.isPresent()) {</span>
+<span class="fc" id="L373">                    TypeHandler&lt;T&gt; handler = typeHandler.get();</span>
+
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">                    if (!sandbox.isValidTypeHandlerDeclaration(type, handler)) {</span>
+<span class="nc" id="L376">                        continue;</span>
+                    }
+
+<span class="fc" id="L379">                    typeHandlerCache.put(type, handler);</span>
+<span class="fc" id="L380">                    future.typeHandler = handler;</span>
+
+<span class="fc" id="L382">                    return Optional.of(handler);</span>
+                }
+            }
+
+<span class="fc" id="L386">            return Optional.empty();</span>
+        } finally {
+<span class="fc" id="L388">            futures.remove(type);</span>
+
+<span class="fc bfc" id="L390" title="All 2 branches covered.">            if (cleanupFutureTypeHandlers) {</span>
+<span class="fc" id="L391">                futureTypeHandlers.remove();</span>
+            }
+        }
+    }
+
+    /**
+     * Returns a {@link TypeHandler} that can handle all types deriving from {@link T}.
+     *
+     * @param typeInfo The {@link TypeInfo} describing the base type for which to return a
+     *                 {@link TypeHandler}.
+     * @param &lt;T&gt; The base type for which to return a {@link TypeHandler}.
+     */
+    public &lt;T&gt; TypeHandler&lt;T&gt; getBaseTypeHandler(TypeInfo&lt;T&gt; typeInfo) {
+<span class="fc" id="L404">        TypeHandler&lt;T&gt; delegateHandler = getTypeHandler(typeInfo).orElse(null);</span>
+
+<span class="fc" id="L406">        TypeHandlerContext context = new TypeHandlerContext(this, sandbox);</span>
+<span class="fc" id="L407">        return new RuntimeDelegatingTypeHandler&lt;&gt;(delegateHandler, typeInfo, context);</span>
+    }
+
+    private Map&lt;FieldMetadata&lt;?, ?&gt;, TypeHandler&gt; getFieldHandlerMap(ClassMetadata&lt;?, ?&gt; type) {
+<span class="fc" id="L411">        Map&lt;FieldMetadata&lt;?, ?&gt;, TypeHandler&gt; handlerMap = Maps.newHashMap();</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">        for (FieldMetadata&lt;?, ?&gt; field : type.getFields()) {</span>
+<span class="fc" id="L413">            Optional&lt;TypeHandler&lt;?&gt;&gt; handler = getTypeHandler(field.getField().getGenericType());</span>
+
+<span class="pc bpc" id="L415" title="1 of 2 branches missed.">            if (handler.isPresent()) {</span>
+<span class="fc" id="L416">                handlerMap.put(field, handler.get());</span>
+            } else {
+<span class="nc" id="L418">                logger.error(&quot;Unsupported field: '{}.{}'&quot;, type.getUri(), field.getName());</span>
+            }
+<span class="fc" id="L420">        }</span>
+<span class="fc" id="L421">        return handlerMap;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

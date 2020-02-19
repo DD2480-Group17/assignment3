@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.console.commandSystem</a> &gt; <span class="el_source">AbstractCommand.java</span></div><h1>AbstractCommand.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.console.commandSystem;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Queues;
+import com.google.common.collect.Sets;
+import com.google.common.primitives.Primitives;
+import org.terasology.context.Context;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.console.commandSystem.exceptions.CommandExecutionException;
+import org.terasology.logic.console.commandSystem.exceptions.CommandInitializationException;
+import org.terasology.logic.console.commandSystem.exceptions.CommandParameterParseException;
+import org.terasology.logic.console.commandSystem.exceptions.CommandSuggestionException;
+import org.terasology.logic.permission.PermissionManager;
+import org.terasology.naming.Name;
+import org.terasology.utilities.reflection.SpecificAccessibleObject;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
+import java.util.Queue;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * The core ICommand implementation and command information
+ *
+ */
+public abstract class AbstractCommand implements ConsoleCommand {
+
+    private final Name name;
+    private final String requiredPermission;
+    private final boolean runOnServer;
+    private final String description;
+    private final String helpText;
+    private final SpecificAccessibleObject&lt;Method&gt; executionMethod;
+    private ImmutableList&lt;CommandParameter&gt; commandParameters;
+    private ImmutableList&lt;Parameter&gt; executionMethodParameters;
+    private int requiredParameterCount;
+    private String usage;
+
+    public AbstractCommand(Name name, String requiredPermission, boolean runOnServer, String description, String helpText,
+<span class="fc" id="L63">                           SpecificAccessibleObject&lt;Method&gt; executionMethod, Context context) {</span>
+<span class="fc" id="L64">        Preconditions.checkNotNull(executionMethod);</span>
+<span class="fc" id="L65">        Preconditions.checkNotNull(description);</span>
+<span class="fc" id="L66">        Preconditions.checkNotNull(helpText);</span>
+
+<span class="fc" id="L68">        this.name = name;</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        this.requiredPermission = requiredPermission != null ? requiredPermission : PermissionManager.DEBUG_PERMISSION;</span>
+<span class="fc" id="L70">        this.runOnServer = runOnServer;</span>
+<span class="fc" id="L71">        this.description = description;</span>
+<span class="fc" id="L72">        this.helpText = helpText;</span>
+<span class="fc" id="L73">        this.executionMethod = executionMethod;</span>
+
+<span class="fc" id="L75">        constructParametersNotNull(context);</span>
+<span class="fc" id="L76">        registerParameters();</span>
+<span class="fc" id="L77">        validateExecutionMethod();</span>
+<span class="fc" id="L78">        initUsage();</span>
+<span class="fc" id="L79">    }</span>
+
+    /**
+     * @return A list of parameter types provided to the execution method.
+     */
+    protected abstract List&lt;Parameter&gt; constructParameters(Context context);
+
+    private void constructParametersNotNull(Context context) {
+<span class="fc" id="L87">        List&lt;Parameter&gt; constructedParameters = constructParameters(context);</span>
+
+<span class="pc bpc" id="L89" title="2 of 4 branches missed.">        if (constructedParameters == null || constructedParameters.size() &lt;= 0) {</span>
+<span class="nc" id="L90">            commandParameters = ImmutableList.of();</span>
+<span class="nc" id="L91">            executionMethodParameters = ImmutableList.of();</span>
+<span class="nc" id="L92">            return;</span>
+        }
+
+<span class="fc" id="L95">        ImmutableList.Builder&lt;CommandParameter&gt; commandParameterBuilder = ImmutableList.builder();</span>
+
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        for (int i = 0; i &lt; constructedParameters.size(); i++) {</span>
+<span class="fc" id="L98">            Parameter type = constructedParameters.get(i);</span>
+
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">            if (type == null) {</span>
+<span class="nc" id="L101">                throw new CommandInitializationException(&quot;Invalid parameter definition #&quot; + i + &quot;; must not be null&quot;);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">            } else if (type instanceof CommandParameter) {</span>
+<span class="fc" id="L103">                commandParameterBuilder.add((CommandParameter) type);</span>
+            }
+        }
+
+<span class="fc" id="L107">        commandParameters = commandParameterBuilder.build();</span>
+<span class="fc" id="L108">        executionMethodParameters = ImmutableList.copyOf(constructedParameters);</span>
+<span class="fc" id="L109">    }</span>
+
+    private void registerParameters() throws CommandInitializationException {
+<span class="fc" id="L112">        requiredParameterCount = 0;</span>
+<span class="fc" id="L113">        boolean optionalFound = false;</span>
+
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        for (int i = 0; i &lt; commandParameters.size(); i++) {</span>
+<span class="fc" id="L116">            CommandParameter parameter = commandParameters.get(i);</span>
+
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            if (parameter == null) {</span>
+<span class="nc" id="L119">                throw new CommandInitializationException(&quot;A command parameter must not be null! Index: &quot; + i);</span>
+            }
+
+<span class="pc bpc" id="L122" title="3 of 4 branches missed.">            if (parameter.isArray() &amp;&amp; i &lt; commandParameters.size() - 1) {</span>
+<span class="nc" id="L123">                throw new CommandInitializationException(&quot;A varargs parameter must be at the end. Invalid: &quot; + i + &quot;; &quot; + parameter.getName());</span>
+            }
+
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">            if (parameter.isRequired()) {</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">                if (!optionalFound) {</span>
+<span class="fc" id="L128">                    requiredParameterCount++;</span>
+                } else {
+<span class="nc" id="L130">                    throw new CommandInitializationException(&quot;A command definition must not contain a required&quot;</span>
+<span class="nc" id="L131">                            + &quot; parameter (&quot; + i + &quot;; &quot; + parameter.getName()</span>
+                            + &quot;) after an optional parameter.&quot;);
+                }
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            } else if (!optionalFound) {</span>
+<span class="nc" id="L135">                optionalFound = true;</span>
+            }
+        }
+<span class="fc" id="L138">    }</span>
+
+    private void checkArgumentCompatibility(Method method) throws CommandInitializationException {
+<span class="fc" id="L141">        Class&lt;?&gt;[] methodParameters = method.getParameterTypes();</span>
+
+<span class="fc" id="L143">        int executionMethodParametersSize = executionMethodParameters.size();</span>
+<span class="fc" id="L144">        int methodParameterCount = methodParameters.length;</span>
+
+<span class="pc bpc" id="L146" title="1 of 4 branches missed.">        for (int i = 0; i &lt; methodParameterCount || i &lt; executionMethodParametersSize; i++) {</span>
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">            if (i &gt;= methodParameterCount) {</span>
+<span class="nc" id="L148">                throw new CommandInitializationException(&quot;Missing &quot; + (executionMethodParametersSize - methodParameterCount)</span>
+<span class="nc" id="L149">                        + &quot; parameters in method &quot; + method.getName()</span>
+                        + &quot;, follow the parameter definitions from the&quot;
+                        + &quot; 'constructParameters' method.&quot;);
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">            } else if (i &gt;= executionMethodParametersSize) {</span>
+<span class="nc" id="L153">                throw new CommandInitializationException(&quot;Too many (&quot; + (methodParameterCount - executionMethodParametersSize)</span>
+<span class="nc" id="L154">                        + &quot;) parameters in method &quot; + method.getName()</span>
+                        + &quot;, follow the parameter definitions from the&quot;
+                        + &quot; 'constructParameters' method.&quot;);
+            }
+
+<span class="fc" id="L159">            Parameter expectedParameterType = executionMethodParameters.get(i);</span>
+<span class="fc" id="L160">            Optional&lt;? extends Class&lt;?&gt;&gt; expectedType = expectedParameterType.getProvidedType();</span>
+<span class="fc" id="L161">            Class&lt;?&gt; providedType = methodParameters[i];</span>
+
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">            if (providedType.isPrimitive()) {</span>
+<span class="nc" id="L164">                providedType = Primitives.wrap(providedType);</span>
+            }
+
+<span class="pc bpc" id="L167" title="1 of 4 branches missed.">            if (expectedType.isPresent() &amp;&amp; !expectedType.get().isAssignableFrom(providedType)) {</span>
+<span class="nc" id="L168">                throw new CommandInitializationException(&quot;Cannot assign command argument from &quot;</span>
+<span class="nc" id="L169">                        + providedType.getSimpleName() + &quot; to &quot;</span>
+<span class="nc" id="L170">                        + expectedType.get().getSimpleName() + &quot;; &quot;</span>
+                        + &quot;command method parameter index: &quot; + i);
+            }
+        }
+<span class="fc" id="L174">    }</span>
+
+    private void validateExecutionMethod() {
+<span class="fc" id="L177">        checkArgumentCompatibility(executionMethod.getAccessibleObject());</span>
+<span class="fc" id="L178">    }</span>
+
+    private void initUsage() {
+<span class="fc" id="L181">        StringBuilder builder = new StringBuilder(name.toString());</span>
+
+<span class="fc bfc" id="L183" title="All 2 branches covered.">        for (CommandParameter param : commandParameters) {</span>
+<span class="fc" id="L184">            builder.append(' ').append(param.getUsage());</span>
+<span class="fc" id="L185">        }</span>
+
+<span class="fc" id="L187">        usage = builder.toString();</span>
+<span class="fc" id="L188">    }</span>
+
+    private Object[] processParametersMethod(List&lt;String&gt; rawParameters, EntityRef sender) throws CommandParameterParseException {
+<span class="nc" id="L191">        Object[] processedParameters = new Object[executionMethodParameters.size()];</span>
+<span class="nc" id="L192">        Queue&lt;String&gt; parameterStrings = Queues.newArrayDeque(rawParameters);</span>
+
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        for (int i = 0; i &lt; executionMethodParameters.size(); i++) {</span>
+<span class="nc" id="L195">            Parameter parameterType = executionMethodParameters.get(i);</span>
+
+<span class="nc bnc" id="L197" title="All 2 branches missed.">            if (parameterType instanceof CommandParameter) {</span>
+<span class="nc" id="L198">                CommandParameter parameter = (CommandParameter) parameterType;</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                if (parameterStrings.isEmpty()) {</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                    if (parameter.isArray()) {</span>
+<span class="nc" id="L201">                        processedParameters[i] = parameter.getArrayValue(Collections.&lt;String&gt;emptyList());</span>
+                    } else {
+<span class="nc" id="L203">                        processedParameters[i] = null;</span>
+                    }
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                } else if (parameter.isArray()) {</span>
+<span class="nc" id="L206">                    processedParameters[i] = parameter.getArrayValue(Lists.newArrayList(parameterStrings));</span>
+<span class="nc" id="L207">                    parameterStrings.clear();</span>
+                } else {
+<span class="nc" id="L209">                    processedParameters[i] = parameter.getValue(parameterStrings.poll());</span>
+                }
+<span class="nc bnc" id="L211" title="All 2 branches missed.">            } else if (parameterType == MarkerParameters.SENDER) {</span>
+<span class="nc" id="L212">                processedParameters[i] = sender;</span>
+            }
+        }
+
+<span class="nc" id="L216">        return processedParameters;</span>
+    }
+
+    @Override
+    public final String execute(List&lt;String&gt; rawParameters, EntityRef sender) throws CommandExecutionException {
+        Object[] processedParameters;
+
+        try {
+<span class="nc" id="L224">            processedParameters = processParametersMethod(rawParameters, sender);</span>
+<span class="nc" id="L225">        } catch (CommandParameterParseException e) {</span>
+<span class="nc" id="L226">            String warning = &quot;Invalid parameter '&quot; + e.getParameter() + &quot;'&quot;;</span>
+<span class="nc" id="L227">            String message = e.getMessage();</span>
+
+<span class="nc bnc" id="L229" title="All 2 branches missed.">            if (message != null) {</span>
+<span class="nc" id="L230">                warning += &quot;: &quot; + message;</span>
+            }
+
+<span class="nc" id="L233">            return warning;</span>
+<span class="nc" id="L234">        }</span>
+
+        try {
+<span class="nc" id="L237">            Object result = executionMethod.getAccessibleObject().invoke(executionMethod.getTarget(), processedParameters);</span>
+
+<span class="nc bnc" id="L239" title="All 2 branches missed.">            return result != null ? String.valueOf(result) : null;</span>
+<span class="nc" id="L240">        } catch (InvocationTargetException t) {</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">            if (t.getCause() != null) {</span>
+<span class="nc" id="L242">                throw new CommandExecutionException(t.getCause()); //Skip InvocationTargetException</span>
+            } else {
+<span class="nc" id="L244">                throw new CommandExecutionException(t);</span>
+            }
+<span class="nc" id="L246">        } catch (IllegalAccessException | RuntimeException t) {</span>
+<span class="nc" id="L247">            throw new CommandExecutionException(t);</span>
+        }
+    }
+
+    @Override
+    public final Set&lt;String&gt; suggest(final String currentValue, List&lt;String&gt; rawParameters, EntityRef sender) throws CommandSuggestionException {
+        //Generate an array to be used as a parameter in the 'suggest' method
+        Object[] processedParameters;
+
+        try {
+<span class="nc" id="L257">            processedParameters = processParametersMethod(rawParameters, sender);</span>
+<span class="nc" id="L258">        } catch (CommandParameterParseException e) {</span>
+<span class="nc" id="L259">            String warning = &quot;Invalid parameter '&quot; + e.getParameter() + &quot;'&quot;;</span>
+<span class="nc" id="L260">            String message = e.getMessage();</span>
+
+<span class="nc bnc" id="L262" title="All 2 branches missed.">            if (message != null) {</span>
+<span class="nc" id="L263">                warning += &quot;: &quot; + message;</span>
+            }
+
+<span class="nc" id="L266">            throw new CommandSuggestionException(warning);</span>
+<span class="nc" id="L267">        }</span>
+
+        //Get the suggested parameter to compare the result with
+<span class="nc" id="L270">        CommandParameter suggestedParameter = null;</span>
+<span class="nc" id="L271">        Iterator&lt;CommandParameter&gt; paramIter = commandParameters.iterator();</span>
+
+<span class="nc bnc" id="L273" title="All 2 branches missed.">        for (Object processedParameter : processedParameters) {</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">            if (sender.equals(processedParameter)) {</span>
+<span class="nc" id="L275">                continue;</span>
+            }
+<span class="nc bnc" id="L277" title="All 2 branches missed.">            if (processedParameter == null) {</span>
+<span class="nc" id="L278">                suggestedParameter = paramIter.next();</span>
+<span class="nc" id="L279">                break;</span>
+            }
+<span class="nc" id="L281">            paramIter.next();</span>
+        }
+
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        if (suggestedParameter == null) {</span>
+<span class="nc" id="L285">            return Sets.newHashSet();</span>
+        }
+
+<span class="nc" id="L288">        Set&lt;Object&gt; result = null;</span>
+
+<span class="nc" id="L290">        result = suggestedParameter.suggest(sender, processedParameters);</span>
+
+
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L294">            return Sets.newHashSet();</span>
+        }
+
+<span class="nc" id="L297">        Class&lt;?&gt; requiredClass = suggestedParameter.getType();</span>
+
+<span class="nc bnc" id="L299" title="All 2 branches missed.">        for (Object resultComponent : result) {</span>
+<span class="nc bnc" id="L300" title="All 4 branches missed.">            if (resultComponent == null &amp;&amp; requiredClass.isPrimitive()) {</span>
+<span class="nc" id="L301">                throw new CommandSuggestionException(&quot;The 'suggest' method of command class &quot; + getClass().getCanonicalName()</span>
+<span class="nc" id="L302">                        + &quot; returns a collection containing an invalid type. Required: &quot; + requiredClass.getCanonicalName()</span>
+                        + &quot;; provided: null&quot;);
+<span class="nc bnc" id="L304" title="All 4 branches missed.">            } else if (resultComponent != null &amp;&amp; !requiredClass.isAssignableFrom(resultComponent.getClass())) {</span>
+<span class="nc" id="L305">                throw new CommandSuggestionException(&quot;The 'suggest' method of command class &quot; + getClass().getCanonicalName()</span>
+<span class="nc" id="L306">                        + &quot; returns a collection containing an invalid type. Required: &quot; + requiredClass.getCanonicalName()</span>
+<span class="nc" id="L307">                        + &quot;; provided: &quot; + resultComponent.getClass().getCanonicalName());</span>
+            }
+<span class="nc" id="L309">        }</span>
+
+<span class="nc" id="L311">        Set&lt;String&gt; stringSuggestions = convertToString(result, suggestedParameter);</span>
+
+        //Only return results starting with currentValue
+<span class="nc" id="L314">        return Sets.filter(stringSuggestions, input -&gt;</span>
+<span class="nc bnc" id="L315" title="All 6 branches missed.">                input != null &amp;&amp; (currentValue == null || input.startsWith(currentValue)));</span>
+    }
+
+    private static Set&lt;String&gt; convertToString(Set&lt;Object&gt; collection, CommandParameter parameter) {
+<span class="nc" id="L319">        return collection.stream().map(parameter::convertToString).collect(Collectors.toCollection(HashSet::new));</span>
+    }
+
+    @Override
+    public ImmutableList&lt;CommandParameter&gt; getCommandParameters() {
+<span class="nc" id="L324">        return commandParameters;</span>
+    }
+
+    @Override
+    public boolean isRunOnServer() {
+<span class="nc" id="L329">        return runOnServer;</span>
+    }
+
+    @Override
+    public String getDescription() {
+<span class="nc" id="L334">        return description;</span>
+    }
+
+    @Override
+    public String getHelpText() {
+<span class="nc" id="L339">        return helpText;</span>
+    }
+
+    @Override
+    public String getUsage() {
+<span class="nc" id="L344">        return usage;</span>
+    }
+
+    @Override
+    public Name getName() {
+<span class="fc" id="L349">        return name;</span>
+    }
+
+    @Override
+    public int getRequiredParameterCount() {
+<span class="nc" id="L354">        return requiredParameterCount;</span>
+    }
+
+    @Override
+    public boolean endsWithVarargs() {
+<span class="nc bnc" id="L359" title="All 4 branches missed.">        return commandParameters.size() &gt; 0 &amp;&amp; commandParameters.get(commandParameters.size() - 1).isArray();</span>
+    }
+
+    @Override
+    public Object getSource() {
+<span class="nc" id="L364">        return executionMethod.getTarget();</span>
+    }
+
+    @Override
+    public int compareTo(ConsoleCommand o) {
+<span class="nc" id="L369">        return ConsoleCommand.COMPARATOR.compare(this, o);</span>
+    }
+
+    @Override
+    public String getRequiredPermission() {
+<span class="nc" id="L374">        return requiredPermission;</span>
+    }
+
+    public SpecificAccessibleObject&lt;Method&gt; getExecutionMethod() {
+<span class="fc" id="L378">        return executionMethod;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

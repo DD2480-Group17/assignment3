@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AutoConfigManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.config.flexible</a> &gt; <span class="el_source">AutoConfigManager.java</span></div><h1>AutoConfigManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.config.flexible;
+
+import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.registry.InjectionHelper;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
+import java.util.Set;
+
+public class AutoConfigManager {
+<span class="fc" id="L43">    private static final Logger logger = LoggerFactory.getLogger(AutoConfigManager.class);</span>
+<span class="fc" id="L44">    private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();</span>
+
+<span class="fc" id="L46">    private final Set&lt;AutoConfig&gt; loadedConfigs = Sets.newHashSet();</span>
+    private final TypeHandlerLibrary typeHandlerLibrary;
+
+<span class="fc" id="L49">    public AutoConfigManager(TypeHandlerLibrary typeHandlerLibrary) {</span>
+<span class="fc" id="L50">        this.typeHandlerLibrary = typeHandlerLibrary;</span>
+<span class="fc" id="L51">    }</span>
+
+    public void loadConfigsIn(Context context) {
+<span class="fc" id="L54">        ModuleEnvironment environment = context.get(ModuleManager.class).getEnvironment();</span>
+
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        for (Class&lt;? extends AutoConfig&gt; configClass : environment.getSubtypesOf(AutoConfig.class)) {</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">            if (context.get(configClass) != null) {</span>
+                // We've already initialized this config before
+<span class="nc" id="L59">                continue;</span>
+            }
+
+<span class="fc" id="L62">            SimpleUri configId = ReflectionUtil.getFullyQualifiedSimpleUriFor(configClass, environment);</span>
+<span class="fc" id="L63">            loadConfig(configClass, configId, context);</span>
+<span class="fc" id="L64">        }</span>
+<span class="fc" id="L65">    }</span>
+
+    private &lt;T extends AutoConfig&gt; void loadConfig(Class&lt;T&gt; clazz, SimpleUri id, Context context) {
+<span class="fc" id="L68">        Optional&lt;T&gt; optionalConfig = InjectionHelper.safeCreateWithConstructorInjection(clazz, context);</span>
+
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (!optionalConfig.isPresent()) {</span>
+<span class="nc" id="L71">            logger.error(&quot;Unable to instantiate config {}&quot;, id);</span>
+<span class="nc" id="L72">            return;</span>
+        }
+
+<span class="fc" id="L75">        T config = optionalConfig.get();</span>
+<span class="fc" id="L76">        config.setId(id);</span>
+
+<span class="fc" id="L78">        loadedConfigs.add(config);</span>
+<span class="fc" id="L79">        context.put(clazz, config);</span>
+
+<span class="fc" id="L81">        loadSettingsFromDisk(clazz, config);</span>
+<span class="fc" id="L82">    }</span>
+
+    private &lt;T extends AutoConfig&gt; void loadSettingsFromDisk(Class&lt;T&gt; configClass, T config) {
+<span class="fc" id="L85">        AutoConfigSerializer&lt;T&gt; serializer = new AutoConfigSerializer&lt;&gt;(configClass, typeHandlerLibrary);</span>
+
+<span class="fc" id="L87">        Path configPath = getConfigPath(config.getId());</span>
+
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        if (!Files.exists(configPath)) {</span>
+<span class="fc" id="L90">            return;</span>
+        }
+
+<span class="nc" id="L93">        try (Reader reader = Files.newBufferedReader(configPath, TerasologyConstants.CHARSET)) {</span>
+<span class="nc" id="L94">            serializer.deserializeOnto(config, gson.fromJson(reader, JsonElement.class));</span>
+<span class="nc" id="L95">        } catch (IOException e) {</span>
+<span class="nc" id="L96">            logger.error(&quot;Error while loading config {} from disk&quot;, config.getId(), e);</span>
+<span class="nc" id="L97">        }</span>
+<span class="nc" id="L98">    }</span>
+
+    public void saveConfigsToDisk() {
+        // TODO: Come up with uniform mechanism to save configs;
+        //  currently hardcoded Config is saved right after it is modified
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        for (AutoConfig loadedConfig : loadedConfigs) {</span>
+<span class="nc" id="L104">            saveConfigToDisk(loadedConfig);</span>
+<span class="nc" id="L105">        }</span>
+<span class="nc" id="L106">    }</span>
+
+    private &lt;T extends AutoConfig&gt; void saveConfigToDisk(T config) {
+        // TODO: Save when screen for config closed
+<span class="nc" id="L110">        Class&lt;T&gt; configClass = (Class&lt;T&gt;) config.getClass();</span>
+<span class="nc" id="L111">        AutoConfigSerializer&lt;T&gt; serializer = new AutoConfigSerializer&lt;&gt;(configClass, typeHandlerLibrary);</span>
+
+<span class="nc" id="L113">        Path configPath = getConfigPath(config.getId());</span>
+
+<span class="nc" id="L115">        try (BufferedWriter writer = Files.newBufferedWriter(configPath, TerasologyConstants.CHARSET)) {</span>
+<span class="nc" id="L116">            JsonElement json = serializer.serialize(config);</span>
+<span class="nc" id="L117">            gson.toJson(json, writer);</span>
+<span class="nc" id="L118">        } catch (IOException e) {</span>
+<span class="nc" id="L119">            logger.error(&quot;Error while saving config {} to disk&quot;, config.getId(), e);</span>
+<span class="nc" id="L120">        }</span>
+<span class="nc" id="L121">    }</span>
+
+    private Path getConfigPath(SimpleUri configId) {
+<span class="fc" id="L124">        Path filePath = PathManager.getInstance()</span>
+<span class="fc" id="L125">                            .getConfigsPath()</span>
+<span class="fc" id="L126">                            .resolve(configId.getModuleName().toString())</span>
+<span class="fc" id="L127">                            .resolve(configId.getObjectName().toString() + &quot;.cfg&quot;);</span>
+
+        // This call ensures that the entire directory structure (like configs/engine/) exists.
+<span class="fc" id="L130">        ensureDirectoryExists(filePath);</span>
+<span class="fc" id="L131">        return filePath;</span>
+    }
+
+    private void ensureDirectoryExists(Path filePath) {
+        try {
+<span class="fc" id="L136">            Files.createDirectories(filePath.getParent());</span>
+<span class="nc" id="L137">        } catch (Exception e) {</span>
+<span class="nc" id="L138">            throw new RuntimeException(&quot;Cannot create directory for flexibleConfig &quot; + filePath.getFileName() + &quot;!&quot;);</span>
+<span class="fc" id="L139">        }</span>
+<span class="fc" id="L140">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

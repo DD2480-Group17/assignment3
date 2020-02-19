@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReflectionUtilsTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities</a> &gt; <span class="el_source">ReflectionUtilsTest.java</span></div><h1>ReflectionUtilsTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.utilities;
+
+import org.junit.jupiter.api.Test;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.reflection.TypeInfo;
+import org.terasology.reflection.copy.CopyStrategy;
+
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.WildcardType;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ */
+<span class="fc" id="L34">public class ReflectionUtilsTest {</span>
+    @Test
+    public void testGetClassOfTypeWildcard() {
+<span class="nc" id="L37">        class C&lt;T&gt; {}</span>
+
+<span class="fc" id="L39">        ParameterizedType cType = (ParameterizedType) new TypeInfo&lt;C&lt;?&gt;&gt;() {}.getType();</span>
+<span class="fc" id="L40">        Type wildcardType = cType.getActualTypeArguments()[0];</span>
+
+<span class="fc" id="L42">        assertEquals(Object.class, ReflectionUtil.getRawType(wildcardType));</span>
+<span class="fc" id="L43">    }</span>
+
+    @Test
+    public void testGetParameterForField() throws Exception {
+<span class="fc" id="L47">        assertEquals(EntityRef.class, ReflectionUtil.getTypeParameter(LocationComponent.class.getDeclaredField(&quot;children&quot;).getGenericType(), 0));</span>
+<span class="fc" id="L48">    }</span>
+
+    @Test
+    public void testGetParameterForGenericInterface() throws Exception {
+<span class="fc" id="L52">        assertEquals(Integer.class, ReflectionUtil.getTypeParameterForSuper(SubInterfaceImplementor.class, CopyStrategy.class, 0));</span>
+<span class="fc" id="L53">    }</span>
+
+    @Test
+    public void testGetParameterForBuriedGenericInterface() throws Exception {
+<span class="fc" id="L57">        assertEquals(Integer.class, ReflectionUtil.getTypeParameterForSuper(Subclass.class, CopyStrategy.class, 0));</span>
+<span class="fc" id="L58">    }</span>
+
+    @Test
+    public void testGetParameterForUnboundGenericInterface() throws Exception {
+<span class="fc" id="L62">        Type parameter = ReflectionUtil.getTypeParameterForSuper(new TypeInfo&lt;UnboundInterfaceImplementor&lt;?&gt;&gt;() {}.getType(), CopyStrategy.class, 0);</span>
+
+<span class="fc" id="L64">        assertTrue(parameter instanceof WildcardType);</span>
+<span class="fc" id="L65">    }</span>
+
+    @Test
+    public void testGetTypeParameterForGenericSupertypeInGenericSubclass() {
+<span class="nc" id="L69">        class SubInterface&lt;T&gt; implements CopyStrategy&lt;T&gt; {</span>
+            @Override
+            public T copy(T value) {
+<span class="nc" id="L72">                return null;</span>
+            }
+        }
+
+<span class="nc" id="L76">        class SuperClass&lt;T&gt; {}</span>
+
+<span class="nc" id="L78">        class SubClass&lt;T&gt; extends SuperClass&lt;T&gt; {}</span>
+
+<span class="fc" id="L80">        Type subInterfaceType = new TypeInfo&lt;SubInterface&lt;Integer&gt;&gt;() {}.getType();</span>
+
+<span class="fc" id="L82">        assertEquals(Integer.class, ReflectionUtil.getTypeParameterForSuper(subInterfaceType, CopyStrategy.class, 0));</span>
+
+<span class="fc" id="L84">        Type subClassType = new TypeInfo&lt;SubClass&lt;Integer&gt;&gt;() {}.getType();</span>
+
+<span class="fc" id="L86">        assertEquals(Integer.class, ReflectionUtil.getTypeParameterForSuper(subClassType, SuperClass.class, 0));</span>
+<span class="fc" id="L87">    }</span>
+
+    @Test
+    public void testResolveTypeVariable() {
+<span class="nc" id="L91">        class SomeClass&lt;T&gt; {</span>
+            private T t;
+        }
+
+<span class="fc" id="L95">        TypeInfo&lt;SomeClass&lt;Float&gt;&gt; typeInfo = new TypeInfo&lt;SomeClass&lt;Float&gt;&gt;() {</span>
+        };
+
+<span class="fc" id="L98">        Type resolvedFieldType = ReflectionUtil.resolveType(</span>
+<span class="fc" id="L99">                typeInfo.getType(),</span>
+<span class="fc" id="L100">                typeInfo.getRawType().getDeclaredFields()[0].getGenericType()</span>
+        );
+
+<span class="fc" id="L103">        assertEquals(Float.class, resolvedFieldType);</span>
+<span class="fc" id="L104">    }</span>
+
+    @Test
+    public void testResolveParameterizedType() {
+<span class="nc" id="L108">        class SomeClass&lt;T&gt; {</span>
+            private CopyStrategy&lt;T&gt; t;
+        }
+
+<span class="fc" id="L112">        TypeInfo&lt;SomeClass&lt;Float&gt;&gt; typeInfo = new TypeInfo&lt;SomeClass&lt;Float&gt;&gt;() {</span>
+        };
+
+<span class="fc" id="L115">        Type resolvedFieldType = ReflectionUtil.resolveType(</span>
+<span class="fc" id="L116">                typeInfo.getType(),</span>
+<span class="fc" id="L117">                typeInfo.getRawType().getDeclaredFields()[0].getGenericType()</span>
+        );
+
+<span class="fc" id="L120">        assertEquals(new TypeInfo&lt;CopyStrategy&lt;Float&gt;&gt;() {}.getType(), resolvedFieldType);</span>
+<span class="fc" id="L121">    }</span>
+
+    @Test
+    public void testResolveRawParameterizedType() {
+<span class="nc" id="L125">        class SomeClass&lt;T&gt; {</span>
+            private CopyStrategy&lt;T&gt; t;
+            private T o;
+        }
+
+<span class="fc" id="L130">        TypeInfo&lt;SomeClass&gt; typeInfo = new TypeInfo&lt;SomeClass&gt;() {</span>
+        };
+
+<span class="fc" id="L133">        Type resolvedFieldType = ReflectionUtil.resolveType(</span>
+<span class="fc" id="L134">                typeInfo.getType(),</span>
+<span class="fc" id="L135">                typeInfo.getRawType().getDeclaredFields()[0].getGenericType()</span>
+        );
+
+<span class="fc" id="L138">        assertEquals(new TypeInfo&lt;CopyStrategy&lt;Object&gt;&gt;() {}.getType(), resolvedFieldType);</span>
+
+<span class="fc" id="L140">        resolvedFieldType = ReflectionUtil.resolveType(</span>
+<span class="fc" id="L141">                typeInfo.getType(),</span>
+<span class="fc" id="L142">                typeInfo.getRawType().getDeclaredFields()[1].getGenericType()</span>
+        );
+
+<span class="fc" id="L145">        assertEquals(TypeInfo.of(Object.class).getType(), resolvedFieldType);</span>
+<span class="fc" id="L146">    }</span>
+
+    @Test
+    public void testResolveNothing() {
+<span class="nc" id="L150">        class SomeClass {</span>
+            private CopyStrategy&lt;Integer&gt; t;
+            private String o;
+        }
+
+<span class="fc" id="L155">        TypeInfo&lt;SomeClass&gt; typeInfo = new TypeInfo&lt;SomeClass&gt;() {</span>
+        };
+
+<span class="fc" id="L158">        Type resolvedFieldType = ReflectionUtil.resolveType(</span>
+<span class="fc" id="L159">                typeInfo.getType(),</span>
+<span class="fc" id="L160">                typeInfo.getRawType().getDeclaredFields()[0].getGenericType()</span>
+        );
+
+<span class="fc" id="L163">        assertEquals(new TypeInfo&lt;CopyStrategy&lt;Integer&gt;&gt;() {}.getType(), resolvedFieldType);</span>
+
+<span class="fc" id="L165">        resolvedFieldType = ReflectionUtil.resolveType(</span>
+<span class="fc" id="L166">                typeInfo.getType(),</span>
+<span class="fc" id="L167">                typeInfo.getRawType().getDeclaredFields()[1].getGenericType()</span>
+        );
+
+<span class="fc" id="L170">        assertEquals(TypeInfo.of(String.class).getType(), resolvedFieldType);</span>
+<span class="fc" id="L171">    }</span>
+
+    @Test
+    public void testResolveGenericArray() {
+<span class="nc" id="L175">        class SomeClass&lt;T&gt; {</span>
+            private T[] t;
+        }
+
+<span class="fc" id="L179">        TypeInfo&lt;SomeClass&lt;Float&gt;&gt; typeInfo = new TypeInfo&lt;SomeClass&lt;Float&gt;&gt;() {</span>
+        };
+
+<span class="fc" id="L182">        GenericArrayType resolvedFieldType = (GenericArrayType) ReflectionUtil.resolveType(</span>
+<span class="fc" id="L183">                typeInfo.getType(),</span>
+<span class="fc" id="L184">                typeInfo.getRawType().getDeclaredFields()[0].getGenericType()</span>
+        );
+
+<span class="fc" id="L187">        assertEquals(Float[].class.getComponentType(), resolvedFieldType.getGenericComponentType());</span>
+<span class="fc" id="L188">    }</span>
+
+    @Test
+    public void testResolveWildcardType() {
+<span class="nc" id="L192">        class SomeClass&lt;T, U&gt; {</span>
+            private CopyStrategy&lt;? extends T&gt; t;
+            private CopyStrategy&lt;? super U&gt; u;
+        }
+
+<span class="fc" id="L197">        TypeInfo&lt;SomeClass&lt;Float, Integer&gt;&gt; typeInfo = new TypeInfo&lt;SomeClass&lt;Float, Integer&gt;&gt;() {</span>
+        };
+
+<span class="fc" id="L200">        ParameterizedType resolvedFieldType = (ParameterizedType) ReflectionUtil.resolveType(</span>
+<span class="fc" id="L201">                typeInfo.getType(),</span>
+<span class="fc" id="L202">                typeInfo.getRawType().getDeclaredFields()[0].getGenericType()</span>
+        );
+
+<span class="fc" id="L205">        WildcardType resolvedWildcardType = (WildcardType) resolvedFieldType.getActualTypeArguments()[0];</span>
+
+<span class="fc" id="L207">        assertEquals(Float.class, resolvedWildcardType.getUpperBounds()[0]);</span>
+
+<span class="fc" id="L209">        resolvedFieldType = (ParameterizedType) ReflectionUtil.resolveType(</span>
+<span class="fc" id="L210">                typeInfo.getType(),</span>
+<span class="fc" id="L211">                typeInfo.getRawType().getDeclaredFields()[1].getGenericType()</span>
+        );
+
+<span class="fc" id="L214">        resolvedWildcardType = (WildcardType) resolvedFieldType.getActualTypeArguments()[0];</span>
+
+<span class="fc" id="L216">        assertEquals(Integer.class, resolvedWildcardType.getLowerBounds()[0]);</span>
+<span class="fc" id="L217">    }</span>
+
+    @Test
+    public void testResolveThroughGenericSupertypes() {
+<span class="nc" id="L221">        class B&lt;S, T&gt; implements MarkerB&lt;S&gt;, MarkerA&lt;T&gt; {}</span>
+
+<span class="fc" id="L223">        ParameterizedType resolvedTypeForB = (ParameterizedType) ReflectionUtil.resolveType(</span>
+<span class="fc" id="L224">            new TypeInfo&lt;MarkerA&lt;String&gt;&gt;() {}.getType(),</span>
+<span class="fc" id="L225">            ReflectionUtil.parameterizeRawType(B.class)</span>
+        );
+
+        // Could not resolve S
+<span class="fc" id="L229">        assertEquals(Object.class, resolvedTypeForB.getActualTypeArguments()[0]);</span>
+        // Could resolve T
+<span class="fc" id="L231">        assertEquals(String.class, resolvedTypeForB.getActualTypeArguments()[1]);</span>
+<span class="fc" id="L232">    }</span>
+
+    @Test
+    public void testResolveThroughInheritanceTree() {
+<span class="nc" id="L236">        class A&lt;S, T&gt; implements MarkerA&lt;T&gt;, MarkerC&lt;S&gt; {}</span>
+<span class="nc" id="L237">        class B&lt;S, T&gt; extends A&lt;S, T&gt; implements MarkerB&lt;T&gt;, MarkerC&lt;S&gt; {}</span>
+<span class="nc" id="L238">        class C&lt;T&gt; extends B&lt;Integer, T&gt; {}</span>
+
+<span class="fc" id="L240">        final Type typeToResolve = ReflectionUtil.parameterizeRawType(C.class);</span>
+
+<span class="fc" id="L242">        ParameterizedType resolvedThroughMarkerA = (ParameterizedType) ReflectionUtil.resolveType(</span>
+<span class="fc" id="L243">            new TypeInfo&lt;MarkerA&lt;String&gt;&gt;() {}.getType(),</span>
+            typeToResolve
+        );
+
+<span class="fc" id="L247">        assertEquals(String.class, resolvedThroughMarkerA.getActualTypeArguments()[0]);</span>
+
+<span class="fc" id="L249">        ParameterizedType resolvedThroughMarkerB = (ParameterizedType) ReflectionUtil.resolveType(</span>
+<span class="fc" id="L250">            new TypeInfo&lt;MarkerB&lt;String&gt;&gt;() {}.getType(),</span>
+            typeToResolve
+        );
+
+<span class="fc" id="L254">        assertEquals(String.class, resolvedThroughMarkerB.getActualTypeArguments()[0]);</span>
+
+
+<span class="fc" id="L257">        ParameterizedType resolvedThroughAWithIncorrectFirstType =</span>
+<span class="fc" id="L258">            (ParameterizedType) ReflectionUtil.resolveType(</span>
+<span class="fc" id="L259">                new TypeInfo&lt;A&lt;String, String&gt;&gt;() {}.getType(),</span>
+                typeToResolve
+            );
+
+<span class="fc" id="L263">        assertEquals(String.class, resolvedThroughAWithIncorrectFirstType.getActualTypeArguments()[0]);</span>
+<span class="fc" id="L264">    }</span>
+
+    interface MarkerA&lt;T&gt; {}
+    interface MarkerB&lt;T&gt; {}
+    interface MarkerC&lt;T&gt; {}
+
+    interface GenericInterfaceSubInterface extends CopyStrategy&lt;Integer&gt; {}
+
+<span class="nc" id="L272">    class SubInterfaceImplementor implements GenericInterfaceSubInterface {</span>
+        @Override
+        public Integer copy(Integer value) {
+<span class="nc" id="L275">            return null;</span>
+        }
+    }
+
+<span class="nc" id="L279">    public static class ParameterisedInterfaceImplementor implements CopyStrategy&lt;Integer&gt; {</span>
+
+        @Override
+        public Integer copy(Integer value) {
+<span class="nc" id="L283">            return null;</span>
+        }
+    }
+
+<span class="nc" id="L287">    public static class Subclass extends ParameterisedInterfaceImplementor {</span>
+    }
+
+<span class="nc" id="L290">    public static class UnboundInterfaceImplementor&lt;T&gt; implements CopyStrategy&lt;T&gt; {</span>
+
+        @Override
+        public T copy(T value) {
+<span class="nc" id="L294">            return null;</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetworkEntitySerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">NetworkEntitySerializer.java</span></div><h1>NetworkEntitySerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.persistence.serializers;
+
+import com.google.common.base.Objects;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+import com.google.common.primitives.UnsignedBytes;
+import com.google.protobuf.ByteString;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.MutableComponentContainer;
+import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
+import org.terasology.entitySystem.metadata.ReplicatedFieldMetadata;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.Serializer;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.protobuf.ProtobufPersistedData;
+import org.terasology.persistence.typeHandling.protobuf.ProtobufPersistedDataSerializer;
+import org.terasology.protobuf.EntityData;
+
+import java.util.Map;
+import java.util.Set;
+
+/**
+ */
+public class NetworkEntitySerializer {
+<span class="fc" id="L50">    private static final Logger logger = LoggerFactory.getLogger(NetworkEntitySerializer.class);</span>
+
+<span class="fc" id="L52">    private ComponentSerializeCheck componentSerializeCheck = ComponentSerializeCheck.NullCheck.create();</span>
+    private EngineEntityManager entityManager;
+    private ComponentLibrary componentLibrary;
+    private TypeHandlerLibrary typeHandlerLibrary;
+    private ProtobufPersistedDataSerializer serializationContext;
+<span class="fc" id="L57">    private BiMap&lt;Class&lt;? extends Component&gt;, Integer&gt; idTable = ImmutableBiMap.&lt;Class&lt;? extends Component&gt;, Integer&gt;builder().build();</span>
+
+<span class="fc" id="L59">    public NetworkEntitySerializer(EngineEntityManager entityManager, ComponentLibrary componentLibrary, TypeHandlerLibrary typeHandlerLibrary) {</span>
+<span class="fc" id="L60">        this.entityManager = entityManager;</span>
+<span class="fc" id="L61">        this.componentLibrary = componentLibrary;</span>
+<span class="fc" id="L62">        this.typeHandlerLibrary = typeHandlerLibrary;</span>
+<span class="fc" id="L63">        this.serializationContext = new ProtobufPersistedDataSerializer();</span>
+<span class="fc" id="L64">    }</span>
+
+    public void setComponentSerializeCheck(ComponentSerializeCheck componentSerializeCheck) {
+<span class="fc" id="L67">        this.componentSerializeCheck = componentSerializeCheck;</span>
+<span class="fc" id="L68">    }</span>
+
+    public ComponentLibrary getComponentLibrary() {
+<span class="nc" id="L71">        return componentLibrary;</span>
+    }
+
+    public Map&lt;Class&lt;? extends Component&gt;, Integer&gt; getIdMapping() {
+<span class="nc" id="L75">        return ImmutableMap.copyOf(idTable);</span>
+    }
+
+    public void setIdMapping(Map&lt;Class&lt;? extends Component&gt;, Integer&gt; componentIdMapping) {
+<span class="fc" id="L79">        this.idTable = ImmutableBiMap.copyOf(componentIdMapping);</span>
+<span class="fc" id="L80">    }</span>
+
+    public EntityData.PackedEntity.Builder serialize(EntityRef entity, boolean deltaAgainstPrefab, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="nc" id="L83">        Prefab prefab = entity.getParentPrefab();</span>
+<span class="nc bnc" id="L84" title="All 4 branches missed.">        if (prefab != null &amp;&amp; deltaAgainstPrefab) {</span>
+<span class="nc" id="L85">            return serializeEntityDelta(entity, prefab, fieldCheck);</span>
+        } else {
+<span class="nc" id="L87">            return serializeEntityFull(entity, fieldCheck);</span>
+        }
+    }
+
+    private EntityData.PackedEntity.Builder serializeEntityFull(EntityRef entityRef, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="nc" id="L92">        EntityData.PackedEntity.Builder entity = EntityData.PackedEntity.newBuilder();</span>
+<span class="nc" id="L93">        ByteString.Output fieldIds = ByteString.newOutput();</span>
+<span class="nc" id="L94">        ByteString.Output componentFieldCounts = ByteString.newOutput();</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        for (Component component : entityRef.iterateComponents()) {</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">            if (!componentSerializeCheck.serialize(componentLibrary.getMetadata(component.getClass()))) {</span>
+<span class="nc" id="L97">                continue;</span>
+            }
+
+<span class="nc" id="L100">            serializeComponentFull(component, false, fieldCheck, entity, fieldIds, componentFieldCounts, true);</span>
+<span class="nc" id="L101">        }</span>
+<span class="nc" id="L102">        entity.setFieldIds(fieldIds.toByteString());</span>
+<span class="nc" id="L103">        entity.setComponentFieldCounts(componentFieldCounts.toByteString());</span>
+
+<span class="nc" id="L105">        return entity;</span>
+    }
+
+    private EntityData.PackedEntity.Builder serializeEntityDelta(EntityRef entityRef, Prefab prefab, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="nc" id="L109">        EntityData.PackedEntity.Builder entity = EntityData.PackedEntity.newBuilder();</span>
+<span class="nc" id="L110">        entity.setParentPrefabUri(prefab.getName());</span>
+<span class="nc" id="L111">        Set&lt;Class&lt;? extends Component&gt;&gt; presentClasses = Sets.newHashSet();</span>
+
+<span class="nc" id="L113">        ByteString.Output fieldIds = ByteString.newOutput();</span>
+<span class="nc" id="L114">        ByteString.Output componentFieldCounts = ByteString.newOutput();</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        for (Component component : entityRef.iterateComponents()) {</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            if (!componentSerializeCheck.serialize(componentLibrary.getMetadata(component.getClass()))) {</span>
+<span class="nc" id="L117">                continue;</span>
+            }
+
+<span class="nc" id="L120">            presentClasses.add(component.getClass());</span>
+
+<span class="nc" id="L122">            Component prefabComponent = prefab.getComponent(component.getClass());</span>
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            if (prefabComponent == null) {</span>
+<span class="nc" id="L125">                serializeComponentFull(component, false, fieldCheck, entity, fieldIds, componentFieldCounts, true);</span>
+            } else {
+<span class="nc" id="L127">                serializeComponentDelta(prefabComponent, component, fieldCheck, entity, fieldIds, componentFieldCounts, true);</span>
+            }
+<span class="nc" id="L129">        }</span>
+<span class="nc" id="L130">        entity.setFieldIds(fieldIds.toByteString());</span>
+<span class="nc" id="L131">        entity.setComponentFieldCounts(componentFieldCounts.toByteString());</span>
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        for (Component prefabComponent : prefab.iterateComponents()) {</span>
+<span class="nc bnc" id="L134" title="All 4 branches missed.">            if (!presentClasses.contains(prefabComponent.getClass()) &amp;&amp; componentSerializeCheck.serialize(componentLibrary.getMetadata(prefabComponent.getClass()))) {</span>
+<span class="nc" id="L135">                entity.addRemovedComponent(idTable.get(prefabComponent.getClass()));</span>
+            }
+<span class="nc" id="L137">        }</span>
+<span class="nc" id="L138">        return entity;</span>
+    }
+
+    private void serializeComponentDelta(Component oldComponent, Component newComponent, FieldSerializeCheck&lt;Component&gt; fieldCheck,
+                                         EntityData.PackedEntity.Builder entityData, ByteString.Output entityFieldIds, ByteString.Output componentFieldCounts,
+                                         boolean componentInitial) {
+<span class="nc" id="L144">        ComponentMetadata&lt;?&gt; componentMetadata = componentLibrary.getMetadata(oldComponent.getClass());</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        if (componentMetadata == null) {</span>
+<span class="nc" id="L146">            logger.error(&quot;Unregistered component type: {}&quot;, oldComponent.getClass());</span>
+<span class="nc" id="L147">            return;</span>
+        }
+
+<span class="nc" id="L150">        byte fieldCount = 0;</span>
+<span class="nc" id="L151">        Serializer serializer = typeHandlerLibrary.getSerializerFor(componentMetadata);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        for (ReplicatedFieldMetadata field : componentMetadata.getFields()) {</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">            if (fieldCheck.shouldSerializeField(field, newComponent, componentInitial)) {</span>
+<span class="nc" id="L154">                Object oldValue = field.getValue(oldComponent);</span>
+<span class="nc" id="L155">                Object newValue = field.getValue(newComponent);</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                if (!Objects.equal(oldValue, newValue)) {</span>
+<span class="nc" id="L157">                    PersistedData data = serializer.serializeValue(field, newValue, serializationContext);</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                    if (!data.isNull()) {</span>
+<span class="nc" id="L159">                        entityFieldIds.write(field.getId());</span>
+<span class="nc" id="L160">                        entityData.addFieldValue(((ProtobufPersistedData) data).getValue());</span>
+<span class="nc" id="L161">                        fieldCount++;</span>
+                    } else {
+<span class="nc" id="L163">                        logger.error(&quot;Exception serializing component type: {}, field: {} - returned null&quot;, componentMetadata, field);</span>
+                    }
+                }
+            }
+<span class="nc" id="L167">        }</span>
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        if (fieldCount &gt; 0) {</span>
+<span class="nc" id="L170">            entityData.addComponentId(idTable.get(newComponent.getClass()));</span>
+<span class="nc" id="L171">            componentFieldCounts.write(fieldCount);</span>
+        }
+<span class="nc" id="L173">    }</span>
+
+    private void serializeComponentFull(Component component, boolean ignoreIfNoFields, FieldSerializeCheck&lt;Component&gt; fieldCheck,
+                                        EntityData.PackedEntity.Builder entityData, ByteString.Output entityFieldIds, ByteString.Output componentFieldCounts,
+                                        boolean componentInitial) {
+<span class="nc" id="L178">        ComponentMetadata&lt;?&gt; componentMetadata = componentLibrary.getMetadata(component.getClass());</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        if (componentMetadata == null) {</span>
+<span class="nc" id="L180">            logger.error(&quot;Unregistered component type: {}&quot;, component.getClass());</span>
+<span class="nc" id="L181">            return;</span>
+        }
+
+<span class="nc" id="L184">        Serializer serializer = typeHandlerLibrary.getSerializerFor(componentMetadata);</span>
+<span class="nc" id="L185">        byte fieldCount = 0;</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        for (ReplicatedFieldMetadata field : componentMetadata.getFields()) {</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            if (fieldCheck.shouldSerializeField(field, component, componentInitial)) {</span>
+<span class="nc" id="L188">                PersistedData fieldValue = serializer.serialize(field, component, serializationContext);</span>
+<span class="nc" id="L189">                entityFieldIds.write(field.getId());</span>
+
+<span class="nc" id="L191">                entityData.addFieldValue(((ProtobufPersistedData) fieldValue).getValue());</span>
+<span class="nc" id="L192">                fieldCount++;</span>
+            }
+<span class="nc" id="L194">        }</span>
+
+<span class="nc bnc" id="L196" title="All 4 branches missed.">        if (fieldCount != 0 || !ignoreIfNoFields) {</span>
+<span class="nc" id="L197">            entityData.addComponentId(idTable.get(component.getClass()));</span>
+<span class="nc" id="L198">            componentFieldCounts.write(fieldCount);</span>
+        }
+<span class="nc" id="L200">    }</span>
+
+    public void deserializeOnto(MutableComponentContainer entity, EntityData.PackedEntity entityData) {
+<span class="nc" id="L203">        deserializeOnto(entity, entityData, FieldSerializeCheck.NullCheck.&lt;Component&gt;newInstance());</span>
+<span class="nc" id="L204">    }</span>
+
+    public void deserializeOnto(MutableComponentContainer entity, EntityData.PackedEntity entityData, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="nc" id="L207">        int fieldPos = 0;</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        for (int componentIndex = 0; componentIndex &lt; entityData.getComponentIdCount(); ++componentIndex) {</span>
+<span class="nc" id="L209">            Integer componentId = entityData.getComponentId(componentIndex);</span>
+<span class="nc" id="L210">            Class&lt;? extends Component&gt; componentClass = idTable.inverse().get(componentId);</span>
+<span class="nc" id="L211">            ComponentMetadata&lt;?&gt; metadata = componentLibrary.getMetadata(componentClass);</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            if (metadata == null) {</span>
+<span class="nc" id="L213">                logger.warn(&quot;Skipping unknown component {}&quot;, componentId);</span>
+<span class="nc" id="L214">                fieldPos += UnsignedBytes.toInt(entityData.getComponentFieldCounts().byteAt(componentIndex));</span>
+<span class="nc" id="L215">                continue;</span>
+            }
+<span class="nc bnc" id="L217" title="All 2 branches missed.">            if (!componentSerializeCheck.serialize(metadata)) {</span>
+<span class="nc" id="L218">                fieldPos += UnsignedBytes.toInt(entityData.getComponentFieldCounts().byteAt(componentIndex));</span>
+<span class="nc" id="L219">                continue;</span>
+            }
+
+<span class="nc" id="L222">            Component component = entity.getComponent(metadata.getType());</span>
+<span class="nc" id="L223">            boolean createdNewComponent = false;</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">            if (component == null) {</span>
+<span class="nc" id="L225">                createdNewComponent = true;</span>
+<span class="nc" id="L226">                component = metadata.newInstance();</span>
+            }
+<span class="nc" id="L228">            Serializer serializer = typeHandlerLibrary.getSerializerFor(metadata);</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">            for (int fieldIndex = 0; fieldIndex &lt; UnsignedBytes.toInt(entityData.getComponentFieldCounts().byteAt(componentIndex)); ++fieldIndex) {</span>
+<span class="nc" id="L230">                byte fieldId = entityData.getFieldIds().byteAt(fieldPos);</span>
+<span class="nc" id="L231">                ReplicatedFieldMetadata fieldMetadata = metadata.getField(fieldId);</span>
+<span class="nc bnc" id="L232" title="All 4 branches missed.">                if (fieldMetadata != null &amp;&amp; fieldCheck.shouldDeserialize(metadata, fieldMetadata)) {</span>
+<span class="nc" id="L233">                    logger.trace(&quot;Deserializing field {} of component {} as value {}&quot;, fieldMetadata, metadata, entityData.getFieldValue(fieldPos));</span>
+<span class="nc" id="L234">                    serializer.deserializeOnto(component, fieldMetadata, new ProtobufPersistedData(entityData.getFieldValue(fieldPos)));</span>
+                }
+<span class="nc" id="L236">                fieldPos++;</span>
+            }
+<span class="nc bnc" id="L238" title="All 2 branches missed.">            if (createdNewComponent) {</span>
+<span class="nc" id="L239">                entity.addComponent(component);</span>
+            } else {
+<span class="nc" id="L241">                entity.saveComponent(component);</span>
+            }
+
+        }
+
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        for (int componentId : entityData.getRemovedComponentList()) {</span>
+<span class="nc" id="L247">            Class&lt;? extends Component&gt; componentClass = idTable.inverse().get(componentId);</span>
+<span class="nc" id="L248">            ComponentMetadata&lt;?&gt; metadata = componentLibrary.getMetadata(componentClass);</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">            if (componentSerializeCheck.serialize(metadata)) {</span>
+<span class="nc" id="L250">                entity.removeComponent(metadata.getType());</span>
+            }
+<span class="nc" id="L252">        }</span>
+<span class="nc" id="L253">    }</span>
+
+    public EntityRef deserialize(EntityData.PackedEntity entityData) {
+        EntityBuilder target;
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if (entityData.hasParentPrefabUri()) {</span>
+<span class="nc" id="L258">            target = entityManager.newBuilder(entityData.getParentPrefabUri());</span>
+        } else {
+<span class="nc" id="L260">            target = entityManager.newBuilder();</span>
+        }
+<span class="nc" id="L262">        deserializeOnto(target, entityData);</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">        if (entityData.hasId()) {</span>
+<span class="nc" id="L264">            return entityManager.createEntityWithId(entityData.getId(), target.iterateComponents());</span>
+        } else {
+<span class="nc" id="L266">            return target.build();</span>
+        }
+    }
+
+
+    public EntityData.PackedEntity serialize(EntityRef entityRef, Set&lt;Class&lt;? extends Component&gt;&gt; added, Set&lt;Class&lt;? extends Component&gt;&gt; changed,
+                                             Set&lt;Class&lt;? extends Component&gt;&gt; removed, FieldSerializeCheck&lt;Component&gt; fieldCheck) {
+<span class="nc" id="L273">        EntityData.PackedEntity.Builder entity = EntityData.PackedEntity.newBuilder();</span>
+
+<span class="nc" id="L275">        ByteString.Output fieldIds = ByteString.newOutput();</span>
+<span class="nc" id="L276">        ByteString.Output componentFieldCounts = ByteString.newOutput();</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        for (Class&lt;? extends Component&gt; componentType : added) {</span>
+<span class="nc" id="L278">            Component component = entityRef.getComponent(componentType);</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">            if (component == null) {</span>
+<span class="nc" id="L280">                logger.error(&quot;Non-existent component marked as added: {}&quot;, componentType);</span>
+            }
+<span class="nc" id="L282">            serializeComponentFull(entityRef.getComponent(componentType), false, fieldCheck, entity, fieldIds, componentFieldCounts, true);</span>
+<span class="nc" id="L283">        }</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        for (Class&lt;? extends Component&gt; componentType : changed) {</span>
+<span class="nc" id="L285">            Component comp = entityRef.getComponent(componentType);</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">            if (comp != null) {</span>
+<span class="nc" id="L287">                serializeComponentFull(comp, true, fieldCheck, entity, fieldIds, componentFieldCounts, false);</span>
+            } else {
+<span class="nc" id="L289">                logger.error(&quot;Non-existent component marked as changed: {}&quot;, componentType);</span>
+            }
+<span class="nc" id="L291">        }</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">        for (Class&lt;? extends Component&gt; componentType : removed) {</span>
+<span class="nc" id="L293">            entity.addRemovedComponent(idTable.get(componentType));</span>
+<span class="nc" id="L294">        }</span>
+<span class="nc" id="L295">        entity.setFieldIds(fieldIds.toByteString());</span>
+<span class="nc" id="L296">        entity.setComponentFieldCounts(componentFieldCounts.toByteString());</span>
+<span class="nc bnc" id="L297" title="All 4 branches missed.">        if (entity.getFieldIds().isEmpty() &amp;&amp; entity.getRemovedComponentCount() == 0) {</span>
+<span class="nc" id="L298">            return null;</span>
+        } else {
+<span class="nc" id="L300">            return entity.build();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

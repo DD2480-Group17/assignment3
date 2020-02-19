@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChunkViewTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world</a> &gt; <span class="el_source">ChunkViewTest.java</span></div><h1>ChunkViewTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.BlockUri;
+import org.terasology.world.block.family.SymmetricFamily;
+import org.terasology.world.block.internal.BlockManagerImpl;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.loader.BlockFamilyDefinitionData;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.tiles.NullWorldAtlas;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+import org.terasology.world.chunks.internal.ChunkImpl;
+import org.terasology.world.internal.ChunkViewCore;
+import org.terasology.world.internal.ChunkViewCoreImpl;
+
+import java.io.IOException;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+<span class="fc" id="L46">public class ChunkViewTest extends TerasologyTestingEnvironment {</span>
+
+    Block airBlock;
+    Block solidBlock;
+    private BlockManager blockManager;
+    private ExtraBlockDataManager extraDataManager;
+
+    @BeforeEach
+    public void setup() throws IOException {
+<span class="fc" id="L55">        AssetManager assetManager = CoreRegistry.get(AssetManager.class);</span>
+<span class="fc" id="L56">        blockManager = new BlockManagerImpl(new NullWorldAtlas(), assetManager);</span>
+<span class="fc" id="L57">        CoreRegistry.put(BlockManager.class, blockManager);</span>
+<span class="fc" id="L58">        airBlock = blockManager.getBlock(BlockManager.AIR_ID);</span>
+        
+<span class="fc" id="L60">        extraDataManager = new ExtraBlockDataManager();</span>
+
+<span class="fc" id="L62">        BlockFamilyDefinitionData solidData = new BlockFamilyDefinitionData();</span>
+<span class="fc" id="L63">        solidData.getBaseSection().setDisplayName(&quot;Stone&quot;);</span>
+<span class="fc" id="L64">        solidData.getBaseSection().setShape(assetManager.getAsset(&quot;engine:cube&quot;, BlockShape.class).get());</span>
+<span class="fc" id="L65">        solidData.getBaseSection().setTranslucent(false);</span>
+<span class="fc" id="L66">        solidData.setBlockFamily(SymmetricFamily.class);</span>
+<span class="fc" id="L67">        assetManager.loadAsset(new ResourceUrn(&quot;engine:stone&quot;), solidData, BlockFamilyDefinition.class);</span>
+<span class="fc" id="L68">        solidBlock = blockManager.getBlock(new BlockUri(new ResourceUrn(&quot;engine:stone&quot;)));</span>
+<span class="fc" id="L69">    }</span>
+
+    @Test
+    public void testSimpleWorldView() {
+<span class="fc" id="L73">        Chunk chunk = createChunk(0, 0, 0);</span>
+<span class="fc" id="L74">        chunk.setBlock(new Vector3i(0, 0, 0), solidBlock);</span>
+
+<span class="fc" id="L76">        ChunkViewCore chunkView = new ChunkViewCoreImpl(new Chunk[]{chunk}, Region3i.createFromCenterExtents(Vector3i.zero(), Vector3i.zero()), new Vector3i(), airBlock);</span>
+<span class="fc" id="L77">        assertEquals(solidBlock, chunkView.getBlock(0, 0, 0));</span>
+<span class="fc" id="L78">    }</span>
+
+    @Test
+    public void testOffsetWorldView() {
+<span class="fc" id="L82">        Chunk chunk = createChunk(0, 0, 0);</span>
+<span class="fc" id="L83">        chunk.setBlock(new Vector3i(0, 0, 0), solidBlock);</span>
+
+<span class="fc" id="L85">        Chunk[] chunks = new Chunk[]{createChunk(-1, 0, -1), createChunk(0, 0, -1), createChunk(1, 0, -1),</span>
+<span class="fc" id="L86">                createChunk(-1, 0, 0), chunk, createChunk(1, 0, 0),</span>
+<span class="fc" id="L87">                createChunk(-1, 0, 1), createChunk(0, 0, 1), createChunk(1, 0, 1)};</span>
+
+<span class="fc" id="L89">        ChunkViewCore chunkView = new ChunkViewCoreImpl(chunks,</span>
+<span class="fc" id="L90">                Region3i.createFromCenterExtents(new Vector3i(0, 0, 0), new Vector3i(1, 0, 1)), new Vector3i(1, 0, 1), airBlock);</span>
+<span class="fc" id="L91">        assertEquals(solidBlock, chunkView.getBlock(0, 0, 0));</span>
+<span class="fc" id="L92">    }</span>
+
+    @Test
+    public void testOffsetWorldViewBeforeMainChunk() {
+<span class="fc" id="L96">        Chunk chunk = createChunk(0, 0, 0);</span>
+<span class="fc" id="L97">        chunk.setBlock(new Vector3i(ChunkConstants.SIZE_X - 1, 0, ChunkConstants.SIZE_Z - 1), solidBlock);</span>
+
+<span class="fc" id="L99">        Chunk[] chunks = new Chunk[]{chunk, createChunk(0, 0, -1), createChunk(1, 0, -1),</span>
+<span class="fc" id="L100">                createChunk(-1, 0, 0), createChunk(0, 0, 0), createChunk(1, 0, 0),</span>
+<span class="fc" id="L101">                createChunk(-1, 0, 1), createChunk(0, 0, 1), createChunk(1, 0, 1)};</span>
+
+<span class="fc" id="L103">        ChunkViewCore chunkView = new ChunkViewCoreImpl(chunks,</span>
+<span class="fc" id="L104">                Region3i.createFromCenterExtents(new Vector3i(0, 0, 0), new Vector3i(1, 0, 1)), new Vector3i(1, 0, 1), airBlock);</span>
+<span class="fc" id="L105">        assertEquals(solidBlock, chunkView.getBlock(-1, 0, -1));</span>
+<span class="fc" id="L106">    }</span>
+
+    @Test
+    public void testOffsetWorldViewAfterMainChunk() {
+<span class="fc" id="L110">        Chunk chunk = createChunk(0, 0, 0);</span>
+<span class="fc" id="L111">        chunk.setBlock(new Vector3i(0, 0, 0), solidBlock);</span>
+
+<span class="fc" id="L113">        Chunk[] chunks = new Chunk[]{createChunk(-1, 0, -1), createChunk(0, 0, -1), createChunk(1, 0, -1),</span>
+<span class="fc" id="L114">                createChunk(-1, 0, 0), createChunk(0, 0, 0), createChunk(1, 0, 0),</span>
+<span class="fc" id="L115">                createChunk(-1, 0, 1), createChunk(0, 0, 1), chunk};</span>
+
+<span class="fc" id="L117">        ChunkViewCore chunkView = new ChunkViewCoreImpl(chunks,</span>
+<span class="fc" id="L118">                Region3i.createFromCenterExtents(new Vector3i(0, 0, 0), new Vector3i(1, 0, 1)), new Vector3i(1, 0, 1), airBlock);</span>
+<span class="fc" id="L119">        assertEquals(solidBlock, chunkView.getBlock(ChunkConstants.SIZE_X, 0, ChunkConstants.SIZE_Z));</span>
+<span class="fc" id="L120">    }</span>
+
+    @Test
+    public void testOffsetChunksWorldView() {
+<span class="fc" id="L124">        Chunk chunk = createChunk(1, 0, 1);</span>
+<span class="fc" id="L125">        chunk.setBlock(new Vector3i(0, 0, 0), solidBlock);</span>
+
+<span class="fc" id="L127">        Chunk[] chunks = new Chunk[]{createChunk(0, 0, 0), createChunk(1, 0, 0), createChunk(2, 0, 0),</span>
+<span class="fc" id="L128">                createChunk(0, 0, 1), chunk, createChunk(2, 0, 1),</span>
+<span class="fc" id="L129">                createChunk(0, 0, 2), createChunk(1, 0, 2), createChunk(2, 0, 2)};</span>
+
+<span class="fc" id="L131">        ChunkViewCore chunkView = new ChunkViewCoreImpl(chunks,</span>
+<span class="fc" id="L132">                Region3i.createFromCenterExtents(new Vector3i(1, 0, 1), new Vector3i(1, 0, 1)), new Vector3i(1, 0, 1), airBlock);</span>
+<span class="fc" id="L133">        assertEquals(solidBlock, chunkView.getBlock(0, 0, 0));</span>
+<span class="fc" id="L134">    }</span>
+
+    @Test
+    public void testLocalToWorld() {
+<span class="fc" id="L138">        Chunk chunk = createChunk(1, 0, 1);</span>
+<span class="fc" id="L139">        chunk.setBlock(new Vector3i(0, 0, 0), solidBlock);</span>
+
+<span class="fc" id="L141">        Chunk[] chunks = new Chunk[]{createChunk(0, 0, 0), createChunk(1, 0, 0), createChunk(2, 0, 0),</span>
+<span class="fc" id="L142">                createChunk(0, 0, 1), chunk, createChunk(2, 0, 1),</span>
+<span class="fc" id="L143">                createChunk(0, 0, 2), createChunk(1, 0, 2), createChunk(2, 0, 2)};</span>
+
+<span class="fc" id="L145">        ChunkViewCoreImpl chunkView = new ChunkViewCoreImpl(chunks,</span>
+<span class="fc" id="L146">                Region3i.createFromCenterExtents(new Vector3i(1, 0, 1), new Vector3i(1, 0, 1)), new Vector3i(1, 1, 1), airBlock);</span>
+<span class="fc" id="L147">        assertEquals(new Vector3i(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z), chunkView.toWorldPos(Vector3i.zero()));</span>
+<span class="fc" id="L148">    }</span>
+
+    private Chunk createChunk(int x, int y, int z) {
+<span class="fc" id="L151">        return new ChunkImpl(new Vector3i(x, y, z), blockManager, extraDataManager);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

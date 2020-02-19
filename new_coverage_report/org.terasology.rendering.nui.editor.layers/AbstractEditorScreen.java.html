@@ -1,0 +1,462 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractEditorScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.editor.layers</a> &gt; <span class="el_source">AbstractEditorScreen.java</span></div><h1>AbstractEditorScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.editor.layers;
+
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.stream.JsonReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.exceptions.InvalidUrnException;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.input.Keyboard;
+import org.terasology.input.device.KeyboardDevice;
+import org.terasology.module.PathModule;
+import org.terasology.naming.Name;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.editor.systems.AbstractEditorSystem;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.layers.mainMenu.ConfirmPopup;
+import org.terasology.rendering.nui.widgets.JsonEditorTreeView;
+import org.terasology.rendering.nui.widgets.UITextEntry;
+import org.terasology.rendering.nui.widgets.treeView.JsonTree;
+import org.terasology.rendering.nui.widgets.treeView.JsonTreeConverter;
+import org.terasology.rendering.nui.widgets.treeView.JsonTreeValue;
+
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * A base screen for the NUI screen/skin editors.
+ */
+<span class="nc" id="L66">public abstract class AbstractEditorScreen extends CoreScreenLayer {</span>
+<span class="nc" id="L67">    private final Logger logger = LoggerFactory.getLogger(getClass());</span>
+
+    /**
+     * Used to get the {@link Path} of an asset.
+     */
+    @In
+    private ModuleManager moduleManager;
+
+    /**
+     * The editor system.
+     */
+    private AbstractEditorSystem editorSystem;
+    /**
+     * The editor widget.
+     */
+    private JsonEditorTreeView editor;
+    /**
+     * Whether unsaved changes in the editor are present.
+     */
+    private boolean unsavedChangesPresent;
+    /**
+     * Whether the autosave has been loaded.
+     */
+    private boolean autosaveLoaded;
+    /**
+     * Whether autosaving (&amp;loading autosaved files) should be disabled.
+     */
+    private boolean disableAutosave;
+
+    /**
+     * Selects the current asset to be edited.
+     *
+     * @param urn The urn of the asset.
+     */
+    public abstract void selectAsset(ResourceUrn urn);
+
+    /**
+     * Resets the editor's state based on a tree representation of an asset.
+     *
+     * @param node The node based on which the editor's state is to be reset.
+     */
+    protected abstract void resetStateInternal(JsonTree node);
+
+    /**
+     * Resets the preview widget based on the editor's current state.
+     */
+    protected abstract void resetPreviewWidget();
+
+    /**
+     * Updates the editor after state or configuration changes.
+     */
+    protected abstract void updateConfig();
+
+    /**
+     * Initialises the widgets, screens etc. used to edit a specified node.
+     *
+     * @param node The node to be edited.
+     */
+    protected abstract void editNode(JsonTree node);
+
+    /**
+     * Adds a widget selected by the user to the specified node.
+     *
+     * @param node The node to add a new widget to.
+     */
+    protected abstract void addWidget(JsonTree node);
+
+    /**
+     * @return The path to the backup autosave file.
+     */
+    protected abstract Path getAutosaveFile();
+
+    /**
+     * @return The currently selected asset (or alternative state, i.e. new screen)
+     */
+    protected abstract String getSelectedAsset();
+
+    /**
+     * Sets the selected asset to a specific value.
+     *
+     * @param selectedAsset The value to set the selected asset to.
+     */
+    protected abstract void setSelectedAsset(String selectedAsset);
+
+    /**
+     * Reset the stored path to an asset file based on an asset urn.
+     *
+     * @param urn The asset urn.
+     */
+    protected abstract void setSelectedAssetPath(ResourceUrn urn);
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L160">        super.onDraw(canvas);</span>
+
+        // If the autosave is loaded in initialise(), the preview widget is updated before interface component
+        // sizes are set, which breaks the editor's layout.
+        // Therefore, the autosave is loaded after the first onDraw() call.
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (!autosaveLoaded) {</span>
+<span class="nc" id="L166">            loadAutosave();</span>
+<span class="nc" id="L167">            autosaveLoaded = true;</span>
+        }
+<span class="nc" id="L169">    }</span>
+
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (event.isDown()) {</span>
+<span class="nc" id="L174">            int id = event.getKey().getId();</span>
+<span class="nc" id="L175">            KeyboardDevice keyboard = event.getKeyboard();</span>
+<span class="nc bnc" id="L176" title="All 4 branches missed.">            boolean ctrlDown = keyboard.isKeyDown(Keyboard.KeyId.RIGHT_CTRL) || keyboard.isKeyDown(Keyboard.KeyId.LEFT_CTRL);</span>
+
+<span class="nc bnc" id="L178" title="All 2 branches missed.">            if (id == Keyboard.KeyId.ESCAPE) {</span>
+<span class="nc" id="L179">                editorSystem.toggleEditor();</span>
+<span class="nc" id="L180">                return true;</span>
+<span class="nc bnc" id="L181" title="All 4 branches missed.">            } else if (ctrlDown &amp;&amp; id == Keyboard.KeyId.Z) {</span>
+<span class="nc" id="L182">                undo();</span>
+<span class="nc" id="L183">                return true;</span>
+<span class="nc bnc" id="L184" title="All 4 branches missed.">            } else if (ctrlDown &amp;&amp; id == Keyboard.KeyId.Y) {</span>
+<span class="nc" id="L185">                redo();</span>
+<span class="nc" id="L186">                return true;</span>
+            } else {
+<span class="nc" id="L188">                return false;</span>
+            }
+        }
+
+<span class="nc" id="L192">        return false;</span>
+    }
+
+    @Override
+    public boolean isEscapeToCloseAllowed() {
+        // Escape to close is handled in onKeyEvent() to pass the editor's state to NUIEditorSystem.
+<span class="nc" id="L198">        return false;</span>
+    }
+
+    /**
+     * Sets the editor's state based on the previous item in the editor widget's history.
+     *
+     * @see JsonEditorTreeView#undo()
+     */
+    protected void undo() {
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (editor.undo()) {</span>
+<span class="nc" id="L208">            resetPreviewWidget();</span>
+<span class="nc" id="L209">            updateConfig();</span>
+        }
+<span class="nc" id="L211">    }</span>
+
+    /**
+     * Sets the editor's state based on the next item in the editor widget's history.
+     *
+     * @see JsonEditorTreeView#redo()
+     */
+    protected void redo() {
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        if (editor.redo()) {</span>
+<span class="nc" id="L220">            resetPreviewWidget();</span>
+<span class="nc" id="L221">            updateConfig();</span>
+        }
+<span class="nc" id="L223">    }</span>
+
+    /**
+     * Resets the editor's state based on a specified {@link JsonTree}.
+     *
+     * @param node The {@link JsonTree} to reset the state from.
+     */
+    protected void resetState(JsonTree node) {
+<span class="nc bnc" id="L231" title="All 2 branches missed.">        if (unsavedChangesPresent) {</span>
+<span class="nc" id="L232">            ConfirmPopup confirmPopup = getManager().pushScreen(ConfirmPopup.ASSET_URI, ConfirmPopup.class);</span>
+<span class="nc" id="L233">            confirmPopup.setMessage(&quot;Unsaved changes!&quot;, &quot;It looks like you've been editing something!&quot; +</span>
+                &quot;\r\nAll unsaved changes will be lost. Continue anyway?&quot;);
+<span class="nc" id="L235">            confirmPopup.setOkHandler(() -&gt; {</span>
+<span class="nc" id="L236">                setUnsavedChangesPresent(false);</span>
+<span class="nc" id="L237">                deleteAutosave();</span>
+<span class="nc" id="L238">                resetStateInternal(node);</span>
+<span class="nc" id="L239">            });</span>
+<span class="nc" id="L240">        } else {</span>
+<span class="nc" id="L241">            resetStateInternal(node);</span>
+        }
+<span class="nc" id="L243">    }</span>
+
+    /**
+     * Saves the contents of the editor as a JSON string to a specified file.
+     *
+     * @param file The file to save to.
+     */
+    protected void saveToFile(File file) {
+<span class="nc" id="L251">        try (BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file))) {</span>
+<span class="nc" id="L252">            saveToFile(outputStream);</span>
+<span class="nc" id="L253">            setUnsavedChangesPresent(false);</span>
+<span class="nc" id="L254">        } catch (IOException e) {</span>
+<span class="nc" id="L255">            logger.warn(&quot;Could not save asset&quot;, e);</span>
+<span class="nc" id="L256">        }</span>
+<span class="nc" id="L257">    }</span>
+
+    /**
+     * Saves the contents of the editor as a JSON string to a specified file.
+     *
+     * @param path The path to save to.
+     */
+    protected void saveToFile(Path path) {
+<span class="nc" id="L265">        try (BufferedOutputStream outputStream = new BufferedOutputStream(Files.newOutputStream(path))) {</span>
+<span class="nc" id="L266">            saveToFile(outputStream);</span>
+<span class="nc" id="L267">            setUnsavedChangesPresent(false);</span>
+<span class="nc" id="L268">        } catch (IOException e) {</span>
+<span class="nc" id="L269">            logger.warn(&quot;Could not save asset&quot;, e);</span>
+<span class="nc" id="L270">        }</span>
+<span class="nc" id="L271">    }</span>
+
+    /**
+     * Updates the autosave file with the current state of the tree.
+     */
+    protected void updateAutosave() {
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        if (!disableAutosave) {</span>
+<span class="nc" id="L278">            try (BufferedOutputStream outputStream = new BufferedOutputStream(Files.newOutputStream(getAutosaveFile()))) {</span>
+<span class="nc" id="L279">                JsonElement editorContents = JsonTreeConverter.deserialize(getEditor().getModel().getNode(0).getRoot());</span>
+
+<span class="nc" id="L281">                JsonObject autosaveObject = new JsonObject();</span>
+<span class="nc" id="L282">                autosaveObject.addProperty(&quot;selectedAsset&quot;, getSelectedAsset());</span>
+<span class="nc" id="L283">                autosaveObject.add(&quot;editorContents&quot;, editorContents);</span>
+
+<span class="nc" id="L285">                String jsonString = new GsonBuilder().setPrettyPrinting().create().toJson(autosaveObject);</span>
+<span class="nc" id="L286">                outputStream.write(jsonString.getBytes());</span>
+<span class="nc" id="L287">            } catch (IOException e) {</span>
+<span class="nc" id="L288">                logger.warn(&quot;Could not save to autosave file&quot;, e);</span>
+<span class="nc" id="L289">            }</span>
+        }
+<span class="nc" id="L291">    }</span>
+
+    /**
+     * Resets the editor based on the state of the autosave file.
+     */
+    protected void loadAutosave() {
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        if (!disableAutosave) {</span>
+<span class="nc" id="L298">            try (JsonReader reader = new JsonReader(new InputStreamReader(Files.newInputStream(getAutosaveFile())))) {</span>
+<span class="nc" id="L299">                reader.setLenient(true);</span>
+<span class="nc" id="L300">                String autosaveString = new JsonParser().parse(reader).toString();</span>
+
+<span class="nc" id="L302">                JsonObject autosaveObject = new JsonParser().parse(autosaveString).getAsJsonObject();</span>
+<span class="nc" id="L303">                String selectedAsset = autosaveObject.get(&quot;selectedAsset&quot;).getAsString();</span>
+<span class="nc" id="L304">                setSelectedAsset(selectedAsset);</span>
+
+                try {
+<span class="nc" id="L307">                    ResourceUrn urn = new ResourceUrn(selectedAsset);</span>
+<span class="nc" id="L308">                    setSelectedAssetPath(urn);</span>
+<span class="nc" id="L309">                } catch (InvalidUrnException ignored) {</span>
+<span class="nc" id="L310">                }</span>
+
+<span class="nc" id="L312">                JsonTree editorContents = JsonTreeConverter.serialize(autosaveObject.get(&quot;editorContents&quot;));</span>
+<span class="nc" id="L313">                resetState(editorContents);</span>
+
+<span class="nc" id="L315">                setUnsavedChangesPresent(true);</span>
+<span class="nc" id="L316">            } catch (NoSuchFileException ignored) {</span>
+<span class="nc" id="L317">            } catch (IOException e) {</span>
+<span class="nc" id="L318">                logger.warn(&quot;Could not load autosaved info&quot;, e);</span>
+<span class="nc" id="L319">            }</span>
+        }
+<span class="nc" id="L321">    }</span>
+
+    /**
+     * Deletes the autosave file.
+     */
+    protected void deleteAutosave() {
+        try {
+<span class="nc" id="L328">            Files.delete(getAutosaveFile());</span>
+<span class="nc" id="L329">        } catch (NoSuchFileException ignored) {</span>
+<span class="nc" id="L330">        } catch (IOException e) {</span>
+<span class="nc" id="L331">            logger.warn(&quot;Could not delete autosave file&quot;, e);</span>
+<span class="nc" id="L332">        }</span>
+<span class="nc" id="L333">    }</span>
+
+    private void saveToFile(BufferedOutputStream outputStream) throws IOException {
+        // Serialize tree contents and save to selected file.
+<span class="nc" id="L337">        JsonElement json = JsonTreeConverter.deserialize(getEditor().getModel().getNode(0).getRoot());</span>
+<span class="nc" id="L338">        String jsonString = new GsonBuilder().setPrettyPrinting().create().toJson(json);</span>
+<span class="nc" id="L339">        outputStream.write(jsonString.getBytes());</span>
+<span class="nc" id="L340">    }</span>
+
+    protected Path getPath(AssetDataFile source) {
+<span class="nc" id="L343">        List&lt;String&gt; path = source.getPath();</span>
+<span class="nc" id="L344">        Name moduleName = new Name(path.get(0));</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">        if (moduleManager.getEnvironment().get(moduleName) instanceof PathModule) {</span>
+<span class="nc" id="L346">            path.add(source.getFilename());</span>
+<span class="nc" id="L347">            String[] pathArray = path.toArray(new String[path.size()]);</span>
+
+            // Copy all the elements after the first to a separate array for getPath().
+<span class="nc" id="L350">            String first = pathArray[0];</span>
+<span class="nc" id="L351">            String[] more = Arrays.copyOfRange(pathArray, 1, pathArray.length);</span>
+<span class="nc" id="L352">            return moduleManager.getEnvironment().getFileSystem().getPath(first, more);</span>
+        }
+<span class="nc" id="L354">        return null;</span>
+    }
+
+    /**
+     * De-serializes the current state of the editor and copies it to the system clipboard.
+     */
+    protected void copyJson() {
+<span class="nc bnc" id="L361" title="All 2 branches missed.">        if (getEditor().getModel() != null) {</span>
+            // Deserialize the state of the editor to a JSON string.
+<span class="nc" id="L363">            JsonElement json = JsonTreeConverter.deserialize(getEditor().getModel().getNode(0).getRoot());</span>
+<span class="nc" id="L364">            String jsonString = new GsonBuilder().setPrettyPrinting().create().toJson(json);</span>
+
+            // Set the contents of the system clipboard to it.
+<span class="nc" id="L367">            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();</span>
+            try {
+<span class="nc" id="L369">                clipboard.setContents(new StringSelection(jsonString), null);</span>
+<span class="nc" id="L370">            } catch (IllegalStateException e) {</span>
+<span class="nc" id="L371">                logger.warn(&quot;Clipboard inaccessible.&quot;, e);</span>
+<span class="nc" id="L372">            }</span>
+        }
+<span class="nc" id="L374">    }</span>
+
+    /**
+     * Attempts to serialize the system clipboard's contents - if successful,
+     * sets the current state of the editor to the serialized {@link JsonTree}.
+     */
+    protected void pasteJson() {
+        // Get the clipboard contents.
+<span class="nc" id="L382">        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();</span>
+<span class="nc" id="L383">        Transferable t = clipboard.getContents(null);</span>
+
+        // Attempt to convert them to a string.
+<span class="nc" id="L386">        String clipboardContents = null;</span>
+        try {
+<span class="nc bnc" id="L388" title="All 2 branches missed.">            if (t != null) {</span>
+<span class="nc" id="L389">                clipboardContents = (String) t.getTransferData(DataFlavor.stringFlavor);</span>
+            }
+<span class="nc" id="L391">        } catch (UnsupportedFlavorException | IOException e) {</span>
+<span class="nc" id="L392">            logger.warn(&quot;Could not fetch clipboard contents.&quot;, e);</span>
+<span class="nc" id="L393">        }</span>
+
+<span class="nc bnc" id="L395" title="All 2 branches missed.">        if (clipboardContents != null) {</span>
+            try {
+                // Attempt to serialize them to a JsonTree and reset the editor state.
+<span class="nc" id="L398">                JsonElement json = new JsonParser().parse(clipboardContents);</span>
+<span class="nc" id="L399">                JsonTree node = JsonTreeConverter.serialize(json);</span>
+<span class="nc" id="L400">                resetState(node);</span>
+<span class="nc" id="L401">            } catch (JsonSyntaxException | NullPointerException e) {</span>
+<span class="nc" id="L402">                logger.warn(&quot;Could not construct a valid tree from clipboard contents.&quot;, e);</span>
+<span class="nc" id="L403">            }</span>
+        }
+<span class="nc" id="L405">    }</span>
+
+    /**
+     * Sets the interface focus to the inline editor widget and selects a subset of its' contents.
+     *
+     * @param node              The node that is currently being edited.
+     * @param inlineEditorEntry The inline editor widget.
+     */
+    protected void focusInlineEditor(JsonTree node, UITextEntry inlineEditorEntry) {
+<span class="nc" id="L414">        getManager().setFocus(inlineEditorEntry);</span>
+<span class="nc" id="L415">        inlineEditorEntry.resetValue();</span>
+
+<span class="nc bnc" id="L417" title="All 2 branches missed.">        if (node.getValue().getType() == JsonTreeValue.Type.KEY_VALUE_PAIR) {</span>
+            // If the node is a key/value pair, select the value of the node.
+
+<span class="nc bnc" id="L420" title="All 2 branches missed.">            if (node.getValue().getValue() instanceof String) {</span>
+<span class="nc" id="L421">                inlineEditorEntry.setCursorPosition(node.getValue().getKey().length() + &quot;\&quot;\&quot;:\&quot;&quot;.length(), true);</span>
+<span class="nc" id="L422">                inlineEditorEntry.setCursorPosition(inlineEditorEntry.getText().length() - &quot;\&quot;&quot;.length(), false);</span>
+            } else {
+<span class="nc" id="L424">                inlineEditorEntry.setCursorPosition(node.getValue().getKey().length() + &quot;\&quot;\&quot;:&quot;.length(), true);</span>
+<span class="nc" id="L425">                inlineEditorEntry.setCursorPosition(inlineEditorEntry.getText().length(), false);</span>
+            }
+        } else {
+            // Otherwise fully select the contents of the node.
+
+<span class="nc" id="L430">            inlineEditorEntry.setCursorPosition(0, true);</span>
+<span class="nc" id="L431">            inlineEditorEntry.setCursorPosition(inlineEditorEntry.getText().length(), false);</span>
+        }
+<span class="nc" id="L433">    }</span>
+
+    protected void setEditorSystem(AbstractEditorSystem editorSystem) {
+<span class="nc" id="L436">        this.editorSystem = editorSystem;</span>
+<span class="nc" id="L437">    }</span>
+
+    protected JsonEditorTreeView getEditor() {
+<span class="nc" id="L440">        return this.editor;</span>
+    }
+
+    protected void setEditor(JsonEditorTreeView editor) {
+<span class="nc" id="L444">        this.editor = editor;</span>
+<span class="nc" id="L445">    }</span>
+
+    protected boolean areUnsavedChangesPresent() {
+<span class="nc" id="L448">        return unsavedChangesPresent;</span>
+    }
+
+    protected void setUnsavedChangesPresent(boolean unsavedChangesPresent) {
+<span class="nc" id="L452">        this.unsavedChangesPresent = unsavedChangesPresent;</span>
+<span class="nc" id="L453">    }</span>
+
+    protected void setDisableAutosave(boolean disableAutosave) {
+<span class="nc" id="L456">        this.disableAutosave = disableAutosave;</span>
+<span class="nc bnc" id="L457" title="All 2 branches missed.">        if (disableAutosave) {</span>
+<span class="nc" id="L458">            deleteAutosave();</span>
+        }
+<span class="nc" id="L460">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,624 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LwjglCanvasRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.internal</a> &gt; <span class="el_source">LwjglCanvasRenderer.java</span></div><h1>LwjglCanvasRenderer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.internal;
+
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.GL11;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.math.AABB;
+import org.terasology.math.Border;
+import org.terasology.math.MatrixUtils;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.BaseQuat4f;
+import org.terasology.math.geom.BaseVector2i;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Rect2f;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.font.FontMeshBuilder;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.rendering.assets.mesh.MeshBuilder;
+import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.HorizontalAlign;
+import org.terasology.rendering.nui.ScaleMode;
+import org.terasology.rendering.nui.TextLineBuilder;
+import org.terasology.rendering.nui.VerticalAlign;
+import org.terasology.rendering.opengl.FrameBufferObject;
+import org.terasology.rendering.opengl.LwjglFrameBufferObject;
+import org.terasology.utilities.Assets;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.nio.FloatBuffer;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+import static org.lwjgl.opengl.GL11.GL_BLEND;
+import static org.lwjgl.opengl.GL11.GL_DEPTH_TEST;
+import static org.lwjgl.opengl.GL11.GL_MODELVIEW;
+import static org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA;
+import static org.lwjgl.opengl.GL11.GL_PROJECTION;
+import static org.lwjgl.opengl.GL11.GL_SRC_ALPHA;
+import static org.lwjgl.opengl.GL11.glBlendFunc;
+import static org.lwjgl.opengl.GL11.glClear;
+import static org.lwjgl.opengl.GL11.glDisable;
+import static org.lwjgl.opengl.GL11.glEnable;
+import static org.lwjgl.opengl.GL11.glLoadIdentity;
+import static org.lwjgl.opengl.GL11.glLoadMatrix;
+import static org.lwjgl.opengl.GL11.glMatrixMode;
+import static org.lwjgl.opengl.GL11.glOrtho;
+import static org.lwjgl.opengl.GL11.glPopMatrix;
+import static org.lwjgl.opengl.GL11.glPushMatrix;
+import static org.lwjgl.opengl.GL11.glScalef;
+import static org.lwjgl.opengl.GL11.glTranslatef;
+
+/**
+ */
+public class LwjglCanvasRenderer implements CanvasRenderer, PropertyChangeListener {
+
+    private static final String CROPPING_BOUNDARIES_PARAM = &quot;croppingBoundaries&quot;;
+<span class="nc" id="L90">    private static final Rect2f FULL_REGION = Rect2f.createFromMinAndSize(0, 0, 1, 1);</span>
+    private Matrix4f modelView;
+<span class="nc" id="L92">    private FloatBuffer matrixBuffer = BufferUtils.createFloatBuffer(16);</span>
+    private Mesh billboard;
+
+    private Material textureMat;
+
+    private final FontMeshBuilder fontMeshBuilder;
+
+    // Text mesh caching
+<span class="nc" id="L100">    private Map&lt;TextCacheKey, Map&lt;Material, Mesh&gt;&gt; cachedText = Maps.newLinkedHashMap();</span>
+<span class="nc" id="L101">    private Set&lt;TextCacheKey&gt; usedText = Sets.newHashSet();</span>
+
+    // Texutre mesh caching
+<span class="nc" id="L104">    private Map&lt;TextureCacheKey, Mesh&gt; cachedTextures = Maps.newLinkedHashMap();</span>
+<span class="nc" id="L105">    private Set&lt;TextureCacheKey&gt; usedTextures = Sets.newHashSet();</span>
+
+    private Rect2i requestedCropRegion;
+    private Rect2i currentTextureCropRegion;
+
+<span class="nc" id="L110">    private Map&lt;ResourceUrn, LwjglFrameBufferObject&gt; fboMap = Maps.newHashMap();</span>
+    private RenderingConfig renderingConfig;
+<span class="nc" id="L112">    private float uiScale = 1f;</span>
+
+<span class="nc" id="L114">    public LwjglCanvasRenderer(Context context) {</span>
+        // TODO use context to get assets instead of static methods
+<span class="nc" id="L116">        this.textureMat = Assets.getMaterial(&quot;engine:UITexture&quot;).get();</span>
+<span class="nc" id="L117">        this.billboard = Assets.getMesh(&quot;engine:UIBillboard&quot;).get();</span>
+<span class="nc" id="L118">        this.fontMeshBuilder = new FontMeshBuilder(context.get(AssetManager.class).getAsset(&quot;engine:UIUnderline&quot;, Material.class).get());</span>
+        // failure to load these can be due to failing shaders or missing resources
+
+<span class="nc" id="L121">        this.renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L122">        this.uiScale = this.renderingConfig.getUiScale() / 100f;</span>
+
+<span class="nc" id="L124">        this.renderingConfig.subscribe(RenderingConfig.UI_SCALE, this);</span>
+<span class="nc" id="L125">    }</span>
+
+    @Override
+    public void preRender() {
+<span class="nc" id="L129">        glDisable(GL_DEPTH_TEST);</span>
+<span class="nc" id="L130">        glEnable(GL_BLEND);</span>
+<span class="nc" id="L131">        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);</span>
+
+<span class="nc" id="L133">        glMatrixMode(GL_PROJECTION);</span>
+<span class="nc" id="L134">        glPushMatrix();</span>
+<span class="nc" id="L135">        glLoadIdentity();</span>
+<span class="nc" id="L136">        glOrtho(0, Display.getWidth(), Display.getHeight(), 0, 0, 2048f);</span>
+<span class="nc" id="L137">        glMatrixMode(GL_MODELVIEW);</span>
+<span class="nc" id="L138">        glPushMatrix();</span>
+
+<span class="nc" id="L140">        modelView = new Matrix4f();</span>
+<span class="nc" id="L141">        modelView.setIdentity();</span>
+<span class="nc" id="L142">        modelView.setTranslation(new Vector3f(0, 0, -1024f));</span>
+
+<span class="nc" id="L144">        MatrixUtils.matrixToFloatBuffer(modelView, matrixBuffer);</span>
+<span class="nc" id="L145">        glLoadMatrix(matrixBuffer);</span>
+<span class="nc" id="L146">        matrixBuffer.rewind();</span>
+
+<span class="nc" id="L148">        glScalef(uiScale, uiScale, uiScale);</span>
+
+<span class="nc" id="L150">        requestedCropRegion = Rect2i.createFromMinAndSize(0, 0, Display.getWidth(), Display.getHeight());</span>
+<span class="nc" id="L151">        currentTextureCropRegion = requestedCropRegion;</span>
+<span class="nc" id="L152">        textureMat.setFloat4(CROPPING_BOUNDARIES_PARAM, requestedCropRegion.minX(), requestedCropRegion.maxX(),</span>
+<span class="nc" id="L153">                requestedCropRegion.minY(), requestedCropRegion.maxY());</span>
+<span class="nc" id="L154">    }</span>
+
+    @Override
+    public void postRender() {
+<span class="nc" id="L158">        Iterator&lt;Map.Entry&lt;TextCacheKey, Map&lt;Material, Mesh&gt;&gt;&gt; textIterator = cachedText.entrySet().iterator();</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        while (textIterator.hasNext()) {</span>
+<span class="nc" id="L160">            Map.Entry&lt;TextCacheKey, Map&lt;Material, Mesh&gt;&gt; entry = textIterator.next();</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">            if (!usedText.contains(entry.getKey())) {</span>
+<span class="nc" id="L162">                entry.getValue().values().forEach(Mesh::dispose);</span>
+<span class="nc" id="L163">                textIterator.remove();</span>
+            }
+<span class="nc" id="L165">        }</span>
+<span class="nc" id="L166">        usedText.clear();</span>
+
+<span class="nc" id="L168">        Iterator&lt;Map.Entry&lt;TextureCacheKey, Mesh&gt;&gt; textureIterator = cachedTextures.entrySet().iterator();</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        while (textureIterator.hasNext()) {</span>
+<span class="nc" id="L170">            Map.Entry&lt;TextureCacheKey, Mesh&gt; entry = textureIterator.next();</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            if (!usedTextures.contains(entry.getKey())) {</span>
+<span class="nc" id="L172">                entry.getValue().dispose();</span>
+<span class="nc" id="L173">                textureIterator.remove();</span>
+            }
+<span class="nc" id="L175">        }</span>
+<span class="nc" id="L176">        usedTextures.clear();</span>
+
+<span class="nc" id="L178">        glMatrixMode(GL_MODELVIEW);</span>
+<span class="nc" id="L179">        glPopMatrix();</span>
+<span class="nc" id="L180">        glMatrixMode(GL_PROJECTION);</span>
+<span class="nc" id="L181">        glPopMatrix();</span>
+<span class="nc" id="L182">        glMatrixMode(GL_MODELVIEW);</span>
+<span class="nc" id="L183">        glEnable(GL_DEPTH_TEST);</span>
+<span class="nc" id="L184">        glDisable(GL_BLEND);</span>
+<span class="nc" id="L185">    }</span>
+
+    @Override
+    public void drawMesh(Mesh mesh, Material material, Rect2i drawRegion, Rect2i cropRegion, Quat4f rotation, Vector3f offset, float scale, float alpha) {
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        if (!material.isRenderable()) {</span>
+<span class="nc" id="L190">            return;</span>
+        }
+
+<span class="nc" id="L193">        AABB meshAABB = mesh.getAABB();</span>
+<span class="nc" id="L194">        Vector3f meshExtents = meshAABB.getExtents();</span>
+<span class="nc" id="L195">        float fitScale = 0.35f * Math.min(drawRegion.width(), drawRegion.height()) / Math.max(meshExtents.x, Math.max(meshExtents.y, meshExtents.z));</span>
+<span class="nc" id="L196">        Vector3f centerOffset = meshAABB.getCenter();</span>
+<span class="nc" id="L197">        centerOffset.scale(-1.0f);</span>
+
+<span class="nc" id="L199">        Matrix4f centerTransform = new Matrix4f(BaseQuat4f.IDENTITY, centerOffset, 1.0f);</span>
+<span class="nc" id="L200">        Matrix4f userTransform = new Matrix4f(rotation, offset, -fitScale * scale);</span>
+<span class="nc" id="L201">        Matrix4f translateTransform = new Matrix4f(BaseQuat4f.IDENTITY,</span>
+<span class="nc" id="L202">                new Vector3f((drawRegion.minX() + drawRegion.width() / 2) * uiScale,</span>
+<span class="nc" id="L203">                    (drawRegion.minY() + drawRegion.height() / 2) * uiScale, 0), 1);</span>
+
+<span class="nc" id="L205">        userTransform.mul(centerTransform);</span>
+<span class="nc" id="L206">        translateTransform.mul(userTransform);</span>
+
+<span class="nc" id="L208">        Matrix4f finalMat = new Matrix4f(modelView);</span>
+<span class="nc" id="L209">        finalMat.mul(translateTransform);</span>
+<span class="nc" id="L210">        MatrixUtils.matrixToFloatBuffer(finalMat, matrixBuffer);</span>
+
+<span class="nc" id="L212">        material.setFloat4(</span>
+            CROPPING_BOUNDARIES_PARAM,
+<span class="nc" id="L214">            cropRegion.minX() * uiScale,</span>
+<span class="nc" id="L215">            cropRegion.maxX() * uiScale,</span>
+<span class="nc" id="L216">            cropRegion.minY() * uiScale,</span>
+<span class="nc" id="L217">            cropRegion.maxY() * uiScale);</span>
+<span class="nc" id="L218">        material.setMatrix4(&quot;posMatrix&quot;, translateTransform);</span>
+<span class="nc" id="L219">        glEnable(GL11.GL_DEPTH_TEST);</span>
+<span class="nc" id="L220">        glClear(GL11.GL_DEPTH_BUFFER_BIT);</span>
+<span class="nc" id="L221">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L222">        glPushMatrix();</span>
+<span class="nc" id="L223">        glLoadMatrix(matrixBuffer);</span>
+
+<span class="nc" id="L225">        glScalef(this.uiScale, this.uiScale, this.uiScale);</span>
+<span class="nc" id="L226">        matrixBuffer.rewind();</span>
+
+<span class="nc" id="L228">        boolean matrixStackSupported = material.supportsFeature(ShaderProgramFeature.FEATURE_USE_MATRIX_STACK);</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">        if (matrixStackSupported) {</span>
+<span class="nc" id="L230">            material.activateFeature(ShaderProgramFeature.FEATURE_USE_MATRIX_STACK);</span>
+        }
+<span class="nc" id="L232">        material.setFloat(&quot;alpha&quot;, alpha);</span>
+<span class="nc" id="L233">        material.bindTextures();</span>
+<span class="nc" id="L234">        mesh.render();</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">        if (matrixStackSupported) {</span>
+<span class="nc" id="L236">            material.deactivateFeature(ShaderProgramFeature.FEATURE_USE_MATRIX_STACK);</span>
+        }
+
+<span class="nc" id="L239">        glPopMatrix();</span>
+<span class="nc" id="L240">        glDisable(GL11.GL_DEPTH_TEST);</span>
+<span class="nc" id="L241">    }</span>
+
+    @Override
+    public Vector2i getTargetSize() {
+<span class="nc" id="L245">        return new Vector2i(Display.getWidth(), Display.getHeight());</span>
+    }
+
+    @Override
+    public void drawMaterialAt(Material material, Rect2i drawRegion) {
+<span class="nc" id="L250">        glPushMatrix();</span>
+<span class="nc" id="L251">        glTranslatef(drawRegion.minX(), drawRegion.minY(), 0f);</span>
+<span class="nc" id="L252">        glScalef(drawRegion.width(), drawRegion.height(), 1);</span>
+<span class="nc" id="L253">        billboard.render();</span>
+<span class="nc" id="L254">        glPopMatrix();</span>
+<span class="nc" id="L255">    }</span>
+
+    @Override
+    public void drawLine(int sx, int sy, int ex, int ey, Color color) {
+<span class="nc" id="L259">        Line.draw(sx, sy, ex, ey, 2, color, color, 0);</span>
+<span class="nc" id="L260">    }</span>
+
+    @Override
+    public void crop(Rect2i cropRegion) {
+<span class="nc" id="L264">        requestedCropRegion = cropRegion;</span>
+<span class="nc" id="L265">    }</span>
+
+    @Override
+    public FrameBufferObject getFBO(ResourceUrn urn, BaseVector2i size) {
+<span class="nc" id="L269">        LwjglFrameBufferObject frameBufferObject = fboMap.get(urn);</span>
+<span class="nc bnc" id="L270" title="All 4 branches missed.">        if (frameBufferObject == null || !Assets.getTexture(urn).isPresent()) {</span>
+            // If a FBO exists, but no texture, then the texture was disposed
+            // TODO: update fboMap whenever a texture is disposed (or convert FBO instances to assets?)
+<span class="nc bnc" id="L273" title="All 2 branches missed.">            if (frameBufferObject != null) {</span>
+<span class="nc" id="L274">                frameBufferObject.dispose();</span>
+            }
+<span class="nc" id="L276">            frameBufferObject = new LwjglFrameBufferObject(urn, size);</span>
+<span class="nc" id="L277">            fboMap.put(urn, frameBufferObject);</span>
+        }
+<span class="nc" id="L279">        return frameBufferObject;</span>
+    }
+
+    @Override
+    public void drawTexture(TextureRegion texture, Color color, ScaleMode mode, Rect2i absoluteRegion,
+                            float ux, float uy, float uw, float uh, float alpha) {
+<span class="nc bnc" id="L285" title="All 2 branches missed.">        if (!texture.getTexture().isLoaded()) {</span>
+<span class="nc" id="L286">            return;</span>
+        }
+
+<span class="nc bnc" id="L289" title="All 2 branches missed.">        if (!currentTextureCropRegion.equals(requestedCropRegion)</span>
+<span class="nc bnc" id="L290" title="All 4 branches missed.">                &amp;&amp; !(currentTextureCropRegion.contains(absoluteRegion) &amp;&amp; requestedCropRegion.contains(absoluteRegion))) {</span>
+<span class="nc" id="L291">            textureMat.setFloat4(CROPPING_BOUNDARIES_PARAM, requestedCropRegion.minX(), requestedCropRegion.maxX(),</span>
+<span class="nc" id="L292">                    requestedCropRegion.minY(), requestedCropRegion.maxY());</span>
+<span class="nc" id="L293">            currentTextureCropRegion = requestedCropRegion;</span>
+        }
+
+<span class="nc" id="L296">        Vector2f scale = mode.scaleForRegion(absoluteRegion, texture.getWidth(), texture.getHeight());</span>
+<span class="nc" id="L297">        Rect2f textureArea = texture.getRegion();</span>
+<span class="nc" id="L298">        Mesh mesh = billboard;</span>
+<span class="nc bnc" id="L299" title="All 3 branches missed.">        switch (mode) {</span>
+            case TILED: {
+<span class="nc" id="L301">                TextureCacheKey key = new TextureCacheKey(texture.size(), absoluteRegion.size());</span>
+<span class="nc" id="L302">                usedTextures.add(key);</span>
+<span class="nc" id="L303">                mesh = cachedTextures.get(key);</span>
+<span class="nc bnc" id="L304" title="All 4 branches missed.">                if (mesh == null || mesh.isDisposed()) {</span>
+<span class="nc" id="L305">                    MeshBuilder builder = new MeshBuilder();</span>
+<span class="nc" id="L306">                    addTiles(builder, absoluteRegion, FULL_REGION, texture.size(), FULL_REGION);</span>
+<span class="nc" id="L307">                    mesh = builder.build();</span>
+<span class="nc" id="L308">                    cachedTextures.put(key, mesh);</span>
+                }
+<span class="nc" id="L310">                textureMat.setFloat2(&quot;scale&quot;, scale);</span>
+<span class="nc" id="L311">                textureMat.setFloat2(&quot;offset&quot;,</span>
+<span class="nc" id="L312">                        absoluteRegion.minX(),</span>
+<span class="nc" id="L313">                        absoluteRegion.minY());</span>
+
+<span class="nc" id="L315">                textureMat.setFloat2(&quot;texOffset&quot;, textureArea.minX() + ux * textureArea.width(), textureArea.minY() + uy * textureArea.height());</span>
+<span class="nc" id="L316">                textureMat.setFloat2(&quot;texSize&quot;, uw * textureArea.width(), uh * textureArea.height());</span>
+<span class="nc" id="L317">                break;</span>
+            }
+            case SCALE_FILL: {
+<span class="nc" id="L320">                textureMat.setFloat2(&quot;offset&quot;, absoluteRegion.minX(), absoluteRegion.minY());</span>
+<span class="nc" id="L321">                textureMat.setFloat2(&quot;scale&quot;, absoluteRegion.width(), absoluteRegion.height());</span>
+
+<span class="nc" id="L323">                float texBorderX = (scale.x - absoluteRegion.width()) / scale.x * uw;</span>
+<span class="nc" id="L324">                float texBorderY = (scale.y - absoluteRegion.height()) / scale.y * uh;</span>
+
+<span class="nc" id="L326">                textureMat.setFloat2(&quot;texOffset&quot;, textureArea.minX() + (ux + 0.5f * texBorderX) * textureArea.width(),</span>
+<span class="nc" id="L327">                        textureArea.minY() + (uy + 0.5f * texBorderY) * textureArea.height());</span>
+<span class="nc" id="L328">                textureMat.setFloat2(&quot;texSize&quot;, (uw - texBorderX) * textureArea.width(), (uh - texBorderY) * textureArea.height());</span>
+<span class="nc" id="L329">                break;</span>
+            }
+            default: {
+<span class="nc" id="L332">                textureMat.setFloat2(&quot;scale&quot;, scale);</span>
+<span class="nc" id="L333">                textureMat.setFloat2(&quot;offset&quot;,</span>
+<span class="nc" id="L334">                        absoluteRegion.minX() + 0.5f * (absoluteRegion.width() - scale.x),</span>
+<span class="nc" id="L335">                        absoluteRegion.minY() + 0.5f * (absoluteRegion.height() - scale.y));</span>
+
+<span class="nc" id="L337">                textureMat.setFloat2(&quot;texOffset&quot;, textureArea.minX() + ux * textureArea.width(), textureArea.minY() + uy * textureArea.height());</span>
+<span class="nc" id="L338">                textureMat.setFloat2(&quot;texSize&quot;, uw * textureArea.width(), uh * textureArea.height());</span>
+                break;
+            }
+        }
+
+<span class="nc" id="L343">        textureMat.setTexture(&quot;texture&quot;, texture.getTexture());</span>
+<span class="nc" id="L344">        textureMat.setFloat4(&quot;color&quot;, color.rf(), color.gf(), color.bf(), color.af() * alpha);</span>
+<span class="nc" id="L345">        textureMat.bindTextures();</span>
+<span class="nc" id="L346">        mesh.render();</span>
+<span class="nc" id="L347">    }</span>
+
+    @Override
+    public void drawText(String text, Font font, HorizontalAlign hAlign, VerticalAlign vAlign, Rect2i absoluteRegion,
+                         Color color, Color shadowColor, float alpha, boolean underlined) {
+<span class="nc" id="L352">        TextCacheKey key = new TextCacheKey(text, font, absoluteRegion.width(), hAlign, color, shadowColor, underlined);</span>
+<span class="nc" id="L353">        usedText.add(key);</span>
+<span class="nc" id="L354">        Map&lt;Material, Mesh&gt; fontMesh = cachedText.get(key);</span>
+<span class="nc" id="L355">        List&lt;String&gt; lines = TextLineBuilder.getLines(font, text, absoluteRegion.width());</span>
+<span class="nc bnc" id="L356" title="All 2 branches missed.">        if (fontMesh != null) {</span>
+<span class="nc bnc" id="L357" title="All 2 branches missed.">            for (Mesh mesh : fontMesh.values()) {</span>
+<span class="nc bnc" id="L358" title="All 2 branches missed.">                if (mesh.isDisposed()) {</span>
+<span class="nc" id="L359">                    fontMesh = null;</span>
+<span class="nc" id="L360">                    break;</span>
+                }
+<span class="nc" id="L362">            }</span>
+        }
+<span class="nc bnc" id="L364" title="All 2 branches missed.">        if (fontMesh == null) {</span>
+<span class="nc" id="L365">            fontMesh = fontMeshBuilder.createTextMesh(font, lines, absoluteRegion.width(), hAlign, color, shadowColor, underlined);</span>
+<span class="nc" id="L366">            cachedText.put(key, fontMesh);</span>
+        }
+
+<span class="nc" id="L369">        Vector2i offset = new Vector2i(absoluteRegion.minX(), absoluteRegion.minY());</span>
+<span class="nc" id="L370">        offset.y += vAlign.getOffset(lines.size() * font.getLineHeight(), absoluteRegion.height());</span>
+
+<span class="nc" id="L372">        fontMesh.entrySet().stream().filter(entry -&gt; entry.getKey().isRenderable()).forEach(entry -&gt; {</span>
+<span class="nc" id="L373">            entry.getKey().bindTextures();</span>
+<span class="nc" id="L374">            entry.getKey().setFloat4(CROPPING_BOUNDARIES_PARAM, requestedCropRegion.minX(), requestedCropRegion.maxX(),</span>
+<span class="nc" id="L375">                    requestedCropRegion.minY(), requestedCropRegion.maxY());</span>
+<span class="nc" id="L376">            entry.getKey().setFloat2(&quot;offset&quot;, offset.x, offset.y);</span>
+<span class="nc" id="L377">            entry.getKey().setFloat(&quot;alpha&quot;, alpha);</span>
+<span class="nc" id="L378">            entry.getValue().render();</span>
+<span class="nc" id="L379">        });</span>
+<span class="nc" id="L380">    }</span>
+
+    @Override
+    public void drawTextureBordered(TextureRegion texture, Rect2i region, Border border, boolean tile, float ux, float uy, float uw, float uh, float alpha) {
+<span class="nc bnc" id="L384" title="All 2 branches missed.">        if (!texture.getTexture().isLoaded()) {</span>
+<span class="nc" id="L385">            return;</span>
+        }
+
+<span class="nc bnc" id="L388" title="All 2 branches missed.">        if (!currentTextureCropRegion.equals(requestedCropRegion)</span>
+<span class="nc bnc" id="L389" title="All 4 branches missed.">                &amp;&amp; !(currentTextureCropRegion.contains(region) &amp;&amp; requestedCropRegion.contains(region))) {</span>
+<span class="nc" id="L390">            textureMat.setFloat4(CROPPING_BOUNDARIES_PARAM, requestedCropRegion.minX(), requestedCropRegion.maxX(),</span>
+<span class="nc" id="L391">                    requestedCropRegion.minY(), requestedCropRegion.maxY());</span>
+<span class="nc" id="L392">            currentTextureCropRegion = requestedCropRegion;</span>
+        }
+
+<span class="nc" id="L395">        Vector2i textureSize = new Vector2i(TeraMath.ceilToInt(texture.getWidth() * uw), TeraMath.ceilToInt(texture.getHeight() * uh));</span>
+
+<span class="nc" id="L397">        TextureCacheKey key = new TextureCacheKey(textureSize, region.size(), border, tile);</span>
+<span class="nc" id="L398">        usedTextures.add(key);</span>
+<span class="nc" id="L399">        Mesh mesh = cachedTextures.get(key);</span>
+<span class="nc bnc" id="L400" title="All 4 branches missed.">        if (mesh == null || mesh.isDisposed()) {</span>
+<span class="nc" id="L401">            MeshBuilder builder = new MeshBuilder();</span>
+
+
+<span class="nc" id="L404">            float topTex = (float) border.getTop() / textureSize.y;</span>
+<span class="nc" id="L405">            float leftTex = (float) border.getLeft() / textureSize.x;</span>
+<span class="nc" id="L406">            float bottomTex = 1f - (float) border.getBottom() / textureSize.y;</span>
+<span class="nc" id="L407">            float rightTex = 1f - (float) border.getRight() / textureSize.x;</span>
+<span class="nc" id="L408">            int centerHoriz = region.width() - border.getTotalWidth();</span>
+<span class="nc" id="L409">            int centerVert = region.height() - border.getTotalHeight();</span>
+
+<span class="nc" id="L411">            float top = (float) border.getTop() / region.height();</span>
+<span class="nc" id="L412">            float left = (float) border.getLeft() / region.width();</span>
+<span class="nc" id="L413">            float bottom = 1f - (float) border.getBottom() / region.height();</span>
+<span class="nc" id="L414">            float right = 1f - (float) border.getRight() / region.width();</span>
+
+<span class="nc bnc" id="L416" title="All 2 branches missed.">            if (border.getTop() != 0) {</span>
+<span class="nc bnc" id="L417" title="All 2 branches missed.">                if (border.getLeft() != 0) {</span>
+<span class="nc" id="L418">                    addRectPoly(builder, 0, 0, left, top, 0, 0, leftTex, topTex);</span>
+                }
+<span class="nc bnc" id="L420" title="All 2 branches missed.">                if (tile) {</span>
+<span class="nc" id="L421">                    addTiles(builder, Rect2i.createFromMinAndSize(border.getLeft(), 0, centerHoriz, border.getTop()), Rect2f.createFromMinAndMax(left, 0, right, top),</span>
+<span class="nc" id="L422">                            new Vector2i(textureSize.x - border.getTotalWidth(), border.getTop()),</span>
+<span class="nc" id="L423">                            Rect2f.createFromMinAndMax(leftTex, 0, rightTex, topTex));</span>
+                } else {
+<span class="nc" id="L425">                    addRectPoly(builder, left, 0, right, top, leftTex, 0, rightTex, topTex);</span>
+                }
+<span class="nc bnc" id="L427" title="All 2 branches missed.">                if (border.getRight() != 0) {</span>
+<span class="nc" id="L428">                    addRectPoly(builder, right, 0, 1, top, rightTex, 0, 1, topTex);</span>
+                }
+            }
+
+<span class="nc bnc" id="L432" title="All 2 branches missed.">            if (border.getLeft() != 0) {</span>
+<span class="nc bnc" id="L433" title="All 2 branches missed.">                if (tile) {</span>
+<span class="nc" id="L434">                    addTiles(builder, Rect2i.createFromMinAndSize(0, border.getTop(), border.getLeft(), centerVert), Rect2f.createFromMinAndMax(0, top, left, bottom),</span>
+<span class="nc" id="L435">                            new Vector2i(border.getLeft(), textureSize.y - border.getTotalHeight()),</span>
+<span class="nc" id="L436">                            Rect2f.createFromMinAndMax(0, topTex, leftTex, bottomTex));</span>
+                } else {
+<span class="nc" id="L438">                    addRectPoly(builder, 0, top, left, bottom, 0, topTex, leftTex, bottomTex);</span>
+                }
+            }
+
+<span class="nc bnc" id="L442" title="All 2 branches missed.">            if (tile) {</span>
+<span class="nc" id="L443">                addTiles(builder, Rect2i.createFromMinAndSize(border.getLeft(), border.getTop(), centerHoriz, centerVert),</span>
+<span class="nc" id="L444">                        Rect2f.createFromMinAndMax(left, top, right, bottom),</span>
+<span class="nc" id="L445">                        new Vector2i(textureSize.x - border.getTotalWidth(), textureSize.y - border.getTotalHeight()),</span>
+<span class="nc" id="L446">                        Rect2f.createFromMinAndMax(leftTex, topTex, rightTex, bottomTex));</span>
+            } else {
+<span class="nc" id="L448">                addRectPoly(builder, left, top, right, bottom, leftTex, topTex, rightTex, bottomTex);</span>
+            }
+
+<span class="nc bnc" id="L451" title="All 2 branches missed.">            if (border.getRight() != 0) {</span>
+<span class="nc bnc" id="L452" title="All 2 branches missed.">                if (tile) {</span>
+<span class="nc" id="L453">                    addTiles(builder, Rect2i.createFromMinAndSize(region.width() - border.getRight(), border.getTop(), border.getRight(), centerVert),</span>
+<span class="nc" id="L454">                            Rect2f.createFromMinAndMax(right, top, 1, bottom),</span>
+<span class="nc" id="L455">                            new Vector2i(border.getRight(), textureSize.y - border.getTotalHeight()),</span>
+<span class="nc" id="L456">                            Rect2f.createFromMinAndMax(rightTex, topTex, 1, bottomTex));</span>
+                } else {
+<span class="nc" id="L458">                    addRectPoly(builder, right, top, 1, bottom, rightTex, topTex, 1, bottomTex);</span>
+                }
+            }
+
+<span class="nc bnc" id="L462" title="All 2 branches missed.">            if (border.getBottom() != 0) {</span>
+<span class="nc bnc" id="L463" title="All 2 branches missed.">                if (border.getLeft() != 0) {</span>
+<span class="nc" id="L464">                    addRectPoly(builder, 0, bottom, left, 1, 0, bottomTex, leftTex, 1);</span>
+                }
+<span class="nc bnc" id="L466" title="All 2 branches missed.">                if (tile) {</span>
+<span class="nc" id="L467">                    addTiles(builder, Rect2i.createFromMinAndSize(border.getLeft(), region.height() - border.getBottom(), centerHoriz, border.getBottom()),</span>
+<span class="nc" id="L468">                            Rect2f.createFromMinAndMax(left, bottom, right, 1),</span>
+<span class="nc" id="L469">                            new Vector2i(textureSize.x - border.getTotalWidth(), border.getBottom()),</span>
+<span class="nc" id="L470">                            Rect2f.createFromMinAndMax(leftTex, bottomTex, rightTex, 1));</span>
+                } else {
+<span class="nc" id="L472">                    addRectPoly(builder, left, bottom, right, 1, leftTex, bottomTex, rightTex, 1);</span>
+                }
+<span class="nc bnc" id="L474" title="All 2 branches missed.">                if (border.getRight() != 0) {</span>
+<span class="nc" id="L475">                    addRectPoly(builder, right, bottom, 1, 1, rightTex, bottomTex, 1, 1);</span>
+                }
+            }
+
+<span class="nc" id="L479">            mesh = builder.build();</span>
+<span class="nc" id="L480">            cachedTextures.put(key, mesh);</span>
+        }
+<span class="nc" id="L482">        textureMat.setFloat2(&quot;scale&quot;, region.width(), region.height());</span>
+<span class="nc" id="L483">        textureMat.setFloat2(&quot;offset&quot;, region.minX(), region.minY());</span>
+
+<span class="nc" id="L485">        Rect2f textureArea = texture.getRegion();</span>
+<span class="nc" id="L486">        textureMat.setFloat2(&quot;texOffset&quot;, textureArea.minX() + ux * textureArea.width(), textureArea.minY() + uy * textureArea.height());</span>
+<span class="nc" id="L487">        textureMat.setFloat2(&quot;texSize&quot;, uw * textureArea.width(), uh * textureArea.height());</span>
+
+<span class="nc" id="L489">        textureMat.setTexture(&quot;texture&quot;, texture.getTexture());</span>
+<span class="nc" id="L490">        textureMat.setFloat4(&quot;color&quot;, 1, 1, 1, alpha);</span>
+<span class="nc" id="L491">        textureMat.bindTextures();</span>
+<span class="nc" id="L492">        mesh.render();</span>
+<span class="nc" id="L493">    }</span>
+
+    private void addRectPoly(MeshBuilder builder, float minX, float minY, float maxX, float maxY, float texMinX, float texMinY, float texMaxX, float texMaxY) {
+<span class="nc" id="L496">        builder.addPoly(new Vector3f(minX, minY, 0), new Vector3f(maxX, minY, 0), new Vector3f(maxX, maxY, 0), new Vector3f(minX, maxY, 0));</span>
+<span class="nc" id="L497">        builder.addTexCoord(texMinX, texMinY);</span>
+<span class="nc" id="L498">        builder.addTexCoord(texMaxX, texMinY);</span>
+<span class="nc" id="L499">        builder.addTexCoord(texMaxX, texMaxY);</span>
+<span class="nc" id="L500">        builder.addTexCoord(texMinX, texMaxY);</span>
+<span class="nc" id="L501">    }</span>
+
+    private void addTiles(MeshBuilder builder, Rect2i drawRegion, Rect2f subDrawRegion, Vector2i textureSize, Rect2f subTextureRegion) {
+<span class="nc" id="L504">        int tileW = textureSize.x;</span>
+<span class="nc" id="L505">        int tileH = textureSize.y;</span>
+<span class="nc" id="L506">        int horizTiles = TeraMath.fastAbs((drawRegion.width() - 1) / tileW) + 1;</span>
+<span class="nc" id="L507">        int vertTiles = TeraMath.fastAbs((drawRegion.height() - 1) / tileH) + 1;</span>
+
+<span class="nc" id="L509">        int offsetX = (drawRegion.width() - horizTiles * tileW) / 2;</span>
+<span class="nc" id="L510">        int offsetY = (drawRegion.height() - vertTiles * tileH) / 2;</span>
+
+<span class="nc bnc" id="L512" title="All 2 branches missed.">        for (int tileY = 0; tileY &lt; vertTiles; tileY++) {</span>
+<span class="nc bnc" id="L513" title="All 2 branches missed.">            for (int tileX = 0; tileX &lt; horizTiles; tileX++) {</span>
+<span class="nc" id="L514">                int left = offsetX + tileW * tileX;</span>
+<span class="nc" id="L515">                int top = offsetY + tileH * tileY;</span>
+
+<span class="nc" id="L517">                float vertLeft = subDrawRegion.minX() + subDrawRegion.width() * Math.max((float) left / drawRegion.width(), 0);</span>
+<span class="nc" id="L518">                float vertTop = subDrawRegion.minY() + subDrawRegion.height() * Math.max((float) top / drawRegion.height(), 0);</span>
+<span class="nc" id="L519">                float vertRight = subDrawRegion.minX() + subDrawRegion.width() * Math.min((float) (left + tileW) / drawRegion.width(), 1);</span>
+<span class="nc" id="L520">                float vertBottom = subDrawRegion.minY() + subDrawRegion.height() * Math.min((float) (top + tileH) / drawRegion.height(), 1);</span>
+<span class="nc" id="L521">                float texCoordLeft = subTextureRegion.minX() + subTextureRegion.width() * (Math.max(left, 0) - left) / tileW;</span>
+<span class="nc" id="L522">                float texCoordTop = subTextureRegion.minY() + subTextureRegion.height() * (Math.max(top, 0) - top) / tileH;</span>
+<span class="nc" id="L523">                float texCoordRight = subTextureRegion.minX() + subTextureRegion.width() * (Math.min(left + tileW, drawRegion.width()) - left) / tileW;</span>
+<span class="nc" id="L524">                float texCoordBottom = subTextureRegion.minY() + subTextureRegion.height() * (Math.min(top + tileH, drawRegion.height()) - top) / tileH;</span>
+
+<span class="nc" id="L526">                addRectPoly(builder, vertLeft, vertTop, vertRight, vertBottom, texCoordLeft, texCoordTop, texCoordRight, texCoordBottom);</span>
+            }
+        }
+<span class="nc" id="L529">    }</span>
+
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+<span class="nc bnc" id="L533" title="All 2 branches missed.">        if (evt.getPropertyName().equals(RenderingConfig.UI_SCALE)) {</span>
+<span class="nc" id="L534">            this.uiScale = this.renderingConfig.getUiScale() / 100f;</span>
+        }
+<span class="nc" id="L536">    }</span>
+
+    /**
+     * A key that identifies an entry in the text cache. It contains the elements that affect the generation of mesh for text rendering.
+     */
+    private static class TextCacheKey {
+        private final String text;
+        private final Font font;
+        private final int width;
+        private final HorizontalAlign alignment;
+        private final Color baseColor;
+        private final Color shadowColor;
+        private final boolean underlined;
+
+<span class="nc" id="L550">        TextCacheKey(String text, Font font, int maxWidth, HorizontalAlign alignment, Color baseColor, Color shadowColor, boolean underlined) {</span>
+<span class="nc" id="L551">            this.text = text;</span>
+<span class="nc" id="L552">            this.font = font;</span>
+<span class="nc" id="L553">            this.width = maxWidth;</span>
+<span class="nc" id="L554">            this.alignment = alignment;</span>
+<span class="nc" id="L555">            this.baseColor = baseColor;</span>
+<span class="nc" id="L556">            this.shadowColor = shadowColor;</span>
+<span class="nc" id="L557">            this.underlined = underlined;</span>
+<span class="nc" id="L558">        }</span>
+
+        @Override
+        public boolean equals(Object obj) {
+<span class="nc bnc" id="L562" title="All 2 branches missed.">            if (this == obj) {</span>
+<span class="nc" id="L563">                return true;</span>
+            }
+<span class="nc bnc" id="L565" title="All 2 branches missed.">            if (obj instanceof TextCacheKey) {</span>
+<span class="nc" id="L566">                TextCacheKey other = (TextCacheKey) obj;</span>
+<span class="nc bnc" id="L567" title="All 4 branches missed.">                return Objects.equals(text, other.text) &amp;&amp; Objects.equals(font, other.font)</span>
+<span class="nc bnc" id="L568" title="All 4 branches missed.">                        &amp;&amp; Objects.equals(width, other.width) &amp;&amp; Objects.equals(alignment, other.alignment)</span>
+<span class="nc bnc" id="L569" title="All 4 branches missed.">                        &amp;&amp; Objects.equals(baseColor, other.baseColor) &amp;&amp; Objects.equals(shadowColor, other.shadowColor)</span>
+<span class="nc bnc" id="L570" title="All 2 branches missed.">                        &amp;&amp; Objects.equals(underlined, other.underlined);</span>
+            }
+<span class="nc" id="L572">            return false;</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="nc" id="L577">            return Objects.hash(text, font, width, alignment, baseColor, shadowColor, underlined);</span>
+        }
+    }
+
+    /**
+     * A key that identifies an entry in the texture cache. It contains the elements that affect the generation of mesh for texture rendering.
+     */
+    private static class TextureCacheKey {
+
+        private Vector2i textureSize;
+        private Vector2i areaSize;
+        private Border border;
+        private boolean tiled;
+
+<span class="nc" id="L591">        TextureCacheKey(Vector2i textureSize, Vector2i areaSize) {</span>
+<span class="nc" id="L592">            this.textureSize = new Vector2i(textureSize);</span>
+<span class="nc" id="L593">            this.areaSize = new Vector2i(areaSize);</span>
+<span class="nc" id="L594">            this.border = Border.ZERO;</span>
+<span class="nc" id="L595">            this.tiled = true;</span>
+<span class="nc" id="L596">        }</span>
+
+<span class="nc" id="L598">        TextureCacheKey(Vector2i textureSize, Vector2i areaSize, Border border, boolean tiled) {</span>
+<span class="nc" id="L599">            this.textureSize = new Vector2i(textureSize);</span>
+<span class="nc" id="L600">            this.areaSize = new Vector2i(areaSize);</span>
+<span class="nc" id="L601">            this.border = border;</span>
+<span class="nc" id="L602">            this.tiled = tiled;</span>
+<span class="nc" id="L603">        }</span>
+
+        @Override
+        public boolean equals(Object obj) {
+<span class="nc bnc" id="L607" title="All 2 branches missed.">            if (this == obj) {</span>
+<span class="nc" id="L608">                return true;</span>
+            }
+<span class="nc bnc" id="L610" title="All 2 branches missed.">            if (obj instanceof TextureCacheKey) {</span>
+<span class="nc" id="L611">                TextureCacheKey other = (TextureCacheKey) obj;</span>
+<span class="nc bnc" id="L612" title="All 4 branches missed.">                return Objects.equals(textureSize, other.textureSize) &amp;&amp; Objects.equals(areaSize, other.areaSize)</span>
+<span class="nc bnc" id="L613" title="All 4 branches missed.">                        &amp;&amp; Objects.equals(border, other.border) &amp;&amp; tiled == other.tiled;</span>
+            }
+<span class="nc" id="L615">            return false;</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="nc" id="L620">            return Objects.hash(textureSize, areaSize, border, tiled);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

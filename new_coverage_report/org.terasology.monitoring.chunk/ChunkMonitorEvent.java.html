@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChunkMonitorEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.monitoring.chunk</a> &gt; <span class="el_source">ChunkMonitorEvent.java</span></div><h1>ChunkMonitorEvent.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.monitoring.chunk;
+
+import com.google.common.base.Preconditions;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.rendering.primitives.ChunkMesh;
+import org.terasology.world.chunks.ChunkProvider;
+
+<span class="fc" id="L23">public abstract class ChunkMonitorEvent {</span>
+
+    public static class ChunkProviderInitialized extends ChunkMonitorEvent {
+
+        public final ChunkProvider provider;
+
+<span class="fc" id="L29">        public ChunkProviderInitialized(ChunkProvider provider) {</span>
+<span class="fc" id="L30">            Preconditions.checkNotNull(provider, &quot;The parameter 'provider' must not be null&quot;);</span>
+<span class="fc" id="L31">            this.provider = provider;</span>
+<span class="fc" id="L32">        }</span>
+    }
+
+    public static class ChunkProviderDisposed extends ChunkMonitorEvent {
+
+        public final ChunkProvider provider;
+
+<span class="nc" id="L39">        public ChunkProviderDisposed(ChunkProvider provider) {</span>
+<span class="nc" id="L40">            Preconditions.checkNotNull(provider, &quot;The parameter 'provider' must not be null&quot;);</span>
+<span class="nc" id="L41">            this.provider = provider;</span>
+<span class="nc" id="L42">        }</span>
+    }
+
+    public static class BasicChunkEvent extends ChunkMonitorEvent {
+
+        protected final Vector3i position;
+
+<span class="fc" id="L49">        public BasicChunkEvent(Vector3i position) {</span>
+<span class="fc" id="L50">            Preconditions.checkNotNull(position, &quot;The parameter 'chunk' must not be null&quot;);</span>
+<span class="fc" id="L51">            this.position = position;</span>
+<span class="fc" id="L52">        }</span>
+
+        public final Vector3i getPosition() {
+<span class="nc" id="L55">            return position;</span>
+        }
+    }
+
+    public static class Created extends BasicChunkEvent {
+
+        protected final ChunkMonitorEntry entry;
+
+        public Created(ChunkMonitorEntry chunk) {
+<span class="fc" id="L64">            super(Preconditions.checkNotNull(chunk, &quot;The parameter 'chunk' must not be null&quot;).getPosition());</span>
+<span class="fc" id="L65">            this.entry = chunk;</span>
+<span class="fc" id="L66">        }</span>
+
+        public final ChunkMonitorEntry getEntry() {
+<span class="nc" id="L69">            return entry;</span>
+        }
+    }
+
+    public static class Revived extends BasicChunkEvent {
+        public Revived(Vector3i position) {
+<span class="nc" id="L75">            super(position);</span>
+<span class="nc" id="L76">        }</span>
+    }
+
+    public static class Disposed extends BasicChunkEvent {
+        public Disposed(Vector3i position) {
+<span class="nc" id="L81">            super(position);</span>
+<span class="nc" id="L82">        }</span>
+    }
+
+    public static class Deflated extends BasicChunkEvent {
+
+        public final int oldSize;
+        public final int newSize;
+
+        public Deflated(Vector3i position, int oldSize, int newSize) {
+<span class="nc" id="L91">            super(position);</span>
+<span class="nc" id="L92">            this.oldSize = oldSize;</span>
+<span class="nc" id="L93">            this.newSize = newSize;</span>
+<span class="nc" id="L94">        }</span>
+    }
+
+    public static class Tessellated extends BasicChunkEvent {
+
+        public final ChunkMeshInfo meshInfo;
+
+        public Tessellated(Vector3i position, ChunkMesh mesh) {
+<span class="nc" id="L102">            super(position);</span>
+<span class="nc" id="L103">            this.meshInfo = new ChunkMeshInfo(mesh);</span>
+<span class="nc" id="L104">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

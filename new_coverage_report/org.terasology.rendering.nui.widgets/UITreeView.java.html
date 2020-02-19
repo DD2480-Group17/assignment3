@@ -1,0 +1,755 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UITreeView.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.widgets</a> &gt; <span class="el_source">UITreeView.java</span></div><h1>UITreeView.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.widgets;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import org.terasology.input.Keyboard;
+import org.terasology.input.MouseInput;
+import org.terasology.input.device.KeyboardDevice;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.BaseInteractionListener;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.CoreWidget;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDoubleClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseOverEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
+import org.terasology.rendering.nui.itemRendering.ItemRenderer;
+import org.terasology.rendering.nui.itemRendering.ToStringTextRenderer;
+import org.terasology.rendering.nui.widgets.treeView.Tree;
+import org.terasology.rendering.nui.widgets.treeView.TreeKeyEventListener;
+import org.terasology.rendering.nui.widgets.treeView.TreeModel;
+import org.terasology.rendering.nui.widgets.treeView.TreeMouseClickListener;
+import org.terasology.rendering.nui.widgets.treeView.TreeViewState;
+
+import java.util.List;
+
+/**
+ * A Tree View widget. Presents a hierarchical view of items, visualised by indentation.
+ *
+ * @param &lt;T&gt; Type of objects stored in the underlying tree.
+ */
+public class UITreeView&lt;T&gt; extends CoreWidget {
+<span class="nc" id="L55">    public enum MouseOverType {</span>
+<span class="nc" id="L56">        TOP,</span>
+<span class="nc" id="L57">        CENTER,</span>
+<span class="nc" id="L58">        BOTTOM</span>
+    }
+
+    // Canvas parts.
+    private static final String EXPAND_BUTTON = &quot;expand-button&quot;;
+    private static final String TREE_NODE = &quot;tree-node&quot;;
+
+    // Canvas modes.
+    private static final String CONTRACT_MODE = &quot;contract&quot;;
+    private static final String CONTRACT_HOVER_MODE = &quot;contract-hover&quot;;
+    private static final String EXPAND_MODE = &quot;expand&quot;;
+    private static final String EXPAND_HOVER_MODE = &quot;expand-hover&quot;;
+    private static final String HOVER_DISABLED_MODE = &quot;hover-disabled&quot;;
+
+    /**
+     * The horizontal indentation, in pixels, corresponding to one level in the tree.
+     */
+<span class="nc" id="L75">    @LayoutConfig</span>
+<span class="nc" id="L76">    private Binding&lt;Integer&gt; levelIndent = new DefaultBinding&lt;&gt;(25);</span>
+    /**
+     * The underlying tree model - a wrapper around a {@code Tree&lt;T&gt;}.
+     */
+<span class="nc" id="L80">    private Binding&lt;TreeModel&lt;T&gt;&gt; model = new DefaultBinding&lt;&gt;(new TreeModel&lt;&gt;());</span>
+    /**
+     * The state of the tree - includes session-specific information about the currently selected node, copied node etc.
+     * See the documentation {@link TreeViewState} for information concerning specific state variables.
+     */
+<span class="nc" id="L85">    private TreeViewState&lt;T&gt; state = new TreeViewState&lt;&gt;();</span>
+    /**
+     * The item renderer used for drawing the values of the tree.
+     */
+<span class="nc" id="L89">    private ItemRenderer&lt;T&gt; itemRenderer = new ToStringTextRenderer&lt;&gt;();</span>
+    /**
+     * Listeners fired when a node is clicked. Internally instantiated.
+     */
+<span class="nc" id="L93">    private final List&lt;TreeViewListenerSet&gt; treeViewListenerSets = Lists.newArrayList();</span>
+    /**
+     * Listeners fired when the expand/contract button is clicked.
+     */
+<span class="nc" id="L97">    private final List&lt;ExpandButtonInteractionListener&gt; expandListeners = Lists.newArrayList();</span>
+    /**
+     * Listeners fired when the model of the tree is updated.
+     */
+<span class="nc" id="L101">    private List&lt;UpdateListener&gt; updateListeners = Lists.newArrayList();</span>
+    /**
+     * Listeners fired when a node is clicked. Can be subscribed to.
+     */
+<span class="nc" id="L105">    private List&lt;TreeMouseClickListener&gt; nodeClickListeners = Lists.newArrayList();</span>
+    /**
+     * Listeners fired when a node is double-clicked. Can be subscribed to.
+     */
+<span class="nc" id="L109">    private List&lt;TreeMouseClickListener&gt; nodeDoubleClickListeners = Lists.newArrayList();</span>
+    /**
+     * Listeners fired when a key is pressed. Can be subscribed to.
+     */
+<span class="nc" id="L113">    private List&lt;TreeKeyEventListener&gt; keyEventListeners = Lists.newArrayList();</span>
+
+<span class="nc" id="L115">    public UITreeView() {</span>
+<span class="nc" id="L116">    }</span>
+
+    public UITreeView(String id) {
+<span class="nc" id="L119">        super(id);</span>
+<span class="nc" id="L120">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L124">        updateListeners();</span>
+
+<span class="nc" id="L126">        canvas.setPart(TREE_NODE);</span>
+
+<span class="nc" id="L128">        int currentHeight = 0;</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        for (int i = 0; i &lt; model.get().getNodeCount(); i++) {</span>
+<span class="nc" id="L130">            Tree&lt;T&gt; node = model.get().getNode(i);</span>
+<span class="nc" id="L131">            TreeViewListenerSet treeViewListenerSet = treeViewListenerSets.get(i);</span>
+<span class="nc" id="L132">            ExpandButtonInteractionListener buttonListener = expandListeners.get(i);</span>
+
+            // Calculate the node's height and overall region.
+<span class="nc" id="L135">            int nodeHeight = canvas.getCurrentStyle().getMargin()</span>
+<span class="nc" id="L136">                .grow(itemRenderer.getPreferredSize(node.getValue(), canvas).addX(node.getDepth() * levelIndent.get()))</span>
+<span class="nc" id="L137">                .getY();</span>
+
+<span class="nc" id="L139">            Rect2i nodeRegion = Rect2i.createFromMinAndSize((node.getDepth() + 1) * levelIndent.get(),</span>
+                currentHeight,
+<span class="nc" id="L141">                canvas.size().x - (node.getDepth() + 1) * levelIndent.get(),</span>
+                nodeHeight);
+
+            // Draw the expand/contract button.
+<span class="nc bnc" id="L145" title="All 2 branches missed.">            if (!node.isLeaf()) {</span>
+<span class="nc" id="L146">                canvas.setPart(EXPAND_BUTTON);</span>
+
+<span class="nc" id="L148">                setButtonMode(canvas, node, buttonListener);</span>
+<span class="nc" id="L149">                Rect2i buttonRegion = Rect2i.createFromMinAndSize(node.getDepth() * levelIndent.get(),</span>
+                    currentHeight,
+<span class="nc" id="L151">                    levelIndent.get(),</span>
+                    nodeHeight);
+<span class="nc" id="L153">                drawButton(canvas, buttonRegion, buttonListener);</span>
+
+<span class="nc" id="L155">                canvas.setPart(TREE_NODE);</span>
+            }
+
+<span class="nc bnc" id="L158" title="All 4 branches missed.">            if (state.getSelectedIndex() != null &amp;&amp; state.getSelectedIndex() == i</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">                &amp;&amp; state.getAlternativeWidget() != null) {</span>
+                //Draw an alternative widget in place of the node (with the same size).
+
+<span class="nc" id="L162">                canvas.drawWidget(state.getAlternativeWidget(), nodeRegion);</span>
+<span class="nc" id="L163">                currentHeight += nodeHeight;</span>
+            } else {
+                // Draw the node itself.
+<span class="nc" id="L166">                setNodeMode(canvas, node, treeViewListenerSet);</span>
+
+<span class="nc" id="L168">                drawNode(canvas, nodeRegion, node, treeViewListenerSet);</span>
+<span class="nc" id="L169">                currentHeight += nodeHeight;</span>
+
+                // Draw the dragging hints if the current node is a drag&amp;drop target.
+<span class="nc bnc" id="L172" title="All 4 branches missed.">                if (state.getMouseOverIndex() != null &amp;&amp; state.getMouseOverIndex() == i) {</span>
+<span class="nc" id="L173">                    drawDragHint(canvas, nodeRegion);</span>
+                }
+            }
+        }
+<span class="nc" id="L177">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc" id="L181">        canvas.setPart(TREE_NODE);</span>
+
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        if (model.get().getNodeCount() == 0) {</span>
+<span class="nc" id="L184">            return new Vector2i();</span>
+        }
+
+<span class="nc" id="L187">        model.get().setEnumerateExpandedOnly(false);</span>
+<span class="nc" id="L188">        Vector2i result = new Vector2i();</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        for (int i = 0; i &lt; model.get().getNodeCount(); i++) {</span>
+<span class="nc" id="L190">            Tree&lt;T&gt; node = model.get().getNode(i);</span>
+<span class="nc" id="L191">            Vector2i preferredSize = canvas.getCurrentStyle().getMargin()</span>
+<span class="nc" id="L192">                .grow(itemRenderer.getPreferredSize(node.getValue(), canvas)</span>
+<span class="nc" id="L193">                    .addX(node.getDepth() * levelIndent.get()));</span>
+<span class="nc" id="L194">            result.x = Math.max(result.x, preferredSize.x);</span>
+<span class="nc" id="L195">            result.y += preferredSize.y;</span>
+        }
+<span class="nc" id="L197">        model.get().setEnumerateExpandedOnly(true);</span>
+
+        // Account for the expand/contract button!
+<span class="nc" id="L200">        result.addX(levelIndent.get());</span>
+
+<span class="nc" id="L202">        return result;</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L207">        super.update(delta);</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        if (state.getAlternativeWidget() != null) {</span>
+<span class="nc" id="L209">            state.getAlternativeWidget().update(delta);</span>
+        }
+<span class="nc" id="L211">    }</span>
+
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        for (TreeKeyEventListener listener : keyEventListeners) {</span>
+<span class="nc" id="L216">            listener.onKeyEvent(event);</span>
+<span class="nc" id="L217">        }</span>
+
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        if (event.isDown()) {</span>
+<span class="nc" id="L220">            int id = event.getKey().getId();</span>
+<span class="nc" id="L221">            KeyboardDevice keyboard = event.getKeyboard();</span>
+<span class="nc bnc" id="L222" title="All 4 branches missed.">            boolean ctrlDown = keyboard.isKeyDown(Keyboard.KeyId.RIGHT_CTRL) || keyboard.isKeyDown(Keyboard.KeyId.LEFT_CTRL);</span>
+
+<span class="nc bnc" id="L224" title="All 4 branches missed.">            if (id == Keyboard.KeyId.UP || id == Keyboard.KeyId.DOWN) {</span>
+                // Up/Down: change a node's position within the parent node.
+<span class="nc" id="L226">                return moveSelected(id);</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">            } else if (id == Keyboard.KeyId.DELETE) {</span>
+                // Delete: remove a node (and all its' children).
+<span class="nc" id="L229">                return removeSelected();</span>
+<span class="nc bnc" id="L230" title="All 4 branches missed.">            } else if (ctrlDown &amp;&amp; id == Keyboard.KeyId.C) {</span>
+                // Ctrl+C: copy a selected node.
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                if (state.getSelectedIndex() != null) {</span>
+<span class="nc" id="L233">                    copy(model.get().getNode(state.getSelectedIndex()));</span>
+<span class="nc" id="L234">                    return true;</span>
+                }
+<span class="nc" id="L236">                return false;</span>
+<span class="nc bnc" id="L237" title="All 4 branches missed.">            } else if (ctrlDown &amp;&amp; id == Keyboard.KeyId.V) {</span>
+                // Ctrl+V: paste the copied node as a child of the currently selected node.
+<span class="nc bnc" id="L239" title="All 2 branches missed.">                if (state.getSelectedIndex() != null) {</span>
+<span class="nc" id="L240">                    paste(model.get().getNode(state.getSelectedIndex()));</span>
+<span class="nc" id="L241">                    return true;</span>
+                }
+<span class="nc" id="L243">                return false;</span>
+            } else {
+<span class="nc" id="L245">                return false;</span>
+            }
+        }
+
+<span class="nc" id="L249">        return false;</span>
+    }
+
+    public Integer getSelectedIndex() {
+<span class="nc" id="L253">        return state.getSelectedIndex();</span>
+    }
+
+    public void setSelectedIndex(Integer index) {
+<span class="nc" id="L257">        state.setSelectedIndex(index);</span>
+<span class="nc" id="L258">    }</span>
+
+    public UIWidget getAlternativeWidget() {
+<span class="nc" id="L261">        return state.getAlternativeWidget();</span>
+    }
+
+    public void setAlternativeWidget(UIWidget widget) {
+<span class="nc" id="L265">        state.setAlternativeWidget(widget);</span>
+<span class="nc" id="L266">    }</span>
+
+    public void fireUpdateListeners() {
+<span class="nc" id="L269">        state.setAlternativeWidget(null);</span>
+<span class="nc" id="L270">        updateListeners.forEach(UpdateListener::onAction);</span>
+<span class="nc" id="L271">    }</span>
+
+    public void copy(Tree&lt;T&gt; node) {
+<span class="nc" id="L274">        state.setClipboard(node.copy());</span>
+<span class="nc" id="L275">    }</span>
+
+    public void paste(Tree&lt;T&gt; node) {
+<span class="nc bnc" id="L278" title="All 2 branches missed.">        if (state.getClipboard() != null) {</span>
+<span class="nc" id="L279">            node.addChild(state.getClipboard());</span>
+
+<span class="nc" id="L281">            fireUpdateListeners();</span>
+        }
+<span class="nc" id="L283">    }</span>
+
+    public void delete(Tree&lt;T&gt; node) {
+<span class="nc bnc" id="L286" title="All 2 branches missed.">        if (node.getParent() != null) {</span>
+<span class="nc" id="L287">            node.getParent().removeChild(node);</span>
+
+<span class="nc" id="L289">            fireUpdateListeners();</span>
+        }
+<span class="nc" id="L291">    }</span>
+
+    public TreeModel&lt;T&gt; getModel() {
+<span class="nc" id="L294">        return model.get();</span>
+    }
+
+    public void setModel(Tree&lt;T&gt; root) {
+<span class="nc" id="L298">        setModel(new TreeModel&lt;&gt;(root));</span>
+<span class="nc" id="L299">    }</span>
+
+    public void setModel(TreeModel&lt;T&gt; newModel) {
+<span class="nc" id="L302">        model.set(newModel);</span>
+<span class="nc" id="L303">        state.setAlternativeWidget(null);</span>
+<span class="nc" id="L304">        state.setSelectedIndex(null);</span>
+<span class="nc" id="L305">    }</span>
+
+    public void setItemRenderer(ItemRenderer&lt;T&gt; itemRenderer) {
+<span class="nc" id="L308">        this.itemRenderer = itemRenderer;</span>
+<span class="nc" id="L309">    }</span>
+
+    public void subscribeTreeViewUpdate(UpdateListener listener) {
+<span class="nc" id="L312">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L313">        updateListeners.add(listener);</span>
+<span class="nc" id="L314">    }</span>
+
+    public void subscribeNodeClick(TreeMouseClickListener listener) {
+<span class="nc" id="L317">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L318">        nodeClickListeners.add(listener);</span>
+<span class="nc" id="L319">    }</span>
+
+    public void subscribeNodeDoubleClick(TreeMouseClickListener listener) {
+<span class="nc" id="L322">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L323">        nodeDoubleClickListeners.add(listener);</span>
+<span class="nc" id="L324">    }</span>
+
+    public void subscribeKeyEvent(TreeKeyEventListener listener) {
+<span class="nc" id="L327">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L328">        keyEventListeners.add(listener);</span>
+<span class="nc" id="L329">    }</span>
+
+    private void setButtonMode(Canvas canvas, Tree&lt;T&gt; node, ExpandButtonInteractionListener listener) {
+<span class="nc bnc" id="L332" title="All 2 branches missed.">        if (listener.isMouseOver()) {</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            canvas.setMode(node.isExpanded() ? CONTRACT_HOVER_MODE : EXPAND_HOVER_MODE);</span>
+        } else {
+<span class="nc bnc" id="L335" title="All 2 branches missed.">            canvas.setMode(node.isExpanded() ? CONTRACT_MODE : EXPAND_MODE);</span>
+        }
+<span class="nc" id="L337">    }</span>
+
+    private void setNodeMode(Canvas canvas, Tree&lt;T&gt; node, TreeViewListenerSet listenerSet) {
+<span class="nc bnc" id="L340" title="All 2 branches missed.">        if (state.getSelectedIndex() != null</span>
+<span class="nc bnc" id="L341" title="All 2 branches missed.">            &amp;&amp; node.equals(model.get().getNode(state.getSelectedIndex()))) {</span>
+<span class="nc" id="L342">            canvas.setMode(ACTIVE_MODE);</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">        } else if (listenerSet.isMouseOver()) {</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">            canvas.setMode(isEnabled() ? HOVER_MODE : HOVER_DISABLED_MODE);</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">        } else if (!isEnabled()) {</span>
+<span class="nc" id="L346">            canvas.setMode(DISABLED_MODE);</span>
+        } else {
+<span class="nc" id="L348">            canvas.setMode(DEFAULT_MODE);</span>
+        }
+<span class="nc" id="L350">    }</span>
+
+    private void drawButton(Canvas canvas, Rect2i buttonRegion, ExpandButtonInteractionListener listener) {
+<span class="nc" id="L353">        canvas.drawBackground(buttonRegion);</span>
+<span class="nc" id="L354">        canvas.addInteractionRegion(listener, buttonRegion);</span>
+<span class="nc" id="L355">    }</span>
+
+    private void drawNode(Canvas canvas, Rect2i nodeRegion, Tree&lt;T&gt; node, TreeViewListenerSet listenerSet) {
+<span class="nc" id="L358">        canvas.drawBackground(nodeRegion);</span>
+<span class="nc" id="L359">        itemRenderer.draw(node.getValue(), canvas, canvas.getCurrentStyle().getMargin().shrink(nodeRegion));</span>
+
+        // Add the top listener.
+<span class="nc" id="L362">        canvas.addInteractionRegion(listenerSet.getTopListener(), itemRenderer.getTooltip(node.getValue()),</span>
+<span class="nc" id="L363">            Rect2i.createFromMinAndSize(nodeRegion.minX(), nodeRegion.minY(),</span>
+<span class="nc" id="L364">                nodeRegion.width(), nodeRegion.height() / 3));</span>
+
+        // Add the central listener.
+<span class="nc" id="L367">        canvas.addInteractionRegion(listenerSet.getCenterListener(), itemRenderer.getTooltip(node.getValue()),</span>
+<span class="nc" id="L368">            Rect2i.createFromMinAndSize(nodeRegion.minX(), nodeRegion.minY() + nodeRegion.height() / 3,</span>
+<span class="nc" id="L369">                nodeRegion.width(), nodeRegion.height() / 3));</span>
+
+<span class="nc" id="L371">        int heightOffset = nodeRegion.height() - 3 * (nodeRegion.height() / 3);</span>
+
+        // Add the bottom listener.
+<span class="nc" id="L374">        canvas.addInteractionRegion(listenerSet.getBottomListener(), itemRenderer.getTooltip(node.getValue()),</span>
+<span class="nc" id="L375">            Rect2i.createFromMinAndSize(nodeRegion.minX(), nodeRegion.minY() + 2 * nodeRegion.height() / 3,</span>
+<span class="nc" id="L376">                nodeRegion.width(), heightOffset + nodeRegion.height() / 3));</span>
+<span class="nc" id="L377">    }</span>
+
+    private void drawDragHint(Canvas canvas, Rect2i nodeRegion) {
+<span class="nc bnc" id="L380" title="All 2 branches missed.">        if (state.getMouseOverType() == MouseOverType.TOP) {</span>
+            // Draw a line at the top of the node.
+<span class="nc" id="L382">            canvas.drawLine(nodeRegion.minX(), nodeRegion.minY(), nodeRegion.maxX(), nodeRegion.minY(), Color.WHITE);</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">        } else if (state.getMouseOverType() == MouseOverType.CENTER) {</span>
+            // Draw a border around the node.
+<span class="nc" id="L385">            canvas.drawLine(nodeRegion.minX(), nodeRegion.minY(), nodeRegion.maxX(), nodeRegion.minY(), Color.WHITE);</span>
+<span class="nc" id="L386">            canvas.drawLine(nodeRegion.maxX(), nodeRegion.minY(), nodeRegion.maxX(), nodeRegion.maxY(), Color.WHITE);</span>
+<span class="nc" id="L387">            canvas.drawLine(nodeRegion.minX(), nodeRegion.minY(), nodeRegion.minX(), nodeRegion.maxY(), Color.WHITE);</span>
+<span class="nc" id="L388">            canvas.drawLine(nodeRegion.minX(), nodeRegion.maxY(), nodeRegion.maxX(), nodeRegion.maxY(), Color.WHITE);</span>
+        } else { // MouseOverType.BOTTOM
+            // Draw a line at the bottom of the node.
+<span class="nc" id="L391">            canvas.drawLine(nodeRegion.minX(), nodeRegion.maxY(), nodeRegion.maxX(), nodeRegion.maxY(), Color.WHITE);</span>
+        }
+<span class="nc" id="L393">    }</span>
+
+    private void updateListeners() {
+<span class="nc" id="L396">        boolean mouseOver = false;</span>
+<span class="nc bnc" id="L397" title="All 2 branches missed.">        for (TreeViewListenerSet set : treeViewListenerSets) {</span>
+<span class="nc bnc" id="L398" title="All 2 branches missed.">            if (set.isMouseOver()) {</span>
+<span class="nc" id="L399">                mouseOver = true;</span>
+<span class="nc" id="L400">                break;</span>
+            }
+<span class="nc" id="L402">        }</span>
+<span class="nc bnc" id="L403" title="All 2 branches missed.">        if (!mouseOver) {</span>
+            // Reset the temporary index variables.
+<span class="nc bnc" id="L405" title="All 2 branches missed.">            if (state.getDraggedIndex() != null) {</span>
+<span class="nc" id="L406">                state.setDraggedIndex(null);</span>
+            }
+<span class="nc bnc" id="L408" title="All 2 branches missed.">            if (state.getMouseOverIndex() != null) {</span>
+<span class="nc" id="L409">                state.setMouseOverIndex(null);</span>
+<span class="nc" id="L410">                state.setMouseOverType(null);</span>
+            }
+        }
+
+        // Update the listener sets.
+<span class="nc bnc" id="L415" title="All 2 branches missed.">        while (treeViewListenerSets.size() &gt; model.get().getNodeCount()) {</span>
+<span class="nc" id="L416">            treeViewListenerSets.remove(treeViewListenerSets.size() - 1);</span>
+<span class="nc" id="L417">            expandListeners.remove(expandListeners.size() - 1);</span>
+        }
+<span class="nc bnc" id="L419" title="All 2 branches missed.">        while (treeViewListenerSets.size() &lt; model.get().getNodeCount()) {</span>
+<span class="nc" id="L420">            treeViewListenerSets.add(new TreeViewListenerSet(</span>
+<span class="nc" id="L421">                new NodeTopListener(treeViewListenerSets.size()),</span>
+<span class="nc" id="L422">                new NodeCenterListener(treeViewListenerSets.size()),</span>
+<span class="nc" id="L423">                new NodeBottomListener(treeViewListenerSets.size())));</span>
+<span class="nc" id="L424">            expandListeners.add(new ExpandButtonInteractionListener(expandListeners.size()));</span>
+        }
+<span class="nc" id="L426">    }</span>
+
+    private boolean moveSelected(int keyId) {
+<span class="nc bnc" id="L429" title="All 2 branches missed.">        if (state.getSelectedIndex() != null) {</span>
+<span class="nc" id="L430">            Tree&lt;T&gt; selectedNode = model.get().getNode(state.getSelectedIndex());</span>
+<span class="nc" id="L431">            Tree&lt;T&gt; parent = selectedNode.getParent();</span>
+
+<span class="nc bnc" id="L433" title="All 2 branches missed.">            if (!selectedNode.isRoot()) {</span>
+<span class="nc" id="L434">                int nodeIndex = parent.getIndex(selectedNode);</span>
+
+<span class="nc bnc" id="L436" title="All 4 branches missed.">                if (keyId == Keyboard.KeyId.UP &amp;&amp; nodeIndex &gt; 0) {</span>
+                    // Move the node up, unless it is the first node.
+<span class="nc" id="L438">                    parent.removeChild(selectedNode);</span>
+<span class="nc" id="L439">                    parent.addChild(nodeIndex - 1, selectedNode);</span>
+<span class="nc" id="L440">                    model.get().resetNodes();</span>
+
+                    // Re-select the moved node.
+<span class="nc" id="L443">                    state.setSelectedIndex(model.get().indexOf(selectedNode));</span>
+
+<span class="nc" id="L445">                    fireUpdateListeners();</span>
+<span class="nc bnc" id="L446" title="All 4 branches missed.">                } else if (keyId == Keyboard.KeyId.DOWN &amp;&amp; nodeIndex &lt; parent.getChildren().size() - 1) {</span>
+                    // Move the node down, unless it is the last node.
+<span class="nc" id="L448">                    parent.removeChild(selectedNode);</span>
+<span class="nc" id="L449">                    parent.addChild(nodeIndex + 1, selectedNode);</span>
+<span class="nc" id="L450">                    model.get().resetNodes();</span>
+
+                    // Re-select the moved node.
+<span class="nc" id="L453">                    state.setSelectedIndex(model.get().indexOf(selectedNode));</span>
+
+<span class="nc" id="L455">                    fireUpdateListeners();</span>
+                }
+            }
+
+<span class="nc" id="L459">            return true;</span>
+        }
+
+<span class="nc" id="L462">        return false;</span>
+    }
+
+    private boolean removeSelected() {
+<span class="nc bnc" id="L466" title="All 2 branches missed.">        if (state.getSelectedIndex() != null) {</span>
+<span class="nc" id="L467">            model.get().removeNode(state.getSelectedIndex());</span>
+<span class="nc" id="L468">            state.setSelectedIndex(null);</span>
+
+<span class="nc" id="L470">            fireUpdateListeners();</span>
+<span class="nc" id="L471">            return true;</span>
+        }
+<span class="nc" id="L473">        return false;</span>
+    }
+
+    private boolean onNodeClick(int index, NUIMouseClickEvent event) {
+<span class="nc bnc" id="L477" title="All 2 branches missed.">        for (TreeMouseClickListener listener : nodeClickListeners) {</span>
+<span class="nc" id="L478">            listener.onMouseClick(event, model.get().getNode(index));</span>
+<span class="nc" id="L479">        }</span>
+<span class="nc bnc" id="L480" title="All 4 branches missed.">        if (isEnabled() &amp;&amp; event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+            // Select the node on LMB - deselect when selected again.
+<span class="nc bnc" id="L482" title="All 4 branches missed.">            if (state.getSelectedIndex() != null &amp;&amp; state.getSelectedIndex() == index) {</span>
+<span class="nc" id="L483">                state.setSelectedIndex(null);</span>
+            } else {
+<span class="nc" id="L485">                state.setSelectedIndex(index);</span>
+            }
+<span class="nc" id="L487">            state.setAlternativeWidget(null);</span>
+<span class="nc" id="L488">            return true;</span>
+        }
+<span class="nc" id="L490">        return false;</span>
+    }
+
+    private boolean onNodeDoubleClick(int index, NUIMouseDoubleClickEvent event) {
+<span class="nc bnc" id="L494" title="All 2 branches missed.">        for (TreeMouseClickListener listener : nodeDoubleClickListeners) {</span>
+<span class="nc" id="L495">            listener.onMouseClick(event, model.get().getNode(index));</span>
+<span class="nc" id="L496">        }</span>
+<span class="nc" id="L497">        return true;</span>
+    }
+
+    private void onNodeMouseDrag(int index) {
+<span class="nc" id="L501">        state.setDraggedIndex(index);</span>
+<span class="nc" id="L502">    }</span>
+
+    private void onNodeMouseOver(int index, MouseOverType type) {
+        // Set temporary index variables for the dragged/target nodes.
+<span class="nc bnc" id="L506" title="All 2 branches missed.">        if (state.getDraggedIndex() != null) {</span>
+<span class="nc bnc" id="L507" title="All 2 branches missed.">            if (state.getDraggedIndex() != index) {</span>
+<span class="nc" id="L508">                state.setMouseOverIndex(index);</span>
+<span class="nc" id="L509">                state.setMouseOverType(type);</span>
+            } else {
+<span class="nc" id="L511">                state.setMouseOverIndex(null);</span>
+<span class="nc" id="L512">                state.setMouseOverType(null);</span>
+            }
+        }
+<span class="nc" id="L515">    }</span>
+
+    private void onNodeMouseRelease(int index) {
+<span class="nc bnc" id="L518" title="All 4 branches missed.">        if (state.getDraggedIndex() != null &amp;&amp; state.getMouseOverIndex() != null) {</span>
+<span class="nc" id="L519">            Tree&lt;T&gt; child = model.get().getNode(state.getDraggedIndex());</span>
+<span class="nc" id="L520">            Tree&lt;T&gt; parent = model.get().getNode(state.getMouseOverIndex());</span>
+
+            // Handle node drag&amp;dropping.
+<span class="nc bnc" id="L523" title="All 2 branches missed.">            if (state.getMouseOverType() == MouseOverType.TOP) {</span>
+                // Insert the dragged node before the target node (as a child of the same tree).
+<span class="nc" id="L525">                child.getParent().removeChild(child);</span>
+<span class="nc" id="L526">                parent.getParent().addChild(parent.getParent().indexOf(parent), child);</span>
+<span class="nc bnc" id="L527" title="All 2 branches missed.">            } else if (state.getMouseOverType() == MouseOverType.CENTER) {</span>
+                // Insert the dragged node as a child of the target node.
+<span class="nc" id="L529">                child.getParent().removeChild(child);</span>
+<span class="nc" id="L530">                parent.addChild(child);</span>
+            } else { // MouseOverType.BOTTOM
+                // Insert the dragged node after the target node (as a child of the same tree).
+<span class="nc" id="L533">                child.getParent().removeChild(child);</span>
+<span class="nc" id="L534">                parent.getParent().addChild(parent.getParent().indexOf(parent) + 1, child);</span>
+            }
+
+<span class="nc" id="L537">            fireUpdateListeners();</span>
+        }
+
+        // Reset the temporary index variables.
+<span class="nc bnc" id="L541" title="All 2 branches missed.">        if (state.getDraggedIndex() != null) {</span>
+<span class="nc bnc" id="L542" title="All 4 branches missed.">            if (state.getMouseOverIndex() != null &amp;&amp; state.getMouseOverIndex() != index) {</span>
+<span class="nc" id="L543">                state.setSelectedIndex(null);</span>
+            }
+<span class="nc" id="L545">            state.setDraggedIndex(null);</span>
+        }
+<span class="nc bnc" id="L547" title="All 2 branches missed.">        if (state.getMouseOverIndex() != null) {</span>
+<span class="nc" id="L548">            state.setMouseOverIndex(null);</span>
+<span class="nc" id="L549">            state.setMouseOverType(null);</span>
+        }
+<span class="nc" id="L551">    }</span>
+
+    private class ExpandButtonInteractionListener extends BaseInteractionListener {
+        private int index;
+
+<span class="nc" id="L556">        ExpandButtonInteractionListener(int index) {</span>
+<span class="nc" id="L557">            this.index = index;</span>
+<span class="nc" id="L558">        }</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc bnc" id="L562" title="All 2 branches missed.">            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {</span>
+                // Expand or contract a node on LMB - works even if the tree is disabled.
+<span class="nc bnc" id="L564" title="All 2 branches missed.">                model.get().getNode(index).setExpanded(!model.get().getNode(index).isExpanded());</span>
+
+<span class="nc bnc" id="L566" title="All 2 branches missed.">                Tree&lt;T&gt; selectedNode = state.getSelectedIndex() != null ? model.get().getNode(state.getSelectedIndex()) : null;</span>
+<span class="nc" id="L567">                model.get().resetNodes();</span>
+
+                // Update the index of the selected node.
+<span class="nc bnc" id="L570" title="All 2 branches missed.">                if (selectedNode != null) {</span>
+<span class="nc" id="L571">                    int newIndex = model.get().indexOf(selectedNode);</span>
+<span class="nc bnc" id="L572" title="All 2 branches missed.">                    if (newIndex == -1) {</span>
+<span class="nc" id="L573">                        state.setSelectedIndex(null);</span>
+                    } else {
+<span class="nc" id="L575">                        state.setSelectedIndex(newIndex);</span>
+                    }
+                }
+<span class="nc" id="L578">                return true;</span>
+            }
+<span class="nc" id="L580">            return false;</span>
+        }
+    }
+
+    private class NodeTopListener extends BaseInteractionListener {
+        private int index;
+
+<span class="nc" id="L587">        NodeTopListener(int index) {</span>
+<span class="nc" id="L588">            this.index = index;</span>
+<span class="nc" id="L589">        }</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc" id="L593">            return onNodeClick(index, event);</span>
+        }
+
+        @Override
+        public boolean onMouseDoubleClick(NUIMouseDoubleClickEvent event) {
+<span class="nc" id="L598">            return onNodeDoubleClick(index, event);</span>
+        }
+
+        @Override
+        public void onMouseDrag(NUIMouseDragEvent event) {
+<span class="nc" id="L603">            onNodeMouseDrag(index);</span>
+<span class="nc" id="L604">        }</span>
+
+        @Override
+        public void onMouseOver(NUIMouseOverEvent event) {
+<span class="nc" id="L608">            super.onMouseOver(event);</span>
+
+            // This node's parent exists and accepts the node being dragged as a child.
+<span class="nc bnc" id="L611" title="All 2 branches missed.">            if (state.getDraggedIndex() != null</span>
+<span class="nc bnc" id="L612" title="All 2 branches missed.">                &amp;&amp; !model.get().getNode(index).isRoot()</span>
+<span class="nc bnc" id="L613" title="All 2 branches missed.">                &amp;&amp; model.get().getNode(index).getParent().acceptsChild(model.get().getNode(state.getDraggedIndex()))) {</span>
+<span class="nc" id="L614">                onNodeMouseOver(index, MouseOverType.TOP);</span>
+            }
+<span class="nc" id="L616">        }</span>
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc" id="L620">            onNodeMouseRelease(index);</span>
+<span class="nc" id="L621">        }</span>
+    }
+
+    private class NodeCenterListener extends BaseInteractionListener {
+        private int index;
+
+<span class="nc" id="L627">        NodeCenterListener(int index) {</span>
+<span class="nc" id="L628">            this.index = index;</span>
+<span class="nc" id="L629">        }</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc" id="L633">            return onNodeClick(index, event);</span>
+        }
+
+        @Override
+        public boolean onMouseDoubleClick(NUIMouseDoubleClickEvent event) {
+<span class="nc" id="L638">            return onNodeDoubleClick(index, event);</span>
+        }
+
+        @Override
+        public void onMouseDrag(NUIMouseDragEvent event) {
+<span class="nc" id="L643">            onNodeMouseDrag(index);</span>
+<span class="nc" id="L644">        }</span>
+
+        @Override
+        public void onMouseOver(NUIMouseOverEvent event) {
+<span class="nc" id="L648">            super.onMouseOver(event);</span>
+
+            // This node accepts the node being dragged as a child.
+<span class="nc bnc" id="L651" title="All 2 branches missed.">            if (state.getDraggedIndex() != null</span>
+<span class="nc bnc" id="L652" title="All 2 branches missed.">                &amp;&amp; model.get().getNode(index).acceptsChild(model.get().getNode(state.getDraggedIndex()))) {</span>
+<span class="nc" id="L653">                onNodeMouseOver(index, MouseOverType.CENTER);</span>
+            }
+<span class="nc" id="L655">        }</span>
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc" id="L659">            onNodeMouseRelease(index);</span>
+<span class="nc" id="L660">        }</span>
+    }
+
+    private class NodeBottomListener extends BaseInteractionListener {
+        private int index;
+
+<span class="nc" id="L666">        NodeBottomListener(int index) {</span>
+<span class="nc" id="L667">            this.index = index;</span>
+<span class="nc" id="L668">        }</span>
+
+        @Override
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+<span class="nc" id="L672">            return onNodeClick(index, event);</span>
+        }
+
+        @Override
+        public boolean onMouseDoubleClick(NUIMouseDoubleClickEvent event) {
+<span class="nc" id="L677">            return onNodeDoubleClick(index, event);</span>
+        }
+
+        @Override
+        public void onMouseDrag(NUIMouseDragEvent event) {
+<span class="nc" id="L682">            onNodeMouseDrag(index);</span>
+<span class="nc" id="L683">        }</span>
+
+        @Override
+        public void onMouseOver(NUIMouseOverEvent event) {
+<span class="nc" id="L687">            super.onMouseOver(event);</span>
+
+            // This node's parent exists and accepts the node being dragged as a child.
+<span class="nc bnc" id="L690" title="All 2 branches missed.">            if (state.getDraggedIndex() != null</span>
+<span class="nc bnc" id="L691" title="All 2 branches missed.">                &amp;&amp; !model.get().getNode(index).isRoot()</span>
+<span class="nc bnc" id="L692" title="All 2 branches missed.">                &amp;&amp; model.get().getNode(index).getParent().acceptsChild(model.get().getNode(state.getDraggedIndex()))) {</span>
+<span class="nc" id="L693">                onNodeMouseOver(index, MouseOverType.BOTTOM);</span>
+            }
+<span class="nc" id="L695">        }</span>
+
+        @Override
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+<span class="nc" id="L699">            onNodeMouseRelease(index);</span>
+<span class="nc" id="L700">        }</span>
+    }
+
+    /**
+     * A set of tree node sub-listeners.
+     */
+    private final class TreeViewListenerSet {
+        /**
+         * The top listener.
+         */
+        private NodeTopListener topListener;
+        /**
+         * The central listener.
+         */
+        private NodeCenterListener centerListener;
+        /**
+         * The bottom listener.
+         */
+        private NodeBottomListener bottomListener;
+
+<span class="nc" id="L720">        private TreeViewListenerSet(NodeTopListener topListener, NodeCenterListener centerListener, NodeBottomListener bottomListener) {</span>
+<span class="nc" id="L721">            this.topListener = topListener;</span>
+<span class="nc" id="L722">            this.centerListener = centerListener;</span>
+<span class="nc" id="L723">            this.bottomListener = bottomListener;</span>
+<span class="nc" id="L724">        }</span>
+
+        /**
+         * @return The top listener.
+         */
+        NodeTopListener getTopListener() {
+<span class="nc" id="L730">            return topListener;</span>
+        }
+
+        /**
+         * @return The central listener.
+         */
+        NodeCenterListener getCenterListener() {
+<span class="nc" id="L737">            return centerListener;</span>
+        }
+
+        /**
+         * @return The bottom listener.
+         */
+        NodeBottomListener getBottomListener() {
+<span class="nc" id="L744">            return bottomListener;</span>
+        }
+
+        /**
+         * @return Whether any of the listeners are currently moused over.
+         */
+        public boolean isMouseOver() {
+<span class="nc bnc" id="L751" title="All 6 branches missed.">            return topListener.isMouseOver() || centerListener.isMouseOver() || bottomListener.isMouseOver();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

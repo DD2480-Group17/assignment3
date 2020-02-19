@@ -1,0 +1,567 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChunkImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.internal</a> &gt; <span class="el_source">ChunkImpl.java</span></div><h1>ChunkImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.chunks.internal;
+
+import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.math.AABB;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.BaseVector3i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.monitoring.chunk.ChunkMonitor;
+import org.terasology.protobuf.EntityData;
+import org.terasology.rendering.primitives.ChunkMesh;
+import org.terasology.world.block.Block;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkBlockIterator;
+import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+import org.terasology.world.chunks.blockdata.TeraArray;
+import org.terasology.world.chunks.blockdata.TeraDenseArray8Bit;
+import org.terasology.world.chunks.deflate.TeraDeflator;
+import org.terasology.world.chunks.deflate.TeraStandardDeflator;
+
+import java.text.DecimalFormat;
+
+/**
+ * Chunks are the basic components of the world. Each chunk contains a fixed amount of blocks
+ * determined by its dimensions. They are used to manage the world efficiently and
+ * to reduce the batch count within the render loop.
+ * &lt;br&gt;&lt;br&gt;
+ * Chunks are tessellated on creation and saved to vertex arrays. From those VBOs are generated
+ * which are then used for the actual rendering process.
+ */
+public class ChunkImpl implements Chunk {
+
+<span class="fc" id="L53">    private static final Logger logger = LoggerFactory.getLogger(ChunkImpl.class);</span>
+
+<span class="fc" id="L55">    private static final DecimalFormat PERCENT_FORMAT = new DecimalFormat(&quot;0.##&quot;);</span>
+<span class="fc" id="L56">    private static final DecimalFormat SIZE_FORMAT = new DecimalFormat(&quot;#,###&quot;);</span>
+
+<span class="fc" id="L58">    private final Vector3i chunkPos = new Vector3i();</span>
+
+    private BlockManager blockManager;
+
+    private TeraArray sunlightData;
+    private TeraArray sunlightRegenData;
+    private TeraArray lightData;
+
+    private TeraArray blockData;
+    private volatile TeraArray blockDataSnapshot;
+    private TeraArray[] extraData;
+    private volatile TeraArray[] extraDataSnapshots;
+
+    private AABB aabb;
+    private Region3i region;
+
+    private boolean disposed;
+    private boolean ready;
+    private volatile boolean dirty;
+    private boolean animated;
+
+    // Rendering
+    private ChunkMesh activeMesh;
+    private ChunkMesh pendingMesh;
+
+    public ChunkImpl(int x, int y, int z, BlockManager blockManager, ExtraBlockDataManager extraDataManager) {
+<span class="fc" id="L84">        this(new Vector3i(x, y, z), blockManager, extraDataManager);</span>
+<span class="fc" id="L85">    }</span>
+
+    public ChunkImpl(Vector3i chunkPos, BlockManager blockManager, ExtraBlockDataManager extraDataManager) {
+<span class="fc" id="L88">        this(chunkPos,</span>
+                new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z),
+<span class="fc" id="L90">                extraDataManager.makeDataArrays(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z),</span>
+                blockManager);
+<span class="fc" id="L92">    }</span>
+
+<span class="fc" id="L94">    public ChunkImpl(Vector3i chunkPos, TeraArray blocks, TeraArray[] extra, BlockManager blockManager) {</span>
+<span class="fc" id="L95">        this.chunkPos.set(Preconditions.checkNotNull(chunkPos));</span>
+<span class="fc" id="L96">        this.blockData = Preconditions.checkNotNull(blocks);</span>
+<span class="fc" id="L97">        this.extraData = Preconditions.checkNotNull(extra);</span>
+<span class="fc" id="L98">        sunlightData = new TeraDenseArray8Bit(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());</span>
+<span class="fc" id="L99">        sunlightRegenData = new TeraDenseArray8Bit(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());</span>
+<span class="fc" id="L100">        lightData = new TeraDenseArray8Bit(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());</span>
+<span class="fc" id="L101">        dirty = true;</span>
+<span class="fc" id="L102">        this.blockManager = blockManager;</span>
+<span class="fc" id="L103">        region = Region3i.createFromMinAndSize(new Vector3i(chunkPos.x * ChunkConstants.SIZE_X, chunkPos.y * ChunkConstants.SIZE_Y, chunkPos.z * ChunkConstants.SIZE_Z),</span>
+                ChunkConstants.CHUNK_SIZE);
+<span class="fc" id="L105">        ChunkMonitor.fireChunkCreated(this);</span>
+<span class="fc" id="L106">    }</span>
+
+    @Override
+    public Vector3i getPosition() {
+<span class="fc" id="L110">        return new Vector3i(chunkPos);</span>
+    }
+
+    @Override
+    public boolean isDirty() {
+<span class="nc" id="L115">        return dirty;</span>
+    }
+
+    @Override
+    public void setDirty(boolean dirty) {
+<span class="fc" id="L120">        this.dirty = dirty;</span>
+<span class="fc" id="L121">    }</span>
+
+    @Override
+    public int getEstimatedMemoryConsumptionInBytes() {
+<span class="nc" id="L125">        int extraDataSize = 0;</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        for (int i = 0; i &lt; extraData.length; i++) {</span>
+<span class="nc" id="L127">            extraDataSize += extraData[i].getEstimatedMemoryConsumptionInBytes();</span>
+        }
+<span class="nc" id="L129">        return blockData.getEstimatedMemoryConsumptionInBytes()</span>
+<span class="nc" id="L130">                + sunlightData.getEstimatedMemoryConsumptionInBytes()</span>
+<span class="nc" id="L131">                + sunlightRegenData.getEstimatedMemoryConsumptionInBytes()</span>
+<span class="nc" id="L132">                + lightData.getEstimatedMemoryConsumptionInBytes()</span>
+                + extraDataSize;
+    }
+
+    @Override
+    public final Block getBlock(BaseVector3i pos) {
+<span class="fc" id="L138">        short id = (short) blockData.get(pos.x(), pos.y(), pos.z());</span>
+<span class="fc" id="L139">        return blockManager.getBlock(id);</span>
+    }
+
+    @Override
+    public final Block getBlock(int x, int y, int z) {
+<span class="fc" id="L144">        short id = (short) blockData.get(x, y, z);</span>
+<span class="fc" id="L145">        return blockManager.getBlock(id);</span>
+    }
+
+    // This could be made to check for and clear extraData fields as appropriate,
+    // but that could take an excessive amount of time,
+    // so whatever sets a block to something extraData sensitive should also initialise the extra data.
+    @Override
+    public Block setBlock(int x, int y, int z, Block block) {
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        if (blockData == blockDataSnapshot) {</span>
+<span class="nc" id="L154">            blockData = blockData.copy();</span>
+        }
+<span class="fc" id="L156">        int oldValue = blockData.set(x, y, z, block.getId());</span>
+<span class="fc" id="L157">        return blockManager.getBlock((short) oldValue);</span>
+    }
+
+    @Override
+    public Block setBlock(BaseVector3i pos, Block block) {
+<span class="fc" id="L162">        return setBlock(pos.x(), pos.y(), pos.z(), block);</span>
+    }
+
+    @Override
+    public byte getSunlight(BaseVector3i pos) {
+<span class="fc" id="L167">        return getSunlight(pos.x(), pos.y(), pos.z());</span>
+    }
+
+    @Override
+    public byte getSunlight(int x, int y, int z) {
+<span class="fc" id="L172">        return (byte) sunlightData.get(x, y, z);</span>
+    }
+
+    @Override
+    public boolean setSunlight(BaseVector3i pos, byte amount) {
+<span class="fc" id="L177">        return setSunlight(pos.x(), pos.y(), pos.z(), amount);</span>
+    }
+
+    @Override
+    public boolean setSunlight(int x, int y, int z, byte amount) {
+<span class="pc bpc" id="L182" title="2 of 4 branches missed.">        Preconditions.checkArgument(amount &gt;= 0 &amp;&amp; amount &lt;= ChunkConstants.MAX_SUNLIGHT);</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">        return sunlightData.set(x, y, z, amount) != amount;</span>
+    }
+
+    @Override
+    public byte getSunlightRegen(BaseVector3i pos) {
+<span class="fc" id="L188">        return getSunlightRegen(pos.x(), pos.y(), pos.z());</span>
+    }
+
+    @Override
+    public byte getSunlightRegen(int x, int y, int z) {
+<span class="fc" id="L193">        return (byte) sunlightRegenData.get(x, y, z);</span>
+    }
+
+    @Override
+    public boolean setSunlightRegen(BaseVector3i pos, byte amount) {
+<span class="fc" id="L198">        return setSunlightRegen(pos.x(), pos.y(), pos.z(), amount);</span>
+    }
+
+    @Override
+    public boolean setSunlightRegen(int x, int y, int z, byte amount) {
+<span class="pc bpc" id="L203" title="2 of 4 branches missed.">        Preconditions.checkArgument(amount &gt;= 0 &amp;&amp; amount &lt;= ChunkConstants.MAX_SUNLIGHT_REGEN);</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        return sunlightRegenData.set(x, y, z, amount) != amount;</span>
+    }
+
+    @Override
+    public byte getLight(BaseVector3i pos) {
+<span class="fc" id="L209">        return getLight(pos.x(), pos.y(), pos.z());</span>
+    }
+
+    @Override
+    public byte getLight(int x, int y, int z) {
+<span class="fc" id="L214">        return (byte) lightData.get(x, y, z);</span>
+    }
+
+    @Override
+    public boolean setLight(BaseVector3i pos, byte amount) {
+<span class="fc" id="L219">        return setLight(pos.x(), pos.y(), pos.z(), amount);</span>
+    }
+
+    @Override
+    public boolean setLight(int x, int y, int z, byte amount) {
+<span class="pc bpc" id="L224" title="2 of 4 branches missed.">        Preconditions.checkArgument(amount &gt;= 0 &amp;&amp; amount &lt;= ChunkConstants.MAX_LIGHT);</span>
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">        return lightData.set(x, y, z, amount) != amount;</span>
+    }
+
+    @Override
+    public int getExtraData(int index, int x, int y, int z) {
+<span class="nc" id="L230">        return extraData[index].get(x, y, z);</span>
+    }
+    
+    @Override
+    public int getExtraData(int index, BaseVector3i pos) {
+<span class="nc" id="L235">        return getExtraData(index, pos.x(), pos.y(), pos.z());</span>
+    }
+    
+    @Override
+    public void setExtraData(int index, int x, int y, int z, int value) {
+<span class="nc bnc" id="L240" title="All 4 branches missed.">        if (extraDataSnapshots != null &amp;&amp; extraData[index] == extraDataSnapshots[index]) {</span>
+<span class="nc" id="L241">            extraData[index] = extraData[index].copy();</span>
+        }
+<span class="nc" id="L243">        extraData[index].set(x, y, z, value);</span>
+<span class="nc" id="L244">    }</span>
+    
+    @Override
+    public void setExtraData(int index, BaseVector3i pos, int value) {
+<span class="nc" id="L248">        setExtraData(index, pos.x(), pos.y(), pos.z(), value);</span>
+<span class="nc" id="L249">    }</span>
+
+    @Override
+    public Vector3i getChunkWorldOffset() {
+<span class="fc" id="L253">        return new Vector3i(getChunkWorldOffsetX(), getChunkWorldOffsetY(), getChunkWorldOffsetZ());</span>
+    }
+
+    @Override
+    public int getChunkWorldOffsetX() {
+<span class="fc" id="L258">        return chunkPos.x * getChunkSizeX();</span>
+    }
+
+    @Override
+    public int getChunkWorldOffsetY() {
+<span class="fc" id="L263">        return chunkPos.y * getChunkSizeY();</span>
+    }
+
+    @Override
+    public int getChunkWorldOffsetZ() {
+<span class="fc" id="L268">        return chunkPos.z * getChunkSizeZ();</span>
+    }
+
+    @Override
+    public Vector3i chunkToWorldPosition(BaseVector3i blockPos) {
+<span class="nc" id="L273">        return chunkToWorldPosition(blockPos.x(), blockPos.y(), blockPos.z());</span>
+    }
+
+    @Override
+    public Vector3i chunkToWorldPosition(int x, int y, int z) {
+<span class="fc" id="L278">        return new Vector3i(chunkToWorldPositionX(x), chunkToWorldPositionY(y), chunkToWorldPositionZ(z));</span>
+    }
+
+    @Override
+    public int chunkToWorldPositionX(int x) {
+<span class="fc" id="L283">        return x + getChunkWorldOffsetX();</span>
+    }
+
+    @Override
+    public int chunkToWorldPositionY(int y) {
+<span class="fc" id="L288">        return y + getChunkWorldOffsetY();</span>
+    }
+
+    @Override
+    public int chunkToWorldPositionZ(int z) {
+<span class="fc" id="L293">        return z + getChunkWorldOffsetZ();</span>
+    }
+
+    @Override
+    public AABB getAABB() {
+<span class="fc bfc" id="L298" title="All 2 branches covered.">        if (aabb == null) {</span>
+<span class="fc" id="L299">            Vector3f min = getChunkWorldOffset().toVector3f();</span>
+<span class="fc" id="L300">            Vector3f max = ChunkConstants.CHUNK_SIZE.toVector3f();</span>
+<span class="fc" id="L301">            max.add(min);</span>
+<span class="fc" id="L302">            aabb = AABB.createMinMax(min, max);</span>
+        }
+
+<span class="fc" id="L305">        return aabb;</span>
+    }
+
+    @Override
+    public void deflate() {
+<span class="nc" id="L310">        final TeraDeflator def = new TeraStandardDeflator();</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">        if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L312">            int blocksSize = blockData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L313">            int sunlightSize = sunlightData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L314">            int sunlightRegenSize = sunlightRegenData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L315">            int lightSize = lightData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L316">            int extraSize = 0;</span>
+<span class="nc bnc" id="L317" title="All 2 branches missed.">            for (int i = 0; i &lt; extraData.length; i++) {</span>
+<span class="nc" id="L318">                extraSize += extraData[i].getEstimatedMemoryConsumptionInBytes();</span>
+            }
+<span class="nc" id="L320">            int totalSize = blocksSize + sunlightRegenSize + sunlightSize + lightSize + extraSize;</span>
+
+<span class="nc" id="L322">            blockData = def.deflate(blockData);</span>
+<span class="nc" id="L323">            lightData = def.deflate(lightData);</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">            for (int i = 0; i &lt; extraData.length; i++) {</span>
+<span class="nc" id="L325">                extraData[i] = def.deflate(extraData[i]);</span>
+            }
+
+<span class="nc" id="L328">            int blocksReduced = blockData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L329">            int lightReduced = lightData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L330">            int extraReduced = 0;</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">            for (int i = 0; i &lt; extraData.length; i++) {</span>
+<span class="nc" id="L332">                extraReduced += extraData[i].getEstimatedMemoryConsumptionInBytes();</span>
+            }
+<span class="nc" id="L334">            int totalReduced = blocksReduced + sunlightRegenSize + sunlightSize + lightReduced + extraReduced;</span>
+
+<span class="nc" id="L336">            double blocksPercent = 100d - (100d / blocksSize * blocksReduced);</span>
+<span class="nc" id="L337">            double lightPercent = 100d - (100d / lightSize * lightReduced);</span>
+<span class="nc" id="L338">            double extraPercent = 100d - (100d / extraSize * extraReduced);</span>
+<span class="nc" id="L339">            double totalPercent = 100d - (100d / totalSize * totalReduced);</span>
+
+<span class="nc" id="L341">            logger.debug(&quot;chunk {}: &quot; +</span>
+                            &quot;size-before: {} &quot; +
+                            &quot;bytes, size-after: {} &quot; +
+                            &quot;bytes, total-deflated-by: {}%, &quot; +
+                            &quot;blocks-deflated-by={}%, &quot; +
+                            &quot;light-deflated-by={}%, &quot; +
+                            &quot;extra-data-deflated-by={}%&quot;,
+                    chunkPos,
+<span class="nc" id="L349">                    SIZE_FORMAT.format(totalSize),</span>
+<span class="nc" id="L350">                    SIZE_FORMAT.format(totalReduced),</span>
+<span class="nc" id="L351">                    PERCENT_FORMAT.format(totalPercent),</span>
+<span class="nc" id="L352">                    PERCENT_FORMAT.format(blocksPercent),</span>
+<span class="nc" id="L353">                    PERCENT_FORMAT.format(lightPercent),</span>
+<span class="nc" id="L354">                    PERCENT_FORMAT.format(extraPercent));</span>
+<span class="nc" id="L355">            ChunkMonitor.fireChunkDeflated(this, totalSize, totalReduced);</span>
+<span class="nc" id="L356">        } else {</span>
+<span class="nc" id="L357">            final int oldSize = getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L358">            blockData = def.deflate(blockData);</span>
+<span class="nc" id="L359">            lightData = def.deflate(lightData);</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">            for (int i = 0; i &lt; extraData.length; i++) {</span>
+<span class="nc" id="L361">                extraData[i] = def.deflate(extraData[i]);</span>
+            }
+<span class="nc" id="L363">            ChunkMonitor.fireChunkDeflated(this, oldSize, getEstimatedMemoryConsumptionInBytes());</span>
+        }
+<span class="nc" id="L365">    }</span>
+
+    @Override
+    public void deflateSunlight() {
+<span class="nc" id="L369">        final TeraDeflator def = new TeraStandardDeflator();</span>
+<span class="nc bnc" id="L370" title="All 2 branches missed.">        if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L371">            int blocksSize = blockData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L372">            int sunlightSize = sunlightData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L373">            int sunlightRegenSize = sunlightRegenData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L374">            int lightSize = lightData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L375">            int totalSize = blocksSize + sunlightRegenSize + sunlightSize + lightSize;</span>
+
+<span class="nc" id="L377">            sunlightData = def.deflate(sunlightData);</span>
+<span class="nc" id="L378">            sunlightRegenData = def.deflate(sunlightRegenData);</span>
+
+<span class="nc" id="L380">            int sunlightReduced = sunlightData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L381">            int sunlightRegenReduced = sunlightRegenData.getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L382">            int totalReduced = blocksSize + sunlightRegenReduced + sunlightReduced + lightSize;</span>
+
+<span class="nc" id="L384">            double sunlightPercent = 100d - (100d / sunlightSize * sunlightReduced);</span>
+<span class="nc" id="L385">            double sunlightRegenPercent = 100d - (100d / sunlightRegenSize * sunlightRegenReduced);</span>
+<span class="nc" id="L386">            double totalPercent = 100d - (100d / totalSize * totalReduced);</span>
+
+<span class="nc" id="L388">            logger.debug(&quot;chunk {}: &quot; +</span>
+                            &quot;size-before: {} &quot; +
+                            &quot;bytes, size-after: {} &quot; +
+                            &quot;bytes, total-deflated-by: {}%, &quot; +
+                            &quot;sunlight-deflated-by={}%, &quot; +
+                            &quot;sunlight-regen-deflated-by={}%, &quot; +
+                            chunkPos,
+<span class="nc" id="L395">                    SIZE_FORMAT.format(totalSize),</span>
+<span class="nc" id="L396">                    SIZE_FORMAT.format(totalReduced),</span>
+<span class="nc" id="L397">                    PERCENT_FORMAT.format(totalPercent),</span>
+<span class="nc" id="L398">                    PERCENT_FORMAT.format(sunlightPercent),</span>
+<span class="nc" id="L399">                    PERCENT_FORMAT.format(sunlightRegenPercent));</span>
+<span class="nc" id="L400">            ChunkMonitor.fireChunkDeflated(this, totalSize, totalReduced);</span>
+<span class="nc" id="L401">        } else {</span>
+<span class="nc" id="L402">            final int oldSize = getEstimatedMemoryConsumptionInBytes();</span>
+<span class="nc" id="L403">            sunlightData = def.deflate(sunlightData);</span>
+<span class="nc" id="L404">            sunlightRegenData = def.deflate(sunlightRegenData);</span>
+<span class="nc" id="L405">            ChunkMonitor.fireChunkDeflated(this, oldSize, getEstimatedMemoryConsumptionInBytes());</span>
+        }
+<span class="nc" id="L407">    }</span>
+
+    @Override
+    public String toString() {
+<span class="nc" id="L411">        return &quot;Chunk&quot; + chunkPos.toString();</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L416">        return Objects.hashCode(chunkPos);</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        // According to hashCode() two ChunkImpls are not equal when their
+        // position differs. The default equals() compares object instances.
+        // The same instance has the same chunkPos, so this is valid.
+<span class="nc" id="L424">        return super.equals(obj);</span>
+    }
+
+    @Override
+    public void setMesh(ChunkMesh mesh) {
+<span class="nc" id="L429">        this.activeMesh = mesh;</span>
+<span class="nc" id="L430">    }</span>
+
+    @Override
+    public void setPendingMesh(ChunkMesh mesh) {
+<span class="nc" id="L434">        this.pendingMesh = mesh;</span>
+<span class="nc" id="L435">    }</span>
+
+    @Override
+    public void setAnimated(boolean animated) {
+<span class="nc" id="L439">        this.animated = animated;</span>
+<span class="nc" id="L440">    }</span>
+
+    @Override
+    public boolean isAnimated() {
+<span class="nc" id="L444">        return animated;</span>
+    }
+
+    @Override
+    public boolean hasMesh() {
+<span class="nc bnc" id="L449" title="All 2 branches missed.">        return activeMesh != null;</span>
+    }
+
+    @Override
+    public boolean hasPendingMesh() {
+<span class="nc bnc" id="L454" title="All 2 branches missed.">        return pendingMesh != null;</span>
+    }
+
+    @Override
+    public ChunkMesh getMesh() {
+<span class="nc" id="L459">        return activeMesh;</span>
+    }
+
+    @Override
+    public ChunkMesh getPendingMesh() {
+<span class="nc" id="L464">        return pendingMesh;</span>
+    }
+
+    @Override
+    public void markReady() {
+<span class="fc" id="L469">        ready = true;</span>
+<span class="fc" id="L470">    }</span>
+
+    @Override
+    public void prepareForReactivation() {
+<span class="pc bpc" id="L474" title="1 of 2 branches missed.">        if (disposed) {</span>
+<span class="nc" id="L475">            disposed = false;</span>
+<span class="nc" id="L476">            sunlightData = new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);</span>
+<span class="nc" id="L477">            sunlightRegenData = new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);</span>
+<span class="nc" id="L478">            lightData = new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);</span>
+        }
+<span class="fc" id="L480">    }</span>
+
+    @Override
+    public void dispose() {
+<span class="nc" id="L484">        disposed = true;</span>
+<span class="nc" id="L485">        ready = false;</span>
+<span class="nc" id="L486">        disposeMesh();</span>
+        /*
+         * Explicitly do not clear data, so that background threads that work with the chunk can finish.
+         */
+<span class="nc" id="L490">        ChunkMonitor.fireChunkDisposed(this);</span>
+<span class="nc" id="L491">    }</span>
+
+    @Override
+    public void disposeMesh() {
+<span class="nc bnc" id="L495" title="All 2 branches missed.">        if (activeMesh != null) {</span>
+<span class="nc" id="L496">            activeMesh.dispose();</span>
+<span class="nc" id="L497">            activeMesh = null;</span>
+        }
+<span class="nc" id="L499">    }</span>
+
+    @Override
+    public boolean isReady() {
+<span class="fc" id="L503">        return ready;</span>
+    }
+
+    @Override
+    public boolean isDisposed() {
+<span class="nc" id="L508">        return disposed;</span>
+    }
+
+    @Override
+    public Region3i getRegion() {
+<span class="nc" id="L513">        return region;</span>
+    }
+
+    @Override
+    public int getChunkSizeX() {
+<span class="fc" id="L518">        return ChunkConstants.SIZE_X;</span>
+    }
+
+    @Override
+    public int getChunkSizeY() {
+<span class="fc" id="L523">        return ChunkConstants.SIZE_Y;</span>
+    }
+
+    @Override
+    public int getChunkSizeZ() {
+<span class="fc" id="L528">        return ChunkConstants.SIZE_Z;</span>
+    }
+
+    @Override
+    public ChunkBlockIterator getBlockIterator() {
+<span class="nc" id="L533">        return new ChunkBlockIteratorImpl(blockManager, getChunkWorldOffset(), blockData);</span>
+    }
+
+    @Override
+    public EntityData.ChunkStore.Builder encode() {
+<span class="nc" id="L538">        return ChunkSerializer.encode(chunkPos, blockData, extraData);</span>
+    }
+
+    /**
+     * Calling this method results in a (cheap) snapshot to be taken of the current state of the chunk.
+     * This snapshot can then be obtained and rleased by calling {@link #encodeAndReleaseSnapshot()}.
+     */
+    public void createSnapshot() {
+<span class="fc" id="L546">        this.blockDataSnapshot = this.blockData;</span>
+<span class="fc" id="L547">        this.extraDataSnapshots = new TeraArray[extraData.length];</span>
+<span class="fc" id="L548">        System.arraycopy(extraData, 0, extraDataSnapshots, 0, extraData.length);</span>
+<span class="fc" id="L549">    }</span>
+
+    /**
+     * This method can only be
+     * called once after {@link #createSnapshot()} has been called. It can be called from a different thread than
+     * {@link #createSnapshot()}, but it must be made sure that neither method is still running when the other gets
+     * called.
+     *
+     * @return an encoded version of the snapshot taken with {@link #createSnapshot()}.
+     */
+    public EntityData.ChunkStore.Builder encodeAndReleaseSnapshot() {
+<span class="fc" id="L560">        EntityData.ChunkStore.Builder result = ChunkSerializer.encode(chunkPos, blockDataSnapshot, extraDataSnapshots);</span>
+<span class="fc" id="L561">        this.blockDataSnapshot = null;</span>
+<span class="fc" id="L562">        this.extraDataSnapshots = null;</span>
+<span class="fc" id="L563">        return result;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

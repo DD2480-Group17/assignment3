@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TimeBase.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.internal</a> &gt; <span class="el_source">TimeBase.java</span></div><h1>TimeBase.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.internal;
+
+import com.google.common.util.concurrent.AtomicDouble;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.EngineTime;
+
+import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicLong;
+
+public abstract class TimeBase implements EngineTime {
+
+<span class="fc" id="L28">    private static final Logger logger = LoggerFactory.getLogger(TimeBase.class);</span>
+    private static final float DECAY_RATE = 0.95f;
+    private static final float ONE_MINUS_DECAY_RATE = 1.0f - DECAY_RATE;
+    private static final float RESYNC_TIME_RATE = 0.1f;
+
+    private static final int MAX_UPDATE_CYCLE_LENGTH = 1000;
+    private static final int UPDATE_CAP = 1000;
+
+<span class="fc" id="L36">    private AtomicLong last = new AtomicLong(0);</span>
+<span class="fc" id="L37">    private AtomicLong realDelta = new AtomicLong(0);</span>
+<span class="fc" id="L38">    private AtomicLong gameDelta = new AtomicLong(0);</span>
+    private float frameDelta;
+    private long desynch;
+    private boolean paused;
+
+<span class="fc" id="L43">    private AtomicDouble gameDilation = new AtomicDouble(1.0f);</span>
+
+<span class="fc" id="L45">    private AtomicLong gameTime = new AtomicLong(0);</span>
+
+<span class="fc" id="L47">    public TimeBase(long initialTime) {</span>
+<span class="fc" id="L48">        last.set(initialTime);</span>
+<span class="fc" id="L49">    }</span>
+
+    protected abstract long getRawTimeInMs();
+
+    /**
+     * Increments time
+     *
+     * @return The number of update cycles to run
+     */
+    @Override
+    public Iterator&lt;Float&gt; tick() {
+<span class="nc" id="L60">        long now = getRawTimeInMs();</span>
+<span class="nc" id="L61">        long newDelta = now - last.get();</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (0 == newDelta) {</span>
+            // running too fast, slow down to avoid busy-waiting
+            try {
+<span class="nc" id="L65">                Thread.sleep(0, 1000);</span>
+<span class="nc" id="L66">            } catch (InterruptedException e) {</span>
+                // do nothing
+<span class="nc" id="L68">                logger.debug(&quot;Tick sleep interrupted&quot;, e);</span>
+<span class="nc" id="L69">            }</span>
+<span class="nc" id="L70">            now = getRawTimeInMs();</span>
+<span class="nc" id="L71">            newDelta = now - last.get();</span>
+        }
+<span class="nc" id="L73">        last.set(now);</span>
+<span class="nc" id="L74">        realDelta.set(newDelta);</span>
+<span class="nc" id="L75">        frameDelta = frameDelta * DECAY_RATE + newDelta * ONE_MINUS_DECAY_RATE;</span>
+
+<span class="nc" id="L77">        newDelta = (long) (newDelta * getGameTimeDilation());</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        if (newDelta &gt;= UPDATE_CAP) {</span>
+<span class="nc" id="L79">            logger.warn(&quot;Delta too great ({}), capping to {}&quot;, newDelta, UPDATE_CAP);</span>
+<span class="nc" id="L80">            newDelta = UPDATE_CAP;</span>
+        }
+<span class="nc" id="L82">        int updateCycles = (int) ((newDelta - 1) / MAX_UPDATE_CYCLE_LENGTH) + 1;</span>
+
+        // Reduce desynch between server time
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (desynch != 0) {</span>
+<span class="nc" id="L86">            long diff = (long) Math.ceil(desynch * (double) RESYNC_TIME_RATE);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            if (diff == 0) {</span>
+<span class="nc" id="L88">                diff = (long) Math.signum(desynch);</span>
+            }
+<span class="nc" id="L90">            gameTime.getAndAdd(diff);</span>
+<span class="nc" id="L91">            desynch -= diff;</span>
+        }
+
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (paused) {</span>
+<span class="nc" id="L95">            gameDelta.set(0);</span>
+<span class="nc" id="L96">            return new TimeStepper(1, 0);</span>
+        } else {
+<span class="nc bnc" id="L98" title="All 2 branches missed.">            if (updateCycles &gt; 0) {</span>
+<span class="nc" id="L99">                gameDelta.set(newDelta / updateCycles);</span>
+            }
+<span class="nc" id="L101">            return new TimeStepper(updateCycles, newDelta / updateCycles);</span>
+        }
+    }
+
+    @Override
+    public float getGameDelta() {
+<span class="nc" id="L107">        return gameDelta.get() / 1000f;</span>
+    }
+
+    @Override
+    public long getGameDeltaInMs() {
+<span class="nc" id="L112">        return gameDelta.get();</span>
+    }
+
+    @Override
+    public float getFps() {
+<span class="nc" id="L117">        return 1000.0f / frameDelta;</span>
+    }
+
+    @Override
+    public long getGameTimeInMs() {
+<span class="fc" id="L122">        return gameTime.get();</span>
+    }
+
+    @Override
+    public float getGameTime() {
+<span class="nc" id="L127">        return gameTime.get() / 1000f;</span>
+    }
+
+    @Override
+    public float getGameTimeDilation() {
+<span class="nc" id="L132">        return (float) gameDilation.get();</span>
+    }
+
+    @Override
+    public void setGameTimeDilation(float newDilation) {
+<span class="nc" id="L137">        this.gameDilation.set(newDilation);</span>
+<span class="nc" id="L138">    }</span>
+
+    @Override
+    public void setGameTime(long amount) {
+<span class="nc" id="L142">        gameDelta.set(0);</span>
+<span class="nc" id="L143">        gameTime.set(amount);</span>
+<span class="nc" id="L144">    }</span>
+
+    @Override
+    public long getRealTimeInMs() {
+<span class="nc" id="L148">        return getRawTimeInMs();</span>
+    }
+
+    @Override
+    public long getRealDeltaInMs() {
+<span class="nc" id="L153">        return realDelta.get();</span>
+    }
+
+    @Override
+    public float getRealDelta() {
+<span class="nc" id="L158">        return realDelta.get() / 1000f;</span>
+    }
+
+    @Override
+    public void updateTimeFromServer(long targetTime) {
+<span class="nc" id="L163">        desynch = targetTime - getGameTimeInMs();</span>
+<span class="nc" id="L164">    }</span>
+
+    @Override
+    public void setPaused(boolean paused) {
+<span class="nc" id="L168">        this.paused = paused;</span>
+<span class="nc" id="L169">    }</span>
+
+    @Override
+    public boolean isPaused() {
+<span class="nc" id="L173">        return paused;</span>
+    }
+
+    private class TimeStepper implements Iterator&lt;Float&gt; {
+
+        private int cycles;
+        private long deltaPerCycle;
+        private int currentCycle;
+
+<span class="nc" id="L182">         TimeStepper(int cycles, long deltaPerCycle) {</span>
+<span class="nc" id="L183">            this.cycles = cycles;</span>
+<span class="nc" id="L184">            this.deltaPerCycle = deltaPerCycle;</span>
+<span class="nc" id="L185">        }</span>
+
+        @Override
+        public boolean hasNext() {
+<span class="nc bnc" id="L189" title="All 2 branches missed.">            return currentCycle &lt; cycles;</span>
+        }
+
+        @Override
+        public Float next() {
+<span class="nc" id="L194">            currentCycle++;</span>
+<span class="nc" id="L195">            gameTime.addAndGet(deltaPerCycle);</span>
+<span class="nc" id="L196">            return deltaPerCycle / 1000f;</span>
+        }
+
+        @Override
+        public void remove() {
+<span class="nc" id="L201">            throw new UnsupportedOperationException();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

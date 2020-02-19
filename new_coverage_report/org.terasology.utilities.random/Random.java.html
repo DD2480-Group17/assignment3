@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Random.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.random</a> &gt; <span class="el_source">Random.java</span></div><h1>Random.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.utilities.random;
+
+import org.terasology.module.sandbox.API;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
+
+import java.util.List;
+
+/**
+ * Interface for random number generators.
+ *
+ */
+@API
+<span class="fc" id="L30">public abstract class Random {</span>
+
+    // This is the list of characters nextString can return
+<span class="fc" id="L33">    private static final char[] ALPHANUMERIC_CHARS = new char[]{</span>
+            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+            'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
+    };
+
+    /**
+     * @return Random integer from Integer.MIN_VALUE to Integer.MAX_VALUE
+     */
+    public abstract int nextInt();
+
+    /**
+     * @param max
+     * @return Random integer from 0 (inclusive) to max (exclusive)
+     */
+    public int nextInt(int max) {
+<span class="fc" id="L49">        return (int) (max * nextDouble());</span>
+    }
+
+    /**
+     * @param min
+     * @param max
+     * @return Random integer from min (inclusive) to max (inclusive)
+     */
+    public int nextInt(int min, int max) {
+<span class="fc" id="L58">        return min + nextInt(max - min + 1);</span>
+    }
+
+    /**
+     * @return Random long from Long.MIN_VALUE to Long.MAX_VALUE
+     */
+    public long nextLong() {
+<span class="fc" id="L65">        return (long) nextInt() &lt;&lt; 32 ^ nextInt();</span>
+    }
+
+    /**
+     * @param max
+     * @return Random long from 0 (inclusive) to max (exclusive)
+     */
+    public long nextLong(long max) {
+<span class="nc" id="L73">        return (long) (max * nextDouble());</span>
+    }
+
+    /**
+     * @param min
+     * @param max
+     * @return Random long from min (inclusive) to max (inclusive)
+     */
+    public long nextLong(long min, long max) {
+<span class="nc" id="L82">        return min + nextLong(max - min + 1);</span>
+    }
+
+    /**
+     * @return Random float from 0 (inclusive) to 1 (exclusive)
+     */
+    public float nextFloat() {
+<span class="fc" id="L89">        return (nextInt() &amp; 0x7FFFFFFF) / (Integer.MAX_VALUE + 1.0f);</span>
+    }
+
+    /**
+     * @param min
+     * @param max
+     * @return Random float from min (inclusive) to max (inclusive)
+     */
+    public float nextFloat(float min, float max) {
+<span class="nc" id="L98">        return min + (max - min) * (nextInt() &amp; 0x7FFFFFFF) / Integer.MAX_VALUE;</span>
+    }
+
+    /**
+     * @return Random double from 0 (inclusive) to 1 (exclusive)
+     */
+    public double nextDouble() {
+<span class="fc" id="L105">        return (nextLong() &amp; 0x7FFFFFFFFFFFFFFFL) / (Long.MAX_VALUE + 1.0);</span>
+    }
+
+    /**
+     * @param min
+     * @param max
+     * @return Random double from min (inclusive) to max (inclusive)
+     */
+    public double nextDouble(double min, double max) {
+<span class="nc" id="L114">        return min + (max - min) * (nextLong() &amp; 0x7FFFFFFFFFFFFFFFL) / Long.MAX_VALUE;</span>
+    }
+
+    /**
+     * @return Random boolean
+     */
+    public boolean nextBoolean() {
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        return nextInt() &lt; 0;</span>
+    }
+
+    /**
+     * Returns a random alphanumeric string with a certain length
+     *
+     * @param len String length
+     * @return
+     */
+    public String nextString(int len) {
+<span class="nc" id="L131">        char[] chars = new char[len];</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        for (int i = 0; i &lt; len; i++) {</span>
+<span class="nc" id="L133">            chars[i] = ALPHANUMERIC_CHARS[nextInt(ALPHANUMERIC_CHARS.length)];</span>
+        }
+<span class="nc" id="L135">        return new String(chars);</span>
+    }
+
+    /**
+     * Returns a random item from the given list, or null is the list is empty
+     *
+     * @param list
+     * @return
+     */
+    public &lt;T&gt; T nextItem(List&lt;T&gt; list) {
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        if (list.isEmpty()) {</span>
+<span class="nc" id="L146">            return null;</span>
+        }
+<span class="nc" id="L148">        return list.get(nextInt(list.size()));</span>
+    }
+
+    /**
+     * Returns a Vector3f whose components range from -1.0 (inclusive) to 1.0 (inclusive)
+     *
+     * @return The vector
+     */
+    public Vector3f nextVector3f() {
+<span class="nc" id="L157">        return nextVector3f(new Vector3f());</span>
+    }
+
+    /**
+     * Returns a Vector3f whose components range from min (inclusive) to max (inclusive)
+     *
+     * @param min
+     * @param max
+     * @return The vector
+     */
+    public Vector3f nextVector3f(float min, float max) {
+<span class="nc" id="L168">        return new Vector3f(nextFloat(min, max), nextFloat(min, max), nextFloat(min, max));</span>
+    }
+
+    /**
+     * Randomises a provided Vector3f so its components range from -1.0 (inclusive) to 1.0 (inclusive)
+     *
+     * @param output
+     * @return
+     */
+    public Vector3f nextVector3f(Vector3f output) {
+<span class="nc" id="L178">        return nextVector3f(-1.0f, 1.0f, output);</span>
+    }
+
+    /**
+     * Randomises a provided Vector3f so its components range from min (inclusive) to max
+     *
+     * @param min
+     * @param max
+     * @param output
+     * @return
+     */
+    public Vector3f nextVector3f(float min, float max, Vector3f output) {
+<span class="nc" id="L190">        output.set(nextFloat(min, max), nextFloat(min, max), nextFloat(min, max));</span>
+<span class="nc" id="L191">        return output;</span>
+    }
+
+    /**
+     * Returns a Vector3f with a given size whose components can range from -size (inclusive) to +size (inclusive)
+     *
+     * @param size
+     * @return The vector
+     */
+    public Vector3f nextVector3f(float size) {
+        // Create a vector whose length is not zero
+<span class="nc" id="L202">        Vector3f vector = new Vector3f();</span>
+        do {
+<span class="nc" id="L204">            nextVector3f(vector);</span>
+<span class="nc bnc" id="L205" title="All 6 branches missed.">        } while (vector.x == 0.0f &amp;&amp; vector.y == 0.0f &amp;&amp; vector.z == 0.0f);</span>
+<span class="nc" id="L206">        float length = vector.length();</span>
+<span class="nc" id="L207">        vector.scale(size / length);</span>
+<span class="nc" id="L208">        return vector;</span>
+    }
+
+    /**
+     * Returns a unit vector (length = 1) Vector3f whose components range from -1 (inclusive) to 1 (inclusive)
+     *
+     * @return The vector
+     */
+    public Vector3f nextUnitVector3f() {
+<span class="nc" id="L217">        return nextVector3f(1.0f);</span>
+    }
+
+    /**
+     * Calculates a standardized normal distributed value (using the polar method).
+     *
+     * @return The value
+     */
+    public double nextGaussian() {
+
+<span class="nc" id="L227">        double q = Double.MAX_VALUE;</span>
+<span class="nc" id="L228">        double u1 = 0;</span>
+        double u2;
+
+<span class="nc bnc" id="L231" title="All 4 branches missed.">        while (q &gt;= 1d || q == 0) {</span>
+<span class="nc" id="L232">            u1 = nextDouble(-1.0, 1.0);</span>
+<span class="nc" id="L233">            u2 = nextDouble(-1.0, 1.0);</span>
+
+<span class="nc" id="L235">            q = TeraMath.pow(u1, 2) + TeraMath.pow(u2, 2);</span>
+        }
+
+<span class="nc" id="L238">        double p = Math.sqrt(-2d * Math.log(q) / q);</span>
+<span class="nc" id="L239">        return u1 * p; // or u2 * p</span>
+    }
+
+    /**
+     * Calculates a normal distributed value (using the polar method).
+     *
+     * &lt;code&gt;nextGuassian(1,1)&lt;/code&gt; is equivalent to {@link #nextGaussian()}.
+     *
+     * @param mean the mean value of the distribution
+     * @param stdDev the standard deviation of the distribution
+     *
+     * @return The value
+     */
+    public double nextGaussian(double mean, double stdDev) {
+<span class="nc" id="L253">        return mean + stdDev * nextGaussian();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

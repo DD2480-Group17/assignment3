@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseSoundPool.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.audio.openAL</a> &gt; <span class="el_source">BaseSoundPool.java</span></div><h1>BaseSoundPool.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.audio.openAL;
+
+import com.google.common.collect.Maps;
+import org.terasology.audio.AudioManager;
+import org.terasology.audio.Sound;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+public abstract class BaseSoundPool&lt;SOUND extends Sound&lt;?&gt;, SOURCE extends SoundSource&lt;SOUND&gt;&gt; implements SoundPool&lt;SOUND, SOURCE&gt; {
+
+    private static final int DEFAULT_POOL_SIZE = 32;
+
+    protected Map&lt;SOURCE, Integer&gt; soundSources;
+
+    private float volume;
+
+<span class="nc" id="L36">    public BaseSoundPool(int capacity) {</span>
+<span class="nc" id="L37">        soundSources = Maps.newHashMapWithExpectedSize(capacity);</span>
+
+<span class="nc" id="L39">        this.fillPool(capacity);</span>
+<span class="nc" id="L40">    }</span>
+
+    public BaseSoundPool() {
+<span class="nc" id="L43">        this(DEFAULT_POOL_SIZE);</span>
+<span class="nc" id="L44">    }</span>
+
+    public SOURCE getLockedSource() {
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        for (SOURCE source : soundSources.keySet()) {</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            if (!isActive(source)) {</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">                if (lock(source)) {</span>
+<span class="nc" id="L50">                    return source;</span>
+                }
+            }
+<span class="nc" id="L53">        }</span>
+
+<span class="nc" id="L55">        return null;</span>
+    }
+
+    @Override
+    public SOURCE getSource(SOUND sound, int priority) {
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        if (sound == null) {</span>
+<span class="nc" id="L61">            return null;</span>
+        }
+
+        // TODO: should be optimized (performance crucial)
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        for (SOURCE source : soundSources.keySet()) {</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (!isActive(source)) {</span>
+<span class="nc" id="L67">                soundSources.put(source, priority);</span>
+<span class="nc" id="L68">                return (SOURCE) source.setAudio(sound);</span>
+            }
+<span class="nc" id="L70">        }</span>
+
+        // No free sound found, will look by priority
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        for (Map.Entry&lt;SOURCE, Integer&gt; entry : soundSources.entrySet()) {</span>
+<span class="nc" id="L74">            SOURCE source = entry.getKey();</span>
+<span class="nc" id="L75">            Integer soundPriority = entry.getValue();</span>
+
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            if (soundPriority &lt; priority) { // sound playing wil lower priority than our query</span>
+<span class="nc" id="L78">                soundSources.put(source, priority);</span>
+<span class="nc" id="L79">                return (SOURCE) source.setAudio(sound);</span>
+            }
+<span class="nc" id="L81">        }</span>
+
+<span class="nc" id="L83">        return null;</span>
+    }
+
+    @Override
+    public SOURCE getSource(SOUND sound) {
+<span class="nc" id="L88">        return getSource(sound, AudioManager.PRIORITY_NORMAL);</span>
+    }
+
+    @Override
+    public Set&lt;SOURCE&gt; getSources() {
+<span class="nc" id="L93">        return soundSources.keySet();</span>
+    }
+
+    @Override
+    public Set&lt;SOURCE&gt; getInactiveSources() {
+<span class="nc" id="L98">        return soundSources.keySet().stream().filter(source -&gt;</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">                !isActive(source)).collect(Collectors.toCollection(HashSet::new));</span>
+    }
+
+    @Override
+    public Set&lt;SOURCE&gt; getActiveSources() {
+<span class="nc" id="L104">        return soundSources.keySet().stream().filter(this::isActive).collect(Collectors.toCollection(HashSet::new));</span>
+    }
+
+    @Override
+    public void stopAll() {
+<span class="nc" id="L109">        soundSources.keySet().forEach(SOURCE::stop);</span>
+<span class="nc" id="L110">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L114">        soundSources.keySet().stream().filter(SoundSource::isPlaying).forEach(source -&gt; source.update(delta));</span>
+<span class="nc" id="L115">    }</span>
+
+    @Override
+    public void setVolume(float volume) {
+<span class="nc" id="L119">        this.volume = volume;</span>
+<span class="nc" id="L120">        soundSources.keySet().forEach(SOURCE::updateGain);</span>
+<span class="nc" id="L121">    }</span>
+
+    @Override
+    public float getVolume() {
+<span class="nc" id="L125">        return this.volume;</span>
+    }
+
+    @Override
+    public int size() {
+<span class="nc" id="L130">        return soundSources.size();</span>
+    }
+
+    @Override
+    public boolean isInPool(SOURCE source) {
+<span class="nc" id="L135">        return soundSources.containsKey(source);</span>
+    }
+
+    public boolean isLocked(SOURCE source) {
+<span class="nc" id="L139">        Integer lock = soundSources.get(source);</span>
+<span class="nc bnc" id="L140" title="All 4 branches missed.">        return lock != null &amp;&amp; lock == AudioManager.PRIORITY_LOCKED;</span>
+    }
+
+    public boolean lock(SOURCE source) {
+<span class="nc bnc" id="L144" title="All 4 branches missed.">        if (isLocked(source) &amp;&amp; !isInPool(source)) {</span>
+<span class="nc" id="L145">            return false;</span>
+        }
+
+<span class="nc" id="L148">        soundSources.put(source, AudioManager.PRIORITY_LOCKED);</span>
+
+<span class="nc" id="L150">        return true;</span>
+    }
+
+    public void unlock(SOURCE source) {
+<span class="nc" id="L154">        soundSources.put(source, null);</span>
+<span class="nc" id="L155">    }</span>
+
+    public boolean isActive(SOURCE source) {
+<span class="nc bnc" id="L158" title="All 4 branches missed.">        return isLocked(source) || source.isPlaying();</span>
+    }
+
+    protected abstract SOURCE createSoundSource();
+
+    private void fillPool(int capacity) {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        for (int i = 0; i &lt; capacity; i++) {</span>
+<span class="nc" id="L165">            this.soundSources.put(createSoundSource(), null);</span>
+        }
+<span class="nc" id="L167">    }</span>
+
+    @Override
+    public void purge(Sound&lt;?&gt; sound) {
+<span class="nc" id="L171">        soundSources.keySet().stream().filter(source -&gt; sound.equals(source.getAudio())).forEach(SOURCE::purge);</span>
+<span class="nc" id="L172">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

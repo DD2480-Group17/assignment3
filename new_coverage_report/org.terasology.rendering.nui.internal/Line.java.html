@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Line.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.internal</a> &gt; <span class="el_source">Line.java</span></div><h1>Line.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.internal;
+
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL20;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.Color;
+
+import java.nio.FloatBuffer;
+import java.util.Objects;
+
+/**
+ *
+ */
+public final class Line {
+
+    private Line() {
+
+    }
+
+    /**
+     * Draws a 2D line segment in OpenGL.
+     *
+     * @param x1         The X-coordinate of the segment's start point.
+     * @param y1         The Y-coordinate of the segment's start point.
+     * @param x2         The X-coordinate of the segment's end point.
+     * @param y2         The Y-coordinate of the segment's end point.
+     * @param width      Thickness of the line in pixels.
+     * @param color      The line color.
+     * @param background The background color. Ignored if alpha blending is used.
+     * @param alpha      The alpha channel. If set to 0, alpha blending is not used.
+     * @see &lt;a href=&quot;http://artgrammer.blogspot.de/2011/05/drawing-nearly-perfect-2d-line-segments.html&quot;&gt;
+     * Drawing nearly perfect 2D line segments in OpenGL
+     * &lt;/a&gt;
+     */
+    public static void draw(float x1, float y1, float x2, float y2, float width, Color color, Color background, float alpha) {
+<span class="nc" id="L53">        GL20.glUseProgram(0);</span>
+<span class="nc" id="L54">        GL11.glDisable(GL11.GL_CULL_FACE);</span>
+<span class="nc" id="L55">        GL11.glEnableClientState(GL11.GL_VERTEX_ARRAY);</span>
+<span class="nc" id="L56">        GL11.glEnableClientState(GL11.GL_COLOR_ARRAY);</span>
+
+<span class="nc" id="L58">        float t = 0;</span>
+<span class="nc" id="L59">        float r = 0;</span>
+<span class="nc" id="L60">        float f = width - (int) width;</span>
+        float a;
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        boolean alphaBlend = alpha &gt; 0;</span>
+<span class="nc" id="L63">        float cRed = color.rf();</span>
+<span class="nc" id="L64">        float cGreen = color.gf();</span>
+<span class="nc" id="L65">        float cBlue = color.bf();</span>
+<span class="nc" id="L66">        float bRed = background.rf();</span>
+<span class="nc" id="L67">        float bGreen = background.gf();</span>
+<span class="nc" id="L68">        float bBlue = background.bf();</span>
+
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        if (alphaBlend) {</span>
+<span class="nc" id="L71">            a = alpha;</span>
+        } else {
+<span class="nc" id="L73">            a = 1.f;</span>
+        }
+
+<span class="nc bnc" id="L76" title="All 4 branches missed.">        if (width &gt;= 0.0 &amp;&amp; width &lt; 1.0) {</span>
+<span class="nc" id="L77">            t = 0.05f;</span>
+<span class="nc" id="L78">            r = 0.48f + 0.32f * f;</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            if (!alphaBlend) {</span>
+<span class="nc" id="L80">                cRed += 0.88f * (1 - f);</span>
+<span class="nc" id="L81">                cGreen += 0.88f * (1 - f);</span>
+<span class="nc" id="L82">                cBlue += 0.88f * (1 - f);</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                if (cRed &gt; 1.0f) {</span>
+<span class="nc" id="L84">                    cRed = 1.0f;</span>
+                }
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                if (cGreen &gt; 1.0f) {</span>
+<span class="nc" id="L87">                    cGreen = 1.0f;</span>
+                }
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                if (cBlue &gt; 1.0f) {</span>
+<span class="nc" id="L90">                    cBlue = 1.0f;</span>
+                }
+            } else {
+<span class="nc" id="L93">                a *= f;</span>
+            }
+<span class="nc bnc" id="L95" title="All 4 branches missed.">        } else if (width &gt;= 1.0 &amp;&amp; width &lt; 2.0) {</span>
+<span class="nc" id="L96">            t = 0.05f + f * 0.33f;</span>
+<span class="nc" id="L97">            r = 0.768f + 0.312f * f;</span>
+<span class="nc bnc" id="L98" title="All 4 branches missed.">        } else if (width &gt;= 2.0 &amp;&amp; width &lt; 3.0) {</span>
+<span class="nc" id="L99">            t = 0.38f + f * 0.58f;</span>
+<span class="nc" id="L100">            r = 1.08f;</span>
+<span class="nc bnc" id="L101" title="All 4 branches missed.">        } else if (width &gt;= 3.0 &amp;&amp; width &lt; 4.0) {</span>
+<span class="nc" id="L102">            t = 0.96f + f * 0.48f;</span>
+<span class="nc" id="L103">            r = 1.08f;</span>
+<span class="nc bnc" id="L104" title="All 4 branches missed.">        } else if (width &gt;= 4.0 &amp;&amp; width &lt; 5.0) {</span>
+<span class="nc" id="L105">            t = 1.44f + f * 0.46f;</span>
+<span class="nc" id="L106">            r = 1.08f;</span>
+<span class="nc bnc" id="L107" title="All 4 branches missed.">        } else if (width &gt;= 5.0 &amp;&amp; width &lt; 6.0) {</span>
+<span class="nc" id="L108">            t = 1.9f + f * 0.6f;</span>
+<span class="nc" id="L109">            r = 1.08f;</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        } else if (width &gt;= 6.0) {</span>
+<span class="nc" id="L111">            float ff = width - 6.0f;</span>
+<span class="nc" id="L112">            t = 2.5f + ff * 0.50f;</span>
+<span class="nc" id="L113">            r = 1.08f;</span>
+        }
+
+        //determine angle of the line to horizontal
+<span class="nc" id="L117">        float tx = 0; //core thinkness of a line</span>
+<span class="nc" id="L118">        float ty = 0;</span>
+<span class="nc" id="L119">        float rx = 0; //fading edge of a line</span>
+<span class="nc" id="L120">        float ry = 0;</span>
+<span class="nc" id="L121">        float cx = 0; //cap of a line</span>
+<span class="nc" id="L122">        float cy = 0;</span>
+<span class="nc" id="L123">        float epsilon = 0.01f;</span>
+<span class="nc" id="L124">        float dx = x2 - x1;</span>
+<span class="nc" id="L125">        float dy = y2 - y1;</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (Math.abs(dx) &lt; epsilon) {</span>
+            //vertical
+<span class="nc" id="L128">            tx = t;</span>
+<span class="nc" id="L129">            ty = 0;</span>
+<span class="nc" id="L130">            rx = r;</span>
+<span class="nc" id="L131">            ry = 0;</span>
+<span class="nc bnc" id="L132" title="All 4 branches missed.">            if (width &gt; 0.0 &amp;&amp; width &lt; 1.0) {</span>
+<span class="nc" id="L133">                tx *= 8;</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            } else if (width == 1.0) {</span>
+<span class="nc" id="L135">                tx *= 10;</span>
+            }
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        } else if (Math.abs(dy) &lt; epsilon) {</span>
+            //horizontal
+<span class="nc" id="L139">            tx = 0;</span>
+<span class="nc" id="L140">            ty = t;</span>
+<span class="nc" id="L141">            rx = 0;</span>
+<span class="nc" id="L142">            ry = r;</span>
+<span class="nc bnc" id="L143" title="All 4 branches missed.">            if (width &gt; 0.0 &amp;&amp; width &lt; 1.0) {</span>
+<span class="nc" id="L144">                ty *= 8;</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">            } else if (width == 1.0) {</span>
+<span class="nc" id="L146">                ty *= 10;</span>
+            }
+        } else {
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            if (width &lt; 3) { //approximate to make things even faster</span>
+<span class="nc" id="L150">                float m = dy / dx;</span>
+                //and calculate tx,ty,rx,ry
+<span class="nc bnc" id="L152" title="All 4 branches missed.">                if (m &gt; -0.4142 &amp;&amp; m &lt;= 0.4142) {</span>
+                    // -22.5&lt; angle &lt;= 22.5, approximate to 0 (degree)
+<span class="nc" id="L154">                    tx = t * 0.1f;</span>
+<span class="nc" id="L155">                    ty = t;</span>
+<span class="nc" id="L156">                    rx = r * 0.6f;</span>
+<span class="nc" id="L157">                    ry = r;</span>
+<span class="nc bnc" id="L158" title="All 4 branches missed.">                } else if (m &gt; 0.4142 &amp;&amp; m &lt;= 2.4142) {</span>
+                    // 22.5&lt; angle &lt;= 67.5, approximate to 45 (degree)
+<span class="nc" id="L160">                    tx = t * -0.7071f;</span>
+<span class="nc" id="L161">                    ty = t * 0.7071f;</span>
+<span class="nc" id="L162">                    rx = r * -0.7071f;</span>
+<span class="nc" id="L163">                    ry = r * 0.7071f;</span>
+<span class="nc bnc" id="L164" title="All 4 branches missed.">                } else if (m &gt; 2.4142 || m &lt;= -2.4142) {</span>
+                    // 67.5 &lt; angle &lt;=112.5, approximate to 90 (degree)
+<span class="nc" id="L166">                    tx = t;</span>
+<span class="nc" id="L167">                    ty = t * 0.1f;</span>
+<span class="nc" id="L168">                    rx = r;</span>
+<span class="nc" id="L169">                    ry = r * 0.6f;</span>
+<span class="nc bnc" id="L170" title="All 4 branches missed.">                } else if (m &gt; -2.4142 &amp;&amp; m &lt; -0.4142) {</span>
+                    // 112.5 &lt; angle &lt; 157.5, approximate to 135 (degree)
+<span class="nc" id="L172">                    tx = t * 0.7071f;</span>
+<span class="nc" id="L173">                    ty = t * 0.7071f;</span>
+<span class="nc" id="L174">                    rx = r * 0.7071f;</span>
+<span class="nc" id="L175">                    ry = r * 0.7071f;</span>
+                }
+<span class="nc" id="L177">            } else { //calculate to exact</span>
+<span class="nc" id="L178">                dx = y1 - y2;</span>
+<span class="nc" id="L179">                dy = x2 - x1;</span>
+<span class="nc" id="L180">                float len = (float) Math.sqrt((double) dx * dx + (double) dy * dy);</span>
+<span class="nc" id="L181">                dx /= len;</span>
+<span class="nc" id="L182">                dy /= len;</span>
+<span class="nc" id="L183">                cx = -0.6f * dy;</span>
+<span class="nc" id="L184">                cy = 0.6f * dx;</span>
+<span class="nc" id="L185">                tx = t * dx;</span>
+<span class="nc" id="L186">                ty = t * dy;</span>
+<span class="nc" id="L187">                rx = r * dx;</span>
+<span class="nc" id="L188">                ry = r * dy;</span>
+            }
+        }
+
+        //draw the line by triangle strip
+<span class="nc" id="L193">        float[] lineVertex =</span>
+            {
+                x1 - tx - rx, y1 - ty - ry,    //fading edge1
+                x2 - tx - rx, y2 - ty - ry,
+                x1 - tx, y1 - ty,        //core
+                x2 - tx, y2 - ty,
+                x1 + tx, y1 + ty,
+                x2 + tx, y2 + ty,
+                x1 + tx + rx, y1 + ty + ry,    //fading edge2
+                x2 + tx + rx, y2 + ty + ry
+            };
+<span class="nc" id="L204">        GL11.glVertexPointer(2, 0, wrap(lineVertex));</span>
+
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        if (!alphaBlend) {</span>
+<span class="nc" id="L207">            float[] lineColor =</span>
+                {
+                    bRed, bGreen, bBlue,
+                    bRed, bGreen, bBlue,
+                    cRed, cGreen, cBlue,
+                    cRed, cGreen, cBlue,
+                    cRed, cGreen, cBlue,
+                    cRed, cGreen, cBlue,
+                    bRed, bGreen, bBlue,
+                    bRed, bGreen, bBlue
+                };
+<span class="nc" id="L218">            GL11.glColorPointer(3, 0, wrap(lineColor));</span>
+<span class="nc" id="L219">        } else {</span>
+<span class="nc" id="L220">            float[] lineColor =</span>
+                {
+                    cRed, cGreen, cBlue, 0,
+                    cRed, cGreen, cBlue, 0,
+                    cRed, cGreen, cBlue, a,
+                    cRed, cGreen, cBlue, a,
+                    cRed, cGreen, cBlue, a,
+                    cRed, cGreen, cBlue, a,
+                    cRed, cGreen, cBlue, 0,
+                    cRed, cGreen, cBlue, 0
+                };
+<span class="nc" id="L231">            GL11.glColorPointer(4, 0, wrap(lineColor));</span>
+        }
+
+<span class="nc bnc" id="L234" title="All 6 branches missed.">        if ((Math.abs(dx) &lt; epsilon || Math.abs(dy) &lt; epsilon) &amp;&amp; width &lt;= 1.0) {</span>
+<span class="nc" id="L235">            GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 0, 6);</span>
+        } else {
+<span class="nc" id="L237">            GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 0, 8);</span>
+        }
+
+        //cap (do not draw if too thin)
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        if (width &gt;= 3) {</span>
+            //draw cap
+<span class="nc" id="L243">            lineVertex = new float[]</span>
+                {
+                    x1 - rx + cx, y1 - ry + cy,    //cap1
+                    x1 + rx + cx, y1 + ry + cy,
+                    x1 - tx - rx, y1 - ty - ry,
+                    x1 + tx + rx, y1 + ty + ry,
+                    x2 - rx - cx, y2 - ry - cy,    //cap2
+                    x2 + rx - cx, y2 + ry - cy,
+                    x2 - tx - rx, y2 - ty - ry,
+                    x2 + tx + rx, y2 + ty + ry
+                };
+<span class="nc" id="L254">            GL11.glVertexPointer(2, 0, wrap(lineVertex));</span>
+
+<span class="nc bnc" id="L256" title="All 2 branches missed.">            if (!alphaBlend) {</span>
+<span class="nc" id="L257">                float[] lineColor =</span>
+                    {
+                        bRed, bGreen, bBlue,    //cap1
+                        bRed, bGreen, bBlue,
+                        cRed, cGreen, cBlue,
+                        cRed, cGreen, cBlue,
+                        bRed, bGreen, bBlue,    //cap2
+                        bRed, bGreen, bBlue,
+                        cRed, cGreen, cBlue,
+                        cRed, cGreen, cBlue
+                    };
+<span class="nc" id="L268">                GL11.glColorPointer(3, 0, wrap(lineColor));</span>
+<span class="nc" id="L269">            } else {</span>
+<span class="nc" id="L270">                float[] lineColor =</span>
+                    {
+                        cRed, cGreen, cBlue, 0,    //cap1
+                        cRed, cGreen, cBlue, 0,
+                        cRed, cGreen, cBlue, a,
+                        cRed, cGreen, cBlue, a,
+                        cRed, cGreen, cBlue, 0,    //cap2
+                        cRed, cGreen, cBlue, 0,
+                        cRed, cGreen, cBlue, a,
+                        cRed, cGreen, cBlue, a
+                    };
+<span class="nc" id="L281">                GL11.glColorPointer(4, 0, wrap(lineColor));</span>
+            }
+
+<span class="nc" id="L284">            GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 0, 4);</span>
+<span class="nc" id="L285">            GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 4, 4);</span>
+        }
+
+<span class="nc" id="L288">        GL11.glDisableClientState(GL11.GL_VERTEX_ARRAY);</span>
+<span class="nc" id="L289">        GL11.glDisableClientState(GL11.GL_COLOR_ARRAY);</span>
+<span class="nc" id="L290">        GL11.glEnable(GL11.GL_CULL_FACE);</span>
+
+<span class="nc" id="L292">    }</span>
+
+    private static FloatBuffer wrap(float[] data) {
+<span class="nc" id="L295">        FloatBuffer buf = BufferUtils.createFloatBuffer(data.length);</span>
+<span class="nc" id="L296">        buf.put(data);</span>
+<span class="nc" id="L297">        buf.rewind();</span>
+<span class="nc" id="L298">        return buf;</span>
+    }
+
+    public static LineCoordinates getLineCoordinates(int startX, int startY, int endX, int endY, Rect2i baseRegion, Rect2i cropRegion) {
+<span class="fc" id="L302">        Rect2i region = Rect2i.createFromMinAndMax(Math.min(startX, endX), Math.min(startY, endY),</span>
+<span class="fc" id="L303">            Math.max(startX, endX), Math.max(startY, endY));</span>
+<span class="fc" id="L304">        Rect2i absoluteRegion = relativeToAbsolute(region, baseRegion);</span>
+<span class="fc" id="L305">        Rect2i finalRegion = cropRegion.intersect(absoluteRegion);</span>
+
+<span class="fc bfc" id="L307" title="All 2 branches covered.">        if (!finalRegion.isEmpty()) {</span>
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">            int sx = startX &gt; endX ? finalRegion.maxX() : finalRegion.minX();</span>
+<span class="fc bfc" id="L309" title="All 2 branches covered.">            int sy = startY &gt; endY ? finalRegion.maxY() : finalRegion.minY();</span>
+<span class="pc bpc" id="L310" title="1 of 2 branches missed.">            int ex = startX &gt; endX ? finalRegion.minX() : finalRegion.maxX();</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">            int ey = startY &gt; endY ? finalRegion.minY() : finalRegion.maxY();</span>
+<span class="fc" id="L312">            return new LineCoordinates(new Vector2i(sx, sy), new Vector2i(ex, ey));</span>
+        } else {
+<span class="fc" id="L314">            return null;</span>
+        }
+    }
+
+    public static Rect2i relativeToAbsolute(Rect2i region, Rect2i baseRegion) {
+<span class="fc" id="L319">        return Rect2i.createFromMinAndSize(region.minX() + baseRegion.minX(), region.minY() + baseRegion.minY(), region.width(), region.height());</span>
+    }
+
+    /**
+     * Helper class that wraps a line's start and end points.
+     */
+    public static class LineCoordinates {
+        /**
+         * The start point.
+         */
+        private Vector2i start;
+        /**
+         * The end point.
+         */
+        private Vector2i end;
+
+<span class="fc" id="L335">        public LineCoordinates(Vector2i start, Vector2i end) {</span>
+<span class="fc" id="L336">            this.start = start;</span>
+<span class="fc" id="L337">            this.end = end;</span>
+<span class="fc" id="L338">        }</span>
+
+        public Vector2i getStart() {
+<span class="nc" id="L341">            return this.start;</span>
+        }
+
+        public Vector2i getEnd() {
+<span class="nc" id="L345">            return this.end;</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="nc" id="L350">            return Objects.hash(this.start, this.end);</span>
+        }
+
+        @Override
+        public boolean equals(Object o) {
+<span class="pc bpc" id="L355" title="2 of 4 branches missed.">            if (o == null || !(o instanceof LineCoordinates)) {</span>
+<span class="nc" id="L356">                return false;</span>
+            }
+<span class="pc bpc" id="L358" title="1 of 2 branches missed.">            if (o == this) {</span>
+<span class="nc" id="L359">                return true;</span>
+            }
+<span class="fc" id="L361">            LineCoordinates other = (LineCoordinates) o;</span>
+<span class="pc bpc" id="L362" title="2 of 4 branches missed.">            return this.start.equals(other.start) &amp;&amp; this.end.equals(other.end);</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="nc" id="L367">            return String.format(&quot;[%s %s]&quot;, this.start, this.end);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

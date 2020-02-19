@@ -1,0 +1,782 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FBO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.opengl</a> &gt; <span class="el_source">FBO.java</span></div><h1>FBO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.opengl;
+
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.ARBHalfFloatPixel;
+import org.lwjgl.opengl.ARBTextureFloat;
+import org.lwjgl.opengl.EXTPackedDepthStencil;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+import org.lwjgl.opengl.GL14;
+import org.lwjgl.opengl.GL20;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.SimpleUri;
+
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_COLOR_ATTACHMENT0_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_COLOR_ATTACHMENT1_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_COLOR_ATTACHMENT2_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_DEPTH_ATTACHMENT_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_COMPLETE_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_UNSUPPORTED_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_RENDERBUFFER_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.GL_STENCIL_ATTACHMENT_EXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glBindFramebufferEXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glBindRenderbufferEXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glCheckFramebufferStatusEXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glDeleteFramebuffersEXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glDeleteRenderbuffersEXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glFramebufferRenderbufferEXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glFramebufferTexture2DEXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glGenFramebuffersEXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glGenRenderbuffersEXT;
+import static org.lwjgl.opengl.EXTFramebufferObject.glRenderbufferStorageEXT;
+import static org.lwjgl.opengl.GL11.glDeleteTextures;
+import static org.lwjgl.opengl.GL11.glGenTextures;
+
+/**
+ * FBO - Frame Buffer Object
+ *
+ * FBOs wrap OpenGL's FrameBuffer functionality for the needs of the rendering portion of the engine.
+ *
+ * In OpenGL a FrameBuffer is an entity that can have a number of attachments, i.e. textures storing per-pixel color data.
+ * By binding FrameBuffers and their attachments, shaders can read from or write to them. For example the final image
+ * presented on screen is a composite of a number of visual layers stored in the attachments of different FrameBuffers.
+ * Shaders read from these attachments, process the per-pixel data and eventually produce the image seen on screen.
+ *
+ * This class simplifies the creation of FrameBuffers with specific attachments (see the create() method), the binding
+ * and unbinding of both the FrameBuffer as a whole or its attachments, and the FrameBuffer's proper disposal.
+ */
+public final class FBO {
+    private static final boolean DEFAULT_COLOR_MASK = true;
+    private static final boolean DEFAULT_NORMAL_MASK = true;
+    private static final boolean DEFAULT_LIGHT_BUFFER_MASK = true;
+<span class="nc" id="L78">    private static final Logger logger = LoggerFactory.getLogger(FBO.class);</span>
+
+    private SimpleUri fboName;
+    private int fboId;
+    private int colorBufferTextureId;
+    private int depthStencilTextureId;
+    private int depthStencilRboId;
+    private int normalsBufferTextureId;
+    private int lightBufferTextureId;
+
+    private Dimensions dimensions;
+    private boolean writeToColorBuffer;
+    private boolean writeToNormalsBuffer;
+    private boolean writeToLightBuffer;
+
+    private Status status;
+
+<span class="nc" id="L95">    public enum Type {</span>
+<span class="nc" id="L96">        DEFAULT,        // 32 bit color buffer</span>
+<span class="nc" id="L97">        HDR,            // 64 bit color buffer</span>
+<span class="nc" id="L98">        NO_COLOR        // no color buffer</span>
+    }
+
+<span class="nc" id="L101">    public enum Status {</span>
+<span class="nc" id="L102">        COMPLETE,       // usable FBO</span>
+<span class="nc" id="L103">        INCOMPLETE,     // creation failed the OpenGL completeness check</span>
+<span class="nc" id="L104">        DISPOSED,       // no longer known to the GPU - can occur at creation time. See getStatus().</span>
+<span class="nc" id="L105">        UNEXPECTED      // creation failed in an unexpected way</span>
+    }
+
+    // private constructor: the only way to generate an instance of this class
+    //                      should be through the static create() method.
+<span class="nc" id="L110">    private FBO(SimpleUri fboName, int width, int height) {</span>
+<span class="nc" id="L111">        this.fboName = fboName;</span>
+<span class="nc" id="L112">        dimensions = new Dimensions(width, height);</span>
+<span class="nc" id="L113">        writeToColorBuffer = DEFAULT_COLOR_MASK;</span>
+<span class="nc" id="L114">        writeToNormalsBuffer = DEFAULT_NORMAL_MASK;</span>
+<span class="nc" id="L115">        writeToLightBuffer = DEFAULT_LIGHT_BUFFER_MASK;</span>
+<span class="nc" id="L116">    }</span>
+
+    /**
+     * Binds the FrameBuffer tracked by this FBO. The result of subsequent OpenGL draw calls will be stored
+     * in the FrameBuffer's attachments until a different FrameBuffer is bound.
+     */
+    public void bind() {
+        // Originally the code contained a check to prevent the currently bound FrameBuffer from being re-bound.
+        // By my understanding current OpenGL implementations are smart enough to prevent it on their own. If
+        // necessary, it'd be easy to add a class variable tracking the currently bound FrameBuffer and the
+        // associated checks.
+<span class="nc" id="L127">        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboId);</span>
+<span class="nc" id="L128">    }</span>
+
+    /**
+     * Once an FBO is bound, opengl commands will act on it, i.e. by drawing on it.
+     * Meanwhile shaders might output not just colors but additional per-pixel data. This method establishes on which
+     * of an FBOs attachments, subsequent opengl commands and shaders will draw on.
+     *
+     * @param renderToColorBuffer If True the color buffer is set as drawable. If false subsequent commands and shaders won't be able to draw on it.
+     * @param renderToNormalsBuffer If True the normal buffer is set as drawable. If false subsequent commands and shaders won't be able to draw on it.
+     * @param renderToLightBuffer If True the light buffer is set as drawable. If false subsequent commands and shaders won't be able to draw on it.
+     */
+    public void setRenderBufferMask(boolean renderToColorBuffer, boolean renderToNormalsBuffer, boolean renderToLightBuffer) {
+<span class="nc bnc" id="L140" title="All 6 branches missed.">        if (this.writeToColorBuffer == renderToColorBuffer &amp;&amp; this.writeToNormalsBuffer == renderToNormalsBuffer &amp;&amp; this.writeToLightBuffer == renderToLightBuffer) {</span>
+<span class="nc" id="L141">            return;</span>
+        }
+
+<span class="nc" id="L144">        this.writeToColorBuffer = renderToColorBuffer;</span>
+<span class="nc" id="L145">        this.writeToNormalsBuffer = renderToNormalsBuffer;</span>
+<span class="nc" id="L146">        this.writeToLightBuffer = renderToLightBuffer;</span>
+
+<span class="nc" id="L148">        int attachmentId = 0;</span>
+
+<span class="nc" id="L150">        IntBuffer bufferIds = BufferUtils.createIntBuffer(3);</span>
+
+        // TODO: change GL_COLOR_ATTACHMENT0_EXT + attachmentId into something like COLOR_BUFFER_ATTACHMENT,
+        // TODO: in turn set within the class or method
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        if (colorBufferTextureId != 0) {</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            if (this.writeToColorBuffer) {</span>
+<span class="nc" id="L156">                bufferIds.put(GL_COLOR_ATTACHMENT0_EXT + attachmentId);</span>
+            }
+<span class="nc" id="L158">            attachmentId++;</span>
+        }
+<span class="nc bnc" id="L160" title="All 2 branches missed.">        if (normalsBufferTextureId != 0) {</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">            if (this.writeToNormalsBuffer) {</span>
+<span class="nc" id="L162">                bufferIds.put(GL_COLOR_ATTACHMENT0_EXT + attachmentId);</span>
+            }
+<span class="nc" id="L164">            attachmentId++;</span>
+        }
+<span class="nc bnc" id="L166" title="All 4 branches missed.">        if (lightBufferTextureId != 0 &amp;&amp; this.writeToLightBuffer) { // compacted if block because Jenkins was complaining about it.</span>
+<span class="nc" id="L167">            bufferIds.put(GL_COLOR_ATTACHMENT0_EXT + attachmentId);</span>
+        }
+
+<span class="nc" id="L170">        bufferIds.flip();</span>
+
+<span class="nc" id="L172">        GL20.glDrawBuffers(bufferIds);</span>
+<span class="nc" id="L173">    }</span>
+
+    /**
+     * &quot;Unbinding&quot; a FrameBuffer can be more easily thought as binding the application's display,
+     * i.e. the whole screen or an individual window. The result of subsequent OpenGL draw calls will
+     * therefore be sent to the display until a different FrameBuffer is bound.
+     */
+    public void unbind() {
+<span class="nc" id="L181">        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);</span>
+<span class="nc" id="L182">    }</span>
+
+    /**
+     * Binds the color attachment to the currently active texture unit.
+     * Once a texture is bound it can be sampled by shaders.
+     */
+    public void bindTexture() {
+<span class="nc" id="L189">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, colorBufferTextureId);</span>
+<span class="nc" id="L190">    }</span>
+
+    /**
+     * Binds the depth attachment to the currently active texture unit.
+     * Once a texture is bound it can be sampled by shaders.
+     */
+    public void bindDepthTexture() {
+<span class="nc" id="L197">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, depthStencilTextureId);</span>
+<span class="nc" id="L198">    }</span>
+
+    /**
+     * Binds the normals attachment to the currently active texture unit.
+     * Once a texture is bound it can be sampled by shaders.
+     */
+    public void bindNormalsTexture() {
+<span class="nc" id="L205">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, normalsBufferTextureId);</span>
+<span class="nc" id="L206">    }</span>
+
+    /**
+     * Binds the light buffer attachment to the currently active texture unit.
+     * Once a texture is bound it can be sampled by shaders.
+     */
+    public void bindLightBufferTexture() {
+<span class="nc" id="L213">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, lightBufferTextureId);</span>
+<span class="nc" id="L214">    }</span>
+
+    /**
+     * Unbinds the texture attached to the currently active texture unit.
+     * Quirk: this also works if the texture to be unbound is -not- an attachment
+     * of the calling instance's FrameBuffer.
+     */
+    public static void unbindTexture() {
+<span class="nc" id="L222">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);</span>
+<span class="nc" id="L223">    }</span>
+
+    /**
+     * Attaches the calling instance's depth attachments to the target FBO.
+     * Notice that the depth attachments remain attached to the calling instance too.
+     *
+     * @param target The FBO to attach the depth attachments to.
+     */
+    public void attachDepthBufferTo(FBO target) {
+
+<span class="nc" id="L233">        target.bind();</span>
+
+<span class="nc" id="L235">        glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, depthStencilRboId);</span>
+<span class="nc" id="L236">        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL11.GL_TEXTURE_2D, depthStencilTextureId, 0);</span>
+
+<span class="nc" id="L238">        target.unbind();</span>
+<span class="nc" id="L239">    }</span>
+
+    /**
+     * Detaches the depth attachments of this FBO.
+     */
+    public void detachDepthBuffer() {
+<span class="nc" id="L245">        bind();</span>
+
+<span class="nc" id="L247">        glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, 0);</span>
+<span class="nc" id="L248">        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL11.GL_TEXTURE_2D, 0, 0);</span>
+
+<span class="nc" id="L250">        unbind();</span>
+<span class="nc" id="L251">    }</span>
+
+    /**
+     * Properly disposes of the underlying FrameBuffer and its attachments,
+     * effectively freeing memory on the graphic adapter.
+     */
+    public void dispose() {
+<span class="nc" id="L258">        glDeleteFramebuffersEXT(fboId);</span>
+<span class="nc" id="L259">        glDeleteRenderbuffersEXT(depthStencilRboId);</span>
+<span class="nc" id="L260">        GL11.glDeleteTextures(normalsBufferTextureId);</span>
+<span class="nc" id="L261">        GL11.glDeleteTextures(depthStencilTextureId);</span>
+<span class="nc" id="L262">        GL11.glDeleteTextures(colorBufferTextureId);</span>
+<span class="nc" id="L263">        status = Status.DISPOSED;</span>
+<span class="nc" id="L264">    }</span>
+
+    /**
+     * @return Returns the (int) width of the FrameBuffer, in pixels.
+     */
+    public int width() {
+<span class="nc" id="L270">        return this.dimensions.width;</span>
+    }
+
+    /**
+     * @return Returns the (int) height of the FrameBuffer, in pixels.
+     */
+    public int height() {
+<span class="nc" id="L277">        return this.dimensions.height;</span>
+    }
+
+    /**
+     * @return Returns the width and height of the FrameBuffer, as a Dimensions object.
+     */
+    public Dimensions dimensions() {
+<span class="nc" id="L284">        return dimensions;</span>
+    }
+
+    /**
+     * Retrieves the status of the FBO.
+     *
+     * A usable FBO is one with a COMPLETE status.
+     *
+     * If the status is INCOMPLETE something went wrong during the allocation process on the GPU. Causes
+     * can range from mismatched dimensions to missing attachments, among others. The precise error code
+     * can be obtained browsing the log. Using an FrameBuffer that is not COMPLETE is an error and at this
+     * stage it is probably unrecoverable. No exceptions are thrown however and it is up to the calling code
+     * to decide how to react to an it.
+     *
+     * An FBO will have a DISPOSED status if the dispose() method has been called on it, which means the
+     * underlying FrameBuffer is no longer available to the GPU. The FBO is also automatically
+     * disposed if it is of Type.NO_COLOR and the internal call to glCheckFramebufferStatusEXT()
+     * returns GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT. This occurs on some graphic cards and the
+     * resulting FBO should not be used.
+     *
+     * An UNEXPECTED status cover all other (unknown) cases and the resulting FBO is probably as dysfunctional
+     * as an INCOMPLETE or a DISPOSED one.
+     *
+     * @return  Status.COMPLETE, Status.INCOMPLETE, Status.DISPOSED or Status.UNEXPECTED
+     */
+    public Status getStatus() {
+<span class="nc" id="L310">        return status;</span>
+    }
+
+    private void setStatus(Status newStatus) {
+<span class="nc" id="L314">        this.status = newStatus;</span>
+<span class="nc" id="L315">    }</span>
+
+    public SimpleUri getName() {
+<span class="nc" id="L318">        return fboName;</span>
+    }
+
+    public int getId() {
+<span class="nc" id="L322">        return fboId;</span>
+    }
+
+    public int getColorBufferTextureId() {
+<span class="nc" id="L326">        return colorBufferTextureId;</span>
+    }
+
+    public int getDepthStencilTextureId() {
+<span class="nc" id="L330">        return depthStencilTextureId;</span>
+    }
+
+    public int getDepthStencilRboId() {
+<span class="nc" id="L334">        return depthStencilRboId;</span>
+    }
+
+    public int getNormalsBufferTextureId() {
+<span class="nc" id="L338">        return normalsBufferTextureId;</span>
+    }
+
+    public int getLightBufferTextureId() {
+<span class="nc" id="L342">        return lightBufferTextureId;</span>
+    }
+
+    /**
+     * Creates an FBO, allocating the underlying FrameBuffer and the desired attachments on the GPU.
+     *
+     * Check FBO create(String title, Dimensions dimensions, Type type ...) for more.
+     * @param config A FBOConfig object that stores information used for creating FBO.
+     * @return The resuting FBO object wrapping a FrameBuffer and its attachments. Use getStatus() before use to verify completeness.
+     */
+    public static FBO create(FBOConfig config) {
+<span class="nc" id="L353">        return FBO.create(config.getName(),</span>
+<span class="nc" id="L354">                config.getDimensions(),</span>
+<span class="nc" id="L355">                config.getType(),</span>
+<span class="nc" id="L356">                config.hasDepthBuffer(),</span>
+<span class="nc" id="L357">                config.hasNormalBuffer(),</span>
+<span class="nc" id="L358">                config.hasLightBuffer(),</span>
+<span class="nc" id="L359">                config.hasStencilBuffer());</span>
+    }
+
+
+    /**
+     * Creates an FBO, allocating the underlying FrameBuffer and the desired attachments on the GPU.
+     *
+     * Also checks the resulting FBO for completeness and logs errors and their error codes as necessary.
+     * Callers must check the returned FBO's status (see getStatus()). Only FBO with a Status.COMPLETE should be used.
+     *
+     * In what follows, the GL constants between parenthesis represent the (internal format, data type, filtering type) of a buffer.
+     *
+     * An FBO of Type.DEFAULT will have a 32 bit color buffer attached to it. (GL_RGBA, GL11.GL_UNSIGNED_BYTE, GL_LINEAR)
+     * An FBO of Type.HDR will have a 64 bit color buffer attached to it. (GL_RGBA, GL_HALF_FLOAT_ARB, GL_LINEAR)
+     * An FBO of Type.NO_COLOR will have -no- color buffer attached to it.
+     *
+     * If the creation process is successful (Status.COMPLETE) GPU memory has been allocated for the FrameBuffer and
+     * its attachments. However, the content of the attachments is undefined.
+     *
+     * @param fboName A SimpleUri that can be used to uniquely identify the FBO.
+     * @param dimensions A Dimensions object wrapping width and height of the FBO.
+     * @param type Can be Type.DEFAULT, Type.HDR or Type.NO_COLOR
+     * @param useDepthBuffer If true the FBO will have a 24 bit depth buffer attached to it. (GL_DEPTH_COMPONENT24, GL_UNSIGNED_INT, GL_NEAREST)
+     * @param useNormalBuffer If true the FBO will have a 32 bit normals buffer attached to it. (GL_RGBA, GL_UNSIGNED_BYTE, GL_LINEAR)
+     * @param useLightBuffer If true the FBO will have 32/64 bit light buffer attached to it, depending if Type is DEFAULT/HDR.
+     *                       (GL_RGBA/GL_RGBA16F_ARB, GL_UNSIGNED_BYTE/GL_HALF_FLOAT_ARB, GL_LINEAR)
+     * @param useStencilBuffer If true the depth buffer will also have an 8 bit Stencil buffer associated with it.
+     *                         (GL_DEPTH24_STENCIL8_EXT, GL_UNSIGNED_INT_24_8_EXT, GL_NEAREST)
+     * @return The resuting FBO object wrapping a FrameBuffer and its attachments. Use getStatus() before use to verify completeness.
+     */
+    public static FBO create(SimpleUri fboName, Dimensions dimensions, Type type,
+                             boolean useDepthBuffer, boolean useNormalBuffer, boolean useLightBuffer, boolean useStencilBuffer) {
+<span class="nc" id="L391">        FBO fbo = new FBO(fboName, dimensions.width, dimensions.height);</span>
+
+        // Create the FBO on the GPU
+<span class="nc" id="L394">        fbo.fboId = glGenFramebuffersEXT();</span>
+<span class="nc" id="L395">        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fbo.fboId);</span>
+
+<span class="nc bnc" id="L397" title="All 2 branches missed.">        if (type != Type.NO_COLOR) {</span>
+<span class="nc" id="L398">            createColorBuffer(fbo, dimensions, type);</span>
+        }
+
+<span class="nc bnc" id="L401" title="All 2 branches missed.">        if (useNormalBuffer) {</span>
+<span class="nc" id="L402">            createNormalsBuffer(fbo, dimensions);</span>
+        }
+
+<span class="nc bnc" id="L405" title="All 2 branches missed.">        if (useLightBuffer) {</span>
+<span class="nc" id="L406">            createLightBuffer(fbo, dimensions, type);</span>
+        }
+
+<span class="nc bnc" id="L409" title="All 2 branches missed.">        if (useDepthBuffer) {</span>
+<span class="nc" id="L410">            createDepthBuffer(fbo, dimensions, useStencilBuffer);</span>
+        }
+
+<span class="nc" id="L413">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);</span>
+
+<span class="nc" id="L415">        IntBuffer bufferIds = BufferUtils.createIntBuffer(3);</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">        if (type != Type.NO_COLOR) {</span>
+<span class="nc" id="L417">            bufferIds.put(GL_COLOR_ATTACHMENT0_EXT);</span>
+        }
+<span class="nc bnc" id="L419" title="All 2 branches missed.">        if (useNormalBuffer) {</span>
+<span class="nc" id="L420">            bufferIds.put(GL_COLOR_ATTACHMENT1_EXT);</span>
+        }
+<span class="nc bnc" id="L422" title="All 2 branches missed.">        if (useLightBuffer) {</span>
+<span class="nc" id="L423">            bufferIds.put(GL_COLOR_ATTACHMENT2_EXT);</span>
+        }
+<span class="nc" id="L425">        bufferIds.flip();</span>
+
+<span class="nc bnc" id="L427" title="All 2 branches missed.">        if (bufferIds.limit() == 0) {</span>
+<span class="nc" id="L428">            GL11.glReadBuffer(GL11.GL_NONE);</span>
+<span class="nc" id="L429">            GL20.glDrawBuffers(GL11.GL_NONE);</span>
+        } else {
+<span class="nc" id="L431">            GL20.glDrawBuffers(bufferIds);</span>
+        }
+
+<span class="nc" id="L434">        verifyCompleteness(fboName, type, fbo);</span>
+<span class="nc" id="L435">        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);</span>
+
+<span class="nc" id="L437">        return fbo;</span>
+    }
+
+    public static void recreate(FBO fbo, FBOConfig fboConfig) {
+<span class="nc" id="L441">        Type type = fboConfig.getType();</span>
+<span class="nc" id="L442">        Dimensions dimensions = fboConfig.getDimensions();</span>
+<span class="nc" id="L443">        boolean useNormalBuffer = fboConfig.hasNormalBuffer();</span>
+<span class="nc" id="L444">        boolean useLightBuffer = fboConfig.hasLightBuffer();</span>
+<span class="nc" id="L445">        boolean useDepthBuffer = fboConfig.hasDepthBuffer();</span>
+<span class="nc" id="L446">        boolean useStencilBuffer = fboConfig.hasStencilBuffer();</span>
+
+<span class="nc" id="L448">        fbo.dimensions = fboConfig.getDimensions();</span>
+
+<span class="nc" id="L450">        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fbo.fboId);</span>
+
+<span class="nc bnc" id="L452" title="All 2 branches missed.">        if (type != Type.NO_COLOR) {</span>
+<span class="nc" id="L453">            glDeleteTextures(fbo.colorBufferTextureId);</span>
+<span class="nc" id="L454">            createColorBuffer(fbo, dimensions, type);</span>
+        }
+
+<span class="nc bnc" id="L457" title="All 2 branches missed.">        if (useNormalBuffer) {</span>
+<span class="nc" id="L458">            glDeleteTextures(fbo.normalsBufferTextureId);</span>
+<span class="nc" id="L459">            createNormalsBuffer(fbo, dimensions);</span>
+        }
+
+<span class="nc bnc" id="L462" title="All 2 branches missed.">        if (useLightBuffer) {</span>
+<span class="nc" id="L463">            glDeleteTextures(fbo.lightBufferTextureId);</span>
+<span class="nc" id="L464">            createLightBuffer(fbo, dimensions, type);</span>
+        }
+
+<span class="nc bnc" id="L467" title="All 2 branches missed.">        if (useDepthBuffer) {</span>
+<span class="nc" id="L468">            glDeleteTextures(fbo.depthStencilTextureId);</span>
+<span class="nc" id="L469">            glDeleteRenderbuffersEXT(fbo.depthStencilRboId);</span>
+<span class="nc" id="L470">            createDepthBuffer(fbo, dimensions, useStencilBuffer);</span>
+        }
+
+<span class="nc" id="L473">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);</span>
+
+<span class="nc" id="L475">        IntBuffer bufferIds = BufferUtils.createIntBuffer(3);</span>
+<span class="nc bnc" id="L476" title="All 2 branches missed.">        if (type != Type.NO_COLOR) {</span>
+<span class="nc" id="L477">            bufferIds.put(GL_COLOR_ATTACHMENT0_EXT);</span>
+        }
+<span class="nc bnc" id="L479" title="All 2 branches missed.">        if (useNormalBuffer) {</span>
+<span class="nc" id="L480">            bufferIds.put(GL_COLOR_ATTACHMENT1_EXT);</span>
+        }
+<span class="nc bnc" id="L482" title="All 2 branches missed.">        if (useLightBuffer) {</span>
+<span class="nc" id="L483">            bufferIds.put(GL_COLOR_ATTACHMENT2_EXT);</span>
+        }
+<span class="nc" id="L485">        bufferIds.flip();</span>
+
+<span class="nc bnc" id="L487" title="All 2 branches missed.">        if (bufferIds.limit() == 0) {</span>
+<span class="nc" id="L488">            GL11.glReadBuffer(GL11.GL_NONE);</span>
+<span class="nc" id="L489">            GL20.glDrawBuffers(GL11.GL_NONE);</span>
+        } else {
+<span class="nc" id="L491">            GL20.glDrawBuffers(bufferIds);</span>
+        }
+
+<span class="nc" id="L494">        verifyCompleteness(fboConfig.getName(), type, fbo);</span>
+<span class="nc" id="L495">        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);</span>
+<span class="nc" id="L496">    }</span>
+
+    private static void verifyCompleteness(SimpleUri urn, Type type, FBO fbo) {
+<span class="nc" id="L499">        int checkFB = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);</span>
+<span class="nc bnc" id="L500" title="All 9 branches missed.">        switch (checkFB) {</span>
+            case GL_FRAMEBUFFER_COMPLETE_EXT:
+<span class="nc" id="L502">                fbo.setStatus(Status.COMPLETE);</span>
+<span class="nc" id="L503">                break;</span>
+            case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT:
+<span class="nc" id="L505">                logger.error(&quot;FrameBuffer: &quot; + urn</span>
+                        + &quot;, has caused a GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT exception&quot;);
+<span class="nc" id="L507">                fbo.setStatus(Status.INCOMPLETE);</span>
+<span class="nc" id="L508">                break;</span>
+            case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT:
+<span class="nc" id="L510">                logger.error(&quot;FrameBuffer: &quot; + urn</span>
+                        + &quot;, has caused a GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT exception&quot;);
+<span class="nc" id="L512">                fbo.setStatus(Status.INCOMPLETE);</span>
+<span class="nc" id="L513">                break;</span>
+            case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT:
+<span class="nc" id="L515">                logger.error(&quot;FrameBuffer: &quot; + urn</span>
+                        + &quot;, has caused a GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT exception&quot;);
+<span class="nc" id="L517">                fbo.setStatus(Status.INCOMPLETE);</span>
+<span class="nc" id="L518">                break;</span>
+            case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT:
+<span class="nc" id="L520">                logger.error(&quot;FrameBuffer: &quot; + urn</span>
+                        + &quot;, has caused a GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT exception&quot;);
+<span class="nc" id="L522">                fbo.setStatus(Status.INCOMPLETE);</span>
+<span class="nc" id="L523">                break;</span>
+            case GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT:
+<span class="nc" id="L525">                logger.error(&quot;FrameBuffer: &quot; + urn</span>
+                        + &quot;, has caused a GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT exception&quot;);
+<span class="nc" id="L527">                fbo.setStatus(Status.INCOMPLETE);</span>
+<span class="nc" id="L528">                break;</span>
+            case GL_FRAMEBUFFER_UNSUPPORTED_EXT:
+<span class="nc" id="L530">                logger.error(&quot;FrameBuffer: &quot; + urn</span>
+                        + &quot;, has caused a GL_FRAMEBUFFER_UNSUPPORTED_EXT exception&quot;);
+<span class="nc" id="L532">                fbo.setStatus(Status.INCOMPLETE);</span>
+<span class="nc" id="L533">                break;</span>
+            case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT:
+<span class="nc" id="L535">                logger.error(&quot;FrameBuffer: &quot; + urn</span>
+                        + &quot;, has caused a GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT exception&quot;);
+
+            /*
+             * On some graphics cards, FBO.Type.NO_COLOR can cause a GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT.
+             * Code using NO_COLOR FBOs should check for this and -not use- the FBO if its status is DISPOSED
+             */
+<span class="nc bnc" id="L542" title="All 2 branches missed.">                if (type == Type.NO_COLOR) {</span>
+<span class="nc" id="L543">                    logger.error(&quot;FrameBuffer: &quot; + urn</span>
+                            + &quot;, ...but the FBO.Type was NO_COLOR, ignoring this error and continuing without this FBO.&quot;);
+<span class="nc" id="L545">                    fbo.dispose();</span>
+                } else {
+<span class="nc" id="L547">                    fbo.setStatus(Status.INCOMPLETE);</span>
+                }
+<span class="nc" id="L549">                break;</span>
+
+            default:
+<span class="nc" id="L552">                logger.error(&quot;FBO '&quot; + urn + &quot;' generated an unexpected reply from glCheckFramebufferStatusEXT: &quot; + checkFB);</span>
+<span class="nc" id="L553">                fbo.setStatus(Status.UNEXPECTED);</span>
+                break;
+        }
+<span class="nc" id="L556">    }</span>
+
+    /**
+     * Returns the content of the color buffer from GPU memory as a ByteBuffer.
+     * @return a ByteBuffer or null
+     */
+    public ByteBuffer getColorBufferRawData() {
+<span class="nc" id="L563">        ByteBuffer buffer = BufferUtils.createByteBuffer(this.width() * this.height() * 4);</span>
+
+<span class="nc" id="L565">        this.bindTexture();</span>
+<span class="nc" id="L566">        GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);</span>
+<span class="nc" id="L567">        FBO.unbindTexture();</span>
+
+<span class="nc" id="L569">        return buffer;</span>
+    }
+
+    private static void createColorBuffer(FBO fbo, Dimensions dimensions, Type type) {
+<span class="nc" id="L573">        fbo.colorBufferTextureId = glGenTextures();</span>
+<span class="nc" id="L574">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, fbo.colorBufferTextureId);</span>
+
+<span class="nc" id="L576">        setTextureParameters(GL11.GL_LINEAR);</span>
+
+<span class="nc bnc" id="L578" title="All 2 branches missed.">        if (type == Type.HDR) {</span>
+<span class="nc" id="L579">            allocateTexture(dimensions, GL11.GL_RGBA, GL11.GL_RGBA, ARBHalfFloatPixel.GL_HALF_FLOAT_ARB);</span>
+        } else {
+<span class="nc" id="L581">            allocateTexture(dimensions, GL11.GL_RGBA, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE);</span>
+        }
+
+<span class="nc" id="L584">        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL11.GL_TEXTURE_2D, fbo.colorBufferTextureId, 0);</span>
+<span class="nc" id="L585">    }</span>
+
+    private static void createNormalsBuffer(FBO fbo, Dimensions dimensions) {
+<span class="nc" id="L588">        fbo.normalsBufferTextureId = glGenTextures();</span>
+<span class="nc" id="L589">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, fbo.normalsBufferTextureId);</span>
+
+<span class="nc" id="L591">        setTextureParameters(GL11.GL_LINEAR);</span>
+
+<span class="nc" id="L593">        allocateTexture(dimensions, GL11.GL_RGBA, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE);</span>
+
+<span class="nc" id="L595">        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT1_EXT, GL11.GL_TEXTURE_2D, fbo.normalsBufferTextureId, 0);</span>
+<span class="nc" id="L596">    }</span>
+
+    private static void createLightBuffer(FBO fbo, Dimensions dimensions, Type type) {
+<span class="nc" id="L599">        fbo.lightBufferTextureId = glGenTextures();</span>
+<span class="nc" id="L600">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, fbo.lightBufferTextureId);</span>
+
+<span class="nc" id="L602">        setTextureParameters(GL11.GL_LINEAR);</span>
+
+<span class="nc bnc" id="L604" title="All 2 branches missed.">        if (type == Type.HDR) {</span>
+<span class="nc" id="L605">            allocateTexture(dimensions, ARBTextureFloat.GL_RGBA16F_ARB, GL11.GL_RGBA, ARBHalfFloatPixel.GL_HALF_FLOAT_ARB);</span>
+        } else {
+<span class="nc" id="L607">            allocateTexture(dimensions, GL11.GL_RGBA, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE);</span>
+        }
+
+<span class="nc" id="L610">        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT2_EXT, GL11.GL_TEXTURE_2D, fbo.lightBufferTextureId, 0);</span>
+<span class="nc" id="L611">    }</span>
+
+    private static void createDepthBuffer(FBO fbo, Dimensions dimensions, boolean useStencilBuffer) {
+<span class="nc" id="L614">        fbo.depthStencilTextureId = glGenTextures();</span>
+<span class="nc" id="L615">        GL11.glBindTexture(GL11.GL_TEXTURE_2D, fbo.depthStencilTextureId);</span>
+
+<span class="nc" id="L617">        setTextureParameters(GL11.GL_NEAREST);</span>
+
+<span class="nc bnc" id="L619" title="All 2 branches missed.">        if (!useStencilBuffer) {</span>
+<span class="nc" id="L620">            allocateTexture(dimensions, GL14.GL_DEPTH_COMPONENT24, GL11.GL_DEPTH_COMPONENT, GL11.GL_UNSIGNED_INT);</span>
+        } else {
+<span class="nc" id="L622">            allocateTexture(dimensions,</span>
+                    EXTPackedDepthStencil.GL_DEPTH24_STENCIL8_EXT,
+                    EXTPackedDepthStencil.GL_DEPTH_STENCIL_EXT,
+                    EXTPackedDepthStencil.GL_UNSIGNED_INT_24_8_EXT);
+        }
+
+<span class="nc" id="L628">        fbo.depthStencilRboId = glGenRenderbuffersEXT();</span>
+<span class="nc" id="L629">        glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, fbo.depthStencilRboId);</span>
+
+<span class="nc bnc" id="L631" title="All 2 branches missed.">        if (!useStencilBuffer) {</span>
+<span class="nc" id="L632">            glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL14.GL_DEPTH_COMPONENT24, fbo.dimensions.width, fbo.dimensions.height);</span>
+        } else {
+<span class="nc" id="L634">            glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, EXTPackedDepthStencil.GL_DEPTH24_STENCIL8_EXT, fbo.dimensions.width, fbo.dimensions.height);</span>
+        }
+
+<span class="nc" id="L637">        glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);</span>
+
+<span class="nc" id="L639">        glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, fbo.depthStencilRboId);</span>
+<span class="nc" id="L640">        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL11.GL_TEXTURE_2D, fbo.depthStencilTextureId, 0);</span>
+
+<span class="nc bnc" id="L642" title="All 2 branches missed.">        if (useStencilBuffer) {</span>
+<span class="nc" id="L643">            glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL11.GL_TEXTURE_2D, fbo.depthStencilTextureId, 0);</span>
+        }
+<span class="nc" id="L645">    }</span>
+
+    private static void setTextureParameters(float filterType) {
+<span class="nc" id="L648">        GL11.glTexParameterf(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, filterType);</span>
+<span class="nc" id="L649">        GL11.glTexParameterf(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, filterType);</span>
+<span class="nc" id="L650">        GL11.glTexParameterf(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);</span>
+<span class="nc" id="L651">        GL11.glTexParameterf(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);</span>
+<span class="nc" id="L652">    }</span>
+
+    private static void allocateTexture(Dimensions dimensions, int internalFormat, int dataFormat, int dataType) {
+<span class="nc" id="L655">        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, internalFormat, dimensions.width, dimensions.height, 0, dataFormat, dataType, (ByteBuffer) null);</span>
+<span class="nc" id="L656">    }</span>
+
+    /**
+     * Support class wrapping width and height of FBOs. Also provides some ad-hoc methods to make code more readable.
+     */
+    public static class Dimensions {
+        private int width;
+        private int height;
+
+        /**
+         * Default Constructor - returns a Dimensions object.
+         */
+<span class="nc" id="L668">        public Dimensions() {</span>
+<span class="nc" id="L669">            this.width = 0;</span>
+<span class="nc" id="L670">            this.height = 0;</span>
+<span class="nc" id="L671">        }</span>
+
+        /**
+         * Standard Constructor - returns a Dimensions object.
+         *
+         * @param width An integer, representing the width of the FBO in pixels.
+         * @param height An integer, representing the height of the FBO in pixels.
+         */
+<span class="nc" id="L679">        public Dimensions(int width, int height) {</span>
+<span class="nc" id="L680">            this.width = width;</span>
+<span class="nc" id="L681">            this.height = height;</span>
+<span class="nc" id="L682">        }</span>
+
+        /**
+         * Copy constructor: construct a Dimensions instance with the dimensions of another.
+         *
+         * @param dimensions a Dimensions instance
+         */
+        public Dimensions(Dimensions dimensions) {
+<span class="nc" id="L690">            this(dimensions.width(), dimensions.height());</span>
+<span class="nc" id="L691">        }</span>
+
+        /**
+         * Returns a new Dimensions object whose width and height have been divided by the divisor.
+         * I.e. new Dimensions(20,10).dividedBy(2) returns a Dimensions(10,5) object.
+         * @param divisor An integer.
+         * @return a new Dimensions object.
+         */
+        public Dimensions dividedBy(int divisor) {
+<span class="nc" id="L700">            return new Dimensions(width / divisor, height / divisor);</span>
+        }
+
+        public Dimensions multiplyBy(float multiplier) {
+<span class="nc" id="L704">            int w = (int) (width * multiplier);</span>
+<span class="nc" id="L705">            int h = (int) (height * multiplier);</span>
+<span class="nc" id="L706">            return new Dimensions(w, h);</span>
+        }
+
+        /**
+         * Multiplies (in place) both width and height of this Dimensions object by multiplier.
+         * @param multiplier A float representing a multiplication factor.
+         */
+        public void multiplySelfBy(float multiplier) {
+<span class="nc" id="L714">            width  = (int) (width * multiplier);</span>
+<span class="nc" id="L715">            height = (int) (width * multiplier);</span>
+<span class="nc" id="L716">        }</span>
+
+        /**
+         * Returns true if the other instance of this class is null or has different width/height.
+         * Similar to the more standard equals(), doesn't bother with checking if -other- is an instance
+         * of Dimensions. It also makes for more readable code, i.e.:
+         *
+         * newDimensions.areDifferentFrom(oldDimensions)
+         *
+         * @param other A Dimensions object
+         * @return True if the two objects are different as defined above.
+         */
+        public boolean areDifferentFrom(Dimensions other) {
+<span class="nc bnc" id="L729" title="All 6 branches missed.">            return other == null || this.width != other.width || this.height != other.height;</span>
+        }
+
+        /**
+         * Identical in behaviour to areDifferentFrom(Dimensions other),
+         * in some situation can be more semantically appropriate, i.e.:
+         *
+         * newResolution.isDifferentFrom(oldResolution);
+         *
+         * @param other A Dimensions object.
+         * @return True if the two objects are different as defined in the javadoc for areDifferentFrom(other).
+         */
+        public boolean isDifferentFrom(Dimensions other) {
+<span class="nc" id="L742">            return areDifferentFrom(other);</span>
+        }
+
+        /**
+         * Returns the width.
+         * @return An integer representing the width stored in the Dimensions instance.
+         */
+        public int width() {
+<span class="nc" id="L750">            return this.width;</span>
+        }
+
+        /**
+         * Returns the height.
+         * @return An integer representing the height stored in the Dimensions instance.
+         */
+        public int height() {
+<span class="nc" id="L758">            return this.height;</span>
+        }
+
+        /**
+         * Updates the dimensions.
+         * @param width An integer representing the new width.
+         * @param height An integer representing the new height.
+         */
+        public void setDimensions(int width, int height) {
+<span class="nc" id="L767">            this.width = width;</span>
+<span class="nc" id="L768">            this.height = height;</span>
+<span class="nc" id="L769">        }</span>
+
+        /**
+         * Updates the dimensions.
+         * @param other A Dimension to use the width and height from.
+         */
+        public void setDimensions(Dimensions other) {
+<span class="nc" id="L776">            this.width = other.width;</span>
+<span class="nc" id="L777">            this.height = other.height;</span>
+<span class="nc" id="L778">        }</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

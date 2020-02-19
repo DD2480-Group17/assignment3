@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SwipeMenuAnimationSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.animation</a> &gt; <span class="el_source">SwipeMenuAnimationSystem.java</span></div><h1>SwipeMenuAnimationSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.animation;
+
+import org.terasology.math.geom.Rect2i;
+import org.terasology.rendering.animation.Animation;
+import org.terasology.rendering.animation.AnimationListener;
+import org.terasology.rendering.animation.TimeModifiers;
+
+/**
+ * Controls animations to and from different screens.
+ */
+public class SwipeMenuAnimationSystem implements MenuAnimationSystem {
+
+    // TODO: Convert away from a faked time interval to handling UI updates to non-game objects in a non-gametime loop?
+    private static final float PAUSED_ANIMATION_FRAME_TICK_TIME = 0.035f;
+
+<span class="nc" id="L31">    public enum Direction {</span>
+<span class="nc" id="L32">        LEFT_TO_RIGHT(1, 0),</span>
+<span class="nc" id="L33">        RIGHT_TO_LEFT(-1, 0),</span>
+<span class="nc" id="L34">        TOP_TO_BOTTOM(0, -1),</span>
+<span class="nc" id="L35">        BOTTOM_TO_TOP(0, 1);</span>
+
+        private final float horzScale;
+        private final float vertScale;
+
+<span class="nc" id="L40">        Direction(float horzScale, float vertScale) {</span>
+<span class="nc" id="L41">            this.horzScale = horzScale;</span>
+<span class="nc" id="L42">            this.vertScale = vertScale;</span>
+<span class="nc" id="L43">        }</span>
+
+        public float getHorzScale() {
+<span class="nc" id="L46">            return horzScale;</span>
+        }
+
+        public float getVertScale() {
+<span class="nc" id="L50">            return vertScale;</span>
+        }
+    }
+
+    private final Direction direction;
+
+    private final Animation flyIn;
+    private final Animation flyOut;
+
+    private float scale;
+
+    /**
+     * Creates default animations
+     * @param duration the duration of the animation in seconds
+     */
+    public SwipeMenuAnimationSystem(float duration) {
+<span class="nc" id="L66">        this(duration, Direction.LEFT_TO_RIGHT);</span>
+<span class="nc" id="L67">    }</span>
+
+    /**
+     * Creates default animations
+     * @param duration the duration of the animation in seconds
+     * @param direction the swipe direction
+     */
+<span class="nc" id="L74">    public SwipeMenuAnimationSystem(float duration, Direction direction) {</span>
+        // down from 1 (fast) to 0 (slow)
+<span class="nc" id="L76">        flyIn = Animation.once(v -&gt; scale = v, duration, TimeModifiers.inverse().andThen(TimeModifiers.square()));</span>
+
+        // down from 0 (slow) to -1 (fast)
+<span class="nc" id="L79">        flyOut = Animation.once(v -&gt; scale = -v, duration, TimeModifiers.square());</span>
+
+<span class="nc" id="L81">        this.direction = direction;</span>
+<span class="nc" id="L82">    }</span>
+
+    /**
+     * Trigger animation from previous screen to this one
+     */
+    @Override
+    public void triggerFromPrev() {
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        if (flyOut.isStopped()) {</span>
+<span class="nc" id="L90">            flyIn.setForwardMode();</span>
+<span class="nc" id="L91">            flyIn.start();</span>
+        }
+<span class="nc" id="L93">    }</span>
+
+    /**
+     * Trigger animation from this one back to the previous screen
+     */
+    @Override
+    public void triggerToPrev() {
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (flyOut.isStopped()) {</span>
+<span class="nc" id="L101">            flyIn.setReverseMode();</span>
+<span class="nc" id="L102">            flyIn.start();</span>
+        }
+<span class="nc" id="L104">    }</span>
+
+    /**
+     * Trigger animation from the next screen to this one
+     */
+    @Override
+    public void triggerFromNext() {
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (flyIn.isStopped()) {</span>
+<span class="nc" id="L112">            flyOut.setReverseMode();</span>
+<span class="nc" id="L113">            flyOut.start();</span>
+        }
+<span class="nc" id="L115">    }</span>
+
+    /**
+     * Trigger animation from this one to the next screen
+     */
+    @Override
+    public void triggerToNext() {
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        if (flyIn.isStopped()) {</span>
+<span class="nc" id="L123">            flyOut.setForwardMode();</span>
+<span class="nc" id="L124">            flyOut.start();</span>
+        }
+<span class="nc" id="L126">    }</span>
+
+    @Override
+    public void skip() {
+        // set the animation to the end point and trigger onEnd()
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (flyIn.isRunning()) {</span>
+<span class="nc" id="L132">            flyIn.update(flyIn.getDuration());</span>
+        }
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (flyOut.isRunning()) {</span>
+<span class="nc" id="L135">            flyOut.update(flyOut.getDuration());</span>
+        }
+<span class="nc" id="L137">    }</span>
+
+    @Override
+    public void stop() {
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if (flyOut.isRunning()) {</span>
+<span class="nc" id="L142">            flyOut.setReverseMode();</span>
+        }
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (flyIn.isRunning()) {</span>
+<span class="nc" id="L145">            flyIn.setForwardMode();</span>
+        }
+<span class="nc" id="L147">    }</span>
+
+    /**
+     * @param listener the listener to trigger when the animation has ended
+     */
+    @Override
+    public void onEnd(Runnable listener) {
+<span class="nc" id="L154">        flyOut.removeAllListeners();</span>
+<span class="nc" id="L155">        flyOut.addListener(new AnimationListener() {</span>
+            @Override
+            public void onEnd() {
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                if (!flyOut.isReverse()) {</span>
+<span class="nc" id="L159">                    listener.run();</span>
+                }
+<span class="nc" id="L161">            }</span>
+        });
+
+<span class="nc" id="L164">        flyIn.removeAllListeners();</span>
+<span class="nc" id="L165">        flyIn.addListener(new AnimationListener() {</span>
+            @Override
+            public void onEnd() {
+<span class="nc bnc" id="L168" title="All 2 branches missed.">                if (flyIn.isReverse()) {</span>
+<span class="nc" id="L169">                    listener.run();</span>
+                }
+<span class="nc" id="L171">            }</span>
+        });
+<span class="nc" id="L173">    }</span>
+
+    /**
+     * @param delta time difference in seconds
+     */
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L180">        float animDelta = delta;</span>
+
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        if (animDelta &gt; 0.1f) {</span>
+            // avoid skipping over fast animations on heavy load
+<span class="nc" id="L184">            animDelta = 0.1f;</span>
+        }
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        if (animDelta &lt; 0.0001f) {</span>
+            // when we are inGameState and get to pauseMenu the time is paused
+            // so we need to fake the time is still running at a set rate
+<span class="nc" id="L189">            animDelta = PAUSED_ANIMATION_FRAME_TICK_TIME;</span>
+        }
+
+<span class="nc" id="L192">        flyIn.update(animDelta);</span>
+<span class="nc" id="L193">        flyOut.update(animDelta);</span>
+<span class="nc" id="L194">    }</span>
+
+    @Override
+    public Rect2i animateRegion(Rect2i rc) {
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        if (scale == 0.0) {</span>
+            // this should cover most of the cases
+<span class="nc" id="L200">            return rc;</span>
+        }
+
+<span class="nc" id="L203">        int left = (int) (direction.getHorzScale() * scale * rc.width());</span>
+<span class="nc" id="L204">        int top = (int) (direction.getVertScale() * scale * rc.height());</span>
+<span class="nc" id="L205">        return Rect2i.createFromMinAndSize(left, top, rc.width(), rc.height());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

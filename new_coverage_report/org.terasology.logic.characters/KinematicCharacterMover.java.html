@@ -1,0 +1,848 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KinematicCharacterMover.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.characters</a> &gt; <span class="el_source">KinematicCharacterMover.java</span></div><h1>KinematicCharacterMover.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.characters;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.characters.events.FootstepEvent;
+import org.terasology.logic.characters.events.HorizontalCollisionEvent;
+import org.terasology.logic.characters.events.JumpEvent;
+import org.terasology.logic.characters.events.OnEnterBlockEvent;
+import org.terasology.logic.characters.events.SwimStrokeEvent;
+import org.terasology.logic.characters.events.VerticalCollisionEvent;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.TeraMath;
+import org.terasology.math.Vector3fUtil;
+import org.terasology.math.geom.ImmutableVector3f;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.physics.engine.CharacterCollider;
+import org.terasology.physics.engine.PhysicsEngine;
+import org.terasology.physics.engine.SweepCallback;
+import org.terasology.physics.events.MovedEvent;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
+
+import java.math.RoundingMode;
+
+/**
+ * Calculates character movement using a physics-engine provided CharacterCollider.
+ * This collider is swept through the world to detect collisions.
+ * The general process for this is:
+ * &lt;ol&gt;
+ * &lt;li&gt;If moving upwards, sweep up&lt;/li&gt;
+ * &lt;li&gt;Sweep sideways&lt;/li&gt;
+ * &lt;li&gt;If an obstacle is hit, step up and resume sideways motion&lt;/li&gt;
+ * &lt;li&gt;If an slope is hit, slide up it&lt;/li&gt;
+ * &lt;li&gt;Finally sweep downwards to undo any stepping, and for falling&lt;/li&gt;
+ * &lt;/ol&gt;
+ * &lt;br&gt;&lt;br&gt;
+ * TODO: Refactor to allow additional movement modes.
+ * TODO: Detect entry and exit from water while ghosting.
+ */
+public class KinematicCharacterMover implements CharacterMover {
+
+    public static final float GRAVITY = 28.0f;
+    public static final float TERMINAL_VELOCITY = 64.0f;
+
+    /**
+     * The amount of horizontal penetration to allow.
+     */
+    public static final float HORIZONTAL_PENETRATION = 0.03f;
+
+    /**
+     * The amount of vertical penetration to allow.
+     */
+    public static final float VERTICAL_PENETRATION = 0.04f;
+
+    /**
+     * The amount of extra distance added to horizontal movement to allow for penetration.
+     */
+    public static final float HORIZONTAL_PENETRATION_LEEWAY = 0.04f;
+
+    /**
+     * The amount of extra distance added to vertical movement to allow for penetration.
+     */
+    public static final float VERTICAL_PENETRATION_LEEWAY = 0.05f;
+    private static final float CHECK_FORWARD_DIST = 0.05f;
+
+<span class="fc" id="L84">    private static final Logger logger = LoggerFactory.getLogger(KinematicCharacterMover.class);</span>
+    private boolean stepped;
+
+    // Processing state variables
+    private float steppedUpDist;
+    private WorldProvider worldProvider;
+    private PhysicsEngine physics;
+
+<span class="nc" id="L92">    public KinematicCharacterMover(WorldProvider wp, PhysicsEngine physicsEngine) {</span>
+<span class="nc" id="L93">        this.worldProvider = wp;</span>
+<span class="nc" id="L94">        physics = physicsEngine;</span>
+<span class="nc" id="L95">    }</span>
+
+    @Override
+    public CharacterStateEvent step(CharacterStateEvent initial, CharacterMoveInputEvent input, EntityRef entity) {
+<span class="nc" id="L99">        CharacterMovementComponent characterMovementComponent = entity.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc" id="L100">        CharacterStateEvent result = new CharacterStateEvent(initial);</span>
+<span class="nc" id="L101">        result.setSequenceNumber(input.getSequenceNumber());</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (worldProvider.isBlockRelevant(initial.getPosition())) {</span>
+<span class="nc" id="L103">            updatePosition(characterMovementComponent, result, input, entity);</span>
+
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            if (input.isFirstRun()) {</span>
+<span class="nc" id="L106">                checkBlockEntry(entity,</span>
+<span class="nc" id="L107">                        new Vector3i(initial.getPosition(), RoundingMode.HALF_UP),</span>
+<span class="nc" id="L108">                        new Vector3i(result.getPosition(), RoundingMode.HALF_UP),</span>
+                        characterMovementComponent.height);
+            }
+<span class="nc bnc" id="L111" title="All 4 branches missed.">            if (result.getMode() != MovementMode.GHOSTING &amp;&amp; result.getMode() != MovementMode.NONE) {</span>
+<span class="nc" id="L112">                checkMode(characterMovementComponent, result, initial, entity, input.isFirstRun(), input.isCrouching());</span>
+            }
+        }
+<span class="nc" id="L115">        result.setTime(initial.getTime() + input.getDeltaMs());</span>
+<span class="nc" id="L116">        updateRotation(characterMovementComponent, result, input);</span>
+<span class="nc" id="L117">        result.setPitch(input.getPitch());</span>
+<span class="nc" id="L118">        result.setYaw(input.getYaw());</span>
+<span class="nc" id="L119">        input.runComplete();</span>
+<span class="nc" id="L120">        return result;</span>
+    }
+
+    private float getMaxSpeed(EntityRef character, CharacterMovementComponent characterMovement) {
+<span class="nc" id="L124">        GetMaxSpeedEvent speedEvent = new GetMaxSpeedEvent(characterMovement.mode.maxSpeed, characterMovement.mode);</span>
+<span class="nc" id="L125">        character.send(speedEvent);</span>
+<span class="nc" id="L126">        return Math.max(0, speedEvent.getResultValue());</span>
+    }
+
+    /*
+    * Figure out if our position has put us into a new set of blocks and fire the appropriate events.
+    */
+    private void checkBlockEntry(EntityRef entity, Vector3i oldPosition, Vector3i newPosition, float characterHeight) {
+        // TODO: This will only work for tall mobs/players and single block mobs
+        // is this a different position than previously
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        if (!oldPosition.equals(newPosition)) {</span>
+            // get the old position's blocks
+<span class="nc" id="L137">            Block[] oldBlocks = new Block[(int) Math.ceil(characterHeight)];</span>
+<span class="nc" id="L138">            Vector3i currentPosition = new Vector3i(oldPosition);</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            for (int currentHeight = 0; currentHeight &lt; oldBlocks.length; currentHeight++) {</span>
+<span class="nc" id="L140">                oldBlocks[currentHeight] = worldProvider.getBlock(currentPosition);</span>
+<span class="nc" id="L141">                currentPosition.add(0, 1, 0);</span>
+            }
+
+            // get the new position's blocks
+<span class="nc" id="L145">            Block[] newBlocks = new Block[(int) Math.ceil(characterHeight)];</span>
+<span class="nc" id="L146">            currentPosition = new Vector3i(newPosition);</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">            for (int currentHeight = 0; currentHeight &lt; characterHeight; currentHeight++) {</span>
+<span class="nc" id="L148">                newBlocks[currentHeight] = worldProvider.getBlock(currentPosition);</span>
+<span class="nc" id="L149">                currentPosition.add(0, 1, 0);</span>
+            }
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            for (int i = 0; i &lt; characterHeight; i++) {</span>
+                // send a block enter/leave event for this character
+<span class="nc" id="L154">                entity.send(new OnEnterBlockEvent(oldBlocks[i], newBlocks[i], new Vector3i(0, i, 0)));</span>
+            }
+        }
+<span class="nc" id="L157">    }</span>
+
+    /**
+     * Checks whether a character should change movement mode (from being underwater or in a ladder). A higher and lower point of the
+     * character is tested for being in water, only if both points are in water does the character count as swimming.
+     * &lt;br&gt;&lt;br&gt;
+     * Sends the OnEnterLiquidEvent and OnLeaveLiquidEvent events.
+     *
+     * @param movementComp The movement component of the character.
+     * @param state        The current state of the character.
+     */
+    private void checkMode(final CharacterMovementComponent movementComp, final CharacterStateEvent state,
+                           final CharacterStateEvent oldState, EntityRef entity, boolean firstRun, boolean isCrouching) {
+        //If we are ghosting or we can't move, the mode cannot be changed.
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        if (!state.getMode().respondToEnvironment) {</span>
+<span class="nc" id="L172">            return;</span>
+        }
+<span class="nc" id="L174">        Vector3f worldPos = state.getPosition();</span>
+<span class="nc" id="L175">        Vector3f top = new Vector3f(worldPos);</span>
+<span class="nc" id="L176">        Vector3f bottom = new Vector3f(worldPos);</span>
+<span class="nc" id="L177">        top.y += 0.5f * movementComp.height;</span>
+<span class="nc" id="L178">        bottom.y -= 0.5f * movementComp.height;</span>
+
+<span class="nc" id="L180">        final boolean topUnderwater = worldProvider.getBlock(top).isLiquid();</span>
+<span class="nc" id="L181">        final boolean bottomUnderwater = worldProvider.getBlock(bottom).isLiquid();</span>
+
+<span class="nc bnc" id="L183" title="All 4 branches missed.">        final boolean newSwimming = !topUnderwater &amp;&amp; bottomUnderwater;</span>
+<span class="nc bnc" id="L184" title="All 4 branches missed.">        final boolean newDiving = topUnderwater &amp;&amp; bottomUnderwater;</span>
+<span class="nc" id="L185">        boolean newClimbing = false;</span>
+
+<span class="nc bnc" id="L187" title="All 2 branches missed.">        if (isClimbingAllowed(newSwimming, newDiving)) {</span>
+            Vector3i finalDir;
+<span class="nc" id="L189">            finalDir = findClimbable(movementComp, worldPos, newSwimming, newDiving);</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">            if (finalDir != null) {</span>
+<span class="nc" id="L191">                newClimbing = true;</span>
+<span class="nc" id="L192">                state.setClimbDirection(finalDir);</span>
+            }
+        }
+
+<span class="nc" id="L196">        updateMode(state, newSwimming, newDiving, newClimbing, isCrouching);</span>
+<span class="nc" id="L197">    }</span>
+    
+    /**
+     * Updates a character's movement mode and changes his vertical velocity accordingly.
+     * @param state The current state of the character.
+     * @param newSwimming True if the top of the character's body isn't in a liquid block but his bottom is.
+     * @param newDiving True if the character's body is fully inside liquid blocks.
+     * @param newClimbing True if the character has a climbable block near him and is in conditions to climb it (not swimming or diving).
+     */
+    static void updateMode(CharacterStateEvent state, boolean newSwimming, boolean newDiving, boolean newClimbing, boolean isCrouching) {
+<span class="fc bfc" id="L207" title="All 2 branches covered.">        if (newDiving) {</span>
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">            if (state.getMode() != MovementMode.DIVING) {</span>
+<span class="fc" id="L209">                state.setMode(MovementMode.DIVING);</span>
+            }
+<span class="fc bfc" id="L211" title="All 2 branches covered.">        } else if (newSwimming) {</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">            if (state.getMode() != MovementMode.SWIMMING) {</span>
+<span class="fc" id="L213">                state.setMode(MovementMode.SWIMMING);</span>
+            }
+<span class="fc" id="L215">            state.getVelocity().y += 0.02f;</span>
+<span class="pc bpc" id="L216" title="1 of 4 branches missed.">        } else if (state.getMode() == MovementMode.SWIMMING || state.getMode() == MovementMode.DIVING) {</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">            if (newClimbing) {</span>
+<span class="fc" id="L218">                state.setMode(MovementMode.CLIMBING);</span>
+<span class="fc" id="L219">                state.getVelocity().y = 0;</span>
+            } else {
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">                if (state.getVelocity().y &gt; 0) {</span>
+<span class="fc" id="L222">                    state.getVelocity().y += 4;</span>
+                }
+<span class="fc bfc" id="L224" title="All 2 branches covered.">                state.setMode(isCrouching ? MovementMode.CROUCHING : MovementMode.WALKING);</span>
+            }
+<span class="fc bfc" id="L226" title="All 4 branches covered.">        } else if (newClimbing != (state.getMode() == MovementMode.CLIMBING)) {</span>
+            //We need to toggle the climbing mode
+<span class="fc" id="L228">            state.getVelocity().y = 0;</span>
+<span class="fc bfc" id="L229" title="All 4 branches covered.">            state.setMode((newClimbing) ? MovementMode.CLIMBING : isCrouching ? MovementMode.CROUCHING : MovementMode.WALKING);</span>
+        }
+<span class="fc bfc" id="L231" title="All 4 branches covered.">        if (state.getMode() == MovementMode.WALKING || state.getMode() == MovementMode.CROUCHING) {</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">            state.setMode(isCrouching ? MovementMode.CROUCHING : MovementMode.WALKING);</span>
+        }
+<span class="fc" id="L234">    }</span>
+
+    private Vector3i findClimbable(CharacterMovementComponent movementComp, Vector3f worldPos, boolean swimming, boolean diving) {
+<span class="nc" id="L237">        Vector3i finalDir = null;</span>
+<span class="nc" id="L238">        Vector3f[] sides = {new Vector3f(worldPos), new Vector3f(worldPos), new Vector3f(worldPos), new Vector3f(</span>
+                worldPos), new Vector3f(worldPos)};
+<span class="nc" id="L240">        float factor = 1.0f;</span>
+<span class="nc" id="L241">        sides[0].x += factor * movementComp.radius;</span>
+<span class="nc" id="L242">        sides[1].x -= factor * movementComp.radius;</span>
+<span class="nc" id="L243">        sides[2].z += factor * movementComp.radius;</span>
+<span class="nc" id="L244">        sides[3].z -= factor * movementComp.radius;</span>
+<span class="nc" id="L245">        sides[4].y -= movementComp.height;</span>
+
+<span class="nc" id="L247">        float distance = 100f;</span>
+
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        for (Vector3f side : sides) {</span>
+<span class="nc" id="L250">            Block block = worldProvider.getBlock(side);</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">            if (block.isClimbable()) {</span>
+                //If any of our sides are near a climbable block, check if we are near to the side
+<span class="nc" id="L253">                Vector3i myPos = new Vector3i(worldPos, RoundingMode.HALF_UP);</span>
+<span class="nc" id="L254">                Vector3i climbBlockPos = new Vector3i(side, RoundingMode.HALF_UP);</span>
+<span class="nc" id="L255">                Vector3i dir = new Vector3i(block.getDirection().getVector3i());</span>
+<span class="nc" id="L256">                float currentDistance = 10f;</span>
+
+<span class="nc bnc" id="L258" title="All 4 branches missed.">                if (dir.x != 0 &amp;&amp; Math.abs(worldPos.x - climbBlockPos.x + dir.x * .5f) &lt; movementComp.radius + 0.1f) {</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">                    if (myPos.x &lt; climbBlockPos.x) {</span>
+<span class="nc" id="L260">                        dir.x = -dir.x;</span>
+                    }
+<span class="nc" id="L262">                    currentDistance = Math.abs(climbBlockPos.z - worldPos.z);</span>
+
+<span class="nc bnc" id="L264" title="All 4 branches missed.">                } else if (dir.z != 0 &amp;&amp; Math.abs(worldPos.z - climbBlockPos.z + dir.z * .5f) &lt; movementComp.radius + 0.1f) {</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">                    if (myPos.z &lt; climbBlockPos.z) {</span>
+<span class="nc" id="L266">                        dir.z = -dir.z;</span>
+                    }
+<span class="nc" id="L268">                    currentDistance = Math.abs(climbBlockPos.z - worldPos.z);</span>
+                }
+
+                // if there are multiple climb blocks, choose the nearest one. This can happen when there are two
+                // adjacent ledges around a corner.
+<span class="nc bnc" id="L273" title="All 2 branches missed.">                if (currentDistance &lt; distance) {</span>
+<span class="nc" id="L274">                    distance = currentDistance;</span>
+<span class="nc" id="L275">                    finalDir = dir;</span>
+                }
+            }
+        }
+<span class="nc" id="L279">        return finalDir;</span>
+    }
+
+    private boolean isClimbingAllowed(boolean swimming, boolean diving) {
+<span class="nc bnc" id="L283" title="All 4 branches missed.">        return !swimming &amp;&amp; !diving;</span>
+    }
+
+    /**
+     * Checks of the player will step up to an object. In a single movement step the player can only step up a single item.
+     *
+     * @param collider
+     * @param position
+     * @param direction
+     * @param callback
+     * @param slopeFactor
+     * @param stepHeight
+     * @return
+     */
+    private boolean checkStep(CharacterCollider collider, Vector3f position, Vector3f direction, SweepCallback callback,
+                              float slopeFactor, float stepHeight) {
+<span class="nc bnc" id="L299" title="All 2 branches missed.">        if (!stepped) {</span>
+<span class="nc" id="L300">            stepped = true;</span>
+
+<span class="nc" id="L302">            boolean moveUpStep = callback.checkForStep(direction, stepHeight, slopeFactor, CHECK_FORWARD_DIST);</span>
+
+<span class="nc bnc" id="L304" title="All 2 branches missed.">            if (moveUpStep) {</span>
+<span class="nc" id="L305">                steppedUpDist = moveUp(stepHeight, collider, position);</span>
+<span class="nc" id="L306">                return true;</span>
+            }
+        }
+<span class="nc" id="L309">        return false;</span>
+    }
+
+    private Vector3f extractResidualMovement(Vector3f hitNormal, Vector3f direction) {
+<span class="nc" id="L313">        return extractResidualMovement(hitNormal, direction, 1f);</span>
+    }
+
+    private Vector3f extractResidualMovement(Vector3f hitNormal, Vector3f direction, float normalMag) {
+<span class="nc" id="L317">        float movementLength = direction.length();</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">        if (movementLength &gt; physics.getEpsilon()) {</span>
+<span class="nc" id="L319">            direction.normalize();</span>
+<span class="nc" id="L320">            Vector3f reflectDir = Vector3fUtil.reflect(direction, hitNormal, new Vector3f());</span>
+<span class="nc" id="L321">            reflectDir.normalize();</span>
+<span class="nc" id="L322">            Vector3f perpendicularDir = Vector3fUtil.getPerpendicularComponent(reflectDir, hitNormal, new Vector3f());</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">            if (normalMag != 0.0f) {</span>
+<span class="nc" id="L324">                Vector3f perpComponent = new Vector3f(perpendicularDir);</span>
+<span class="nc" id="L325">                perpComponent.scale(normalMag * movementLength);</span>
+<span class="nc" id="L326">                direction.set(perpComponent);</span>
+            }
+        }
+<span class="nc" id="L329">        return direction;</span>
+    }
+
+    private void followToParent(final CharacterStateEvent state, EntityRef entity) {
+<span class="nc" id="L333">        LocationComponent locationComponent = entity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">        if (!locationComponent.getParent().equals(EntityRef.NULL)) {</span>
+<span class="nc" id="L335">            Vector3f velocity = new Vector3f(locationComponent.getWorldPosition());</span>
+<span class="nc" id="L336">            velocity.sub(state.getPosition());</span>
+<span class="nc" id="L337">            state.getVelocity().set(velocity);</span>
+<span class="nc" id="L338">            state.getPosition().set(locationComponent.getWorldPosition());</span>
+        }
+<span class="nc" id="L340">    }</span>
+
+    private MoveResult move(final Vector3f startPosition, final Vector3f moveDelta, final float stepHeight,
+                            final float slopeFactor, final CharacterCollider collider) {
+<span class="nc" id="L344">        steppedUpDist = 0;</span>
+<span class="nc" id="L345">        stepped = false;</span>
+<span class="nc" id="L346">        Vector3f position = new Vector3f(startPosition);</span>
+<span class="nc" id="L347">        boolean hitTop = false;</span>
+<span class="nc" id="L348">        boolean hitBottom = false;</span>
+        boolean hitSide;
+
+        // Actual upwards movement
+<span class="nc bnc" id="L352" title="All 2 branches missed.">        if (moveDelta.y &gt; 0) {</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">            hitTop = moveDelta.y - moveUp(moveDelta.y, collider, position) &gt; physics.getEpsilon();</span>
+        }
+<span class="nc" id="L355">        hitSide = moveHorizontal(new Vector3f(moveDelta.x, 0, moveDelta.z), collider, position, slopeFactor, stepHeight);</span>
+<span class="nc bnc" id="L356" title="All 4 branches missed.">        if (moveDelta.y &lt; 0 || steppedUpDist &gt; 0) {</span>
+<span class="nc bnc" id="L357" title="All 2 branches missed.">            float dist = (moveDelta.y &lt; 0) ? moveDelta.y : 0;</span>
+<span class="nc" id="L358">            dist -= steppedUpDist;</span>
+<span class="nc" id="L359">            hitBottom = moveDown(dist, slopeFactor, collider, position);</span>
+        }
+<span class="nc bnc" id="L361" title="All 4 branches missed.">        if (!hitBottom &amp;&amp; stepHeight &gt; 0) {</span>
+<span class="nc" id="L362">            Vector3f tempPos = new Vector3f(position);</span>
+<span class="nc" id="L363">            hitBottom = moveDown(-stepHeight, slopeFactor, collider, tempPos);</span>
+            // Don't apply step down if nothing to step onto
+<span class="nc bnc" id="L365" title="All 2 branches missed.">            if (hitBottom) {</span>
+<span class="nc" id="L366">                position.set(tempPos);</span>
+            }
+        }
+<span class="nc" id="L369">        return new MoveResult(position, hitSide, hitBottom, hitTop);</span>
+    }
+
+    private boolean moveDown(float dist, float slopeFactor, CharacterCollider collider, Vector3f position) {
+<span class="nc bnc" id="L373" title="All 2 branches missed.">        if (collider == null) {</span>
+<span class="nc" id="L374">            position.y += dist;</span>
+<span class="nc" id="L375">            return false;</span>
+        }
+
+<span class="nc" id="L378">        float remainingDist = -dist;</span>
+<span class="nc" id="L379">        Vector3f targetPos = new Vector3f(position);</span>
+<span class="nc" id="L380">        targetPos.y -= remainingDist + VERTICAL_PENETRATION_LEEWAY;</span>
+<span class="nc" id="L381">        Vector3f normalizedDir = new Vector3f(0, -1, 0);</span>
+<span class="nc" id="L382">        boolean hit = false;</span>
+<span class="nc" id="L383">        int iteration = 0;</span>
+<span class="nc bnc" id="L384" title="All 4 branches missed.">        while (remainingDist &gt; physics.getEpsilon() &amp;&amp; iteration++ &lt; 10) {</span>
+<span class="nc" id="L385">            SweepCallback callback = collider.sweep(position, targetPos, VERTICAL_PENETRATION, -1.0f);</span>
+<span class="nc" id="L386">            float actualDist = Math.max(0,</span>
+<span class="nc" id="L387">                    (remainingDist + VERTICAL_PENETRATION_LEEWAY) * callback.getClosestHitFraction() - VERTICAL_PENETRATION_LEEWAY);</span>
+<span class="nc" id="L388">            Vector3f expectedMove = new Vector3f(targetPos);</span>
+<span class="nc" id="L389">            expectedMove.sub(position);</span>
+<span class="nc bnc" id="L390" title="All 2 branches missed.">            if (expectedMove.lengthSquared() &gt; physics.getEpsilon()) {</span>
+<span class="nc" id="L391">                expectedMove.normalize();</span>
+<span class="nc" id="L392">                expectedMove.scale(actualDist);</span>
+<span class="nc" id="L393">                position.add(expectedMove);</span>
+            }
+<span class="nc" id="L395">            remainingDist -= actualDist;</span>
+<span class="nc bnc" id="L396" title="All 2 branches missed.">            if (remainingDist &lt; physics.getEpsilon()) {</span>
+<span class="nc" id="L397">                break;</span>
+            }
+<span class="nc bnc" id="L399" title="All 2 branches missed.">            if (callback.hasHit()) {</span>
+<span class="nc" id="L400">                float originalSlope = callback.getHitNormalWorld().dot(new Vector3f(0, 1, 0));</span>
+<span class="nc bnc" id="L401" title="All 2 branches missed.">                if (originalSlope &lt; slopeFactor) {</span>
+<span class="nc" id="L402">                    float slope = callback.calculateAverageSlope(originalSlope, CHECK_FORWARD_DIST);</span>
+<span class="nc bnc" id="L403" title="All 2 branches missed.">                    if (slope &lt; slopeFactor) {</span>
+<span class="nc" id="L404">                        remainingDist -= actualDist;</span>
+<span class="nc" id="L405">                        expectedMove.set(targetPos);</span>
+<span class="nc" id="L406">                        expectedMove.sub(position);</span>
+<span class="nc" id="L407">                        extractResidualMovement(callback.getHitNormalWorld(), expectedMove);</span>
+<span class="nc" id="L408">                        float sqrDist = expectedMove.lengthSquared();</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">                        if (sqrDist &gt; physics.getEpsilon()) {</span>
+<span class="nc" id="L410">                            expectedMove.normalize();</span>
+<span class="nc bnc" id="L411" title="All 2 branches missed.">                            if (expectedMove.dot(normalizedDir) &lt;= 0.0f) {</span>
+<span class="nc" id="L412">                                hit = true;</span>
+<span class="nc" id="L413">                                break;</span>
+                            }
+                        } else {
+<span class="nc" id="L416">                            hit = true;</span>
+<span class="nc" id="L417">                            break;</span>
+                        }
+<span class="nc bnc" id="L419" title="All 2 branches missed.">                        if (expectedMove.y &gt; -physics.getEpsilon()) {</span>
+<span class="nc" id="L420">                            hit = true;</span>
+<span class="nc" id="L421">                            break;</span>
+                        }
+<span class="nc" id="L423">                        normalizedDir.set(expectedMove);</span>
+<span class="nc" id="L424">                        expectedMove.scale(-remainingDist / expectedMove.y + HORIZONTAL_PENETRATION_LEEWAY);</span>
+<span class="nc" id="L425">                        targetPos.set(position);</span>
+<span class="nc" id="L426">                        targetPos.add(expectedMove);</span>
+<span class="nc" id="L427">                    } else {</span>
+<span class="nc" id="L428">                        hit = true;</span>
+<span class="nc" id="L429">                        break;</span>
+                    }
+<span class="nc" id="L431">                } else {</span>
+<span class="nc" id="L432">                    hit = true;</span>
+<span class="nc" id="L433">                    break;</span>
+                }
+            } else {
+                break;
+            }
+<span class="nc" id="L438">        }</span>
+<span class="nc bnc" id="L439" title="All 2 branches missed.">        if (iteration &gt;= 10) {</span>
+<span class="nc" id="L440">            hit = true;</span>
+        }
+<span class="nc" id="L442">        return hit;</span>
+    }
+
+    private boolean moveHorizontal(Vector3f horizMove, CharacterCollider collider, Vector3f position, float slopeFactor,
+                                   float stepHeight) {
+<span class="nc" id="L447">        float remainingFraction = 1.0f;</span>
+<span class="nc" id="L448">        float dist = horizMove.length();</span>
+<span class="nc bnc" id="L449" title="All 2 branches missed.">        if (dist &lt; physics.getEpsilon()) {</span>
+<span class="nc" id="L450">            return false;</span>
+        }
+<span class="nc" id="L452">        boolean horizontalHit = false;</span>
+<span class="nc" id="L453">        Vector3f normalizedDir = Vector3fUtil.safeNormalize(horizMove, new Vector3f());</span>
+
+<span class="nc bnc" id="L455" title="All 2 branches missed.">        if (collider == null) {</span>
+            // ignore collision
+<span class="nc" id="L457">            normalizedDir.scale(dist);</span>
+<span class="nc" id="L458">            position.add(normalizedDir);</span>
+<span class="nc" id="L459">            return false;</span>
+        }
+
+<span class="nc" id="L462">        Vector3f targetPos = new Vector3f(normalizedDir);</span>
+<span class="nc" id="L463">        targetPos.scale(dist + HORIZONTAL_PENETRATION_LEEWAY);</span>
+<span class="nc" id="L464">        targetPos.add(position);</span>
+<span class="nc" id="L465">        int iteration = 0;</span>
+<span class="nc" id="L466">        Vector3f lastHitNormal = new Vector3f(0, 1, 0);</span>
+<span class="nc bnc" id="L467" title="All 4 branches missed.">        while (remainingFraction &gt;= 0.01f &amp;&amp; iteration++ &lt; 10) {</span>
+<span class="nc" id="L468">            SweepCallback callback = collider.sweep(position, targetPos, HORIZONTAL_PENETRATION, slopeFactor);</span>
+
+            /* Note: this isn't quite correct (after the first iteration the closestHitFraction is only for part of the moment)
+             but probably close enough */
+<span class="nc" id="L472">            float actualDist = Math.max(0,</span>
+<span class="nc" id="L473">                    (dist + HORIZONTAL_PENETRATION_LEEWAY) * callback.getClosestHitFraction() - HORIZONTAL_PENETRATION_LEEWAY);</span>
+<span class="nc bnc" id="L474" title="All 2 branches missed.">            if (actualDist != 0) {</span>
+<span class="nc" id="L475">                remainingFraction -= actualDist / dist;</span>
+            }
+<span class="nc bnc" id="L477" title="All 2 branches missed.">            if (callback.hasHit()) {</span>
+<span class="nc bnc" id="L478" title="All 2 branches missed.">                if (actualDist &gt; physics.getEpsilon()) {</span>
+<span class="nc" id="L479">                    Vector3f actualMove = new Vector3f(normalizedDir);</span>
+<span class="nc" id="L480">                    actualMove.scale(actualDist);</span>
+<span class="nc" id="L481">                    position.add(actualMove);</span>
+                }
+<span class="nc" id="L483">                dist -= actualDist;</span>
+<span class="nc" id="L484">                Vector3f newDir = new Vector3f(normalizedDir);</span>
+<span class="nc" id="L485">                newDir.scale(dist);</span>
+<span class="nc" id="L486">                float slope = callback.getHitNormalWorld().dot(new Vector3f(0, 1, 0));</span>
+
+                // We step up if we're hitting a big slope, or if we're grazing
+                // the ground, otherwise we move up a shallow slope.
+<span class="nc bnc" id="L490" title="All 4 branches missed.">                if (slope &lt; slopeFactor || 1 - slope &lt; physics.getEpsilon()) {</span>
+<span class="nc" id="L491">                    boolean stepping = checkStep(collider, position, newDir, callback, slopeFactor, stepHeight);</span>
+<span class="nc bnc" id="L492" title="All 2 branches missed.">                    if (!stepping) {</span>
+<span class="nc" id="L493">                        horizontalHit = true;</span>
+<span class="nc" id="L494">                        Vector3f newHorizDir = new Vector3f(newDir.x, 0, newDir.z);</span>
+<span class="nc" id="L495">                        Vector3f horizNormal = new Vector3f(callback.getHitNormalWorld().x, 0,</span>
+<span class="nc" id="L496">                                callback.getHitNormalWorld().z);</span>
+<span class="nc bnc" id="L497" title="All 2 branches missed.">                        if (horizNormal.lengthSquared() &gt; physics.getEpsilon()) {</span>
+<span class="nc" id="L498">                            horizNormal.normalize();</span>
+<span class="nc bnc" id="L499" title="All 2 branches missed.">                            if (lastHitNormal.dot(horizNormal) &gt; physics.getEpsilon()) {</span>
+<span class="nc" id="L500">                                break;</span>
+                            }
+<span class="nc" id="L502">                            lastHitNormal.set(horizNormal);</span>
+<span class="nc" id="L503">                            extractResidualMovement(horizNormal, newHorizDir);</span>
+                        }
+<span class="nc" id="L505">                        newDir.set(newHorizDir);</span>
+                    }
+<span class="nc" id="L507">                } else {</span>
+                    // Hitting a shallow slope, move up it
+<span class="nc" id="L509">                    Vector3f newHorizDir = new Vector3f(newDir.x, 0, newDir.z);</span>
+<span class="nc" id="L510">                    extractResidualMovement(callback.getHitNormalWorld(), newDir);</span>
+<span class="nc" id="L511">                    Vector3f modHorizDir = new Vector3f(newDir);</span>
+<span class="nc" id="L512">                    modHorizDir.y = 0;</span>
+<span class="nc" id="L513">                    newDir.scale(newHorizDir.length() / modHorizDir.length());</span>
+                }
+<span class="nc" id="L515">                float sqrDist = newDir.lengthSquared();</span>
+<span class="nc bnc" id="L516" title="All 2 branches missed.">                if (sqrDist &gt; physics.getEpsilon()) {</span>
+<span class="nc" id="L517">                    newDir.normalize();</span>
+<span class="nc bnc" id="L518" title="All 2 branches missed.">                    if (newDir.dot(normalizedDir) &lt;= 0.0f) {</span>
+<span class="nc" id="L519">                        break;</span>
+                    }
+                } else {
+                    break;
+                }
+<span class="nc" id="L524">                dist = (float) Math.sqrt(sqrDist);</span>
+<span class="nc" id="L525">                normalizedDir.set(newDir);</span>
+<span class="nc" id="L526">                targetPos.set(normalizedDir);</span>
+<span class="nc" id="L527">                targetPos.scale(dist + HORIZONTAL_PENETRATION_LEEWAY);</span>
+<span class="nc" id="L528">                targetPos.add(position);</span>
+<span class="nc" id="L529">            } else {</span>
+<span class="nc" id="L530">                normalizedDir.scale(dist);</span>
+<span class="nc" id="L531">                position.add(normalizedDir);</span>
+<span class="nc" id="L532">                break;</span>
+            }
+<span class="nc" id="L534">        }</span>
+<span class="nc" id="L535">        return horizontalHit;</span>
+    }
+
+    private float moveUp(float riseAmount, CharacterCollider collider, Vector3f position) {
+<span class="nc" id="L539">        Vector3f to = new Vector3f(position.x, position.y + riseAmount + VERTICAL_PENETRATION_LEEWAY, position.z);</span>
+<span class="nc bnc" id="L540" title="All 2 branches missed.">        if (collider != null) {</span>
+<span class="nc" id="L541">            SweepCallback callback = collider.sweep(position, to, VERTICAL_PENETRATION_LEEWAY, -1f);</span>
+<span class="nc bnc" id="L542" title="All 2 branches missed.">            if (callback.hasHit()) {</span>
+<span class="nc" id="L543">                float actualDist = Math.max(0,</span>
+<span class="nc" id="L544">                        ((riseAmount + VERTICAL_PENETRATION_LEEWAY) * callback.getClosestHitFraction()) - VERTICAL_PENETRATION_LEEWAY);</span>
+<span class="nc" id="L545">                position.y += actualDist;</span>
+<span class="nc" id="L546">                return actualDist;</span>
+            }
+        }
+<span class="nc" id="L549">        position.y += riseAmount;</span>
+<span class="nc" id="L550">        return riseAmount;</span>
+    }
+
+    private void updatePosition(final CharacterMovementComponent movementComp, final CharacterStateEvent state,
+                                CharacterMoveInputEvent input, EntityRef entity) {
+<span class="nc bnc" id="L555" title="All 2 branches missed.">        switch (state.getMode()) {</span>
+            case NONE:
+<span class="nc" id="L557">                followToParent(state, entity);</span>
+<span class="nc" id="L558">                break;</span>
+            default:
+<span class="nc" id="L560">                walk(movementComp, state, input, entity);</span>
+                break;
+        }
+<span class="nc" id="L563">    }</span>
+
+    @SuppressWarnings(value = &quot;SuspiciousNameCombination&quot;)
+    private void updateRotation(CharacterMovementComponent movementComp, CharacterStateEvent result,
+                                CharacterMoveInputEvent input) {
+<span class="nc bnc" id="L568" title="All 4 branches missed.">        if (movementComp.faceMovementDirection &amp;&amp; result.getVelocity().lengthSquared() &gt; 0.01f) {</span>
+<span class="nc" id="L569">            float yaw = (float) Math.atan2(result.getVelocity().x, result.getVelocity().z);</span>
+<span class="nc" id="L570">            result.getRotation().set(new Vector3f(0, 1, 0), yaw);</span>
+<span class="nc" id="L571">        } else {</span>
+<span class="nc" id="L572">            result.getRotation().set(new Quat4f(TeraMath.DEG_TO_RAD * input.getYaw(), 0, 0));</span>
+        }
+<span class="nc" id="L574">    }</span>
+
+    private void walk(final CharacterMovementComponent movementComp, final CharacterStateEvent state,
+                      CharacterMoveInputEvent input, EntityRef entity) {
+<span class="nc" id="L578">        Vector3f desiredVelocity = new Vector3f(input.getMovementDirection());</span>
+
+<span class="nc" id="L580">        float lengthSquared = desiredVelocity.lengthSquared();</span>
+
+        // If the length of desired movement is &gt; 1, normalise it to prevent movement being faster than allowed.
+        // (Desired velocity &lt; 1 is allowed, as the character may wish to walk/crawl/otherwise move slowly)
+<span class="nc bnc" id="L584" title="All 2 branches missed.">        if (lengthSquared &gt; 1) {</span>
+<span class="nc" id="L585">            desiredVelocity.normalize();</span>
+        }
+<span class="nc" id="L587">        desiredVelocity.scale(movementComp.speedMultiplier);</span>
+
+<span class="nc" id="L589">        float maxSpeed = getMaxSpeed(entity, movementComp);</span>
+<span class="nc bnc" id="L590" title="All 2 branches missed.">        if (input.isRunning()) {</span>
+<span class="nc" id="L591">            maxSpeed *= movementComp.runFactor;</span>
+        }
+
+        // As we can't use it, remove the y component of desired movement while maintaining speed.
+<span class="nc bnc" id="L595" title="All 4 branches missed.">        if (movementComp.grounded &amp;&amp; desiredVelocity.y != 0) {</span>
+<span class="nc" id="L596">            float speed = desiredVelocity.length();</span>
+<span class="nc" id="L597">            desiredVelocity.y = 0;</span>
+<span class="nc bnc" id="L598" title="All 4 branches missed.">            if (desiredVelocity.x != 0 || desiredVelocity.z != 0) {</span>
+<span class="nc" id="L599">                desiredVelocity.normalize();</span>
+<span class="nc" id="L600">                desiredVelocity.scale(speed);</span>
+            }
+        }
+<span class="nc" id="L603">        desiredVelocity.scale(maxSpeed);</span>
+
+<span class="nc bnc" id="L605" title="All 2 branches missed.">        if (movementComp.mode == MovementMode.CLIMBING) {</span>
+<span class="nc" id="L606">            climb(state, input, desiredVelocity);</span>
+        }
+
+        // If swimming or diving, cancel double jump to avoid jumping underwater and on the surface
+<span class="nc bnc" id="L610" title="All 4 branches missed.">        if (movementComp.mode == MovementMode.SWIMMING || movementComp.mode == MovementMode.DIVING) {</span>
+<span class="nc" id="L611">            movementComp.numberOfJumpsLeft = 0;</span>
+        }
+
+        // Modify velocity towards desired, up to the maximum rate determined by friction
+<span class="nc" id="L615">        Vector3f velocityDiff = new Vector3f(desiredVelocity);</span>
+<span class="nc" id="L616">        velocityDiff.sub(state.getVelocity());</span>
+<span class="nc" id="L617">        velocityDiff.scale(Math.min(movementComp.mode.scaleInertia * input.getDelta(), 1.0f));</span>
+<span class="nc" id="L618">        Vector3f endVelocity = new Vector3f(state.getVelocity());</span>
+<span class="nc" id="L619">        endVelocity.x += velocityDiff.x;</span>
+<span class="nc" id="L620">        endVelocity.z += velocityDiff.z;</span>
+<span class="nc bnc" id="L621" title="All 2 branches missed.">        if (movementComp.mode.scaleGravity == 0) {</span>
+            // apply the velocity without gravity
+<span class="nc" id="L623">            endVelocity.y += velocityDiff.y;</span>
+<span class="nc bnc" id="L624" title="All 2 branches missed.">        } else if (movementComp.mode.applyInertiaToVertical) {</span>
+<span class="nc" id="L625">            endVelocity.y += Math.max(-TERMINAL_VELOCITY, velocityDiff.y - (GRAVITY * movementComp.mode.scaleGravity) * input.getDelta());</span>
+        } else {
+<span class="nc" id="L627">            endVelocity.y = Math.max(-TERMINAL_VELOCITY, state.getVelocity().y - (GRAVITY * movementComp.mode.scaleGravity) * input.getDelta());</span>
+        }
+<span class="nc" id="L629">        Vector3f moveDelta = new Vector3f(endVelocity);</span>
+<span class="nc" id="L630">        moveDelta.scale(input.getDelta());</span>
+<span class="nc bnc" id="L631" title="All 2 branches missed.">        CharacterCollider collider = movementComp.mode.useCollision ? physics.getCharacterCollider(entity) : null;</span>
+<span class="nc" id="L632">        MoveResult moveResult = move(state.getPosition(), moveDelta,</span>
+<span class="nc bnc" id="L633" title="All 6 branches missed.">                (state.getMode() != MovementMode.CLIMBING &amp;&amp; state.isGrounded() &amp;&amp; movementComp.mode.canBeGrounded) ? movementComp.stepHeight : 0,</span>
+                movementComp.slopeFactor, collider);
+<span class="nc" id="L635">        Vector3f distanceMoved = new Vector3f(moveResult.getFinalPosition());</span>
+<span class="nc" id="L636">        distanceMoved.sub(state.getPosition());</span>
+<span class="nc" id="L637">        state.getPosition().set(moveResult.getFinalPosition());</span>
+<span class="nc bnc" id="L638" title="All 4 branches missed.">        if (input.isFirstRun() &amp;&amp; distanceMoved.length() &gt; 0) {</span>
+<span class="nc" id="L639">            entity.send(new MovedEvent(new ImmutableVector3f(distanceMoved), new ImmutableVector3f(state.getPosition())));</span>
+        }
+
+        // Upon hitting solid ground, reset the number of jumps back to the maximum value.
+<span class="nc bnc" id="L643" title="All 2 branches missed.">        if (state.isGrounded()) {</span>
+<span class="nc" id="L644">            movementComp.numberOfJumpsLeft = movementComp.numberOfJumpsMax;</span>
+        }
+
+<span class="nc bnc" id="L647" title="All 2 branches missed.">        if (moveResult.isBottomHit()) {</span>
+<span class="nc bnc" id="L648" title="All 4 branches missed.">            if (!state.isGrounded() &amp;&amp; movementComp.mode.canBeGrounded) {</span>
+<span class="nc bnc" id="L649" title="All 2 branches missed.">                if (input.isFirstRun()) {</span>
+<span class="nc" id="L650">                    Vector3f landVelocity = new Vector3f(state.getVelocity());</span>
+<span class="nc" id="L651">                    landVelocity.y += (distanceMoved.y / moveDelta.y) * (endVelocity.y - state.getVelocity().y);</span>
+<span class="nc" id="L652">                    logger.debug(&quot;Landed at &quot; + landVelocity);</span>
+<span class="nc" id="L653">                    entity.send(new VerticalCollisionEvent(state.getPosition(), landVelocity));</span>
+                }
+<span class="nc" id="L655">                state.setGrounded(true);</span>
+<span class="nc" id="L656">                movementComp.numberOfJumpsLeft = movementComp.numberOfJumpsMax;</span>
+            }
+<span class="nc" id="L658">            endVelocity.y = 0;</span>
+
+            // Jumping is only possible, if the entity is standing on ground
+<span class="nc bnc" id="L661" title="All 2 branches missed.">            if (input.isJumpRequested()) {</span>
+
+<span class="nc" id="L663">                state.setGrounded(false);</span>
+
+                // Send event to allow for other systems to modify the jump force.
+<span class="nc" id="L666">                AffectJumpForceEvent affectJumpForceEvent = new AffectJumpForceEvent(movementComp.jumpSpeed);</span>
+<span class="nc" id="L667">                entity.send(affectJumpForceEvent);</span>
+<span class="nc" id="L668">                endVelocity.y += affectJumpForceEvent.getResultValue();</span>
+<span class="nc bnc" id="L669" title="All 2 branches missed.">                if (input.isFirstRun()) {</span>
+<span class="nc" id="L670">                    entity.send(new JumpEvent());</span>
+                }
+
+                // Send event to allow for other systems to modify the max number of jumps.
+<span class="nc" id="L674">                AffectMultiJumpEvent affectMultiJumpEvent = new AffectMultiJumpEvent(movementComp.baseNumberOfJumpsMax);</span>
+<span class="nc" id="L675">                entity.send(affectMultiJumpEvent);</span>
+<span class="nc" id="L676">                movementComp.numberOfJumpsMax = (int) affectMultiJumpEvent.getResultValue();</span>
+
+<span class="nc" id="L678">                movementComp.numberOfJumpsLeft--;</span>
+<span class="nc" id="L679">            }</span>
+        } else {
+<span class="nc bnc" id="L681" title="All 4 branches missed.">            if (moveResult.isTopHit() &amp;&amp; endVelocity.y &gt; 0) {</span>
+<span class="nc bnc" id="L682" title="All 2 branches missed.">                if (input.isFirstRun()) {</span>
+<span class="nc" id="L683">                    Vector3f hitVelocity = new Vector3f(state.getVelocity());</span>
+<span class="nc" id="L684">                    hitVelocity.y += (distanceMoved.y / moveDelta.y) * (endVelocity.y - state.getVelocity().y);</span>
+<span class="nc" id="L685">                    logger.debug(&quot;Hit at &quot; + hitVelocity);</span>
+<span class="nc" id="L686">                    entity.send(new VerticalCollisionEvent(state.getPosition(), hitVelocity));</span>
+                }
+<span class="nc" id="L688">                endVelocity.y = -0.0f * endVelocity.y;</span>
+            }
+
+            // Jump again in mid-air only if a jump was requested and there are jumps remaining.
+<span class="nc bnc" id="L692" title="All 4 branches missed.">            if (input.isJumpRequested() &amp;&amp; movementComp.numberOfJumpsLeft &gt; 0) {</span>
+<span class="nc" id="L693">                state.setGrounded(false);</span>
+
+                // Send event to allow for other systems to modify the jump force.
+<span class="nc" id="L696">                AffectJumpForceEvent affectJumpForceEvent = new AffectJumpForceEvent(movementComp.jumpSpeed);</span>
+<span class="nc" id="L697">                entity.send(affectJumpForceEvent);</span>
+<span class="nc" id="L698">                endVelocity.y += affectJumpForceEvent.getResultValue();</span>
+<span class="nc bnc" id="L699" title="All 2 branches missed.">                if (input.isFirstRun()) {</span>
+<span class="nc" id="L700">                    entity.send(new JumpEvent());</span>
+                }
+
+                // Send event to allow for other systems to modify the max number of jumps.
+<span class="nc" id="L704">                AffectMultiJumpEvent affectMultiJumpEvent = new AffectMultiJumpEvent(movementComp.baseNumberOfJumpsMax);</span>
+<span class="nc" id="L705">                entity.send(affectMultiJumpEvent);</span>
+<span class="nc" id="L706">                movementComp.numberOfJumpsMax = (int) affectMultiJumpEvent.getResultValue();</span>
+
+<span class="nc" id="L708">                movementComp.numberOfJumpsLeft--;</span>
+            }
+
+<span class="nc bnc" id="L711" title="All 2 branches missed.">            if (state.isGrounded()) {</span>
+<span class="nc" id="L712">                movementComp.numberOfJumpsLeft--;</span>
+<span class="nc" id="L713">                state.setGrounded(false);</span>
+            }
+        }
+<span class="nc bnc" id="L716" title="All 4 branches missed.">        if (input.isFirstRun() &amp;&amp; moveResult.isHorizontalHit()) {</span>
+<span class="nc" id="L717">            Vector3f hitVelocity = new Vector3f(state.getVelocity());</span>
+<span class="nc" id="L718">            hitVelocity.x += (distanceMoved.x / moveDelta.x) * (endVelocity.x - state.getVelocity().x);</span>
+<span class="nc" id="L719">            hitVelocity.z += (distanceMoved.z / moveDelta.z) * (endVelocity.z - state.getVelocity().z);</span>
+<span class="nc" id="L720">            logger.debug(&quot;Hit at &quot; + hitVelocity);</span>
+<span class="nc" id="L721">            entity.send(new HorizontalCollisionEvent(state.getPosition(), hitVelocity));</span>
+        }
+<span class="nc" id="L723">        state.getVelocity().set(endVelocity);</span>
+<span class="nc bnc" id="L724" title="All 6 branches missed.">        if (state.isGrounded() || movementComp.mode == MovementMode.SWIMMING || movementComp.mode == MovementMode.DIVING) {</span>
+<span class="nc" id="L725">            state.setFootstepDelta(</span>
+<span class="nc" id="L726">                    state.getFootstepDelta() + distanceMoved.length() / movementComp.distanceBetweenFootsteps);</span>
+<span class="nc bnc" id="L727" title="All 2 branches missed.">            if (state.getFootstepDelta() &gt; 1) {</span>
+<span class="nc" id="L728">                state.setFootstepDelta(state.getFootstepDelta() - 1);</span>
+<span class="nc bnc" id="L729" title="All 2 branches missed.">                if (input.isFirstRun()) {</span>
+<span class="nc bnc" id="L730" title="All 3 branches missed.">                    switch (movementComp.mode) {</span>
+                        case CROUCHING:
+                        case WALKING:
+<span class="nc" id="L733">                            entity.send(new FootstepEvent());</span>
+<span class="nc" id="L734">                            break;</span>
+                        case DIVING:
+                        case SWIMMING:
+<span class="nc" id="L737">                            entity.send(new SwimStrokeEvent(worldProvider.getBlock(state.getPosition())));</span>
+<span class="nc" id="L738">                            break;</span>
+                        case CLIMBING:
+                        case FLYING:
+                        case GHOSTING:
+                        case NONE:
+                            break;
+                    }
+                }
+            }
+        }
+<span class="nc" id="L748">    }</span>
+
+    private void climb(final CharacterStateEvent state, CharacterMoveInputEvent input, Vector3f desiredVelocity) {
+<span class="nc bnc" id="L751" title="All 2 branches missed.">        if (state.getClimbDirection() == null) {</span>
+<span class="nc" id="L752">            return;</span>
+        }
+        Vector3f tmp;
+
+<span class="nc" id="L756">        Vector3i climbDir3i = state.getClimbDirection();</span>
+<span class="nc" id="L757">        Vector3f climbDir3f = climbDir3i.toVector3f();</span>
+
+<span class="nc" id="L759">        Quat4f rotation = new Quat4f(TeraMath.DEG_TO_RAD * state.getYaw(), 0, 0);</span>
+<span class="nc" id="L760">        tmp = new Vector3f(0.0f, 0.0f, -1.0f);</span>
+<span class="nc" id="L761">        rotation.rotate(tmp, tmp);</span>
+<span class="nc" id="L762">        float angleToClimbDirection = tmp.angle(climbDir3f);</span>
+
+<span class="nc bnc" id="L764" title="All 2 branches missed.">        boolean clearMovementToDirection = !state.isGrounded();</span>
+<span class="nc bnc" id="L765" title="All 2 branches missed.">        boolean jumpOrCrouchActive = desiredVelocity.y != 0;</span>
+
+        // facing the ladder or looking down or up
+<span class="nc bnc" id="L768" title="All 4 branches missed.">        if (angleToClimbDirection &lt; Math.PI / 4.0 || Math.abs(input.getPitch()) &gt; 60f) {</span>
+<span class="nc bnc" id="L769" title="All 2 branches missed.">            if (jumpOrCrouchActive) {</span>
+<span class="nc" id="L770">                desiredVelocity.x = 0;</span>
+<span class="nc" id="L771">                desiredVelocity.z = 0;</span>
+<span class="nc" id="L772">                clearMovementToDirection = false;</span>
+            } else {
+<span class="nc bnc" id="L774" title="All 2 branches missed.">                float pitchAmount = state.isGrounded() ? 45f : 90f;</span>
+<span class="nc bnc" id="L775" title="All 2 branches missed.">                float pitch = input.getPitch() &gt; 30f ? pitchAmount : -pitchAmount;</span>
+<span class="nc" id="L776">                rotation = new Quat4f(TeraMath.DEG_TO_RAD * state.getYaw(), TeraMath.DEG_TO_RAD * pitch, 0);</span>
+<span class="nc" id="L777">                rotation.rotate(desiredVelocity, desiredVelocity);</span>
+<span class="nc" id="L778">            }</span>
+
+            // looking sidewards from ladder
+<span class="nc bnc" id="L781" title="All 2 branches missed.">        } else if (angleToClimbDirection &lt; Math.PI * 3.0 / 4.0) {</span>
+<span class="nc bnc" id="L782" title="All 2 branches missed.">            float rollAmount = state.isGrounded() ? 45f : 90f;</span>
+<span class="nc" id="L783">            tmp = new Vector3f();</span>
+<span class="nc" id="L784">            rotation.rotate(climbDir3f, tmp);</span>
+<span class="nc" id="L785">            float leftOrRight = tmp.x;</span>
+<span class="nc bnc" id="L786" title="All 4 branches missed.">            float plusOrMinus = (leftOrRight &lt; 0f ? -1.0f : 1.0f) * (climbDir3i.x != 0 ? -1.0f : 1.0f);</span>
+<span class="nc bnc" id="L787" title="All 2 branches missed.">            if (jumpOrCrouchActive) {</span>
+<span class="nc" id="L788">                rotation = new Quat4f(TeraMath.DEG_TO_RAD * state.getYaw(), 0, 0);</span>
+            } else {
+<span class="nc" id="L790">                rotation = new Quat4f(TeraMath.DEG_TO_RAD * input.getYaw(), 0f,</span>
+                        TeraMath.DEG_TO_RAD * rollAmount * plusOrMinus
+                );
+            }
+<span class="nc" id="L794">            rotation.rotate(desiredVelocity, desiredVelocity);</span>
+
+            // facing away from ladder
+<span class="nc" id="L797">        } else {</span>
+<span class="nc" id="L798">            rotation = new Quat4f(TeraMath.DEG_TO_RAD * state.getYaw(), 0, 0);</span>
+<span class="nc" id="L799">            rotation.rotate(desiredVelocity, desiredVelocity);</span>
+<span class="nc" id="L800">            clearMovementToDirection = false;</span>
+        }
+
+        // clear out movement towards or away from the ladder
+<span class="nc bnc" id="L804" title="All 2 branches missed.">        if (clearMovementToDirection) {</span>
+<span class="nc bnc" id="L805" title="All 2 branches missed.">            if (climbDir3i.x != 0) {</span>
+<span class="nc" id="L806">                desiredVelocity.x = 0f;</span>
+            }
+<span class="nc bnc" id="L808" title="All 2 branches missed.">            if (climbDir3i.z != 0) {</span>
+<span class="nc" id="L809">                desiredVelocity.z = 0f;</span>
+            }
+        }
+<span class="nc" id="L812">    }</span>
+
+    /**
+     * Holds the result of movement.
+     */
+    public static class MoveResult {
+
+        private Vector3f finalPosition;
+        private boolean horizontalHit;
+        private boolean bottomHit;
+        private boolean topHit;
+
+<span class="nc" id="L824">        public MoveResult(Vector3f finalPosition, boolean hitHorizontal, boolean hitBottom, boolean hitTop) {</span>
+<span class="nc" id="L825">            this.finalPosition = finalPosition;</span>
+<span class="nc" id="L826">            this.horizontalHit = hitHorizontal;</span>
+<span class="nc" id="L827">            this.bottomHit = hitBottom;</span>
+<span class="nc" id="L828">            this.topHit = hitTop;</span>
+<span class="nc" id="L829">        }</span>
+
+        public Vector3f getFinalPosition() {
+<span class="nc" id="L832">            return finalPosition;</span>
+        }
+
+        public boolean isHorizontalHit() {
+<span class="nc" id="L836">            return horizontalHit;</span>
+        }
+
+        public boolean isBottomHit() {
+<span class="nc" id="L840">            return bottomHit;</span>
+        }
+
+        public boolean isTopHit() {
+<span class="nc" id="L844">            return topHit;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

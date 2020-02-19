@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenALSoundSource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.audio.openAL.staticSound</a> &gt; <span class="el_source">OpenALSoundSource.java</span></div><h1>OpenALSoundSource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.audio.openAL.staticSound;
+
+import org.lwjgl.openal.AL10;
+import org.lwjgl.openal.AL11;
+import org.terasology.audio.openAL.BaseSoundSource;
+import org.terasology.audio.openAL.OpenALException;
+import org.terasology.audio.openAL.SoundPool;
+
+import static org.lwjgl.openal.AL10.AL_FALSE;
+import static org.lwjgl.openal.AL10.AL_LOOPING;
+import static org.lwjgl.openal.AL10.AL_TRUE;
+import static org.lwjgl.openal.AL10.alGetSourcei;
+import static org.lwjgl.openal.AL10.alSourcei;
+
+/**
+ *
+ */
+public class OpenALSoundSource extends BaseSoundSource&lt;OpenALSound&gt; {
+
+    private OpenALSound audio;
+    
+    public OpenALSoundSource(SoundPool&lt;OpenALSound, OpenALSoundSource&gt; pool) {
+<span class="nc" id="L39">        super(pool);</span>
+<span class="nc" id="L40">    }</span>
+
+    public float getLength() {
+<span class="nc" id="L43">        return audio.getLength();</span>
+    }
+
+    /**
+     * @return the playback position in second
+     */
+    public float getPlaybackPositionSeconds() {
+<span class="nc" id="L50">        return (float) AL10.alGetSourcei(getSourceId(), AL11.AL_BYTE_OFFSET) / audio.getBufferSize();</span>
+    }
+
+    // TODO: Work out what this method returns and rename it to fit
+    public float getPlaybackPosition() {
+<span class="nc" id="L55">        return (float) AL10.alGetSourcei(getSourceId(), AL11.AL_SAMPLE_OFFSET) / audio.getSamplingRate();</span>
+    }
+
+    /**
+     * Set playback position in seconds
+     *
+     * @param position
+     */
+    public OpenALSoundSource setPlaybackPositionInSeconds(float position) {
+<span class="nc" id="L64">        boolean isPlaying = isPlaying();</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (isPlaying) {</span>
+<span class="nc" id="L66">            AL10.alSourceStop(getSourceId());</span>
+        }
+
+<span class="nc" id="L69">        AL10.alSourceRewind(getSourceId());</span>
+<span class="nc" id="L70">        AL10.alSourcei(getSourceId(), AL11.AL_SAMPLE_OFFSET, (int) (audio.getSamplingRate() * position));</span>
+
+<span class="nc" id="L72">        OpenALException.checkState(&quot;Setting sound playback absolute position&quot;);</span>
+
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        if (isPlaying) {</span>
+<span class="nc" id="L75">            play();</span>
+        }
+
+<span class="nc" id="L78">        return this;</span>
+    }
+
+    /**
+     * Set relative playback position (0.0f - start, 1.0f - end)
+     *
+     * @param position
+     */
+    // TODO: This is broken for compressed streams - is this something that we need to worry about?
+    public OpenALSoundSource setPlaybackPosition(float position) {
+<span class="nc" id="L88">        boolean isPlaying = isPlaying();</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        if (isPlaying()) {</span>
+<span class="nc" id="L90">            AL10.alSourceStop(getSourceId());</span>
+        }
+
+<span class="nc" id="L93">        AL10.alSourceRewind(getSourceId());</span>
+<span class="nc" id="L94">        AL10.alSourcei(getSourceId(), AL11.AL_BYTE_OFFSET, (int) (audio.getBufferSize() * position));</span>
+
+<span class="nc" id="L96">        OpenALException.checkState(&quot;Setting sound playback relaive position&quot;);</span>
+
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (isPlaying) {</span>
+<span class="nc" id="L99">            play();</span>
+        }
+
+<span class="nc" id="L102">        return this;</span>
+    }
+
+    @Override
+    public OpenALSound getAudio() {
+<span class="nc" id="L107">        return audio;</span>
+    }
+
+    @Override
+    public boolean isLooping() {
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        return alGetSourcei(getSourceId(), AL_LOOPING) == AL_TRUE;</span>
+    }
+
+    @Override
+    public OpenALSoundSource setLooping(boolean looping) {
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        alSourcei(getSourceId(), AL_LOOPING, looping ? AL_TRUE : AL_FALSE);</span>
+
+<span class="nc" id="L119">        OpenALException.checkState(&quot;Setting sound looping&quot;);</span>
+
+<span class="nc" id="L121">        return this;</span>
+    }
+
+    @Override
+    public OpenALSoundSource setAudio(OpenALSound sound) {
+<span class="nc" id="L126">        boolean isPlaying = isPlaying();</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if (isPlaying) {</span>
+<span class="nc" id="L128">            stop();</span>
+        }
+
+<span class="nc" id="L131">        reset();</span>
+
+<span class="nc" id="L133">        audio = sound;</span>
+<span class="nc" id="L134">        AL10.alSourcei(getSourceId(), AL10.AL_BUFFER, audio.getBufferId());</span>
+
+<span class="nc" id="L136">        OpenALException.checkState(&quot;Assigning buffer to source&quot;);</span>
+
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        if (isPlaying) {</span>
+<span class="nc" id="L139">            play();</span>
+        }
+
+<span class="nc" id="L142">        return this;</span>
+    }
+
+    @Override
+    public void purge() {
+<span class="nc" id="L147">        boolean isPlaying = isPlaying();</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (isPlaying) {</span>
+<span class="nc" id="L149">            stop();</span>
+        }
+
+<span class="nc" id="L152">        reset();</span>
+
+<span class="nc" id="L154">        audio = null;</span>
+<span class="nc" id="L155">        AL10.alSourcei(getSourceId(), AL10.AL_BUFFER, 0);</span>
+<span class="nc" id="L156">        OpenALException.checkState(&quot;Clearing source&quot;);</span>
+<span class="nc" id="L157">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

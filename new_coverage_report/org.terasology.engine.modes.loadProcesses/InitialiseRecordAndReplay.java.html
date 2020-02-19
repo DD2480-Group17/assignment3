@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InitialiseRecordAndReplay.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.modes.loadProcesses</a> &gt; <span class="el_source">InitialiseRecordAndReplay.java</span></div><h1>InitialiseRecordAndReplay.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.modes.loadProcesses;
+
+import org.terasology.context.Context;
+import org.terasology.engine.modes.SingleStepLoadProcess;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.recording.RecordAndReplaySerializer;
+import org.terasology.recording.RecordAndReplayStatus;
+
+/**
+ * Initialises Record and Replay if they were selected in the main menu.
+ */
+public class InitialiseRecordAndReplay extends SingleStepLoadProcess {
+
+    private Context context;
+    private RecordAndReplaySerializer recordAndReplaySerializer;
+    private RecordAndReplayCurrentStatus recordAndReplayCurrentStatus;
+
+<span class="nc" id="L33">    public InitialiseRecordAndReplay(Context context) {</span>
+<span class="nc" id="L34">        this.context = context;</span>
+<span class="nc" id="L35">    }</span>
+
+    @Override
+    public String getMessage() {
+<span class="nc" id="L39">        return &quot;${engine:menu#init-record-replay}&quot;;</span>
+    }
+
+    @Override
+    public boolean step() {
+        //Activate record when the preparations are ready
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        if (recordAndReplayCurrentStatus.getStatus() == RecordAndReplayStatus.PREPARING_RECORD) {</span>
+<span class="nc" id="L46">            recordAndReplayCurrentStatus.setStatus(RecordAndReplayStatus.RECORDING);</span>
+        }
+
+        //Activate the replay when the preparations are ready
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        if (recordAndReplayCurrentStatus.getStatus() == RecordAndReplayStatus.PREPARING_REPLAY) {</span>
+<span class="nc" id="L51">            recordAndReplaySerializer.deserializeRecordAndReplayData();</span>
+<span class="nc" id="L52">            recordAndReplayCurrentStatus.setStatus(RecordAndReplayStatus.REPLAYING);</span>
+        }
+<span class="nc" id="L54">        return true;</span>
+    }
+
+    @Override
+    public void begin() {
+<span class="nc" id="L59">        this.recordAndReplayCurrentStatus = context.get(RecordAndReplayCurrentStatus.class);</span>
+<span class="nc" id="L60">        this.recordAndReplaySerializer = context.get(RecordAndReplaySerializer.class);</span>
+<span class="nc" id="L61">    }</span>
+
+    @Override
+    public int getExpectedCost() {
+<span class="nc" id="L65">        return 1;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

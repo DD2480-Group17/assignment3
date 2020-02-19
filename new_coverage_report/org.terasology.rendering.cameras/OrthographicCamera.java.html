@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OrthographicCamera.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.cameras</a> &gt; <span class="el_source">OrthographicCamera.java</span></div><h1>OrthographicCamera.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.cameras;
+
+import org.lwjgl.opengl.GL11;
+import org.terasology.math.MatrixUtils;
+
+import static org.lwjgl.opengl.GL11.GL_PROJECTION;
+import static org.lwjgl.opengl.GL11.glMatrixMode;
+
+/**
+ * Simple default camera.
+ *
+ */
+public class OrthographicCamera extends Camera {
+
+    private float top;
+    private float bottom;
+    private float left;
+    private float right;
+
+    public OrthographicCamera(float left, float right, float top, float bottom) {
+<span class="nc" id="L36">        super();</span>
+
+<span class="nc" id="L38">        this.top = top;</span>
+<span class="nc" id="L39">        this.bottom = bottom;</span>
+<span class="nc" id="L40">        this.left = left;</span>
+<span class="nc" id="L41">        this.right = right;</span>
+<span class="nc" id="L42">        this.zNear = -1000.0f;</span>
+<span class="nc" id="L43">        this.zFar = 1000.0f;</span>
+<span class="nc" id="L44">    }</span>
+
+    @Override
+    public boolean isBobbingAllowed() {
+<span class="nc" id="L48">        return false;</span>
+    }
+
+    @Override
+    public void loadProjectionMatrix() {
+<span class="nc" id="L53">        glMatrixMode(GL_PROJECTION);</span>
+<span class="nc" id="L54">        GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(projectionMatrix));</span>
+<span class="nc" id="L55">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L56">    }</span>
+
+    @Override
+    public void loadModelViewMatrix() {
+<span class="nc" id="L60">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L61">        GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(viewMatrix));</span>
+<span class="nc" id="L62">    }</span>
+
+    @Override
+    public void loadNormalizedModelViewMatrix() {
+<span class="nc" id="L66">        glMatrixMode(GL11.GL_MODELVIEW);</span>
+<span class="nc" id="L67">        GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(normViewMatrix));</span>
+<span class="nc" id="L68">    }</span>
+
+    @Override
+    public void update(float deltaT) {
+<span class="nc" id="L72">        super.update(deltaT);</span>
+<span class="nc" id="L73">        updateMatrices();</span>
+<span class="nc" id="L74">    }</span>
+
+    @Override
+    public void updateMatrices() {
+<span class="nc" id="L78">        updateMatrices(activeFov);</span>
+<span class="nc" id="L79">    }</span>
+
+    @Override
+    public void updateMatrices(float fov) {
+<span class="nc" id="L83">        prevViewProjectionMatrix.set(viewProjectionMatrix);</span>
+
+        // Nothing to do...
+<span class="nc bnc" id="L86" title="All 8 branches missed.">        if (cachedPosition.equals(getPosition()) &amp;&amp; cachedViewigDirection.equals(getViewingDirection())</span>
+                &amp;&amp; cachedZFar == zFar &amp;&amp; cachedZNear == zNear) {
+<span class="nc" id="L88">            return;</span>
+        }
+
+<span class="nc" id="L91">        projectionMatrix = MatrixUtils.createOrthogonalProjectionMatrix(left, right, top, bottom, zNear, zFar);</span>
+<span class="nc" id="L92">        viewMatrix = MatrixUtils.createViewMatrix(0f, 0.0f, 0f, viewingDirection.x, viewingDirection.y, viewingDirection.z, up.x, up.y, up.z);</span>
+<span class="nc" id="L93">        normViewMatrix = MatrixUtils.createViewMatrix(0f, 0f, 0f, viewingDirection.x, viewingDirection.y, viewingDirection.z, up.x, up.y, up.z);</span>
+
+<span class="nc" id="L95">        viewProjectionMatrix = MatrixUtils.calcViewProjectionMatrix(viewMatrix, projectionMatrix);</span>
+<span class="nc" id="L96">        inverseViewProjectionMatrix.invert(viewProjectionMatrix);</span>
+
+        // Used for dirty checks
+<span class="nc" id="L99">        cachedPosition.set(getPosition());</span>
+<span class="nc" id="L100">        cachedViewigDirection.set(getViewingDirection());</span>
+<span class="nc" id="L101">        cachedZFar = zFar;</span>
+<span class="nc" id="L102">        cachedZNear = zNear;</span>
+
+<span class="nc" id="L104">        updateFrustum();</span>
+<span class="nc" id="L105">    }</span>
+
+    @Override
+    public ViewFrustum getViewFrustumReflected() {
+<span class="nc" id="L109">        throw new RuntimeException(&quot;Not yet implemented!&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

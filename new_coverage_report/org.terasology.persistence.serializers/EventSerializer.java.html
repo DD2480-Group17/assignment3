@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EventSerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">EventSerializer.java</span></div><h1>EventSerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.persistence.serializers;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.ByteString;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.event.Event;
+import org.terasology.entitySystem.metadata.EventLibrary;
+import org.terasology.entitySystem.metadata.EventMetadata;
+import org.terasology.entitySystem.metadata.ReplicatedFieldMetadata;
+import org.terasology.persistence.typeHandling.DeserializationException;
+import org.terasology.persistence.typeHandling.PersistedDataSerializer;
+import org.terasology.persistence.typeHandling.SerializationException;
+import org.terasology.persistence.typeHandling.Serializer;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.protobuf.ProtobufPersistedData;
+import org.terasology.persistence.typeHandling.protobuf.ProtobufPersistedDataSerializer;
+import org.terasology.protobuf.EntityData;
+
+import java.util.Map;
+
+/**
+ */
+public class EventSerializer {
+<span class="fc" id="L43">    private static final Logger logger = LoggerFactory.getLogger(ComponentSerializer.class);</span>
+
+    private EventLibrary eventLibrary;
+    private TypeHandlerLibrary typeHandlerLibrary;
+<span class="fc" id="L47">    private BiMap&lt;Class&lt;? extends Event&gt;, Integer&gt; idTable = ImmutableBiMap.&lt;Class&lt;? extends Event&gt;, Integer&gt;builder().build();</span>
+    private PersistedDataSerializer persistedDataSerializer;
+
+    /**
+     * Creates the event serializer.
+     *
+     * @param eventLibrary The event library used to provide information on each event and its fields.
+     */
+<span class="fc" id="L55">    public EventSerializer(EventLibrary eventLibrary, TypeHandlerLibrary typeHandlerLibrary) {</span>
+<span class="fc" id="L56">        this.eventLibrary = eventLibrary;</span>
+<span class="fc" id="L57">        this.typeHandlerLibrary = typeHandlerLibrary;</span>
+<span class="fc" id="L58">        this.persistedDataSerializer = new ProtobufPersistedDataSerializer();</span>
+<span class="fc" id="L59">    }</span>
+
+    /**
+     * Sets the mapping between event classes and the ids that are used for serialization
+     *
+     * @param table
+     */
+    public void setIdMapping(Map&lt;Class&lt;? extends Event&gt;, Integer&gt; table) {
+<span class="fc" id="L67">        idTable = ImmutableBiMap.copyOf(table);</span>
+<span class="fc" id="L68">    }</span>
+
+    /**
+     * Clears the mapping between event classes and ids. This causes event to be serialized with their event
+     * name instead.
+     */
+    public void removeIdMapping() {
+<span class="nc" id="L75">        idTable = ImmutableBiMap.&lt;Class&lt;? extends Event&gt;, Integer&gt;builder().build();</span>
+<span class="nc" id="L76">    }</span>
+
+    /**
+     * @param eventData
+     * @return The event described by the eventData
+     * @throws org.terasology.persistence.typeHandling.DeserializationException if an error occurs when deserializing
+     */
+    public Event deserialize(EntityData.Event eventData) {
+<span class="nc" id="L84">        Class&lt;? extends Event&gt; eventClass = getEventClass(eventData);</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (eventClass != null) {</span>
+<span class="nc" id="L86">            EventMetadata&lt;?&gt; eventMetadata = eventLibrary.getMetadata(eventClass);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            if (!eventMetadata.isConstructable()) {</span>
+<span class="nc" id="L88">                throw new DeserializationException(&quot;Cannot deserialize &quot; + eventMetadata + &quot; - lacks default constructor&quot;);</span>
+            } else {
+<span class="nc" id="L90">                Event event = eventMetadata.newInstance();</span>
+<span class="nc" id="L91">                return deserializeOnto(event, eventData, eventMetadata);</span>
+            }
+        } else {
+<span class="nc" id="L94">            throw new DeserializationException(&quot;Unable to deserialize unknown event type: &quot; + eventData.getType());</span>
+        }
+    }
+
+
+    private Event deserializeOnto(Event targetEvent, EntityData.Event eventData, EventMetadata&lt;? extends Event&gt; eventMetadata) {
+<span class="nc" id="L100">        Serializer serializer = typeHandlerLibrary.getSerializerFor(eventMetadata);</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        for (int i = 0; i &lt; eventData.getFieldIds().size(); ++i) {</span>
+<span class="nc" id="L102">            byte fieldId = eventData.getFieldIds().byteAt(i);</span>
+<span class="nc" id="L103">            ReplicatedFieldMetadata&lt;?, ?&gt; fieldInfo = eventMetadata.getField(fieldId);</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">            if (fieldInfo == null) {</span>
+<span class="nc" id="L105">                logger.error(&quot;Unable to serialize field {}, out of bounds&quot;, fieldId);</span>
+<span class="nc" id="L106">                continue;</span>
+            }
+<span class="nc bnc" id="L108" title="All 2 branches missed.">            if (fieldInfo.isReplicated()) {</span>
+<span class="nc" id="L109">                serializer.deserializeOnto(targetEvent, fieldInfo, new ProtobufPersistedData(eventData.getFieldValue(i)));</span>
+            }
+        }
+<span class="nc" id="L112">        return targetEvent;</span>
+    }
+
+    /**
+     * Serializes an event.
+     *
+     * @param event
+     * @return The serialized event
+     * @throws org.terasology.persistence.typeHandling.SerializationException if an error occurs during serialization
+     */
+    public EntityData.Event serialize(Event event) {
+<span class="nc" id="L123">        EventMetadata&lt;?&gt; eventMetadata = eventLibrary.getMetadata(event.getClass());</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (eventMetadata == null) {</span>
+<span class="nc" id="L125">            throw new SerializationException(&quot;Unregistered event type: &quot; + event.getClass());</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        } else if (!eventMetadata.isConstructable()) {</span>
+<span class="nc" id="L127">            throw new SerializationException(&quot;Cannot serialize event '&quot; + eventMetadata + &quot;' - lacks default constructor so cannot be deserialized&quot;);</span>
+        }
+<span class="nc" id="L129">        EntityData.Event.Builder eventData = EntityData.Event.newBuilder();</span>
+<span class="nc" id="L130">        serializeEventType(event, eventData);</span>
+
+<span class="nc" id="L132">        Serializer eventSerializer = typeHandlerLibrary.getSerializerFor(eventMetadata);</span>
+<span class="nc" id="L133">        ByteString.Output fieldIds = ByteString.newOutput();</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        for (ReplicatedFieldMetadata field : eventMetadata.getFields()) {</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            if (field.isReplicated()) {</span>
+<span class="nc" id="L136">                EntityData.Value serializedValue = ((ProtobufPersistedData) eventSerializer.serialize(field, event, persistedDataSerializer)).getValue();</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                if (serializedValue != null) {</span>
+<span class="nc" id="L138">                    eventData.addFieldValue(serializedValue);</span>
+<span class="nc" id="L139">                    fieldIds.write(field.getId());</span>
+                }
+            }
+<span class="nc" id="L142">        }</span>
+<span class="nc" id="L143">        eventData.setFieldIds(fieldIds.toByteString());</span>
+
+<span class="nc" id="L145">        return eventData.build();</span>
+    }
+
+    private void serializeEventType(Event event, EntityData.Event.Builder eventData) {
+<span class="nc" id="L149">        Integer compId = idTable.get(event.getClass());</span>
+<span class="nc" id="L150">        eventData.setType(compId);</span>
+<span class="nc" id="L151">    }</span>
+
+    /**
+     * Determines the event class that the serialized event is for.
+     *
+     * @param eventData
+     * @return The event class the given eventData describes, or null if it is unknown.
+     */
+    public Class&lt;? extends Event&gt; getEventClass(EntityData.Event eventData) {
+<span class="nc bnc" id="L160" title="All 2 branches missed.">        if (eventData.hasType()) {</span>
+<span class="nc" id="L161">            EventMetadata&lt;? extends Event&gt; metadata = null;</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            if (!idTable.isEmpty()) {</span>
+<span class="nc" id="L163">                Class&lt;? extends Event&gt; eventClass = idTable.inverse().get(eventData.getType());</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                if (eventClass != null) {</span>
+<span class="nc" id="L165">                    metadata = eventLibrary.getMetadata(eventClass);</span>
+                }
+            }
+<span class="nc bnc" id="L168" title="All 2 branches missed.">            if (metadata == null) {</span>
+<span class="nc" id="L169">                logger.warn(&quot;Unable to deserialize unknown event with id: {}&quot;, eventData.getType());</span>
+<span class="nc" id="L170">                return null;</span>
+            }
+<span class="nc" id="L172">            return metadata.getType();</span>
+        }
+<span class="nc" id="L174">        logger.warn(&quot;Unable to deserialize event, no type provided.&quot;);</span>
+
+<span class="nc" id="L176">        return null;</span>
+    }
+
+    public Map&lt;Class&lt;? extends Event&gt;, Integer&gt; getIdMapping() {
+<span class="nc" id="L180">        return ImmutableMap.copyOf(idTable);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

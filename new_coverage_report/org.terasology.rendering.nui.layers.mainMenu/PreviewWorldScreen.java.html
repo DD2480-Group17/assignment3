@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PreviewWorldScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">PreviewWorldScreen.java</span></div><h1>PreviewWorldScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.bootstrap.EnvironmentSwitchHandler;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.math.TeraMath;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.ResolutionResult;
+import org.terasology.module.exceptions.UnresolvedDependencyException;
+import org.terasology.reflection.metadata.FieldMetadata;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.registry.In;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureData;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.layers.mainMenu.preview.FacetLayerPreview;
+import org.terasology.rendering.nui.layers.mainMenu.preview.PreviewGenerator;
+import org.terasology.rendering.nui.layouts.PropertyLayout;
+import org.terasology.rendering.nui.properties.Property;
+import org.terasology.rendering.nui.properties.PropertyOrdering;
+import org.terasology.rendering.nui.properties.PropertyProvider;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UIDropdown;
+import org.terasology.rendering.nui.widgets.UIImage;
+import org.terasology.rendering.nui.widgets.UISlider;
+import org.terasology.rendering.nui.widgets.UIText;
+import org.terasology.utilities.Assets;
+import org.terasology.world.generator.WorldConfigurator;
+import org.terasology.world.generator.WorldGenerator;
+import org.terasology.world.generator.internal.WorldGeneratorManager;
+import org.terasology.world.generator.plugin.TempWorldGeneratorPluginLibrary;
+import org.terasology.world.generator.plugin.WorldGeneratorPluginLibrary;
+import org.terasology.world.zones.Zone;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
+
+/**
+ * Shows a preview of the generated world and provides some
+ * configuration options to tweak the generation process.
+ */
+public class PreviewWorldScreen extends CoreScreenLayer {
+
+<span class="nc" id="L78">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:previewWorldScreen&quot;);</span>
+
+<span class="nc" id="L80">    private static final Logger logger = LoggerFactory.getLogger(PreviewWorldScreen.class);</span>
+
+    @In
+    private ModuleManager moduleManager;
+
+    @In
+    private ModuleAwareAssetTypeManager assetTypeManager;
+
+    @In
+    private WorldGeneratorManager worldGeneratorManager;
+
+    @In
+    private Config config;
+
+    @In
+    private Context context;
+
+    private WorldGenerator worldGenerator;
+
+    private UIImage previewImage;
+    private UISlider zoomSlider;
+    private UIDropdown&lt;Zone&gt; zoneSelector;
+    private UIButton applyButton;
+
+    private UIText seed;
+
+    private PreviewGenerator previewGen;
+
+
+    private Context subContext;
+    private ModuleEnvironment environment;
+
+    private Texture texture;
+
+    private boolean triggerUpdate;
+<span class="nc" id="L115">    private String targetZone = &quot;Surface&quot;;</span>
+
+<span class="nc" id="L117">    public PreviewWorldScreen() {</span>
+<span class="nc" id="L118">    }</span>
+
+    public void setEnvironment() throws Exception {
+
+        // TODO: pass world gen and module list directly rather than using the config
+<span class="nc" id="L123">        SimpleUri worldGenUri = config.getWorldGeneration().getDefaultGenerator();</span>
+
+<span class="nc" id="L125">        DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());</span>
+<span class="nc" id="L126">        ResolutionResult result = resolver.resolve(config.getDefaultModSelection().listModules());</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if (result.isSuccess()) {</span>
+<span class="nc" id="L128">            subContext = new ContextImpl(context);</span>
+<span class="nc" id="L129">            CoreRegistry.setContext(subContext);</span>
+<span class="nc" id="L130">            environment = moduleManager.loadEnvironment(result.getModules(), false);</span>
+<span class="nc" id="L131">            subContext.put(WorldGeneratorPluginLibrary.class, new TempWorldGeneratorPluginLibrary(environment, subContext));</span>
+<span class="nc" id="L132">            EnvironmentSwitchHandler environmentSwitchHandler = context.get(EnvironmentSwitchHandler.class);</span>
+<span class="nc" id="L133">            environmentSwitchHandler.handleSwitchToPreviewEnvironment(subContext, environment);</span>
+<span class="nc" id="L134">            genTexture();</span>
+
+<span class="nc" id="L136">            worldGenerator = WorldGeneratorManager.createWorldGenerator(worldGenUri, subContext, environment);</span>
+<span class="nc" id="L137">            worldGenerator.setWorldSeed(seed.getText());</span>
+
+<span class="nc" id="L139">            List&lt;Zone&gt; previewZones = Lists.newArrayList(worldGenerator.getZones())</span>
+<span class="nc" id="L140">                    .stream()</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                    .filter(z -&gt; !z.getPreviewLayers().isEmpty())</span>
+<span class="nc" id="L142">                    .collect(Collectors.toList());</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">            if (previewZones.isEmpty()) {</span>
+<span class="nc" id="L144">                zoneSelector.setVisible(false);</span>
+<span class="nc" id="L145">                previewGen = new FacetLayerPreview(environment, worldGenerator);</span>
+            } else {
+<span class="nc" id="L147">                zoneSelector.setVisible(true);</span>
+<span class="nc" id="L148">                zoneSelector.setOptions(previewZones);</span>
+<span class="nc" id="L149">                zoneSelector.setSelection(previewZones.get(0));</span>
+            }
+
+<span class="nc" id="L152">            configureProperties();</span>
+<span class="nc" id="L153">        } else {</span>
+<span class="nc" id="L154">            throw new UnresolvedDependencyException(&quot;Unable to resolve depencencies for &quot; + worldGenUri);</span>
+        }
+<span class="nc" id="L156">    }</span>
+
+    private void genTexture() {
+<span class="nc" id="L159">        int imgWidth = 384;</span>
+<span class="nc" id="L160">        int imgHeight = 384;</span>
+<span class="nc" id="L161">        ByteBuffer buffer = ByteBuffer.allocateDirect(imgWidth * imgHeight * Integer.BYTES);</span>
+<span class="nc" id="L162">        ByteBuffer[] data = new ByteBuffer[]{buffer};</span>
+<span class="nc" id="L163">        ResourceUrn uri = new ResourceUrn(&quot;engine:terrainPreview&quot;);</span>
+<span class="nc" id="L164">        TextureData texData = new TextureData(imgWidth, imgHeight, data, Texture.WrapMode.CLAMP, Texture.FilterMode.LINEAR);</span>
+<span class="nc" id="L165">        texture = Assets.generateAsset(uri, texData, Texture.class);</span>
+
+<span class="nc" id="L167">        previewImage = find(&quot;preview&quot;, UIImage.class);</span>
+<span class="nc" id="L168">        previewImage.setImage(texture);</span>
+<span class="nc" id="L169">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L173">        super.update(delta);</span>
+
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        if (triggerUpdate) {</span>
+<span class="nc" id="L176">            updatePreview();</span>
+<span class="nc" id="L177">            triggerUpdate = false;</span>
+        }
+<span class="nc" id="L179">    }</span>
+
+    private void configureProperties() {
+
+<span class="nc" id="L183">        PropertyLayout propLayout = find(&quot;properties&quot;, PropertyLayout.class);</span>
+<span class="nc" id="L184">        propLayout.setOrdering(PropertyOrdering.byLabel());</span>
+<span class="nc" id="L185">        propLayout.clear();</span>
+
+<span class="nc" id="L187">        WorldConfigurator worldConfig = worldGenerator.getConfigurator();</span>
+
+<span class="nc" id="L189">        Map&lt;String, Component&gt; params = worldConfig.getProperties();</span>
+
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        for (String key : params.keySet()) {</span>
+<span class="nc" id="L192">            Class&lt;? extends Component&gt; clazz = params.get(key).getClass();</span>
+<span class="nc" id="L193">            Component comp = config.getModuleConfig(worldGenerator.getUri(), key, clazz);</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            if (comp != null) {</span>
+<span class="nc" id="L195">                worldConfig.setProperty(key, comp);       // use the data from the config instead of defaults</span>
+            }
+<span class="nc" id="L197">        }</span>
+
+<span class="nc" id="L199">        ComponentLibrary compLib = subContext.get(ComponentLibrary.class);</span>
+
+<span class="nc bnc" id="L201" title="All 2 branches missed.">        for (String label : params.keySet()) {</span>
+
+<span class="nc" id="L203">            PropertyProvider provider = new PropertyProvider() {</span>
+                @Override
+                protected &lt;T&gt; Binding&lt;T&gt; createTextBinding(Object target, FieldMetadata&lt;Object, T&gt; fieldMetadata) {
+<span class="nc" id="L206">                    return new WorldConfigBinding&lt;&gt;(worldConfig, label, compLib, fieldMetadata);</span>
+                }
+
+                @Override
+                protected Binding&lt;Float&gt; createFloatBinding(Object target, FieldMetadata&lt;Object, ?&gt; fieldMetadata) {
+<span class="nc" id="L211">                    return new WorldConfigNumberBinding(worldConfig, label, compLib, fieldMetadata);</span>
+                }
+            };
+
+<span class="nc" id="L215">            Component target = params.get(label);</span>
+<span class="nc" id="L216">            List&lt;Property&lt;?, ?&gt;&gt; properties = provider.createProperties(target);</span>
+<span class="nc" id="L217">            propLayout.addProperties(label, properties);</span>
+<span class="nc" id="L218">        }</span>
+<span class="nc" id="L219">    }</span>
+
+    private void resetEnvironment() {
+
+<span class="nc" id="L223">        CoreRegistry.setContext(context);</span>
+
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        if (environment != null) {</span>
+<span class="nc" id="L226">            EnvironmentSwitchHandler environmentSwitchHandler = context.get(EnvironmentSwitchHandler.class);</span>
+<span class="nc" id="L227">            environmentSwitchHandler.handleSwitchBackFromPreviewEnvironment(subContext);</span>
+<span class="nc" id="L228">            environment.close();</span>
+<span class="nc" id="L229">            environment = null;</span>
+        }
+
+<span class="nc" id="L232">        previewGen.close();</span>
+
+<span class="nc" id="L234">        WorldConfigurator worldConfig = worldGenerator.getConfigurator();</span>
+
+<span class="nc" id="L236">        Map&lt;String, Component&gt; params = worldConfig.getProperties();</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">        if (params != null) {</span>
+<span class="nc" id="L238">            config.setModuleConfigs(worldGenerator.getUri(), params);</span>
+        }
+<span class="nc" id="L240">    }</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L244">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L246">        zoomSlider = find(&quot;zoomSlider&quot;, UISlider.class);</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">        if (zoomSlider != null) {</span>
+<span class="nc" id="L248">            zoomSlider.setValue(2f);</span>
+        }
+
+<span class="nc" id="L251">        seed = find(&quot;seed&quot;, UIText.class);</span>
+
+<span class="nc" id="L253">        zoneSelector = find(&quot;zoneSelector&quot;, UIDropdown.class);</span>
+
+<span class="nc" id="L255">        applyButton = find(&quot;apply&quot;, UIButton.class);</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">        if (applyButton != null) {</span>
+<span class="nc" id="L257">            applyButton.subscribe(widget -&gt; updatePreview());</span>
+        }
+
+<span class="nc" id="L260">        WidgetUtil.trySubscribe(this, &quot;close&quot;, w -&gt; {</span>
+<span class="nc" id="L261">            resetEnvironment();</span>
+<span class="nc" id="L262">            triggerBackAnimation();</span>
+<span class="nc" id="L263">        });</span>
+<span class="nc" id="L264">    }</span>
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L268">        return false;</span>
+    }
+
+    public void bindSeed(Binding&lt;String&gt; binding) {
+<span class="nc bnc" id="L272" title="All 2 branches missed.">        if (seed == null) {</span>
+            // TODO: call initialize through NUIManager instead of onOpened()
+<span class="nc" id="L274">            seed = find(&quot;seed&quot;, UIText.class);</span>
+        }
+<span class="nc" id="L276">        seed.bindText(binding);</span>
+<span class="nc" id="L277">    }</span>
+
+    private void updatePreview() {
+
+<span class="nc" id="L281">        final NUIManager manager = context.get(NUIManager.class);</span>
+<span class="nc" id="L282">        final WaitPopup&lt;TextureData&gt; popup = manager.pushScreen(WaitPopup.ASSET_URI, WaitPopup.class);</span>
+<span class="nc" id="L283">        popup.setMessage(&quot;Updating Preview&quot;, &quot;Please wait ...&quot;);</span>
+
+<span class="nc" id="L285">        ProgressListener progressListener = progress -&gt;</span>
+<span class="nc" id="L286">                popup.setMessage(&quot;Updating Preview&quot;, String.format(&quot;Please wait ... %d%%&quot;, (int) (progress * 100f)));</span>
+
+<span class="nc" id="L288">        Callable&lt;TextureData&gt; operation = () -&gt; {</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">            if (seed != null) {</span>
+<span class="nc" id="L290">                worldGenerator.setWorldSeed(seed.getText());</span>
+            }
+<span class="nc" id="L292">            int zoom = TeraMath.floorToInt(zoomSlider.getValue());</span>
+<span class="nc" id="L293">            TextureData data = texture.getData();</span>
+
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            if (zoneSelector.isVisible()) {</span>
+<span class="nc" id="L296">                previewGen = zoneSelector.getSelection().preview(worldGenerator);</span>
+            }
+<span class="nc" id="L298">            previewGen.render(data, zoom, progressListener);</span>
+
+<span class="nc" id="L300">            return data;</span>
+        };
+
+<span class="nc" id="L303">        popup.onSuccess(texture::reload);</span>
+<span class="nc" id="L304">        popup.startOperation(operation, true);</span>
+<span class="nc" id="L305">    }</span>
+
+    /**
+     * Updates a world configurator through setProperty() whenever Binding#set() is called.
+     */
+    private static class WorldConfigBinding&lt;T&gt; implements Binding&lt;T&gt; {
+        private final String label;
+        private final WorldConfigurator worldConfig;
+        private final FieldMetadata&lt;Object, T&gt; fieldMetadata;
+        private final ComponentLibrary compLib;
+
+<span class="nc" id="L316">        protected WorldConfigBinding(WorldConfigurator config, String label, ComponentLibrary compLib, FieldMetadata&lt;Object, T&gt; fieldMetadata) {</span>
+<span class="nc" id="L317">            this.worldConfig = config;</span>
+<span class="nc" id="L318">            this.label = label;</span>
+<span class="nc" id="L319">            this.compLib = compLib;</span>
+<span class="nc" id="L320">            this.fieldMetadata = fieldMetadata;</span>
+<span class="nc" id="L321">        }</span>
+
+        @Override
+        public T get() {
+<span class="nc" id="L325">            Component comp = worldConfig.getProperties().get(label);</span>
+<span class="nc" id="L326">            return fieldMetadata.getValue(comp);</span>
+        }
+
+        @Override
+        public void set(T value) {
+<span class="nc" id="L331">            T old = get();</span>
+
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            if (!Objects.equals(old, value)) {</span>
+<span class="nc" id="L334">                cloneAndSet(label, value);</span>
+            }
+<span class="nc" id="L336">        }</span>
+
+        private void cloneAndSet(String group, Object value) {
+<span class="nc" id="L339">            Component comp = worldConfig.getProperties().get(group);</span>
+<span class="nc" id="L340">            Component clone = compLib.copy(comp);</span>
+<span class="nc" id="L341">            fieldMetadata.setValue(clone, value);</span>
+
+            // notify the world generator about the new component
+<span class="nc" id="L344">            worldConfig.setProperty(label, clone);</span>
+<span class="nc" id="L345">        }</span>
+    }
+
+    private static class WorldConfigNumberBinding implements Binding&lt;Float&gt; {
+
+        private WorldConfigBinding&lt;? extends Number&gt; binding;
+
+        @SuppressWarnings(&quot;unchecked&quot;)
+<span class="nc" id="L353">        protected WorldConfigNumberBinding(WorldConfigurator config, String label, ComponentLibrary compLib, FieldMetadata&lt;Object, ?&gt; field) {</span>
+<span class="nc" id="L354">            Class&lt;?&gt; type = field.getType();</span>
+<span class="nc bnc" id="L355" title="All 4 branches missed.">            if (type == Integer.TYPE || type == Integer.class) {</span>
+<span class="nc" id="L356">                this.binding = new WorldConfigBinding&lt;&gt;(config, label, compLib,</span>
+                        (FieldMetadata&lt;Object, Integer&gt;) field);
+<span class="nc bnc" id="L358" title="All 4 branches missed.">            } else if (type == Float.TYPE || type == Float.class) {</span>
+<span class="nc" id="L359">                this.binding = new WorldConfigBinding&lt;&gt;(config, label, compLib,</span>
+                        (FieldMetadata&lt;Object, Float&gt;) field);
+            }
+<span class="nc" id="L362">        }</span>
+
+        @Override
+        public Float get() {
+<span class="nc" id="L366">            Number val = binding.get();</span>
+<span class="nc bnc" id="L367" title="All 2 branches missed.">            if (val instanceof Float) {</span>
+                // use boxed instance directly
+<span class="nc" id="L369">                return (Float) val;</span>
+            }
+            // create a boxed instance otherwise
+<span class="nc" id="L372">            return val.floatValue();</span>
+        }
+
+        @Override
+        @SuppressWarnings(&quot;unchecked&quot;)
+        public void set(Float value) {
+<span class="nc" id="L378">            Class&lt;? extends Number&gt; type = binding.fieldMetadata.getType();</span>
+<span class="nc bnc" id="L379" title="All 4 branches missed.">            if (type == Integer.TYPE || type == Integer.class) {</span>
+<span class="nc" id="L380">                ((Binding&lt;Integer&gt;) binding).set(value.intValue());</span>
+<span class="nc bnc" id="L381" title="All 4 branches missed.">            } else if (type == Float.TYPE || type == Float.class) {</span>
+<span class="nc" id="L382">                ((Binding&lt;Float&gt;) binding).set(value);</span>
+            }
+<span class="nc" id="L384">        }</span>
+    }
+}
+
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

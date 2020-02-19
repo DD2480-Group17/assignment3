@@ -1,0 +1,938 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BulletPhysics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.physics.bullet</a> &gt; <span class="el_source">BulletPhysics.java</span></div><h1>BulletPhysics.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.physics.bullet;
+
+import com.bulletphysics.BulletGlobals;
+import com.bulletphysics.collision.broadphase.BroadphaseInterface;
+import com.bulletphysics.collision.broadphase.BroadphasePair;
+import com.bulletphysics.collision.broadphase.BroadphaseProxy;
+import com.bulletphysics.collision.broadphase.CollisionFilterGroups;
+import com.bulletphysics.collision.broadphase.DbvtBroadphase;
+import com.bulletphysics.collision.dispatch.CollisionConfiguration;
+import com.bulletphysics.collision.dispatch.CollisionDispatcher;
+import com.bulletphysics.collision.dispatch.CollisionFlags;
+import com.bulletphysics.collision.dispatch.CollisionObject;
+import com.bulletphysics.collision.dispatch.CollisionWorld;
+import com.bulletphysics.collision.dispatch.DefaultCollisionConfiguration;
+import com.bulletphysics.collision.dispatch.GhostObject;
+import com.bulletphysics.collision.dispatch.GhostPairCallback;
+import com.bulletphysics.collision.dispatch.PairCachingGhostObject;
+import com.bulletphysics.collision.narrowphase.ManifoldPoint;
+import com.bulletphysics.collision.narrowphase.PersistentManifold;
+import com.bulletphysics.collision.shapes.BoxShape;
+import com.bulletphysics.collision.shapes.CapsuleShape;
+import com.bulletphysics.collision.shapes.ConvexHullShape;
+import com.bulletphysics.collision.shapes.ConvexShape;
+import com.bulletphysics.collision.shapes.CylinderShape;
+import com.bulletphysics.collision.shapes.SphereShape;
+import com.bulletphysics.collision.shapes.voxel.VoxelWorldShape;
+import com.bulletphysics.dynamics.DiscreteDynamicsWorld;
+import com.bulletphysics.dynamics.DynamicsWorld;
+import com.bulletphysics.dynamics.RigidBodyConstructionInfo;
+import com.bulletphysics.dynamics.constraintsolver.SequentialImpulseConstraintSolver;
+import com.bulletphysics.linearmath.DefaultMotionState;
+import com.bulletphysics.linearmath.Transform;
+import com.bulletphysics.util.ObjectArrayList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import gnu.trove.iterator.TFloatIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.characters.CharacterMovementComponent;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.AABB;
+import org.terasology.math.VecMath;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.physics.CollisionGroup;
+import org.terasology.physics.HitResult;
+import org.terasology.physics.StandardCollisionGroup;
+import org.terasology.physics.bullet.shapes.BulletCollisionShapeFactory;
+import org.terasology.physics.components.RigidBodyComponent;
+import org.terasology.physics.components.TriggerComponent;
+import org.terasology.physics.engine.CharacterCollider;
+import org.terasology.physics.engine.PhysicsEngine;
+import org.terasology.physics.engine.PhysicsSystem;
+import org.terasology.physics.engine.RigidBody;
+import org.terasology.physics.components.shapes.BoxShapeComponent;
+import org.terasology.physics.components.shapes.CapsuleShapeComponent;
+import org.terasology.physics.components.shapes.CylinderShapeComponent;
+import org.terasology.physics.components.shapes.HullShapeComponent;
+import org.terasology.physics.components.shapes.SphereShapeComponent;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.world.BlockEntityRegistry;
+import org.terasology.world.WorldProvider;
+
+import javax.vecmath.Matrix3f;
+import javax.vecmath.Matrix4f;
+import javax.vecmath.Quat4f;
+import javax.vecmath.Vector3f;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Physics engine implementation using TeraBullet (a customised version of JBullet).
+ */
+public class BulletPhysics implements PhysicsEngine {
+
+<span class="nc" id="L100">    private static final Logger logger = LoggerFactory.getLogger(BulletPhysics.class);</span>
+
+<span class="nc" id="L102">    private final Deque&lt;RigidBodyRequest&gt; insertionQueue = Lists.newLinkedList();</span>
+<span class="nc" id="L103">    private final Deque&lt;BulletRigidBody&gt; removalQueue = Lists.newLinkedList();</span>
+
+<span class="nc" id="L105">    private final BulletCollisionShapeFactory collisionShapeFactory = new BulletCollisionShapeFactory();</span>
+
+    private final CollisionDispatcher dispatcher;
+    private final BroadphaseInterface broadphase;
+    private final DiscreteDynamicsWorld discreteDynamicsWorld;
+    private final BlockEntityRegistry blockEntityRegistry;
+    private final PhysicsWorldWrapper wrapper;
+    private final PhysicsLiquidWrapper liquidWrapper;
+<span class="nc" id="L113">    private Map&lt;EntityRef, BulletRigidBody&gt; entityRigidBodies = Maps.newHashMap();</span>
+<span class="nc" id="L114">    private Map&lt;EntityRef, BulletCharacterMoverCollider&gt; entityColliders = Maps.newHashMap();</span>
+<span class="nc" id="L115">    private Map&lt;EntityRef, PairCachingGhostObject&gt; entityTriggers = Maps.newHashMap();</span>
+<span class="nc" id="L116">    private List&lt;PhysicsSystem.CollisionPair&gt; collisions = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L118">    public BulletPhysics(WorldProvider world) {</span>
+<span class="nc" id="L119">        broadphase = new DbvtBroadphase();</span>
+<span class="nc" id="L120">        broadphase.getOverlappingPairCache().setInternalGhostPairCallback(new GhostPairCallback());</span>
+<span class="nc" id="L121">        CollisionConfiguration defaultCollisionConfiguration = new DefaultCollisionConfiguration();</span>
+<span class="nc" id="L122">        dispatcher = new CollisionDispatcher(defaultCollisionConfiguration);</span>
+<span class="nc" id="L123">        SequentialImpulseConstraintSolver sequentialImpulseConstraintSolver = new SequentialImpulseConstraintSolver();</span>
+<span class="nc" id="L124">        discreteDynamicsWorld = new DiscreteDynamicsWorld(dispatcher, broadphase, sequentialImpulseConstraintSolver, defaultCollisionConfiguration);</span>
+<span class="nc" id="L125">        discreteDynamicsWorld.setGravity(new Vector3f(0f, -15f, 0f));</span>
+<span class="nc" id="L126">        blockEntityRegistry = CoreRegistry.get(BlockEntityRegistry.class);</span>
+
+<span class="nc" id="L128">        wrapper = new PhysicsWorldWrapper(world);</span>
+<span class="nc" id="L129">        VoxelWorldShape worldShape = new VoxelWorldShape(wrapper);</span>
+
+<span class="nc" id="L131">        liquidWrapper = new PhysicsLiquidWrapper(world);</span>
+<span class="nc" id="L132">        VoxelWorldShape liquidShape = new VoxelWorldShape(liquidWrapper);</span>
+
+<span class="nc" id="L134">        Matrix3f rot = new Matrix3f();</span>
+<span class="nc" id="L135">        rot.setIdentity();</span>
+<span class="nc" id="L136">        DefaultMotionState blockMotionState = new DefaultMotionState(new Transform(new Matrix4f(rot, new Vector3f(0, 0, 0), 1.0f)));</span>
+<span class="nc" id="L137">        RigidBodyConstructionInfo blockConsInf = new RigidBodyConstructionInfo(0, blockMotionState, worldShape, new Vector3f());</span>
+<span class="nc" id="L138">        BulletRigidBody rigidBody = new BulletRigidBody(blockConsInf);</span>
+<span class="nc" id="L139">        rigidBody.rb.setCollisionFlags(CollisionFlags.STATIC_OBJECT | rigidBody.rb.getCollisionFlags());</span>
+<span class="nc" id="L140">        short mask = (short) (~(CollisionFilterGroups.STATIC_FILTER | StandardCollisionGroup.LIQUID.getFlag()));</span>
+<span class="nc" id="L141">        discreteDynamicsWorld.addRigidBody(rigidBody.rb, combineGroups(StandardCollisionGroup.WORLD), mask);</span>
+
+<span class="nc" id="L143">        RigidBodyConstructionInfo liquidConsInfo = new RigidBodyConstructionInfo(0, blockMotionState, liquidShape, new Vector3f());</span>
+<span class="nc" id="L144">        BulletRigidBody liquidBody = new BulletRigidBody(liquidConsInfo);</span>
+<span class="nc" id="L145">        liquidBody.rb.setCollisionFlags(CollisionFlags.STATIC_OBJECT | rigidBody.rb.getCollisionFlags());</span>
+<span class="nc" id="L146">        discreteDynamicsWorld.addRigidBody(liquidBody.rb, combineGroups(StandardCollisionGroup.LIQUID),</span>
+                CollisionFilterGroups.SENSOR_TRIGGER);
+<span class="nc" id="L148">    }</span>
+
+    //*****************Physics Interface methods******************\\
+
+    @Override
+    public List&lt;PhysicsSystem.CollisionPair&gt; getCollisionPairs() {
+<span class="nc" id="L154">        List&lt;PhysicsSystem.CollisionPair&gt; temp = collisions;</span>
+<span class="nc" id="L155">        collisions = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L156">        return temp;</span>
+    }
+
+    @Override
+    public void dispose() {
+<span class="nc" id="L161">        discreteDynamicsWorld.destroy();</span>
+<span class="nc" id="L162">        wrapper.dispose();</span>
+<span class="nc" id="L163">        liquidWrapper.dispose();</span>
+<span class="nc" id="L164">    }</span>
+
+    @Override
+    public short combineGroups(CollisionGroup... groups) {
+<span class="nc" id="L168">        return combineGroups(Arrays.asList(groups));</span>
+    }
+
+    @Override
+    public short combineGroups(Iterable&lt;CollisionGroup&gt; groups) {
+<span class="nc" id="L173">        short flags = 0;</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">        for (CollisionGroup group : groups) {</span>
+<span class="nc" id="L175">            flags |= group.getFlag();</span>
+<span class="nc" id="L176">        }</span>
+<span class="nc" id="L177">        return flags;</span>
+    }
+
+    @Override
+    public List&lt;EntityRef&gt; scanArea(AABB area, CollisionGroup... collisionFilter) {
+<span class="nc" id="L182">        return scanArea(area, Arrays.asList(collisionFilter));</span>
+    }
+
+    @Override
+    public List&lt;EntityRef&gt; scanArea(AABB area, Iterable&lt;CollisionGroup&gt; collisionFilter) {
+        // TODO: Add the aabbTest method from newer versions of bullet to TeraBullet, use that instead
+<span class="nc" id="L188">        BoxShape shape = new BoxShape(VecMath.to(area.getExtents()));</span>
+<span class="nc" id="L189">        GhostObject scanObject = createCollider(VecMath.to(area.getCenter()), shape, CollisionFilterGroups.SENSOR_TRIGGER,</span>
+<span class="nc" id="L190">                combineGroups(collisionFilter), CollisionFlags.NO_CONTACT_RESPONSE);</span>
+        // This in particular is overkill
+<span class="nc" id="L192">        broadphase.calculateOverlappingPairs(dispatcher);</span>
+<span class="nc" id="L193">        List&lt;EntityRef&gt; result = Lists.newArrayList();</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        for (int i = 0; i &lt; scanObject.getNumOverlappingObjects(); ++i) {</span>
+<span class="nc" id="L195">            CollisionObject other = scanObject.getOverlappingObject(i);</span>
+<span class="nc" id="L196">            Object userObj = other.getUserPointer();</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">            if (userObj instanceof EntityRef) {</span>
+<span class="nc" id="L198">                result.add((EntityRef) userObj);</span>
+            }
+        }
+<span class="nc" id="L201">        removeCollider(scanObject);</span>
+<span class="nc" id="L202">        return result;</span>
+    }
+
+    @Override
+    public HitResult rayTrace(org.terasology.math.geom.Vector3f from1, org.terasology.math.geom.Vector3f direction, float distance, CollisionGroup... collisionGroups) {
+<span class="nc" id="L207">        return rayTrace(from1, direction, distance, Sets.newHashSet(), collisionGroups);</span>
+    }
+
+    @Override
+    public HitResult rayTrace(org.terasology.math.geom.Vector3f from1, org.terasology.math.geom.Vector3f direction, float distance, Set&lt;EntityRef&gt; excludedEntities,
+            CollisionGroup... collisionGroups) {
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        if (excludedEntities == null) {</span>
+<span class="nc" id="L214">            return rayTrace(from1, direction, distance, collisionGroups);</span>
+        }
+<span class="nc" id="L216">        Vector3f to = new Vector3f(VecMath.to(direction));</span>
+<span class="nc" id="L217">        Vector3f from = VecMath.to(from1);</span>
+<span class="nc" id="L218">        to.scale(distance);</span>
+<span class="nc" id="L219">        to.add(from);</span>
+
+<span class="nc" id="L221">        short filter = combineGroups(collisionGroups);</span>
+
+        // lookup all the collision item ids for these entities
+<span class="nc" id="L224">        Set&lt;Integer&gt; excludedCollisionIds = Sets.newHashSet();</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        for (EntityRef excludedEntity : excludedEntities) {</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">            if (entityRigidBodies.containsKey(excludedEntity)) {</span>
+<span class="nc" id="L227">                excludedCollisionIds.add(entityRigidBodies.get(excludedEntity).rb.getBroadphaseHandle().getUid());</span>
+            }
+<span class="nc bnc" id="L229" title="All 2 branches missed.">            if (entityColliders.containsKey(excludedEntity)) {</span>
+<span class="nc" id="L230">                excludedCollisionIds.add(entityColliders.get(excludedEntity).collider.getBroadphaseHandle().getUid());</span>
+            }
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            if (entityTriggers.containsKey(excludedEntity)) {</span>
+<span class="nc" id="L233">                excludedCollisionIds.add(entityTriggers.get(excludedEntity).getBroadphaseHandle().getUid());</span>
+            }
+<span class="nc" id="L235">        }</span>
+
+<span class="nc" id="L237">        CollisionWorld.ClosestRayResultWithUserDataCallback closest =</span>
+                new ClosestRayResultWithUserDataCallbackExcludingCollisionIds(from, to, excludedCollisionIds);
+<span class="nc" id="L239">        closest.collisionFilterGroup = CollisionFilterGroups.ALL_FILTER;</span>
+<span class="nc" id="L240">        closest.collisionFilterMask = filter;</span>
+
+<span class="nc" id="L242">        discreteDynamicsWorld.rayTest(from, to, closest);</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">        if (closest.hasHit()) {</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            if (closest.userData instanceof Vector3i) { //We hit a world block</span>
+<span class="nc" id="L245">                final EntityRef entityAt = blockEntityRegistry.getEntityAt((Vector3i) closest.userData);</span>
+<span class="nc" id="L246">                return new HitResult(entityAt,</span>
+<span class="nc" id="L247">                        VecMath.from(closest.hitPointWorld),</span>
+<span class="nc" id="L248">                        VecMath.from(closest.hitNormalWorld),</span>
+                        (Vector3i) closest.userData);
+<span class="nc bnc" id="L250" title="All 2 branches missed.">            } else if (closest.userData instanceof EntityRef) { //we hit an other entity</span>
+<span class="nc" id="L251">                return new HitResult((EntityRef) closest.userData,</span>
+<span class="nc" id="L252">                        VecMath.from(closest.hitPointWorld),</span>
+<span class="nc" id="L253">                        VecMath.from(closest.hitNormalWorld));</span>
+            } else { //we hit something we don't understand, assume its nothing and log a warning
+<span class="nc" id="L255">                logger.warn(&quot;Unidentified object was hit in the physics engine: {}&quot;, closest.userData);</span>
+<span class="nc" id="L256">                return new HitResult();</span>
+            }
+        } else { //nothing was hit
+<span class="nc" id="L259">            return new HitResult();</span>
+        }
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L265">        processQueuedBodies();</span>
+<span class="nc" id="L266">        applyPendingImpulsesAndForces();</span>
+        try {
+<span class="nc" id="L268">            PerformanceMonitor.startActivity(&quot;Step Simulation&quot;);</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">            if (discreteDynamicsWorld.stepSimulation(delta, 8) != 0) {</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                for (BulletCharacterMoverCollider collider : entityColliders.values()) {</span>
+<span class="nc" id="L271">                    collider.pending = false;</span>
+<span class="nc" id="L272">                }</span>
+            }
+<span class="nc" id="L274">            PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L275">        } catch (Exception e) {</span>
+<span class="nc" id="L276">            logger.error(&quot;Error running simulation step.&quot;, e);</span>
+<span class="nc" id="L277">        }</span>
+<span class="nc" id="L278">        collisions.addAll(getNewCollisionPairs());</span>
+<span class="nc" id="L279">    }</span>
+
+    @Override
+    public boolean removeRigidBody(EntityRef entity) {
+<span class="nc" id="L283">        BulletRigidBody rigidBody = entityRigidBodies.remove(entity);</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        if (rigidBody != null) {</span>
+<span class="nc" id="L285">            removeRigidBody(rigidBody);</span>
+            // wake up this entities neighbors
+<span class="nc" id="L287">            float[] radius = new float[1];</span>
+<span class="nc" id="L288">            rigidBody.rb.getCollisionShape().getBoundingSphere(new Vector3f(), radius);</span>
+<span class="nc" id="L289">            awakenArea(rigidBody.getLocation(new org.terasology.math.geom.Vector3f()), radius[0]);</span>
+<span class="nc" id="L290">            return true;</span>
+        } else {
+<span class="nc" id="L292">            logger.warn(&quot;Deleting non existing rigidBody from physics engine?! Entity: {}&quot;, entity);</span>
+<span class="nc" id="L293">            return false;</span>
+        }
+    }
+
+    @Override
+    public boolean updateRigidBody(EntityRef entity) {
+<span class="nc" id="L299">        LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L300">        RigidBodyComponent rb = entity.getComponent(RigidBodyComponent.class);</span>
+<span class="nc" id="L301">        BulletRigidBody rigidBody = entityRigidBodies.get(entity);</span>
+
+<span class="nc bnc" id="L303" title="All 2 branches missed.">        if (location == null) {</span>
+<span class="nc" id="L304">            logger.warn(&quot;Updating rigid body of entity that has no &quot;</span>
+                    + &quot;LocationComponent?! Nothing is done, except log this&quot;
+                    + &quot; warning instead. Entity: {}&quot;, entity);
+<span class="nc" id="L307">            return false;</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">        } else if (rigidBody != null) {</span>
+<span class="nc" id="L309">            float scale = location.getWorldScale();</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">            if (Math.abs(rigidBody.rb.getCollisionShape().getLocalScaling(new Vector3f()).x - scale) &gt; BulletGlobals.SIMD_EPSILON</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">                    || rigidBody.collidesWith != combineGroups(rb.collidesWith)) {</span>
+<span class="nc" id="L312">                removeRigidBody(rigidBody);</span>
+<span class="nc" id="L313">                newRigidBody(entity);</span>
+            } else {
+<span class="nc" id="L315">                rigidBody.rb.setAngularFactor(VecMath.to(rb.angularFactor));</span>
+<span class="nc" id="L316">                rigidBody.rb.setLinearFactor(VecMath.to(rb.linearFactor));</span>
+<span class="nc" id="L317">                rigidBody.rb.setFriction(rb.friction);</span>
+            }
+
+<span class="nc" id="L320">            return true;</span>
+        } else {
+            /*
+             * During the destruction of the entity it can happen that the rigged body is already destroyed while
+             * the location component changes.
+             * e.g. because another component that was attached via the LocationComponent gets removed.
+             *
+             * In such a situation it would be wrong to recreate the rigid body as it can't be updated properly after
+             * the destruction of the entity.
+             *
+             */
+<span class="nc" id="L331">            return false;</span>
+        }
+
+        // TODO: update if mass or collision groups change
+    }
+
+    @Override
+    public boolean hasRigidBody(EntityRef entity) {
+<span class="nc" id="L339">        return entityRigidBodies.containsKey(entity);</span>
+    }
+
+    @Override
+    public RigidBody getRigidBody(EntityRef entity) {
+<span class="nc" id="L344">        RigidBody rb = entityRigidBodies.get(entity);</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">        if (rb == null) {</span>
+<span class="nc" id="L346">            rb = newRigidBody(entity);</span>
+        }
+<span class="nc" id="L348">        return rb;</span>
+    }
+
+    @Override
+    public boolean removeTrigger(EntityRef entity) {
+<span class="nc" id="L353">        GhostObject ghost = entityTriggers.remove(entity);</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">        if (ghost != null) {</span>
+<span class="nc" id="L355">            removeCollider(ghost);</span>
+<span class="nc" id="L356">            return true;</span>
+        } else {
+<span class="nc" id="L358">            return false;</span>
+        }
+    }
+
+    @Override
+    //TODO: update if detectGroups changed
+    public boolean updateTrigger(EntityRef entity) {
+<span class="nc" id="L365">        LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L366">        PairCachingGhostObject triggerObj = entityTriggers.get(entity);</span>
+
+<span class="nc bnc" id="L368" title="All 2 branches missed.">        if (location == null) {</span>
+<span class="nc" id="L369">            logger.warn(&quot;Trying to update or create trigger of entity that has no LocationComponent?! Entity: {}&quot;, entity);</span>
+<span class="nc" id="L370">            return false;</span>
+        }
+<span class="nc bnc" id="L372" title="All 2 branches missed.">        if (triggerObj != null) {</span>
+<span class="nc" id="L373">            float scale = location.getWorldScale();</span>
+<span class="nc bnc" id="L374" title="All 2 branches missed.">            if (Math.abs(triggerObj.getCollisionShape().getLocalScaling(new Vector3f()).x - scale) &gt; BulletGlobals.SIMD_EPSILON) {</span>
+<span class="nc" id="L375">                discreteDynamicsWorld.removeCollisionObject(triggerObj);</span>
+<span class="nc" id="L376">                newTrigger(entity);</span>
+            } else {
+<span class="nc" id="L378">                Quat4f worldRotation = VecMath.to(location.getWorldRotation());</span>
+<span class="nc" id="L379">                Vector3f worldPosition = VecMath.to(location.getWorldPosition());</span>
+<span class="nc" id="L380">                triggerObj.setWorldTransform(new Transform(new Matrix4f(worldRotation, worldPosition, 1.0f)));</span>
+            }
+<span class="nc" id="L382">            return true;</span>
+        } else {
+<span class="nc" id="L384">            newTrigger(entity);</span>
+<span class="nc" id="L385">            return false;</span>
+        }
+    }
+
+    @Override
+    public boolean hasTrigger(EntityRef entity) {
+<span class="nc" id="L391">        return entityTriggers.containsKey(entity);</span>
+    }
+
+    @Override
+    public boolean removeCharacterCollider(EntityRef entity) {
+<span class="nc" id="L396">        BulletCharacterMoverCollider toRemove = entityColliders.remove(entity);</span>
+<span class="nc bnc" id="L397" title="All 2 branches missed.">        if (toRemove == null) {</span>
+<span class="nc" id="L398">            logger.warn(&quot;Trying to remove CharacterCollider of entity that has &quot;</span>
+                    + &quot;no CharacterCollider in the physics engine. Entity: {}&quot;, entity);
+<span class="nc" id="L400">            return false;</span>
+        } else {
+<span class="nc" id="L402">            removeCollider(toRemove.collider);</span>
+<span class="nc" id="L403">            return true;</span>
+        }
+    }
+
+    @Override
+    public CharacterCollider getCharacterCollider(EntityRef entity) {
+<span class="nc" id="L409">        CharacterCollider cc = entityColliders.get(entity);</span>
+<span class="nc bnc" id="L410" title="All 2 branches missed.">        if (cc == null) {</span>
+<span class="nc" id="L411">            cc = createCharacterCollider(entity);</span>
+        }
+<span class="nc" id="L413">        return cc;</span>
+    }
+
+    @Override
+    public boolean hasCharacterCollider(EntityRef entity) {
+<span class="nc" id="L418">        return entityColliders.containsKey(entity);</span>
+    }
+
+    @Override
+    public Set&lt;EntityRef&gt; getPhysicsEntities() {
+<span class="nc" id="L423">        return ImmutableSet.copyOf(entityRigidBodies.keySet());</span>
+    }
+
+    @Override
+    public Iterator&lt;EntityRef&gt; physicsEntitiesIterator() {
+<span class="nc" id="L428">        return entityRigidBodies.keySet().iterator();</span>
+    }
+
+    @Override
+    public void awakenArea(org.terasology.math.geom.Vector3f pos, float radius) {
+<span class="nc" id="L433">        Vector3f min = new Vector3f(VecMath.to(pos));</span>
+<span class="nc" id="L434">        min.sub(new Vector3f(0.6f, 0.6f, 0.6f));</span>
+<span class="nc" id="L435">        Vector3f max = new Vector3f(VecMath.to(pos));</span>
+<span class="nc" id="L436">        max.add(new Vector3f(0.6f, 0.6f, 0.6f));</span>
+<span class="nc" id="L437">        discreteDynamicsWorld.awakenRigidBodiesInArea(min, max);</span>
+<span class="nc" id="L438">    }</span>
+
+    @Override
+    public float getEpsilon() {
+<span class="nc" id="L442">        return BulletGlobals.SIMD_EPSILON;</span>
+    }
+
+    //*******************Private helper methods**************************\\
+
+    /**
+     * Creates a new trigger.
+     *
+     * @param entity the entity to create a trigger for.
+     */
+    private boolean newTrigger(EntityRef entity) {
+<span class="nc" id="L453">        LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L454">        TriggerComponent trigger = entity.getComponent(TriggerComponent.class);</span>
+<span class="nc" id="L455">        ConvexShape shape = getShapeFor(entity);</span>
+<span class="nc bnc" id="L456" title="All 6 branches missed.">        if (shape != null &amp;&amp; location != null &amp;&amp; trigger != null) {</span>
+<span class="nc" id="L457">            float scale = location.getWorldScale();</span>
+<span class="nc" id="L458">            shape.setLocalScaling(new Vector3f(scale, scale, scale));</span>
+<span class="nc" id="L459">            List&lt;CollisionGroup&gt; detectGroups = Lists.newArrayList(trigger.detectGroups);</span>
+<span class="nc" id="L460">            CollisionGroup collisionGroup = trigger.collisionGroup;</span>
+<span class="nc" id="L461">            PairCachingGhostObject triggerObj = createCollider(</span>
+<span class="nc" id="L462">                    VecMath.to(location.getWorldPosition()),</span>
+                    shape,
+<span class="nc" id="L464">                    collisionGroup.getFlag(),</span>
+<span class="nc" id="L465">                    combineGroups(detectGroups),</span>
+                    CollisionFlags.NO_CONTACT_RESPONSE);
+<span class="nc" id="L467">            triggerObj.setUserPointer(entity);</span>
+<span class="nc" id="L468">            PairCachingGhostObject oldTrigger = entityTriggers.put(entity, triggerObj);</span>
+<span class="nc bnc" id="L469" title="All 2 branches missed.">            if (oldTrigger != null) {</span>
+<span class="nc" id="L470">                logger.warn(&quot;Creating a trigger for an entity that already has a trigger. &quot; +</span>
+                        &quot;Multiple trigger pre entity are not supported. Removing old one. Entity: {}&quot;, entity);
+<span class="nc" id="L472">                removeCollider(oldTrigger);</span>
+<span class="nc" id="L473">                return false;</span>
+            } else {
+<span class="nc" id="L475">                return true;</span>
+            }
+        } else {
+<span class="nc" id="L478">            logger.warn(&quot;Trying to create trigger for entity without ShapeComponent or without LocationComponent or without TriggerComponent. Entity: {}&quot;, entity);</span>
+<span class="nc" id="L479">            return false;</span>
+        }
+    }
+
+    /**
+     * Creates a Collider for the given entity based on the LocationComponent
+     * and CharacterMovementComponent.
+     * All collision flags are set right for a character movement component.
+     *
+     * @param owner the entity to create the collider for.
+     * @return
+     */
+    private CharacterCollider createCharacterCollider(EntityRef owner) {
+<span class="nc" id="L492">        LocationComponent locComp = owner.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L493">        CharacterMovementComponent movementComp = owner.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L494" title="All 4 branches missed.">        if (locComp == null || movementComp == null) {</span>
+<span class="nc" id="L495">            throw new IllegalArgumentException(&quot;Expected an entity with a Location component and CharacterMovementComponent.&quot;);</span>
+        }
+<span class="nc" id="L497">        Vector3f pos = VecMath.to(locComp.getWorldPosition());</span>
+<span class="nc" id="L498">        final float worldScale = locComp.getWorldScale();</span>
+<span class="nc" id="L499">        final float height = (movementComp.height - 2 * movementComp.radius) * worldScale;</span>
+<span class="nc" id="L500">        final float width = movementComp.radius * worldScale;</span>
+<span class="nc" id="L501">        ConvexShape shape = new CapsuleShape(width, height);</span>
+<span class="nc" id="L502">        shape.setMargin(0.1f);</span>
+<span class="nc" id="L503">        return createCustomCollider(pos, shape, movementComp.collisionGroup.getFlag(), combineGroups(movementComp.collidesWith),</span>
+                CollisionFlags.CHARACTER_OBJECT, owner);
+    }
+
+    private RigidBody newRigidBody(EntityRef entity) {
+<span class="nc" id="L508">        LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L509">        RigidBodyComponent rigidBody = entity.getComponent(RigidBodyComponent.class);</span>
+<span class="nc" id="L510">        ConvexShape shape = getShapeFor(entity);</span>
+<span class="nc bnc" id="L511" title="All 6 branches missed.">        if (location != null &amp;&amp; rigidBody != null &amp;&amp; shape != null) {</span>
+<span class="nc" id="L512">            float scale = location.getWorldScale();</span>
+<span class="nc" id="L513">            shape.setLocalScaling(new Vector3f(scale, scale, scale));</span>
+
+<span class="nc bnc" id="L515" title="All 2 branches missed.">            if (rigidBody.mass &lt; 1) {</span>
+<span class="nc" id="L516">                logger.warn(&quot;RigidBodyComponent.mass is set to less than 1.0, this can lead to strange behaviour, such as the objects moving through walls. &quot; +</span>
+                        &quot;Entity: {}&quot;, entity);
+            }
+<span class="nc" id="L519">            Vector3f fallInertia = new Vector3f();</span>
+<span class="nc" id="L520">            shape.calculateLocalInertia(rigidBody.mass, fallInertia);</span>
+
+<span class="nc" id="L522">            RigidBodyConstructionInfo info = new RigidBodyConstructionInfo(rigidBody.mass, new EntityMotionState(entity), shape, fallInertia);</span>
+<span class="nc" id="L523">            BulletRigidBody collider = new BulletRigidBody(info);</span>
+<span class="nc" id="L524">            collider.rb.setUserPointer(entity);</span>
+<span class="nc" id="L525">            collider.rb.setAngularFactor(VecMath.to(rigidBody.angularFactor));</span>
+<span class="nc" id="L526">            collider.rb.setLinearFactor(VecMath.to(rigidBody.linearFactor));</span>
+<span class="nc" id="L527">            collider.rb.setFriction(rigidBody.friction);</span>
+<span class="nc" id="L528">            collider.rb.setRestitution(rigidBody.restitution);</span>
+<span class="nc" id="L529">            collider.collidesWith = combineGroups(rigidBody.collidesWith);</span>
+<span class="nc" id="L530">            updateKinematicSettings(rigidBody, collider);</span>
+<span class="nc" id="L531">            BulletRigidBody oldBody = entityRigidBodies.put(entity, collider);</span>
+<span class="nc" id="L532">            addRigidBody(collider, Lists.&lt;CollisionGroup&gt;newArrayList(rigidBody.collisionGroup), rigidBody.collidesWith);</span>
+<span class="nc bnc" id="L533" title="All 2 branches missed.">            if (oldBody != null) {</span>
+<span class="nc" id="L534">                removeRigidBody(oldBody);</span>
+            }
+<span class="nc" id="L536">            collider.setVelocity(rigidBody.velocity, rigidBody.angularVelocity);</span>
+<span class="nc" id="L537">            collider.setTransform(location.getWorldPosition(), location.getWorldRotation());</span>
+<span class="nc" id="L538">            return collider;</span>
+        } else {
+<span class="nc" id="L540">            throw new IllegalArgumentException(&quot;Can only create a new rigid body for entities with a LocationComponent,&quot; +</span>
+                    &quot; RigidBodyComponent and ShapeComponent, this entity misses at least one: &quot; + entity);
+        }
+    }
+
+    private void removeCollider(CollisionObject collider) {
+<span class="nc" id="L546">        discreteDynamicsWorld.removeCollisionObject(collider);</span>
+<span class="nc" id="L547">    }</span>
+
+    /**
+     * Creates a new Collider. Colliders are similar to rigid bodies, except
+     * that they do not respond to forces from the physics engine. They collide
+     * with other objects and other objects may move if colliding with a
+     * collider, but the collider itself will only respond to movement orders
+     * from outside the physics engine. Colliders also detect any objects
+     * colliding with them. Allowing them to be used as sensors.
+     *
+     * @param pos            The initial position of the collider.
+     * @param shape          The shape of this collider.
+     * @param groups
+     * @param filters
+     * @param collisionFlags
+     * @param entity         The entity to associate this collider with. Can be null.
+     * @return The newly created and added to the physics engine, Collider object.
+     */
+    private CharacterCollider createCustomCollider(Vector3f pos, ConvexShape shape, short groups, short filters, int collisionFlags, EntityRef entity) {
+<span class="nc bnc" id="L566" title="All 2 branches missed.">        if (entityColliders.containsKey(entity)) {</span>
+<span class="nc" id="L567">            entityColliders.remove(entity);</span>
+        }
+<span class="nc" id="L569">        final BulletCharacterMoverCollider bulletCollider = new BulletCharacterMoverCollider(pos, shape, groups, filters, collisionFlags, entity);</span>
+<span class="nc" id="L570">        entityColliders.put(entity, bulletCollider);</span>
+<span class="nc" id="L571">        return bulletCollider;</span>
+    }
+
+    /**
+     * To make sure the state of the physics engine is constant, all changes are
+     * stored and executed at the same time. This method executes the stored
+     * additions and removals of bodies to and from the physics engine. It also
+     * ensures that impulses requested before the body is added to the engine
+     * are applied after the body is added to the engine.
+     */
+    // TODO: None of the above is true.
+    // TODO: This isn't necessary, create and remove bodies immediately
+    private synchronized void processQueuedBodies() {
+<span class="nc bnc" id="L584" title="All 2 branches missed.">        while (!insertionQueue.isEmpty()) {</span>
+<span class="nc" id="L585">            RigidBodyRequest request = insertionQueue.poll();</span>
+<span class="nc" id="L586">            discreteDynamicsWorld.addRigidBody(request.body.rb, request.groups, request.filter);</span>
+<span class="nc" id="L587">        }</span>
+<span class="nc bnc" id="L588" title="All 2 branches missed.">        while (!removalQueue.isEmpty()) {</span>
+<span class="nc" id="L589">            BulletRigidBody body = removalQueue.poll();</span>
+<span class="nc" id="L590">            discreteDynamicsWorld.removeRigidBody(body.rb);</span>
+<span class="nc" id="L591">        }</span>
+<span class="nc" id="L592">    }</span>
+
+    /**
+     * Applies all pending impulses to the corresponding rigidBodies and clears
+     * the pending impulses.
+     */
+    private void applyPendingImpulsesAndForces() {
+<span class="nc bnc" id="L599" title="All 2 branches missed.">        for (Map.Entry&lt;EntityRef, BulletRigidBody&gt; entree : entityRigidBodies.entrySet()) {</span>
+<span class="nc" id="L600">            BulletRigidBody body = entree.getValue();</span>
+<span class="nc" id="L601">            body.rb.applyCentralImpulse(body.pendingImpulse);</span>
+<span class="nc" id="L602">            body.rb.applyCentralForce(body.pendingForce);</span>
+<span class="nc" id="L603">            body.pendingImpulse.x = 0;</span>
+<span class="nc" id="L604">            body.pendingImpulse.y = 0;</span>
+<span class="nc" id="L605">            body.pendingImpulse.z = 0;</span>
+
+<span class="nc" id="L607">            body.pendingForce.x = 0;</span>
+<span class="nc" id="L608">            body.pendingForce.y = 0;</span>
+<span class="nc" id="L609">            body.pendingForce.z = 0;</span>
+<span class="nc" id="L610">        }</span>
+<span class="nc" id="L611">    }</span>
+
+    private void addRigidBody(BulletRigidBody body) {
+<span class="nc" id="L614">        short filter = (short) (CollisionFilterGroups.DEFAULT_FILTER | CollisionFilterGroups.STATIC_FILTER | CollisionFilterGroups.SENSOR_TRIGGER);</span>
+<span class="nc" id="L615">        insertionQueue.add(new RigidBodyRequest(body, CollisionFilterGroups.DEFAULT_FILTER, filter));</span>
+<span class="nc" id="L616">    }</span>
+
+    private void addRigidBody(BulletRigidBody body, List&lt;CollisionGroup&gt; groups, List&lt;CollisionGroup&gt; filter) {
+<span class="nc" id="L619">        insertionQueue.add(new RigidBodyRequest(body, combineGroups(groups), combineGroups(filter)));</span>
+<span class="nc" id="L620">    }</span>
+
+    private void addRigidBody(BulletRigidBody body, short groups, short filter) {
+<span class="nc" id="L623">        insertionQueue.add(new RigidBodyRequest(body, groups, (short) (filter | CollisionFilterGroups.SENSOR_TRIGGER)));</span>
+<span class="nc" id="L624">    }</span>
+
+    private void removeRigidBody(BulletRigidBody body) {
+<span class="nc" id="L627">        removalQueue.add(body);</span>
+<span class="nc" id="L628">    }</span>
+
+    /**
+     * Returns the shape belonging to the given entity. It currently knows 4
+     * different shapes: Sphere, Capsule, Cylinder or arbitrary.
+     * The shape is determined based on the shape component of the given entity.
+     * If the entity has somehow got multiple shapes, only one is picked. The
+     * order of priority is: Sphere, Capsule, Cylinder, arbitrary.
+     * &lt;br&gt;&lt;br&gt;
+     * TODO: Flyweight this (take scale as parameter)
+     *
+     * @param entity the entity to get the shape of.
+     * @return the shape of the entity, ready to be used by Bullet.
+     */
+    private ConvexShape getShapeFor(EntityRef entity) {
+<span class="nc" id="L643">        BoxShapeComponent box = entity.getComponent(BoxShapeComponent.class);</span>
+<span class="nc bnc" id="L644" title="All 2 branches missed.">        if (box != null) {</span>
+<span class="nc" id="L645">            Vector3f halfExtents = new Vector3f(VecMath.to(box.extents));</span>
+<span class="nc" id="L646">            halfExtents.scale(0.5f);</span>
+<span class="nc" id="L647">            return new BoxShape(halfExtents);</span>
+        }
+<span class="nc" id="L649">        SphereShapeComponent sphere = entity.getComponent(SphereShapeComponent.class);</span>
+<span class="nc bnc" id="L650" title="All 2 branches missed.">        if (sphere != null) {</span>
+<span class="nc" id="L651">            return new SphereShape(sphere.radius);</span>
+        }
+<span class="nc" id="L653">        CapsuleShapeComponent capsule = entity.getComponent(CapsuleShapeComponent.class);</span>
+<span class="nc bnc" id="L654" title="All 2 branches missed.">        if (capsule != null) {</span>
+<span class="nc" id="L655">            return new CapsuleShape(capsule.radius, capsule.height);</span>
+        }
+<span class="nc" id="L657">        CylinderShapeComponent cylinder = entity.getComponent(CylinderShapeComponent.class);</span>
+<span class="nc bnc" id="L658" title="All 2 branches missed.">        if (cylinder != null) {</span>
+<span class="nc" id="L659">            return new CylinderShape(new Vector3f(cylinder.radius, 0.5f * cylinder.height, cylinder.radius));</span>
+        }
+<span class="nc" id="L661">        HullShapeComponent hull = entity.getComponent(HullShapeComponent.class);</span>
+<span class="nc bnc" id="L662" title="All 2 branches missed.">        if (hull != null) {</span>
+<span class="nc" id="L663">            ObjectArrayList&lt;Vector3f&gt; verts = new ObjectArrayList&lt;&gt;();</span>
+<span class="nc" id="L664">            TFloatIterator iterator = hull.sourceMesh.getVertices().iterator();</span>
+<span class="nc bnc" id="L665" title="All 2 branches missed.">            while (iterator.hasNext()) {</span>
+<span class="nc" id="L666">                Vector3f newVert = new Vector3f();</span>
+<span class="nc" id="L667">                newVert.x = iterator.next();</span>
+<span class="nc" id="L668">                newVert.y = iterator.next();</span>
+<span class="nc" id="L669">                newVert.z = iterator.next();</span>
+<span class="nc" id="L670">                verts.add(newVert);</span>
+<span class="nc" id="L671">            }</span>
+<span class="nc" id="L672">            return new ConvexHullShape(verts);</span>
+        }
+<span class="nc" id="L674">        CharacterMovementComponent characterMovementComponent = entity.getComponent(CharacterMovementComponent.class);</span>
+<span class="nc bnc" id="L675" title="All 2 branches missed.">        if (characterMovementComponent != null) {</span>
+<span class="nc" id="L676">            return new CapsuleShape(characterMovementComponent.radius, characterMovementComponent.height);</span>
+        }
+<span class="nc" id="L678">        logger.error(&quot;Creating physics object that requires a ShapeComponent or CharacterMovementComponent, but has neither. Entity: {}&quot;, entity);</span>
+<span class="nc" id="L679">        throw new IllegalArgumentException(&quot;Creating physics object that requires a ShapeComponent or CharacterMovementComponent, but has neither. Entity: &quot; + entity);</span>
+    }
+
+    private void updateKinematicSettings(RigidBodyComponent rigidBody, BulletRigidBody collider) {
+<span class="nc bnc" id="L683" title="All 2 branches missed.">        if (rigidBody.kinematic) {</span>
+<span class="nc" id="L684">            collider.rb.setCollisionFlags(collider.rb.getCollisionFlags() | CollisionFlags.KINEMATIC_OBJECT);</span>
+<span class="nc" id="L685">            collider.rb.setActivationState(CollisionObject.DISABLE_DEACTIVATION);</span>
+        } else {
+<span class="nc" id="L687">            collider.rb.setCollisionFlags(collider.rb.getCollisionFlags() &amp; ~CollisionFlags.KINEMATIC_OBJECT);</span>
+<span class="nc" id="L688">            collider.rb.setActivationState(CollisionObject.ACTIVE_TAG);</span>
+        }
+<span class="nc" id="L690">    }</span>
+
+    private PairCachingGhostObject createCollider(Vector3f pos, ConvexShape shape, short groups, short filters, int collisionFlags) {
+<span class="nc" id="L693">        Transform startTransform = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), pos, 1.0f));</span>
+<span class="nc" id="L694">        PairCachingGhostObject result = new PairCachingGhostObject();</span>
+<span class="nc" id="L695">        result.setWorldTransform(startTransform);</span>
+<span class="nc" id="L696">        result.setCollisionShape(shape);</span>
+<span class="nc" id="L697">        result.setCollisionFlags(collisionFlags);</span>
+<span class="nc" id="L698">        discreteDynamicsWorld.addCollisionObject(result, groups, filters);</span>
+<span class="nc" id="L699">        return result;</span>
+    }
+
+    private Collection&lt;? extends PhysicsSystem.CollisionPair&gt; getNewCollisionPairs() {
+<span class="nc" id="L703">        List&lt;PhysicsSystem.CollisionPair&gt; collisionPairs = Lists.newArrayList();</span>
+
+<span class="nc" id="L705">        DynamicsWorld world = discreteDynamicsWorld;</span>
+<span class="nc" id="L706">        ObjectArrayList&lt;PersistentManifold&gt; manifolds = new ObjectArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L707" title="All 2 branches missed.">        for (PairCachingGhostObject trigger : entityTriggers.values()) {</span>
+<span class="nc" id="L708">            EntityRef entity = (EntityRef) trigger.getUserPointer();</span>
+<span class="nc bnc" id="L709" title="All 2 branches missed.">            for (BroadphasePair initialPair : trigger.getOverlappingPairCache().getOverlappingPairArray()) {</span>
+<span class="nc" id="L710">                EntityRef otherEntity = null;</span>
+<span class="nc bnc" id="L711" title="All 2 branches missed.">                if (initialPair.pProxy0.clientObject == trigger) {</span>
+<span class="nc bnc" id="L712" title="All 2 branches missed.">                    if (((CollisionObject) initialPair.pProxy1.clientObject).getUserPointer() instanceof EntityRef) {</span>
+<span class="nc" id="L713">                        otherEntity = (EntityRef) ((CollisionObject) initialPair.pProxy1.clientObject).getUserPointer();</span>
+                    }
+                } else {
+<span class="nc bnc" id="L716" title="All 2 branches missed.">                    if (((CollisionObject) initialPair.pProxy0.clientObject).getUserPointer() instanceof EntityRef) {</span>
+<span class="nc" id="L717">                        otherEntity = (EntityRef) ((CollisionObject) initialPair.pProxy0.clientObject).getUserPointer();</span>
+                    }
+                }
+<span class="nc bnc" id="L720" title="All 4 branches missed.">                if (otherEntity == null || otherEntity == EntityRef.NULL) {</span>
+<span class="nc" id="L721">                    continue;</span>
+                }
+<span class="nc" id="L723">                BroadphasePair pair = world.getPairCache().findPair(initialPair.pProxy0, initialPair.pProxy1);</span>
+<span class="nc bnc" id="L724" title="All 2 branches missed.">                if (pair == null) {</span>
+<span class="nc" id="L725">                    continue;</span>
+                }
+<span class="nc" id="L727">                manifolds.clear();</span>
+<span class="nc bnc" id="L728" title="All 2 branches missed.">                if (pair.algorithm != null) {</span>
+<span class="nc" id="L729">                    pair.algorithm.getAllContactManifolds(manifolds);</span>
+                }
+<span class="nc bnc" id="L731" title="All 2 branches missed.">                for (PersistentManifold manifold : manifolds) {</span>
+<span class="nc bnc" id="L732" title="All 2 branches missed.">                    for (int point = 0; point &lt; manifold.getNumContacts(); ++point) {</span>
+<span class="nc" id="L733">                        ManifoldPoint manifoldPoint = manifold.getContactPoint(point);</span>
+<span class="nc bnc" id="L734" title="All 2 branches missed.">                        if (manifoldPoint.getDistance() &lt; 0) {</span>
+<span class="nc" id="L735">                            collisionPairs.add(new PhysicsSystem.CollisionPair(entity, otherEntity,</span>
+<span class="nc" id="L736">                                    VecMath.from(manifoldPoint.positionWorldOnA),</span>
+<span class="nc" id="L737">                                    VecMath.from(manifoldPoint.positionWorldOnB),</span>
+<span class="nc" id="L738">                                    manifoldPoint.getDistance(),</span>
+<span class="nc" id="L739">                                    VecMath.from(manifoldPoint.normalWorldOnB)));</span>
+<span class="nc" id="L740">                            break;</span>
+                        }
+                    }
+<span class="nc" id="L743">                }</span>
+<span class="nc" id="L744">            }</span>
+<span class="nc" id="L745">        }</span>
+<span class="nc" id="L746">        return collisionPairs;</span>
+    }
+
+    //********************Private helper classes*********************\\
+
+    private static class ClosestRayResultWithUserDataCallbackExcludingCollisionIds extends CollisionWorld.ClosestRayResultWithUserDataCallback {
+        Set&lt;Integer&gt; excludedIds;
+
+        ClosestRayResultWithUserDataCallbackExcludingCollisionIds(Vector3f rayFromWorld, Vector3f rayToWorld, Set&lt;Integer&gt; excludedIds) {
+<span class="nc" id="L755">            super(rayFromWorld, rayToWorld);</span>
+<span class="nc" id="L756">            this.excludedIds = excludedIds;</span>
+<span class="nc" id="L757">        }</span>
+
+        @Override
+        public boolean needsCollision(BroadphaseProxy proxy0) {
+<span class="nc bnc" id="L761" title="All 2 branches missed.">            if (excludedIds.contains(proxy0.getUid())) {</span>
+<span class="nc" id="L762">                return false;</span>
+            } else {
+<span class="nc" id="L764">                return super.needsCollision(proxy0);</span>
+            }
+        }
+    }
+
+    private static class RigidBodyRequest {
+        final BulletRigidBody body;
+        final short groups;
+        final short filter;
+
+<span class="nc" id="L774">        RigidBodyRequest(BulletRigidBody body, short groups, short filter) {</span>
+<span class="nc" id="L775">            this.body = body;</span>
+<span class="nc" id="L776">            this.groups = groups;</span>
+<span class="nc" id="L777">            this.filter = filter;</span>
+<span class="nc" id="L778">        }</span>
+    }
+
+    private static class BulletRigidBody implements RigidBody {
+
+        public final com.bulletphysics.dynamics.RigidBody rb;
+        public short collidesWith;
+<span class="nc" id="L785">        private final Transform pooledTransform = new Transform();</span>
+<span class="nc" id="L786">        private final Vector3f pendingImpulse = new Vector3f();</span>
+<span class="nc" id="L787">        private final Vector3f pendingForce = new Vector3f();</span>
+
+<span class="nc" id="L789">        BulletRigidBody(RigidBodyConstructionInfo info) {</span>
+<span class="nc" id="L790">            rb = new com.bulletphysics.dynamics.RigidBody(info);</span>
+<span class="nc" id="L791">        }</span>
+
+        @Override
+        public void applyImpulse(org.terasology.math.geom.Vector3f impulse) {
+<span class="nc" id="L795">            pendingImpulse.add(VecMath.to(impulse));</span>
+<span class="nc" id="L796">        }</span>
+
+        @Override
+        public void applyForce(org.terasology.math.geom.Vector3f force) {
+<span class="nc" id="L800">            pendingForce.add(VecMath.to(force));</span>
+<span class="nc" id="L801">        }</span>
+
+        @Override
+        public void translate(org.terasology.math.geom.Vector3f translation) {
+<span class="nc" id="L805">            rb.translate(VecMath.to(translation));</span>
+<span class="nc" id="L806">        }</span>
+
+        @Override
+        public org.terasology.math.geom.Quat4f getOrientation(org.terasology.math.geom.Quat4f out) {
+<span class="nc" id="L810">            Quat4f vm = VecMath.to(out);</span>
+<span class="nc" id="L811">            rb.getOrientation(vm);</span>
+<span class="nc" id="L812">            out.set(vm.x, vm.y, vm.z, vm.w);</span>
+<span class="nc" id="L813">            return out;</span>
+        }
+
+        @Override
+        public org.terasology.math.geom.Vector3f getLocation(org.terasology.math.geom.Vector3f out) {
+<span class="nc" id="L818">            Vector3f vm = VecMath.to(out);</span>
+<span class="nc" id="L819">            rb.getCenterOfMassPosition(vm);</span>
+<span class="nc" id="L820">            out.set(vm.x, vm.y, vm.z);</span>
+<span class="nc" id="L821">            return out;</span>
+        }
+
+        @Override
+        public org.terasology.math.geom.Vector3f getLinearVelocity(org.terasology.math.geom.Vector3f out) {
+<span class="nc" id="L826">            Vector3f vm = VecMath.to(out);</span>
+<span class="nc" id="L827">            rb.getLinearVelocity(vm);</span>
+<span class="nc" id="L828">            out.set(vm.x, vm.y, vm.z);</span>
+<span class="nc" id="L829">            return out;</span>
+        }
+
+        @Override
+        public org.terasology.math.geom.Vector3f getAngularVelocity(org.terasology.math.geom.Vector3f out) {
+<span class="nc" id="L834">            Vector3f vm = VecMath.to(out);</span>
+<span class="nc" id="L835">            rb.getAngularVelocity(vm);</span>
+<span class="nc" id="L836">            out.set(vm.x, vm.y, vm.z);</span>
+<span class="nc" id="L837">            return out;</span>
+        }
+
+        @Override
+        public void setLinearVelocity(org.terasology.math.geom.Vector3f value) {
+<span class="nc" id="L842">            rb.setLinearVelocity(VecMath.to(value));</span>
+<span class="nc" id="L843">        }</span>
+
+        @Override
+        public void setAngularVelocity(org.terasology.math.geom.Vector3f value) {
+<span class="nc" id="L847">            rb.setAngularVelocity(VecMath.to(value));</span>
+<span class="nc" id="L848">        }</span>
+
+        @Override
+        public void setOrientation(org.terasology.math.geom.Quat4f orientation) {
+<span class="nc" id="L852">            rb.getWorldTransform(pooledTransform);</span>
+<span class="nc" id="L853">            pooledTransform.setRotation(VecMath.to(orientation));</span>
+<span class="nc" id="L854">            rb.proceedToTransform(pooledTransform);</span>
+<span class="nc" id="L855">        }</span>
+
+        @Override
+        public void setLocation(org.terasology.math.geom.Vector3f location) {
+<span class="nc" id="L859">            rb.getWorldTransform(pooledTransform);</span>
+<span class="nc" id="L860">            pooledTransform.origin.set(VecMath.to(location));</span>
+<span class="nc" id="L861">            rb.proceedToTransform(pooledTransform);</span>
+<span class="nc" id="L862">        }</span>
+
+        @Override
+        public void setVelocity(org.terasology.math.geom.Vector3f linear, org.terasology.math.geom.Vector3f angular) {
+<span class="nc" id="L866">            rb.setLinearVelocity(VecMath.to(linear));</span>
+<span class="nc" id="L867">            rb.setAngularVelocity(VecMath.to(angular));</span>
+<span class="nc" id="L868">        }</span>
+
+        @Override
+        public void setTransform(org.terasology.math.geom.Vector3f location, org.terasology.math.geom.Quat4f orientation) {
+<span class="nc" id="L872">            rb.getWorldTransform(pooledTransform);</span>
+<span class="nc" id="L873">            pooledTransform.origin.set(VecMath.to(location));</span>
+<span class="nc" id="L874">            pooledTransform.setRotation(VecMath.to(orientation));</span>
+<span class="nc" id="L875">            rb.proceedToTransform(pooledTransform);</span>
+<span class="nc" id="L876">        }</span>
+
+        @Override
+        public boolean isActive() {
+<span class="nc" id="L880">            return rb.isActive();</span>
+        }
+    }
+
+    private final class BulletCharacterMoverCollider implements CharacterCollider {
+
+<span class="nc" id="L886">        boolean pending = true;</span>
+
+<span class="nc" id="L888">        private final Transform temp = new Transform();</span>
+
+        //If a class can figure out that its Collider is a BulletCollider, it
+        //is allowed to gain direct access to the bullet body:
+        private final PairCachingGhostObject collider;
+
+        private BulletCharacterMoverCollider(Vector3f pos, ConvexShape shape, List&lt;CollisionGroup&gt; groups, List&lt;CollisionGroup&gt; filters, EntityRef owner) {
+<span class="nc" id="L895">            this(pos, shape, groups, filters, 0, owner);</span>
+<span class="nc" id="L896">        }</span>
+
+        private BulletCharacterMoverCollider(Vector3f pos, ConvexShape shape, List&lt;CollisionGroup&gt; groups, List&lt;CollisionGroup&gt; filters, int collisionFlags, EntityRef owner) {
+<span class="nc" id="L899">            this(pos, shape, combineGroups(groups), combineGroups(filters), collisionFlags, owner);</span>
+<span class="nc" id="L900">        }</span>
+
+<span class="nc" id="L902">        private BulletCharacterMoverCollider(Vector3f pos, ConvexShape shape, short groups, short filters, int collisionFlags, EntityRef owner) {</span>
+<span class="nc" id="L903">            collider = createCollider(pos, shape, groups, filters, collisionFlags);</span>
+<span class="nc" id="L904">            collider.setUserPointer(owner);</span>
+<span class="nc" id="L905">        }</span>
+
+        @Override
+        public boolean isPending() {
+<span class="nc" id="L909">            return pending;</span>
+        }
+
+        @Override
+        public org.terasology.math.geom.Vector3f getLocation() {
+<span class="nc" id="L914">            collider.getWorldTransform(temp);</span>
+<span class="nc" id="L915">            return new org.terasology.math.geom.Vector3f(temp.origin.x, temp.origin.y, temp.origin.z);</span>
+        }
+
+        @Override
+        public void setLocation(org.terasology.math.geom.Vector3f loc) {
+<span class="nc" id="L920">            collider.getWorldTransform(temp);</span>
+<span class="nc" id="L921">            temp.origin.set(VecMath.to(loc));</span>
+<span class="nc" id="L922">            collider.setWorldTransform(temp);</span>
+<span class="nc" id="L923">        }</span>
+
+        @Override
+        public BulletSweepCallback sweep(org.terasology.math.geom.Vector3f startPos, org.terasology.math.geom.Vector3f endPos, float allowedPenetration, float slopeFactor) {
+<span class="nc" id="L927">            Transform startTransform = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), VecMath.to(startPos), 1.0f));</span>
+<span class="nc" id="L928">            Transform endTransform = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), VecMath.to(endPos), 1.0f));</span>
+<span class="nc" id="L929">            BulletSweepCallback callback = new BulletSweepCallback(collider, new org.terasology.math.geom.Vector3f(0, 1, 0), slopeFactor);</span>
+<span class="nc" id="L930">            callback.collisionFilterGroup = collider.getBroadphaseHandle().collisionFilterGroup;</span>
+<span class="nc" id="L931">            callback.collisionFilterMask = collider.getBroadphaseHandle().collisionFilterMask;</span>
+<span class="nc" id="L932">            callback.collisionFilterMask = (short) (callback.collisionFilterMask &amp; (~StandardCollisionGroup.SENSOR.getFlag()));</span>
+<span class="nc" id="L933">            collider.convexSweepTest((ConvexShape) (collider.getCollisionShape()), startTransform, endTransform, callback, allowedPenetration);</span>
+<span class="nc" id="L934">            return callback;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,402 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ColumnLayout.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layouts</a> &gt; <span class="el_source">ColumnLayout.java</span></div><h1>ColumnLayout.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layouts;
+
+import com.google.common.collect.Lists;
+import com.google.gson.annotations.SerializedName;
+import org.terasology.input.events.MouseButtonEvent;
+import org.terasology.input.events.MouseWheelEvent;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreLayout;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.LayoutHint;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+
+import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ */
+public class ColumnLayout extends CoreLayout&lt;LayoutHint&gt; {
+
+<span class="pc" id="L40">    @LayoutConfig</span>
+    private int columns = 1;
+    @LayoutConfig
+    private int horizontalSpacing;
+    @LayoutConfig
+    private int verticalSpacing;
+    @LayoutConfig
+    private boolean autoSizeColumns;
+<span class="pc" id="L48">    @LayoutConfig</span>
+    private boolean fillVerticalSpace = true;
+    @LayoutConfig
+    private boolean extendLast;
+
+<span class="pc" id="L53">    private List&lt;UIWidget&gt; widgetList = Lists.newArrayList();</span>
+
+<span class="pc" id="L55">    @LayoutConfig</span>
+    @SerializedName(&quot;column-widths&quot;)
+    private float[] columnWidths = new float[]{1.0f};
+
+<span class="fc" id="L59">    public ColumnLayout() {</span>
+<span class="fc" id="L60">    }</span>
+
+    public ColumnLayout(String id) {
+<span class="nc" id="L63">        super(id);</span>
+<span class="nc" id="L64">    }</span>
+
+    public void addWidget(UIWidget widget) {
+<span class="fc" id="L67">        widgetList.add(widget);</span>
+<span class="fc" id="L68">    }</span>
+
+    @Override
+    public void removeWidget(UIWidget widget) {
+<span class="nc" id="L72">        widgetList.remove(widget);</span>
+<span class="nc" id="L73">    }</span>
+
+    @Override
+    public void removeAllWidgets() {
+<span class="nc" id="L77">        widgetList.clear();</span>
+<span class="nc" id="L78">    }</span>
+
+    public int getColumns() {
+<span class="nc" id="L81">        return columns;</span>
+    }
+
+    public void setColumns(int columns) {
+<span class="fc" id="L85">        this.columns = columns;</span>
+<span class="fc" id="L86">        columnWidths = new float[columns];</span>
+<span class="fc" id="L87">        float equalWidth = 1.0f / columns;</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        for (int i = 0; i &lt; columnWidths.length; ++i) {</span>
+<span class="fc" id="L89">            columnWidths[i] = equalWidth;</span>
+        }
+<span class="fc" id="L91">    }</span>
+
+    public void setColumnWidths(float... widths) {
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        if (widths.length &gt; columns) {</span>
+<span class="nc" id="L95">            throw new IllegalArgumentException(&quot;More widths than columns&quot;);</span>
+        }
+
+<span class="fc" id="L98">        float total = 0;</span>
+<span class="fc" id="L99">        int columnIndex = 0;</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        while (columnIndex &lt; widths.length) {</span>
+<span class="fc" id="L101">            total += widths[columnIndex];</span>
+<span class="fc" id="L102">            columnWidths[columnIndex] = widths[columnIndex];</span>
+<span class="fc" id="L103">            columnIndex++;</span>
+        }
+
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        if (total &gt; 1.0f) {</span>
+<span class="nc" id="L107">            throw new IllegalArgumentException(&quot;Total width exceeds 1.0&quot;);</span>
+        }
+
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">        if (columnIndex &lt; columnWidths.length) {</span>
+<span class="nc" id="L111">            float remainingWidth = 1.0f - total;</span>
+<span class="nc" id="L112">            float widthPerColumn = remainingWidth / (columnWidths.length - columnIndex);</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">            while (columnIndex &lt; columnWidths.length) {</span>
+<span class="nc" id="L114">                columnWidths[columnIndex++] = widthPerColumn;</span>
+            }
+        }
+<span class="fc" id="L117">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">        if (!widgetList.isEmpty()) {</span>
+<span class="fc" id="L122">            Vector2i availableSize = canvas.size();</span>
+<span class="fc" id="L123">            int numRows = TeraMath.ceilToInt((float) widgetList.size() / columns);</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">            if (numRows &gt; 0) {</span>
+<span class="fc" id="L125">                availableSize.y -= verticalSpacing * (numRows - 1);</span>
+            }
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">            if (columns &gt; 0) {</span>
+<span class="fc" id="L128">                availableSize.x -= horizontalSpacing * (columns - 1);</span>
+            }
+
+<span class="fc" id="L131">            List&lt;List&lt;UIWidget&gt;&gt; rows = Lists.newArrayList(getRowIterator());</span>
+<span class="fc" id="L132">            List&lt;RowInfo&gt; rowInfos = Lists.newArrayList();</span>
+<span class="fc" id="L133">            rowInfos.addAll(rows.stream().map(row -&gt; calculateRowSize(row, canvas, availableSize)).collect(Collectors.toList()));</span>
+
+<span class="fc" id="L135">            int[] minWidths = new int[columns];</span>
+<span class="fc" id="L136">            int minRowWidth = 0;</span>
+<span class="fc" id="L137">            int rowOffsetX = 0;</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">            if (autoSizeColumns) {</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">                for (RowInfo row : rowInfos) {</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">                    for (int column = 0; column &lt; row.widgetSizes.size(); column++) {</span>
+<span class="fc" id="L141">                        minWidths[column] = Math.max(minWidths[column], row.widgetSizes.get(column).getX());</span>
+                    }
+<span class="fc" id="L143">                }</span>
+
+<span class="fc bfc" id="L145" title="All 2 branches covered.">                for (int width : minWidths) {</span>
+<span class="fc" id="L146">                    minRowWidth += width;</span>
+                }
+
+<span class="fc" id="L149">                minRowWidth += (columns - 1) * horizontalSpacing;</span>
+
+<span class="fc" id="L151">                rowOffsetX = (canvas.size().x - minRowWidth) / 2;</span>
+            } else {
+<span class="fc" id="L153">                minRowWidth = canvas.size().x;</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">                for (int i = 0; i &lt; columns; ++i) {</span>
+<span class="fc" id="L155">                    minWidths[i] = TeraMath.floorToInt((minRowWidth - (columns - 1) * (float) horizontalSpacing) * columnWidths[i]);</span>
+                }
+            }
+
+<span class="fc" id="L159">            int rowOffsetY = 0;</span>
+<span class="fc" id="L160">            int usedHeight = 0;</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">            for (RowInfo row : rowInfos) {</span>
+<span class="fc" id="L162">                usedHeight += row.height;</span>
+<span class="fc" id="L163">            }</span>
+<span class="fc" id="L164">            usedHeight += (rowInfos.size() - 1) * verticalSpacing;</span>
+
+<span class="fc" id="L166">            int excessHeight = canvas.size().y - usedHeight;</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">            if (fillVerticalSpace) {</span>
+<span class="nc bnc" id="L168" title="All 4 branches missed.">                if (extendLast &amp;&amp; numRows &gt; 0) {</span>
+                    // give all the extra space to the last entry
+<span class="nc" id="L170">                    rowInfos.get(numRows - 1).height += excessHeight;</span>
+                } else {
+                    // distribute extra height equally
+<span class="nc" id="L173">                    int extraSpacePerRow = excessHeight / rowInfos.size();</span>
+
+<span class="nc bnc" id="L175" title="All 2 branches missed.">                    for (RowInfo row : rowInfos) {</span>
+<span class="nc" id="L176">                        row.height += extraSpacePerRow;</span>
+<span class="nc" id="L177">                    }</span>
+<span class="nc" id="L178">                }</span>
+            } else {
+<span class="fc" id="L180">                rowOffsetY = excessHeight / 2;</span>
+            }
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            for (int rowIndex = 0; rowIndex &lt; rows.size(); ++rowIndex) {</span>
+<span class="fc" id="L183">                List&lt;UIWidget&gt; row = rows.get(rowIndex);</span>
+<span class="fc" id="L184">                RowInfo rowInfo = rowInfos.get(rowIndex);</span>
+<span class="fc" id="L185">                int cellOffsetX = rowOffsetX;</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">                for (int i = 0; i &lt; row.size(); ++i) {</span>
+<span class="fc" id="L187">                    UIWidget widget = row.get(i);</span>
+<span class="fc" id="L188">                    int rowHeight = rowInfo.height;</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">                    if (widget != null) {</span>
+<span class="fc" id="L190">                        Rect2i drawRegion = Rect2i.createFromMinAndSize(cellOffsetX, rowOffsetY, minWidths[i], rowHeight);</span>
+<span class="fc" id="L191">                        canvas.drawWidget(widget, drawRegion);</span>
+                    }
+<span class="fc" id="L193">                    cellOffsetX += minWidths[i] + horizontalSpacing;</span>
+                }
+<span class="fc" id="L195">                rowOffsetY += rowInfo.height + verticalSpacing;</span>
+            }
+        }
+<span class="fc" id="L198">    }</span>
+
+    private RowInfo calculateRowSize(List&lt;UIWidget&gt; row, Canvas canvas, Vector2i areaHint) {
+<span class="fc" id="L201">        int availableWidth = areaHint.x - horizontalSpacing * (columns - 1);</span>
+
+<span class="fc" id="L203">        RowInfo rowInfo = new RowInfo();</span>
+
+<span class="pc bpc" id="L205" title="1 of 4 branches missed.">        for (int i = 0; i &lt; columns &amp;&amp; i &lt; row.size(); ++i) {</span>
+<span class="fc" id="L206">            UIWidget widget = row.get(i);</span>
+<span class="fc" id="L207">            Vector2i cellSize = new Vector2i(availableWidth, areaHint.y);</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">            if (!autoSizeColumns) {</span>
+<span class="fc" id="L209">                cellSize.x = (int) (cellSize.x * columnWidths[i]);</span>
+            }
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">            if (widget != null) {</span>
+<span class="fc" id="L212">                Vector2i contentSize = canvas.calculateRestrictedSize(widget, cellSize);</span>
+<span class="fc" id="L213">                rowInfo.widgetSizes.add(contentSize);</span>
+<span class="fc" id="L214">                rowInfo.height = Math.max(rowInfo.height, contentSize.y);</span>
+<span class="fc" id="L215">            } else {</span>
+<span class="nc" id="L216">                rowInfo.widgetSizes.add(new Vector2i(0, 0));</span>
+            }
+        }
+<span class="fc" id="L219">        return rowInfo;</span>
+    }
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i areaHint) {
+<span class="fc" id="L224">        Vector2i availableSize = new Vector2i(areaHint);</span>
+<span class="fc" id="L225">        int numRows = TeraMath.ceilToInt((float) widgetList.size() / columns);</span>
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">        if (numRows &gt; 0) {</span>
+<span class="fc" id="L227">            availableSize.y = Math.max(1, availableSize.y - verticalSpacing * (numRows - 1));</span>
+        }
+<span class="pc bpc" id="L229" title="1 of 2 branches missed.">        if (columns &gt; 0) {</span>
+<span class="fc" id="L230">            availableSize.x = Math.max(1, availableSize.x - horizontalSpacing * (columns - 1));</span>
+        }
+
+<span class="fc" id="L233">        Iterator&lt;List&lt;UIWidget&gt;&gt; rows = getRowIterator();</span>
+<span class="fc" id="L234">        Vector2i size = new Vector2i();</span>
+<span class="fc" id="L235">        int[] columnSizes = new int[columns];</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">        while (rows.hasNext()) {</span>
+<span class="fc" id="L237">            List&lt;UIWidget&gt; row = rows.next();</span>
+<span class="fc" id="L238">            RowInfo rowInfo = calculateRowSize(row, canvas, availableSize);</span>
+<span class="fc" id="L239">            size.y += rowInfo.height;</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">            if (rows.hasNext()) {</span>
+<span class="fc" id="L241">                size.y += verticalSpacing;</span>
+            }
+<span class="fc bfc" id="L243" title="All 2 branches covered.">            for (int i = 0; i &lt; rowInfo.widgetSizes.size(); ++i) {</span>
+<span class="fc" id="L244">                columnSizes[i] = Math.max(columnSizes[i], rowInfo.widgetSizes.get(i).getX());</span>
+            }
+<span class="fc" id="L246">        }</span>
+<span class="fc bfc" id="L247" title="All 2 branches covered.">        for (int columnSize : columnSizes) {</span>
+<span class="fc" id="L248">            size.x += columnSize;</span>
+        }
+
+<span class="fc bfc" id="L251" title="All 2 branches covered.">        if (!autoSizeColumns) {</span>
+<span class="fc bfc" id="L252" title="All 2 branches covered.">            for (int i = 0; i &lt; columns; ++i) {</span>
+<span class="fc" id="L253">                size.x = Math.max(size.x, TeraMath.floorToInt(columnSizes[i] / columnWidths[i]));</span>
+            }
+        }
+
+<span class="fc" id="L257">        size.x += horizontalSpacing * (columns - 1);</span>
+
+<span class="fc" id="L259">        return size;</span>
+    }
+
+    @Override
+    public Vector2i getMaxContentSize(Canvas canvas) {
+<span class="nc" id="L264">        Iterator&lt;List&lt;UIWidget&gt;&gt; rows = getRowIterator();</span>
+<span class="nc" id="L265">        Vector2i size = new Vector2i();</span>
+<span class="nc" id="L266">        int[] columnSizes = new int[columns];</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">        while (rows.hasNext()) {</span>
+<span class="nc" id="L268">            List&lt;UIWidget&gt; row = rows.next();</span>
+<span class="nc" id="L269">            int rowHeight = 0;</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">            for (int i = 0; i &lt; row.size(); ++i) {</span>
+<span class="nc" id="L271">                Vector2i maxSize = canvas.calculateMaximumSize(row.get(i));</span>
+<span class="nc" id="L272">                columnSizes[i] = Math.max(columnSizes[i], maxSize.x);</span>
+<span class="nc" id="L273">                rowHeight = Math.max(rowHeight, maxSize.y);</span>
+            }
+<span class="nc" id="L275">            size.y = TeraMath.addClampAtMax(size.y, rowHeight);</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">            if (rows.hasNext()) {</span>
+<span class="nc" id="L277">                size.y = TeraMath.addClampAtMax(size.y, verticalSpacing);</span>
+            }
+<span class="nc" id="L279">        }</span>
+
+<span class="nc" id="L281">        long width = 0;</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">        for (int columnSize : columnSizes) {</span>
+<span class="nc" id="L283">            width += columnSize;</span>
+        }
+
+<span class="nc bnc" id="L286" title="All 2 branches missed.">        if (!autoSizeColumns) {</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">            for (int i = 0; i &lt; columns; ++i) {</span>
+<span class="nc" id="L288">                width = Math.min(width, TeraMath.floorToInt(columnSizes[i] / columnWidths[i]));</span>
+            }
+        }
+
+<span class="nc" id="L292">        width += (long) horizontalSpacing * (columns - 1);</span>
+
+<span class="nc" id="L294">        size.x = (int) Math.min(Integer.MAX_VALUE, width);</span>
+<span class="nc" id="L295">        return size;</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc bnc" id="L300" title="All 2 branches missed.">        for (UIWidget widget : widgetList) {</span>
+<span class="nc" id="L301">            widget.update(delta);</span>
+<span class="nc" id="L302">        }</span>
+<span class="nc" id="L303">    }</span>
+
+    @Override
+    public void onMouseButtonEvent(MouseButtonEvent event) {
+<span class="nc" id="L307">    }</span>
+
+    @Override
+    public void onMouseWheelEvent(MouseWheelEvent event) {
+<span class="nc" id="L311">    }</span>
+
+    @Override
+    public boolean onKeyEvent(NUIKeyEvent event) {
+<span class="nc" id="L315">        return false;</span>
+    }
+
+    @Override
+    public Iterator&lt;UIWidget&gt; iterator() {
+<span class="fc" id="L320">        return widgetList.iterator();</span>
+    }
+
+    @Override
+    public void addWidget(UIWidget element, LayoutHint hint) {
+<span class="nc" id="L325">        addWidget(element);</span>
+<span class="nc" id="L326">    }</span>
+
+    public int getHorizontalSpacing() {
+<span class="nc" id="L329">        return horizontalSpacing;</span>
+    }
+
+    public void setHorizontalSpacing(int horizontalSpacing) {
+<span class="nc" id="L333">        this.horizontalSpacing = horizontalSpacing;</span>
+<span class="nc" id="L334">    }</span>
+
+    public int getVerticalSpacing() {
+<span class="nc" id="L337">        return verticalSpacing;</span>
+    }
+
+    public void setVerticalSpacing(int verticalSpacing) {
+<span class="nc" id="L341">        this.verticalSpacing = verticalSpacing;</span>
+<span class="nc" id="L342">    }</span>
+
+    public boolean isAutoSizeColumns() {
+<span class="nc" id="L345">        return autoSizeColumns;</span>
+    }
+
+    public boolean isFillVerticalSpace() {
+<span class="nc" id="L349">        return fillVerticalSpace;</span>
+    }
+
+    /**
+     * @param fillVerticalSpace true if the vertical space of the canvas should be filled.
+     *        The elements are centered vertically otherwise.
+     */
+    public void setFillVerticalSpace(boolean fillVerticalSpace) {
+<span class="fc" id="L357">        this.fillVerticalSpace = fillVerticalSpace;</span>
+<span class="fc" id="L358">    }</span>
+
+    public void setAutoSizeColumns(boolean autoSizeColumns) {
+<span class="fc" id="L361">        this.autoSizeColumns = autoSizeColumns;</span>
+<span class="fc" id="L362">    }</span>
+
+    private Iterator&lt;List&lt;UIWidget&gt;&gt; getRowIterator() {
+<span class="fc" id="L365">        return new Iterator&lt;List&lt;UIWidget&gt;&gt;() {</span>
+
+<span class="fc" id="L367">            Iterator&lt;UIWidget&gt; contentIterator = iterator();</span>
+
+            @Override
+            public boolean hasNext() {
+<span class="fc" id="L371">                return contentIterator.hasNext();</span>
+            }
+
+            @Override
+            public List&lt;UIWidget&gt; next() {
+<span class="fc" id="L376">                List&lt;UIWidget&gt; row = Lists.newArrayList();</span>
+<span class="fc bfc" id="L377" title="All 2 branches covered.">                for (int i = 0; i &lt; columns; ++i) {</span>
+<span class="pc bpc" id="L378" title="1 of 2 branches missed.">                    if (contentIterator.hasNext()) {</span>
+<span class="fc" id="L379">                        row.add(contentIterator.next());</span>
+                    }
+                }
+<span class="fc" id="L382">                return row;</span>
+            }
+
+            @Override
+            public void remove() {
+<span class="nc" id="L387">                throw new UnsupportedOperationException();</span>
+            }
+        };
+    }
+
+<span class="fc" id="L392">    private static class RowInfo {</span>
+        private int height;
+<span class="fc" id="L394">        private List&lt;Vector2i&gt; widgetSizes = Lists.newArrayList();</span>
+
+        @Override
+        public String toString() {
+<span class="nc" id="L398">            return super.toString() + &quot;{height:&quot; + height + &quot;, widgetSizes:&quot; + widgetSizes + &quot;}&quot;;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

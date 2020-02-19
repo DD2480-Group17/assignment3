@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SetViewportToSizeOf.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.stateChanges</a> &gt; <span class="el_source">SetViewportToSizeOf.java</span></div><h1>SetViewportToSizeOf.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.stateChanges;
+
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+
+import java.util.Objects;
+
+import static org.lwjgl.opengl.GL11.glViewport;
+
+/**
+ * TODO: Add javadocs
+ */
+public final class SetViewportToSizeOf implements StateChange {
+    private static SetViewportToSizeOf defaultInstance;
+
+    private FBO fbo;
+
+    /**
+     * The constructor, to be used in the initialise method of a node.
+     *
+     * Sample use:
+     *      addDesiredStateChange(new SetViewportToSizeOf(fbo);
+     *
+     * @param fbo The FBO whose dimensions the viewport will be resized to.
+     */
+<span class="nc" id="L43">    public SetViewportToSizeOf(FBO fbo) {</span>
+<span class="nc" id="L44">        this.fbo = fbo;</span>
+<span class="nc" id="L45">    }</span>
+
+    @Override
+    public StateChange getDefaultInstance() {
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        if (defaultInstance == null) {</span>
+<span class="nc" id="L50">            defaultInstance = new SetViewportToSizeOf(CoreRegistry.get(DisplayResolutionDependentFBOs.class).getGBufferPair().getLastUpdatedFbo());</span>
+        }
+<span class="nc" id="L52">        return defaultInstance;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L57">        return Objects.hash(fbo.width(), fbo.height());</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc bnc" id="L62" title="All 4 branches missed.">        return (obj instanceof SetViewportToSizeOf) &amp;&amp; (this.fbo.width() == ((SetViewportToSizeOf) obj).fbo.width())</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">                                                    &amp;&amp; (this.fbo.height() == ((SetViewportToSizeOf) obj).fbo.height());</span>
+    }
+
+    @Override
+    public String toString() { // TODO: used for logging purposes at the moment, investigate different methods
+<span class="nc" id="L68">        return String.format(&quot;%30s: %s (fboId: %s) (%sx%s)&quot;, this.getClass().getSimpleName(), fbo.getName(), fbo.getId(), fbo.width(), fbo.height());</span>
+    }
+
+    public static void disposeDefaultInstance() {
+<span class="nc" id="L72">        defaultInstance = null;</span>
+<span class="nc" id="L73">    }</span>
+
+    @Override
+    public void process() {
+<span class="nc" id="L77">        glViewport(0, 0, fbo.width(), fbo.height());</span>
+<span class="nc" id="L78">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

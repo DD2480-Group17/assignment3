@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DynamicSelectorNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.core</a> &gt; <span class="el_source">DynamicSelectorNode.java</span></div><h1>DynamicSelectorNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.core;
+
+import java.util.BitSet;
+
+/**
+ * Works like a normal selector but each update tick, all children are checked for state changes.
+ */
+<span class="fc" id="L23">public class DynamicSelectorNode extends CompositeNode {</span>
+    private BitSet constructed;
+
+    @Override
+    public String getName() {
+<span class="nc" id="L28">        return &quot;dynamic&quot;;</span>
+    }
+
+    @Override
+    public BehaviorNode deepCopy() {
+<span class="nc" id="L33">        DynamicSelectorNode result = new DynamicSelectorNode();</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">        for (BehaviorNode child : children) {</span>
+<span class="nc" id="L35">            result.children.add(child.deepCopy());</span>
+<span class="nc" id="L36">        }</span>
+<span class="nc" id="L37">        return result;</span>
+    }
+
+    @Override
+    public void construct(Actor actor) {
+<span class="fc" id="L42">        constructed = new BitSet(children.size());</span>
+<span class="fc" id="L43">    }</span>
+
+    @Override
+    public BehaviorState execute(Actor actor) {
+        BehaviorState result;
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        for (int i = 0; i &lt; children.size(); i++) {</span>
+<span class="fc" id="L49">            BehaviorNode child = children.get(i);</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            if (!constructed.get(i)) {</span>
+<span class="fc" id="L51">                child.construct(actor);</span>
+<span class="fc" id="L52">                constructed.set(i);</span>
+            }
+<span class="fc" id="L54">            result = child.execute(actor);</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">            if (result == BehaviorState.RUNNING) {</span>
+<span class="fc" id="L56">                return BehaviorState.RUNNING;</span>
+            }
+<span class="fc" id="L58">            child.destruct(actor);</span>
+<span class="fc" id="L59">            constructed.clear(i);</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">            if (result == BehaviorState.SUCCESS) {</span>
+<span class="fc" id="L61">                return BehaviorState.SUCCESS;</span>
+            }
+        }
+<span class="fc" id="L64">        return BehaviorState.FAILURE;</span>
+    }
+
+    @Override
+    public void destruct(Actor actor) {
+<span class="fc" id="L69">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

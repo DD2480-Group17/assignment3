@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SimplexNoiseTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.utilities.procedural</a> &gt; <span class="el_source">SimplexNoiseTest.java</span></div><h1>SimplexNoiseTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2020 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.utilities.procedural;
+
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Test;
+import org.terasology.AdHoc.AdHocSimplexNoise;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.terasology.AdHoc.AdHocSimplexNoise.*;
+
+import java.lang.Math;
+<span class="fc" id="L26">class SimplexNoiseTest {</span>
+
+    /**
+     * Tests that every output are in the desired interval [-1,1] with random coordinates
+     * Test case 1:
+     * Expected: not null
+     *
+     *Test case 2:
+     * min = -1
+     * max = 1
+     * Expected: output is larger than min and less than max
+     */
+    @Test
+    void testInInterval() {
+<span class="fc" id="L40">        long seed = 100;</span>
+<span class="fc" id="L41">        float min = (float)(-1);</span>
+<span class="fc" id="L42">        float max = (float)1;</span>
+<span class="fc" id="L43">        SimplexNoise simplex = new SimplexNoise(seed);</span>
+
+
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        for (int i = 0; i &lt; 5; i++) {</span>
+<span class="fc" id="L47">            float result = simplex.noise(((float) Math.random() * 1000), ((float) Math.random() * 1000), ((float) Math.random() * 1000));</span>
+<span class="fc" id="L48">            System.out.println(&quot;Test case: &quot; + i);</span>
+<span class="fc" id="L49">            assertNotNull(result);</span>
+<span class="pc bpc" id="L50" title="2 of 4 branches missed.">            assertTrue(min &lt;= result &amp;&amp; max &gt;= result, &quot;Output in chosen interval&quot;);</span>
+        }
+<span class="fc" id="L52">    }</span>
+
+    /**
+     * Tests that if the coordinates x,y,z are equal, the output will be equal to zero and not null.
+     * The test also shows the result of the adhoc for x = y = z.
+     * Test case 1:
+     * Expected value: not null
+     *
+     * Test case 2:
+     * Expected value: 0
+     */
+    @Test
+    void testXYZTheSame(){
+<span class="fc" id="L65">        AdHocSimplexNoise.clearResult();</span>
+
+<span class="fc" id="L67">        long seed = 100;</span>
+<span class="fc" id="L68">        SimplexNoise simplex = new SimplexNoise(seed);</span>
+<span class="fc" id="L69">        float x = (float)100;</span>
+<span class="fc" id="L70">        float y = (float)100;</span>
+<span class="fc" id="L71">        float z = (float)100;</span>
+<span class="fc" id="L72">        float expected = (float)0;</span>
+<span class="fc" id="L73">        assertNotNull(simplex.noise(x, y, z));</span>
+<span class="fc" id="L74">        assertEquals(expected, simplex.noise(x, y, z), &quot;Output equal to zero&quot;);</span>
+
+<span class="fc" id="L76">        boolean[] result = getAdHoc();</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        for (int i = 0; i &lt; result.length; i++){</span>
+<span class="fc" id="L78">            System.out.println(&quot;Visited branch &quot; + (i+1) + &quot; &quot; + result[i]);</span>
+        }
+<span class="fc" id="L80">    }</span>
+
+    /**
+     * Tests that if the coordinate x is larger than y and z and not too small, the output will be not equal to zero
+     * and not null. The test also shows the result of the adhoc for x &gt; y and x &gt; z.
+     *
+     * Test case 1:
+     * Expected value: not null
+     *
+     * Test case 2:
+     * Expected value: not 0
+     */
+    @Test
+    void testXLargerThanYX() {
+<span class="fc" id="L94">        AdHocSimplexNoise.clearResult();</span>
+
+<span class="fc" id="L96">        long seed = 100;</span>
+<span class="fc" id="L97">        SimplexNoise simplex = new SimplexNoise(seed);</span>
+<span class="fc" id="L98">        float x = (float)100;</span>
+<span class="fc" id="L99">        float y = (float)23;</span>
+<span class="fc" id="L100">        float z = (float)34;</span>
+<span class="fc" id="L101">        assertNotNull(simplex.noise(x, y, z));</span>
+<span class="fc" id="L102">        assertNotEquals(0, simplex.noise(x, y, z), &quot;Output not equal to zero&quot;);</span>
+
+<span class="fc" id="L104">        boolean[] result = getAdHoc();</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        for (int i = 0; i &lt; result.length; i++){</span>
+<span class="fc" id="L106">            System.out.println(&quot;Visited branch &quot; + (i+1) + &quot; &quot; + result[i]);</span>
+        }
+<span class="fc" id="L108">    }</span>
+
+    /**
+     * Tests that if the coordinate y is larger than x and z and not too small, the output will be not equal to zero
+     * and not null. The test also shows the result of the adhoc for y &gt; x and y &gt; z.
+     *
+     * Test case 1:
+     * Expected value: not null
+     *
+     * Test case 2:
+     * Expected value: not 0
+     */
+    @Test
+    void testYLargerThanXZ() {
+<span class="fc" id="L122">        AdHocSimplexNoise.clearResult();</span>
+
+<span class="fc" id="L124">        long seed = 100;</span>
+<span class="fc" id="L125">        SimplexNoise simplex = new SimplexNoise(seed);</span>
+<span class="fc" id="L126">        float x = (float)23;</span>
+<span class="fc" id="L127">        float y = (float)100;</span>
+<span class="fc" id="L128">        float z = (float)34;</span>
+<span class="fc" id="L129">        assertNotNull(simplex.noise(x, y, z));</span>
+<span class="fc" id="L130">        assertNotEquals(0, simplex.noise(x, y, z), &quot;Output not equal to zero&quot;);</span>
+
+<span class="fc" id="L132">        boolean[] result = getAdHoc();</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        for (int i = 0; i &lt; result.length; i++){</span>
+<span class="fc" id="L134">            System.out.println(&quot;Visited branch &quot; + (i+1) + &quot; &quot; + result[i]);</span>
+        }
+<span class="fc" id="L136">    }</span>
+
+    /**
+     * Tests that if the coordinate z is larger than x and y and not too small, the output will be not
+     * equal to zero and not null. The test also shows the result of the adhoc for z &gt; x and z &gt; y.
+     *
+     * Test case 1:
+     * Expected value: not null
+     *
+     * Test case 2:
+     * Expected value: not 0
+     */
+    @Test
+    void testZLargerThanXAndY() {
+<span class="fc" id="L150">        AdHocSimplexNoise.clearResult();</span>
+
+<span class="fc" id="L152">        long seed = 100;</span>
+<span class="fc" id="L153">        SimplexNoise simplex = new SimplexNoise(seed);</span>
+<span class="fc" id="L154">        float x = (float)34;</span>
+<span class="fc" id="L155">        float y = (float)23;</span>
+<span class="fc" id="L156">        float z = (float)100;</span>
+<span class="fc" id="L157">        assertNotNull(simplex.noise(x, y, z));</span>
+<span class="fc" id="L158">        assertNotEquals(0, simplex.noise(x, y, z));</span>
+
+<span class="fc" id="L160">        boolean[] result = getAdHoc();</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        for (int i = 0; i &lt; result.length; i++){</span>
+<span class="fc" id="L162">            System.out.println(&quot;Visited branch &quot; + (i+1) + &quot; &quot; + result[i]);</span>
+        }
+<span class="fc" id="L164">    }</span>
+
+
+    /**
+     * Tests that the result of calling noise 4D is in
+     * interval [-1,1] when all four parameters are zeros.
+     */
+    @Test
+    void testNoiseFourParametersAllZeros() {
+<span class="fc" id="L173">        SimplexNoise sn = new SimplexNoise(7);</span>
+<span class="fc" id="L174">        float result = sn.noise(0.0f, 0.0f, 0.0f, 0.0f);</span>
+<span class="pc bpc" id="L175" title="2 of 4 branches missed.">        assertTrue(result &gt;= -1.0f &amp;&amp; result &lt;= 1.0f);</span>
+<span class="fc" id="L176">        assertEquals(0.0f, result);</span>
+<span class="fc" id="L177">    }</span>
+
+    /**
+     * Tests that the result of calling noise 4D is in
+     * interval [-1,1] when all four parameters non-zero parameters.
+     */
+    @Test
+    void testNoiseFourParametersOne() {
+<span class="fc" id="L185">        SimplexNoise sn = new SimplexNoise(7);</span>
+<span class="fc" id="L186">        float n1 = (float) -9.8451392e8;</span>
+<span class="fc" id="L187">        float n2 = (float) -1.82247667e9;</span>
+<span class="fc" id="L188">        float n3 = (float) -9.8426086e8;</span>
+<span class="fc" id="L189">        float n4 = (float) 2.08989875e9;</span>
+<span class="fc" id="L190">        float result = sn.noise(n1, n2, n3, n4);</span>
+<span class="pc bpc" id="L191" title="2 of 4 branches missed.">        assertTrue(result &gt;= -1.0f &amp;&amp; result &lt;= 1.0f);</span>
+<span class="fc" id="L192">    }</span>
+
+
+    /**
+     * Tests that the result of calling noise 4D is in
+     * interval [-1,1] when all four parameters non-zero parameters.
+     */
+    @Test
+    void testNoiseFourParametersTwo() {
+<span class="fc" id="L201">        SimplexNoise sn = new SimplexNoise(7);</span>
+<span class="fc" id="L202">        float n1 = (float) 1.74955968e9;</span>
+<span class="fc" id="L203">        float n2 = (float) 6.9046541e8;</span>
+<span class="fc" id="L204">        float n3 = (float) 2.09334016e9;</span>
+<span class="fc" id="L205">        float n4 = (float) 2.06225968e8;</span>
+<span class="fc" id="L206">        float result = sn.noise(n1, n2, n3, n4);</span>
+<span class="pc bpc" id="L207" title="2 of 4 branches missed.">        assertTrue(result &gt;= -1.0f &amp;&amp; result &lt;= 1.0f);</span>
+<span class="fc" id="L208">    }</span>
+
+    /**
+     * Tests that the result of calling noise 4D is in
+     * interval [-1,1] when all four parameters non-zero parameters.
+     */
+    @Test
+    void testNoiseFourParametersThree() {
+<span class="fc" id="L216">        SimplexNoise sn = new SimplexNoise(7);</span>
+<span class="fc" id="L217">        float n1 = (float) 4.32744384E8;</span>
+<span class="fc" id="L218">        float n2 = (float) 1.66149146E9;</span>
+<span class="fc" id="L219">        float n3 = (float) -6.9053453E8;</span>
+<span class="fc" id="L220">        float n4 = (float) -1.99001549E9;</span>
+<span class="fc" id="L221">        float result = sn.noise(n1, n2, n3, n4);</span>
+<span class="pc bpc" id="L222" title="2 of 4 branches missed.">        assertTrue(result &gt;= -1.0f &amp;&amp; result &lt;= 1.0f);</span>
+<span class="fc" id="L223">    }</span>
+
+
+    /**
+     * Method using for printing results of ad-hoc coverage tool.
+     */
+    @AfterAll
+    static void printCoverage() {
+<span class="fc" id="L231">        BranchCoverageSimplesNoiseNoiseMethod.printBranchCoveragePercentage();</span>
+<span class="fc" id="L232">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

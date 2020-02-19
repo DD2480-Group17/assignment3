@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StateHeadlessSetup.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.subsystem.headless.mode</a> &gt; <span class="el_source">StateHeadlessSetup.java</span></div><h1>StateHeadlessSetup.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.subsystem.headless.mode;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.Config;
+import org.terasology.config.WorldGenerationConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.LoggingContext;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.bootstrap.EntitySystemSetupUtil;
+import org.terasology.engine.modes.GameState;
+import org.terasology.engine.modes.StateLoading;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.module.StandardModuleExtension;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.event.internal.EventSystem;
+import org.terasology.game.GameManifest;
+import org.terasology.input.InputSystem;
+import org.terasology.logic.console.Console;
+import org.terasology.logic.console.ConsoleImpl;
+import org.terasology.logic.console.ConsoleSystem;
+import org.terasology.logic.console.commands.CoreCommands;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.module.Module;
+import org.terasology.naming.Name;
+import org.terasology.network.ClientComponent;
+import org.terasology.network.NetworkMode;
+import org.terasology.recording.DirectionAndOriginPosRecorderList;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.internal.CanvasRenderer;
+import org.terasology.rendering.nui.internal.NUIManagerInternal;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameInfo;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameProvider;
+import org.terasology.world.internal.WorldInfo;
+import org.terasology.world.time.WorldTime;
+
+import java.util.List;
+
+/**
+ * The class is game selection menu replacement for the headless server.
+ *
+ */
+public class StateHeadlessSetup implements GameState {
+
+<span class="nc" id="L66">    private static final Logger logger = LoggerFactory.getLogger(StateHeadlessSetup.class);</span>
+
+    private EngineEntityManager entityManager;
+    private EventSystem eventSystem;
+    private ComponentSystemManager componentSystemManager;
+    private Context context;
+
+<span class="nc" id="L73">    public StateHeadlessSetup() {</span>
+<span class="nc" id="L74">    }</span>
+
+    @Override
+    public void init(GameEngine gameEngine) {
+<span class="nc" id="L78">        context = gameEngine.createChildContext();</span>
+<span class="nc" id="L79">        CoreRegistry.setContext(context);</span>
+
+        // let's get the entity event system running
+<span class="nc" id="L82">        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);</span>
+<span class="nc" id="L83">        entityManager = context.get(EngineEntityManager.class);</span>
+
+<span class="nc" id="L85">        eventSystem = context.get(EventSystem.class);</span>
+<span class="nc" id="L86">        context.put(Console.class, new ConsoleImpl(context));</span>
+
+<span class="nc" id="L88">        NUIManager nuiManager = new NUIManagerInternal(context.get(CanvasRenderer.class), context);</span>
+<span class="nc" id="L89">        context.put(NUIManager.class, nuiManager);</span>
+
+<span class="nc" id="L91">        componentSystemManager = new ComponentSystemManager(context);</span>
+<span class="nc" id="L92">        context.put(ComponentSystemManager.class, componentSystemManager);</span>
+
+<span class="nc" id="L94">        componentSystemManager.register(new ConsoleSystem(), &quot;engine:ConsoleSystem&quot;);</span>
+<span class="nc" id="L95">        componentSystemManager.register(new CoreCommands(), &quot;engine:CoreCommands&quot;);</span>
+<span class="nc" id="L96">        componentSystemManager.register(context.get(InputSystem.class), &quot;engine:InputSystem&quot;);</span>
+
+<span class="nc" id="L98">        EntityRef localPlayerEntity = entityManager.create(new ClientComponent());</span>
+<span class="nc" id="L99">        LocalPlayer localPlayer = new LocalPlayer();</span>
+<span class="nc" id="L100">        localPlayer.setRecordAndReplayClasses(context.get(DirectionAndOriginPosRecorderList.class), context.get(RecordAndReplayCurrentStatus.class));</span>
+<span class="nc" id="L101">        context.put(LocalPlayer.class, localPlayer);</span>
+<span class="nc" id="L102">        localPlayer.setClientEntity(localPlayerEntity);</span>
+
+<span class="nc" id="L104">        componentSystemManager.initialise();</span>
+
+        GameManifest gameManifest;
+<span class="nc" id="L107">        List&lt;GameInfo&gt; savedGames = GameProvider.getSavedGames();</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (savedGames.size() &gt; 0) {</span>
+<span class="nc" id="L109">            gameManifest = savedGames.get(0).getManifest();</span>
+        } else {
+<span class="nc" id="L111">            gameManifest = createGameManifest();</span>
+        }
+
+<span class="nc" id="L114">        Config config = context.get(Config.class);</span>
+<span class="nc" id="L115">        WorldInfo worldInfo = gameManifest.getWorldInfo(TerasologyConstants.MAIN_WORLD);</span>
+<span class="nc" id="L116">        config.getUniverseConfig().addWorldManager(worldInfo);</span>
+<span class="nc" id="L117">        config.getUniverseConfig().setSpawnWorldTitle(worldInfo.getTitle());</span>
+<span class="nc" id="L118">        config.getUniverseConfig().setUniverseSeed(gameManifest.getSeed());</span>
+
+<span class="nc" id="L120">        gameEngine.changeState(new StateLoading(gameManifest, NetworkMode.LISTEN_SERVER));</span>
+<span class="nc" id="L121">    }</span>
+
+    public GameManifest createGameManifest() {
+<span class="nc" id="L124">        GameManifest gameManifest = new GameManifest();</span>
+
+<span class="nc" id="L126">        Config config = context.get(Config.class);</span>
+<span class="nc" id="L127">        ModuleManager moduleManager = context.get(ModuleManager.class);</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        for (Name moduleName : config.getDefaultModSelection().listModules()) {</span>
+<span class="nc" id="L129">            Module module = moduleManager.getRegistry().getLatestModuleVersion(moduleName);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">            if (module != null) {</span>
+<span class="nc" id="L131">                gameManifest.addModule(module.getId(), module.getVersion());</span>
+            } else {
+<span class="nc" id="L133">                logger.warn(&quot;ModuleRegistry has no latest version for module {}&quot;, moduleName);</span>
+            }
+<span class="nc" id="L135">        }</span>
+
+<span class="nc" id="L137">        WorldGenerationConfig worldGenConfig = config.getWorldGeneration();</span>
+
+        // If no valid default world generator set then try to find one - no option to pick one manually in headless
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if (!worldGenConfig.getDefaultGenerator().isValid()) {</span>
+
+            // find the first gameplay module that is available, it should have a preferred world gen
+<span class="nc bnc" id="L143" title="All 2 branches missed.">            for (Name moduleName : config.getDefaultModSelection().listModules()) {</span>
+<span class="nc" id="L144">                Module module = moduleManager.getRegistry().getLatestModuleVersion(moduleName);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                if (StandardModuleExtension.isGameplayModule(module)) {</span>
+<span class="nc" id="L146">                    SimpleUri defaultWorldGenerator = StandardModuleExtension.getDefaultWorldGenerator(module);</span>
+<span class="nc" id="L147">                    worldGenConfig.setDefaultGenerator(defaultWorldGenerator);</span>
+<span class="nc" id="L148">                    break;</span>
+                }
+<span class="nc" id="L150">            }</span>
+        }
+<span class="nc" id="L152">        SimpleUri worldGeneratorUri = worldGenConfig.getDefaultGenerator();</span>
+
+<span class="nc" id="L154">        gameManifest.setTitle(worldGenConfig.getWorldTitle());</span>
+<span class="nc" id="L155">        gameManifest.setSeed(worldGenConfig.getDefaultSeed());</span>
+<span class="nc" id="L156">        WorldInfo worldInfo = new WorldInfo(TerasologyConstants.MAIN_WORLD, worldGenConfig.getWorldTitle(), gameManifest.getSeed(),</span>
+                (long) (WorldTime.DAY_LENGTH * WorldTime.NOON_OFFSET), worldGeneratorUri);
+<span class="nc" id="L158">        gameManifest.addWorld(worldInfo);</span>
+<span class="nc" id="L159">        return gameManifest;</span>
+    }
+
+    @Override
+    public void dispose(boolean shuttingDown) {
+<span class="nc" id="L164">        eventSystem.process();</span>
+
+<span class="nc" id="L166">        componentSystemManager.shutdown();</span>
+
+<span class="nc" id="L168">        entityManager.clear();</span>
+<span class="nc" id="L169">    }</span>
+
+    @Override
+    public void handleInput(float delta) {
+<span class="nc" id="L173">    }</span>
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L177">        eventSystem.process();</span>
+<span class="nc" id="L178">    }</span>
+
+    @Override
+    public void render() {
+<span class="nc" id="L182">    }</span>
+
+    @Override
+    public boolean isHibernationAllowed() {
+<span class="nc" id="L186">        return true;</span>
+    }
+
+    @Override
+    public String getLoggingPhase() {
+<span class="nc" id="L191">        return LoggingContext.INIT_PHASE;</span>
+    }
+
+    @Override
+    public Context getContext() {
+<span class="nc" id="L196">        return context;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

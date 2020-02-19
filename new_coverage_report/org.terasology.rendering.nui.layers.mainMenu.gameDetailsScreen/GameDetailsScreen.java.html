@@ -1,0 +1,515 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GameDetailsScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu.gameDetailsScreen</a> &gt; <span class="el_source">GameDetailsScreen.java</span></div><h1>GameDetailsScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu.gameDetailsScreen;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.codehaus.plexus.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.context.Context;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.module.DependencyInfo;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleMetadata;
+import org.terasology.naming.NameVersion;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.itemRendering.AbstractItemRenderer;
+import org.terasology.rendering.nui.layers.mainMenu.MessagePopup;
+import org.terasology.rendering.nui.layers.mainMenu.SelectGameScreen;
+import org.terasology.rendering.nui.layers.mainMenu.moduleDetailsScreen.ModuleDetailsScreen;
+import org.terasology.rendering.nui.layers.mainMenu.savedGames.GameInfo;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UIImage;
+import org.terasology.rendering.nui.widgets.UIImageSlideshow;
+import org.terasology.rendering.nui.widgets.UILabel;
+import org.terasology.rendering.nui.widgets.UIList;
+import org.terasology.rendering.nui.widgets.UITabBox;
+import org.terasology.rendering.nui.widgets.UIText;
+import org.terasology.utilities.time.DateTimeHelper;
+import org.terasology.world.internal.WorldInfo;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+/**
+ * Shows detailed information about saved game.
+ */
+<span class="nc" id="L69">public class GameDetailsScreen extends CoreScreenLayer {</span>
+
+<span class="nc" id="L71">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:gameDetailsScreen&quot;);</span>
+
+<span class="nc" id="L73">    private static final Logger logger = LoggerFactory.getLogger(SelectGameScreen.class);</span>
+
+<span class="nc" id="L75">    private static final DateFormat DATE_FORMAT = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+
+    private GameInfo gameInfo;
+    private List&lt;String&gt; errors;
+    private Map&lt;String, List&lt;String&gt;&gt; blockFamilyIds;
+
+    @In
+    private ModuleManager moduleManager;
+    @In
+    private TranslationSystem translationSystem;
+    @In
+    private Context context;
+
+    private UIList&lt;ModuleSelectionInfo&gt; gameModules;
+<span class="nc" id="L89">    private final Binding&lt;ModuleSelectionInfo&gt; moduleInfoBinding = new ReadOnlyBinding&lt;ModuleSelectionInfo&gt;() {</span>
+        @Override
+        public ModuleSelectionInfo get() {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            if (gameModules.getSelection() != null) {</span>
+<span class="nc" id="L93">                return gameModules.getSelection();</span>
+            }
+<span class="nc" id="L95">            return null;</span>
+        }
+    };
+    private UIList&lt;WorldInfo&gt; gameWorlds;
+    private UIList&lt;String&gt; blocks;
+    private UIText description;
+    private UIText generalInfo;
+    private UILabel descriptionTitle;
+    private UIButton openModuleDetails;
+    private UIImageSlideshow previewSlideshow;
+    private UITabBox tabs;
+    private UIButton showErrors;
+    private UIButton close;
+    private UIButton slideLeft;
+    private UIButton slideRight;
+    private UIButton slideStop;
+    private UILabel title;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L115">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L117">        initWidgets();</span>
+
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (isScreenValid()) {</span>
+
+<span class="nc" id="L121">            setUpGameModules();</span>
+<span class="nc" id="L122">            setUpGameWorlds();</span>
+<span class="nc" id="L123">            setUpBlocks();</span>
+<span class="nc" id="L124">            setUpPreviewSlideshow();</span>
+<span class="nc" id="L125">            setUpOpenModuleDetails();</span>
+
+<span class="nc" id="L127">            showErrors.subscribe(e -&gt; showErrors());</span>
+<span class="nc" id="L128">            close.subscribe(e -&gt; triggerBackAnimation());</span>
+        }
+<span class="nc" id="L130">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L134">        super.onOpened();</span>
+
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        if (isScreenValid()) {</span>
+<span class="nc" id="L137">            errors = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L139">            loadGeneralInfo();</span>
+<span class="nc" id="L140">            loadGameModules();</span>
+<span class="nc" id="L141">            loadBlocks();</span>
+<span class="nc" id="L142">            loadGameWorlds();</span>
+
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if (!errors.isEmpty()) {</span>
+<span class="nc" id="L145">                showErrors();</span>
+            }
+
+<span class="nc" id="L148">            tabs.select(0);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            showErrors.setEnabled(!errors.isEmpty());</span>
+        } else {
+<span class="nc" id="L151">            final MessagePopup popup = getManager().createScreen(MessagePopup.ASSET_URI, MessagePopup.class);</span>
+<span class="nc" id="L152">            popup.setMessage(translationSystem.translate(&quot;${engine:menu#game-details-errors-message-title}&quot;),</span>
+<span class="nc" id="L153">                    translationSystem.translate(&quot;${engine:menu#game-details-errors-message-body}&quot;));</span>
+<span class="nc" id="L154">            popup.subscribeButton(e -&gt; triggerBackAnimation());</span>
+<span class="nc" id="L155">            getManager().pushScreen(popup);</span>
+            // disable child widgets
+<span class="nc" id="L157">            setEnabled(false);</span>
+        }
+<span class="nc" id="L159">    }</span>
+
+    private void initWidgets() {
+<span class="nc" id="L162">        gameModules = find(&quot;modules&quot;, UIList.class);</span>
+<span class="nc" id="L163">        gameWorlds = find(&quot;worlds&quot;, UIList.class);</span>
+<span class="nc" id="L164">        blocks = find(&quot;blocks&quot;, UIList.class);</span>
+
+<span class="nc" id="L166">        description = find(&quot;description&quot;, UIText.class);</span>
+<span class="nc" id="L167">        descriptionTitle = find(&quot;descriptionTitle&quot;, UILabel.class);</span>
+<span class="nc" id="L168">        openModuleDetails = find(&quot;openModuleDetails&quot;, UIButton.class);</span>
+<span class="nc" id="L169">        previewSlideshow = find(&quot;preview&quot;, UIImageSlideshow.class);</span>
+<span class="nc" id="L170">        tabs = find(&quot;tabs&quot;, UITabBox.class);</span>
+<span class="nc" id="L171">        showErrors = find(&quot;showErrors&quot;, UIButton.class);</span>
+<span class="nc" id="L172">        close = find(&quot;close&quot;, UIButton.class);</span>
+
+<span class="nc" id="L174">        slideLeft = find(&quot;slideLeft&quot;, UIButton.class);</span>
+<span class="nc" id="L175">        slideRight = find(&quot;slideRight&quot;, UIButton.class);</span>
+<span class="nc" id="L176">        slideStop = find(&quot;slideStop&quot;, UIButton.class);</span>
+
+<span class="nc" id="L178">        title = find(&quot;title&quot;, UILabel.class);</span>
+<span class="nc" id="L179">        generalInfo = find(&quot;generalInfo&quot;, UIText.class);</span>
+<span class="nc" id="L180">    }</span>
+
+    private void showErrors() {
+<span class="nc" id="L183">        final StringBuilder errorMessageBuilder = new StringBuilder();</span>
+<span class="nc" id="L184">        errors.forEach(error -&gt; errorMessageBuilder</span>
+<span class="nc" id="L185">                .append(errors.indexOf(error) + 1)</span>
+<span class="nc" id="L186">                .append(&quot;. &quot;)</span>
+<span class="nc" id="L187">                .append(error)</span>
+<span class="nc" id="L188">                .append('\n'));</span>
+<span class="nc" id="L189">        getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(translationSystem.translate(</span>
+<span class="nc" id="L190">                &quot;${engine:menu#game-details-errors-message-title}&quot;), errorMessageBuilder.toString());</span>
+<span class="nc" id="L191">    }</span>
+
+    private void setUpBlocks() {
+<span class="nc" id="L194">        blocks.subscribeSelection(((widget, familyName) -&gt; {</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">            if (familyName == null) {</span>
+<span class="nc" id="L196">                return;</span>
+            }
+
+<span class="nc" id="L199">            descriptionTitle.setText(translationSystem.translate(&quot;${engine:menu#game-details-blocks}&quot;));</span>
+<span class="nc" id="L200">            description.setText(getBlockInfoDescription(familyName));</span>
+
+<span class="nc" id="L202">            gameModules.setSelection(null);</span>
+<span class="nc" id="L203">            gameWorlds.setSelection(null);</span>
+<span class="nc" id="L204">        }));</span>
+<span class="nc" id="L205">    }</span>
+
+    private String getBlockInfoDescription(final String familyName) {
+<span class="nc" id="L208">        String familyNames = &quot;&quot;;</span>
+<span class="nc" id="L209">        final List&lt;String&gt; blockFamilyNames = blockFamilyIds.get(familyName);</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">        if (blockFamilyNames != null) {</span>
+<span class="nc" id="L211">            familyNames = blockFamilyNames.stream().sorted().collect(Collectors.joining(&quot;\n&quot;));</span>
+        }
+<span class="nc" id="L213">        return familyNames;</span>
+    }
+
+    private void setUpGameWorlds() {
+<span class="nc" id="L217">        gameWorlds.subscribeSelection((widget, worldInfo) -&gt; {</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">            if (worldInfo == null) {</span>
+<span class="nc" id="L219">                return;</span>
+            }
+
+<span class="nc" id="L222">            descriptionTitle.setText(translationSystem.translate(&quot;${engine:menu#game-details-world-description}&quot;));</span>
+<span class="nc" id="L223">            description.setText(getWorldDescription(worldInfo));</span>
+
+<span class="nc" id="L225">            gameModules.setSelection(null);</span>
+<span class="nc" id="L226">            blocks.setSelection(null);</span>
+<span class="nc" id="L227">        });</span>
+
+<span class="nc" id="L229">        gameWorlds.setItemRenderer(new AbstractItemRenderer&lt;WorldInfo&gt;() {</span>
+            @Override
+            public void draw(WorldInfo value, Canvas canvas) {
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                if (value.getCustomTitle().isEmpty()) {</span>
+<span class="nc" id="L233">                    canvas.drawText(value.getTitle());</span>
+                } else {
+<span class="nc" id="L235">                    canvas.drawText(value.getCustomTitle());</span>
+                }
+<span class="nc" id="L237">            }</span>
+
+            @Override
+            public Vector2i getPreferredSize(WorldInfo value, Canvas canvas) {
+<span class="nc" id="L241">                String text = value.getCustomTitle();</span>
+<span class="nc" id="L242">                return new Vector2i(canvas.getCurrentStyle().getFont().getWidth(text), canvas.getCurrentStyle().getFont().getLineHeight());</span>
+            }
+        });
+<span class="nc" id="L245">    }</span>
+
+    private String getWorldDescription(final WorldInfo worldInfo) {
+        String gameTitle;
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        if (worldInfo.getCustomTitle().isEmpty()) {</span>
+<span class="nc" id="L250">            gameTitle = worldInfo.getTitle();</span>
+        } else {
+<span class="nc" id="L252">            gameTitle = worldInfo.getCustomTitle();</span>
+        }
+<span class="nc" id="L254">        return translationSystem.translate(&quot;${engine:menu#game-details-game-title} &quot;) + gameTitle + '\n' + '\n' +</span>
+<span class="nc" id="L255">                translationSystem.translate(&quot;${engine:menu#game-details-game-seed} &quot;) + worldInfo.getSeed() + '\n' + '\n' +</span>
+<span class="nc" id="L256">                translationSystem.translate(&quot;${engine:menu#game-details-world-generator}: &quot;) + worldInfo.getWorldGenerator().toString() + '\n' + '\n' +</span>
+<span class="nc" id="L257">                translationSystem.translate(&quot;${engine:menu#game-details-game-duration} &quot;)</span>
+<span class="nc" id="L258">                + DateTimeHelper.getDeltaBetweenTimestamps(new Date(0).getTime(), worldInfo.getTime());</span>
+    }
+
+    private void setUpPreviewSlideshow() {
+<span class="nc" id="L262">        slideLeft.subscribe(b -&gt; previewSlideshow.prevImage());</span>
+<span class="nc" id="L263">        slideLeft.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L266" title="All 2 branches missed.">                return previewSlideshow.getImages().size() &gt; 1;</span>
+            }
+        });
+
+<span class="nc" id="L270">        slideRight.subscribe(b -&gt; previewSlideshow.nextImage());</span>
+<span class="nc" id="L271">        slideRight.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                return previewSlideshow.getImages().size() &gt; 1;</span>
+            }
+        });
+
+<span class="nc" id="L278">        slideStop.subscribe(e -&gt; {</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">            if (previewSlideshow.isActive()) {</span>
+<span class="nc" id="L280">                previewSlideshow.stop();</span>
+<span class="nc" id="L281">                slideStop.setActive(true);</span>
+            } else {
+<span class="nc" id="L283">                previewSlideshow.start();</span>
+<span class="nc" id="L284">                slideStop.setActive(false);</span>
+            }
+<span class="nc" id="L286">        });</span>
+<span class="nc" id="L287">        slideStop.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L290" title="All 2 branches missed.">                return previewSlideshow.getImages().size() &gt; 1;</span>
+            }
+        });
+<span class="nc" id="L293">    }</span>
+
+    private void setUpGameModules() {
+<span class="nc" id="L296">        gameModules.subscribeSelection((widget, moduleSelectionInfo) -&gt; {</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">            if (moduleSelectionInfo == null) {</span>
+<span class="nc" id="L298">                return;</span>
+            }
+
+<span class="nc" id="L301">            descriptionTitle.setText(translationSystem.translate(&quot;${engine:menu#game-details-module-description}&quot;));</span>
+<span class="nc" id="L302">            description.setText(getModuleDescription(moduleSelectionInfo));</span>
+
+<span class="nc" id="L304">            gameWorlds.setSelection(null);</span>
+<span class="nc" id="L305">            blocks.setSelection(null);</span>
+<span class="nc" id="L306">        });</span>
+
+<span class="nc" id="L308">        gameModules.setItemRenderer(new AbstractItemRenderer&lt;ModuleSelectionInfo&gt;() {</span>
+            String getString(ModuleSelectionInfo value) {
+<span class="nc bnc" id="L310" title="All 2 branches missed.">                if (value.getMetadata() != null) {</span>
+<span class="nc" id="L311">                    return value.getMetadata().getDisplayName().toString();</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                } else if (value.isUnavailableVersion()) {</span>
+<span class="nc" id="L313">                    return value.getUnavailableModuleName();</span>
+                }
+<span class="nc" id="L315">                return &quot;&quot;;</span>
+            }
+
+            @Override
+            public void draw(ModuleSelectionInfo value, Canvas canvas) {
+<span class="nc bnc" id="L320" title="All 2 branches missed.">                if (value.isStrictVersion()) {</span>
+<span class="nc" id="L321">                    canvas.setMode(&quot;strict&quot;);</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">                } else if (value.isLatestVersion()) {</span>
+<span class="nc" id="L323">                    canvas.setMode(&quot;latest&quot;);</span>
+                } else {
+<span class="nc" id="L325">                    canvas.setMode(&quot;invalid&quot;);</span>
+                }
+<span class="nc" id="L327">                canvas.drawText(getString(value), canvas.getRegion());</span>
+<span class="nc" id="L328">            }</span>
+
+            @Override
+            public Vector2i getPreferredSize(ModuleSelectionInfo value, Canvas canvas) {
+<span class="nc" id="L332">                String text = getString(value);</span>
+<span class="nc" id="L333">                return new Vector2i(canvas.getCurrentStyle().getFont().getWidth(text),</span>
+<span class="nc" id="L334">                        canvas.getCurrentStyle().getFont().getLineHeight());</span>
+            }
+        });
+
+<span class="nc" id="L338">        gameModules.subscribe(((widget, item) -&gt; openModuleDetailsScreen()));</span>
+<span class="nc" id="L339">    }</span>
+
+    private void openModuleDetailsScreen() {
+<span class="nc" id="L342">        final ModuleDetailsScreen moduleDetailsScreen = getManager().createScreen(ModuleDetailsScreen.ASSET_URI, ModuleDetailsScreen.class);</span>
+
+<span class="nc" id="L344">        final Collection&lt;Module&gt; modules = gameModules.getList().stream()</span>
+<span class="nc" id="L345">                        .map(ModuleSelectionInfo::getModule)</span>
+<span class="nc" id="L346">                        .filter(Objects::nonNull)</span>
+<span class="nc" id="L347">                        .collect(Collectors.toSet());</span>
+
+<span class="nc" id="L349">        moduleDetailsScreen.setModules(modules);</span>
+
+<span class="nc" id="L351">        moduleDetailsScreen.setSelectedModule(</span>
+<span class="nc" id="L352">                modules.stream()</span>
+<span class="nc" id="L353">                        .filter(module -&gt; module.getId().equals(moduleInfoBinding.get().getModule().getId()))</span>
+<span class="nc" id="L354">                        .findFirst()</span>
+<span class="nc" id="L355">                        .orElse(null)</span>
+        );
+
+<span class="nc" id="L358">        getManager().pushScreen(moduleDetailsScreen);</span>
+<span class="nc" id="L359">    }</span>
+
+    private void loadGameModules() {
+<span class="nc" id="L362">        final List&lt;ModuleSelectionInfo&gt; sortedGameModules = gameInfo.getManifest().getModules().stream()</span>
+<span class="nc" id="L363">                .sorted(Comparator.comparing(NameVersion::getName))</span>
+<span class="nc" id="L364">                .map(nameVersion -&gt; {</span>
+<span class="nc" id="L365">                    Module module = moduleManager.getRegistry().getModule(nameVersion.getName(), nameVersion.getVersion());</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">                    if (module != null) {</span>
+<span class="nc" id="L367">                        return ModuleSelectionInfo.strictVersion(module);</span>
+                    } else {
+<span class="nc" id="L369">                        logger.warn(&quot;Can't find module in your classpath - {}:{}&quot;, nameVersion.getName(), nameVersion.getVersion());</span>
+<span class="nc" id="L370">                        module = moduleManager.getRegistry().getLatestModuleVersion(nameVersion.getName());</span>
+<span class="nc bnc" id="L371" title="All 2 branches missed.">                        if (module != null) {</span>
+<span class="nc" id="L372">                            logger.debug(&quot;Get the latest available version of module {} in your classpath&quot;, nameVersion.getName());</span>
+<span class="nc" id="L373">                            errors.add(String.format(&quot;Can't find module %s:%s in your classpath; loaded description for the latest available version.&quot;,</span>
+<span class="nc" id="L374">                                    nameVersion.getName(), nameVersion.getVersion()));</span>
+<span class="nc" id="L375">                            return ModuleSelectionInfo.latestVersion(module);</span>
+                        }
+<span class="nc" id="L377">                        logger.error(&quot;Can't find any versions of module {} in your classpath!&quot;, nameVersion.getName());</span>
+<span class="nc" id="L378">                        errors.add(String.format(&quot;Can't find any versions of module %s in your classpath!&quot;, nameVersion.getName()));</span>
+<span class="nc" id="L379">                        return ModuleSelectionInfo.unavailableVersion(nameVersion.getName().toString(), nameVersion.getVersion().toString());</span>
+                    }
+                })
+<span class="nc" id="L382">                .filter(Objects::nonNull)</span>
+<span class="nc" id="L383">                .collect(Collectors.toList());</span>
+
+<span class="nc" id="L385">        gameModules.setList(sortedGameModules);</span>
+<span class="nc" id="L386">        gameModules.select(0);</span>
+<span class="nc" id="L387">    }</span>
+
+    private void loadGeneralInfo() {
+<span class="nc" id="L390">        generalInfo.setText(getGeneralInfo(gameInfo));</span>
+<span class="nc" id="L391">        title.setText(translationSystem.translate(&quot;${engine:menu#game-details-title}&quot;) + &quot; : &quot; + gameInfo.getManifest().getTitle());</span>
+<span class="nc" id="L392">    }</span>
+
+    private String getGeneralInfo(final GameInfo theGameInfo) {
+<span class="nc" id="L395">        return translationSystem.translate(&quot;${engine:menu#game-details-game-title} &quot;) + theGameInfo.getManifest().getTitle() + '\n' + '\n' +</span>
+<span class="nc" id="L396">                translationSystem.translate(&quot;${engine:menu#game-details-last-play}: &quot;) + DATE_FORMAT.format(theGameInfo.getTimestamp()) + '\n' + '\n' +</span>
+<span class="nc" id="L397">                translationSystem.translate(&quot;${engine:menu#game-details-game-duration} &quot;) + DateTimeHelper</span>
+<span class="nc" id="L398">                .getDeltaBetweenTimestamps(new Date(0).getTime(), theGameInfo.getManifest().getTime()) + '\n' + '\n' +</span>
+<span class="nc" id="L399">                translationSystem.translate(&quot;${engine:menu#game-details-game-seed} &quot;) + theGameInfo.getManifest().getSeed() + '\n' + '\n' +</span>
+<span class="nc" id="L400">                translationSystem.translate(&quot;${engine:menu#game-details-world-generator}: &quot;) + '\t'</span>
+<span class="nc" id="L401">                + theGameInfo.getManifest().getWorldInfo(TerasologyConstants.MAIN_WORLD).getWorldGenerator().getObjectName().toString();</span>
+    }
+
+    private void loadGameWorlds() {
+<span class="nc" id="L405">        gameWorlds.setList(Lists.newArrayList(gameInfo.getManifest().getWorlds().iterator()));</span>
+<span class="nc" id="L406">    }</span>
+
+    private void loadBlocks() {
+<span class="nc" id="L409">        blockFamilyIds = Maps.newHashMap();</span>
+
+<span class="nc" id="L411">        gameInfo.getManifest().getBlockIdMap().entrySet().forEach(blockId -&gt; {</span>
+<span class="nc" id="L412">            String familyName = blockId.getKey().split(&quot;:&quot;)[0].toLowerCase();</span>
+<span class="nc" id="L413">            blockFamilyIds.computeIfAbsent(familyName, k -&gt; new ArrayList&lt;&gt;());</span>
+<span class="nc" id="L414">            blockFamilyIds.get(familyName).add(blockId.toString());</span>
+<span class="nc" id="L415">        });</span>
+
+<span class="nc" id="L417">        blocks.setList(Lists.newArrayList(blockFamilyIds.keySet()));</span>
+<span class="nc" id="L418">    }</span>
+
+    public void setGameInfo(GameInfo gameInfo) {
+<span class="nc" id="L421">        this.gameInfo = gameInfo;</span>
+<span class="nc" id="L422">    }</span>
+
+    public void setPreviews(final List&lt;UIImage&gt; images) {
+<span class="nc bnc" id="L425" title="All 4 branches missed.">        if (images != null &amp;&amp; !images.isEmpty()) {</span>
+<span class="nc" id="L426">            previewSlideshow.clean();</span>
+<span class="nc" id="L427">            images.forEach(previewSlideshow::addImage);</span>
+        }
+<span class="nc" id="L429">    }</span>
+
+    private String getModuleDescription(final ModuleSelectionInfo moduleSelectionInfo) {
+<span class="nc" id="L432">        final StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L433">        final ModuleMetadata moduleMetadata = moduleSelectionInfo.getMetadata();</span>
+
+<span class="nc bnc" id="L435" title="All 2 branches missed.">        if (moduleMetadata != null) {</span>
+<span class="nc" id="L436">            sb.append(translationSystem.translate(&quot;${engine:menu#game-details-game-title} &quot;))</span>
+<span class="nc" id="L437">                    .append(moduleMetadata.getDisplayName())</span>
+<span class="nc" id="L438">                    .append('\n')</span>
+<span class="nc" id="L439">                    .append('\n');</span>
+
+<span class="nc bnc" id="L441" title="All 2 branches missed.">            if (moduleSelectionInfo.isLatestVersion()) {</span>
+<span class="nc" id="L442">                sb.append(translationSystem.translate(&quot;${engine:menu#game-details-invalid-module-version-warning}&quot;))</span>
+<span class="nc" id="L443">                        .append('\n')</span>
+<span class="nc" id="L444">                        .append('\n');</span>
+            }
+<span class="nc bnc" id="L446" title="All 2 branches missed.">            if (moduleMetadata.getVersion() != null) {</span>
+<span class="nc" id="L447">                sb.append(translationSystem.translate(&quot;${engine:menu#game-details-version}&quot;))</span>
+<span class="nc" id="L448">                        .append(&quot; &quot;)</span>
+<span class="nc" id="L449">                        .append(moduleMetadata.getVersion().toString())</span>
+<span class="nc" id="L450">                        .append('\n')</span>
+<span class="nc" id="L451">                        .append('\n');</span>
+            }
+<span class="nc" id="L453">            String moduleDescription = moduleMetadata.getDescription().toString();</span>
+<span class="nc bnc" id="L454" title="All 2 branches missed.">            if (StringUtils.isBlank(moduleDescription)) {</span>
+<span class="nc" id="L455">                moduleDescription = translationSystem.translate(&quot;${engine:menu#game-details-no-description}&quot;);</span>
+            }
+<span class="nc" id="L457">            sb.append(translationSystem.translate(&quot;${engine:menu#game-details-description}&quot;))</span>
+<span class="nc" id="L458">                    .append(moduleDescription).append('\n').append('\n');</span>
+
+            StringBuilder dependenciesNames;
+<span class="nc" id="L461">            final List&lt;DependencyInfo&gt; dependencies = moduleMetadata.getDependencies();</span>
+<span class="nc bnc" id="L462" title="All 4 branches missed.">            if (dependencies != null &amp;&amp; !dependencies.isEmpty()) {</span>
+<span class="nc" id="L463">                dependenciesNames = new StringBuilder(translationSystem</span>
+<span class="nc" id="L464">                        .translate(&quot;${engine:menu#module-dependencies-exist}&quot;) + &quot;:&quot; + '\n');</span>
+<span class="nc bnc" id="L465" title="All 2 branches missed.">                for (DependencyInfo dependency : dependencies) {</span>
+<span class="nc" id="L466">                    dependenciesNames</span>
+<span class="nc" id="L467">                            .append(&quot;   &quot;)</span>
+<span class="nc" id="L468">                            .append(dependency.getId().toString())</span>
+<span class="nc" id="L469">                            .append('\n');</span>
+<span class="nc" id="L470">                }</span>
+            } else {
+<span class="nc" id="L472">                dependenciesNames = new StringBuilder(translationSystem</span>
+<span class="nc" id="L473">                        .translate(&quot;${engine:menu#module-dependencies-empty}&quot;) + &quot;.&quot;);</span>
+            }
+<span class="nc" id="L475">            return sb.append(dependenciesNames).toString();</span>
+        }
+
+<span class="nc bnc" id="L478" title="All 2 branches missed.">        if (moduleSelectionInfo.isUnavailableVersion()) {</span>
+<span class="nc" id="L479">            return sb.append(translationSystem.translate(&quot;${engine:menu#game-details-invalid-module-error}&quot;))</span>
+<span class="nc" id="L480">                    .append(&quot;\n&quot;)</span>
+<span class="nc" id="L481">                    .append('\n')</span>
+<span class="nc" id="L482">                    .append(translationSystem.translate(&quot;${engine:menu#game-details-version}&quot;))</span>
+<span class="nc" id="L483">                    .append(&quot; &quot;)</span>
+<span class="nc" id="L484">                    .append(moduleSelectionInfo.getUnavailableModuleVersion())</span>
+<span class="nc" id="L485">                    .toString();</span>
+        }
+<span class="nc" id="L487">        return translationSystem.translate(&quot;${engine:menu#game-details-invalid-module-error}&quot;);</span>
+    }
+
+    private void setUpOpenModuleDetails() {
+<span class="nc" id="L491">        openModuleDetails.subscribe(button -&gt; openModuleDetailsScreen());</span>
+<span class="nc" id="L492">        openModuleDetails.bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L495" title="All 4 branches missed.">                return moduleInfoBinding.get() != null &amp;&amp; moduleInfoBinding.get().getMetadata() != null;</span>
+            }
+        });
+<span class="nc" id="L498">    }</span>
+
+    private boolean isScreenValid() {
+<span class="nc" id="L501">        if (Stream.of(gameModules, gameWorlds, blocks, description, descriptionTitle, openModuleDetails,</span>
+                previewSlideshow, tabs, showErrors, close, slideLeft, slideRight, slideStop, title)
+<span class="nc bnc" id="L503" title="All 2 branches missed.">                .anyMatch(Objects::isNull)) {</span>
+<span class="nc" id="L504">            logger.error(&quot;Can't initialize screen correctly. At least one widget was missed!&quot;);</span>
+<span class="nc" id="L505">            return false;</span>
+        }
+<span class="nc" id="L507">        return true;</span>
+    }
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L512">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

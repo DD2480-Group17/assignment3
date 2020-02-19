@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TeraDenseArray16Bit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.blockdata</a> &gt; <span class="el_source">TeraDenseArray16Bit.java</span></div><h1>TeraDenseArray16Bit.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.chunks.blockdata;
+
+import com.google.common.base.Preconditions;
+import org.terasology.world.chunks.deflate.TeraVisitingDeflator;
+
+import java.nio.ByteBuffer;
+import java.nio.ShortBuffer;
+
+/**
+ * TeraDenseArray16Bit implements a dense array with elements of 16 bit size.
+ * Its elements are in the range -32'768 through +32'767 and it internally uses the short type to store its elements.
+ *
+ */
+public class TeraDenseArray16Bit extends TeraDenseArray {
+
+    protected short[] data;
+
+    public TeraDenseArray16Bit() {
+<span class="nc" id="L35">        super();</span>
+<span class="nc" id="L36">    }</span>
+
+    public TeraDenseArray16Bit(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L39">        super(sizeX, sizeY, sizeZ, true);</span>
+<span class="nc" id="L40">    }</span>
+
+    public TeraDenseArray16Bit(int sizeX, int sizeY, int sizeZ, short[] data) {
+<span class="fc" id="L43">        super(sizeX, sizeY, sizeZ, false);</span>
+<span class="fc" id="L44">        this.data = Preconditions.checkNotNull(data);</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        Preconditions.checkArgument(data.length == getSizeXYZ(), &quot;The length of parameter 'data' has to be &quot; + getSizeXYZ() + &quot; but is &quot; + data.length);</span>
+<span class="fc" id="L46">    }</span>
+
+    public TeraDenseArray16Bit(TeraArray in) {
+<span class="nc" id="L49">        super(in);</span>
+<span class="nc" id="L50">    }</span>
+
+    @Override
+    protected void initialize() {
+<span class="nc" id="L54">        this.data = new short[getSizeXYZ()];</span>
+<span class="nc" id="L55">    }</span>
+
+    @Override
+    public TeraArray copy() {
+<span class="nc" id="L59">        short[] tmp = new short[getSizeXYZ()];</span>
+<span class="nc" id="L60">        System.arraycopy(data, 0, tmp, 0, getSizeXYZ());</span>
+<span class="nc" id="L61">        return new TeraDenseArray16Bit(getSizeX(), getSizeY(), getSizeZ(), tmp);</span>
+    }
+
+    @Override
+    public TeraArray deflate(TeraVisitingDeflator deflator) {
+<span class="nc" id="L66">        return Preconditions.checkNotNull(deflator).deflateDenseArray16Bit(data, getSizeXZ(), getSizeX(), getSizeY(), getSizeZ());</span>
+    }
+
+    @Override
+    public int getEstimatedMemoryConsumptionInBytes() {
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        if (data == null) {</span>
+<span class="nc" id="L72">            return 4;</span>
+        } else {
+<span class="nc" id="L74">            return 16 + data.length * 2;</span>
+        }
+    }
+
+    @Override
+    public int getElementSizeInBits() {
+<span class="nc" id="L80">        return 16;</span>
+    }
+
+    @Override
+    public int get(int x, int y, int z) {
+<span class="fc" id="L85">        return data[pos(x, y, z)];</span>
+    }
+
+    @Override
+    public int set(int x, int y, int z, int value) {
+<span class="nc" id="L90">        int pos = pos(x, y, z);</span>
+<span class="nc" id="L91">        int old = data[pos];</span>
+<span class="nc" id="L92">        data[pos] = (short) value;</span>
+<span class="nc" id="L93">        return old;</span>
+    }
+
+    @Override
+    public boolean set(int x, int y, int z, int value, int expected) {
+<span class="nc" id="L98">        int pos = pos(x, y, z);</span>
+<span class="nc" id="L99">        int old = data[pos];</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (old == expected) {</span>
+<span class="nc" id="L101">            data[pos] = (short) value;</span>
+<span class="nc" id="L102">            return true;</span>
+        }
+<span class="nc" id="L104">        return false;</span>
+    }
+
+<span class="nc" id="L107">    public static class SerializationHandler extends TeraArray.BasicSerializationHandler&lt;TeraDenseArray16Bit&gt; {</span>
+
+        @Override
+        public boolean canHandle(Class&lt;?&gt; clazz) {
+<span class="nc" id="L111">            return TeraDenseArray16Bit.class.equals(clazz);</span>
+        }
+
+        @Override
+        protected int internalComputeMinimumBufferSize(TeraDenseArray16Bit array) {
+<span class="nc" id="L116">            final short[] data = array.data;</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">            if (data == null) {</span>
+<span class="nc" id="L118">                return 4;</span>
+            } else {
+<span class="nc" id="L120">                return 4 + data.length * 2;</span>
+            }
+        }
+
+        @Override
+        protected void internalSerialize(TeraDenseArray16Bit array, ByteBuffer buffer) {
+<span class="nc" id="L126">            final short[] data = array.data;</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">            if (data == null) {</span>
+<span class="nc" id="L128">                buffer.putInt(0);</span>
+            } else {
+<span class="nc" id="L130">                buffer.putInt(data.length);</span>
+<span class="nc" id="L131">                final ShortBuffer sbuffer = buffer.asShortBuffer();</span>
+<span class="nc" id="L132">                sbuffer.put(data);</span>
+<span class="nc" id="L133">                buffer.position(buffer.position() + data.length * 2);</span>
+            }
+<span class="nc" id="L135">        }</span>
+
+        @Override
+        protected TeraDenseArray16Bit internalDeserialize(int sizeX, int sizeY, int sizeZ, ByteBuffer buffer) {
+<span class="nc" id="L139">            final int length = buffer.getInt();</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            if (length &gt; 0) {</span>
+<span class="nc" id="L141">                final short[] data = new short[length];</span>
+<span class="nc" id="L142">                final ShortBuffer sbuffer = buffer.asShortBuffer();</span>
+<span class="nc" id="L143">                sbuffer.get(data, 0, length);</span>
+<span class="nc" id="L144">                buffer.position(buffer.position() + length * 2);</span>
+<span class="nc" id="L145">                return new TeraDenseArray16Bit(sizeX, sizeY, sizeZ, data);</span>
+            }
+<span class="nc" id="L147">            return new TeraDenseArray16Bit(sizeX, sizeY, sizeZ);</span>
+        }
+    }
+
+<span class="nc" id="L151">    public static class Factory implements TeraArray.Factory&lt;TeraDenseArray16Bit&gt; {</span>
+
+        @Override
+        public Class&lt;TeraDenseArray16Bit&gt; getArrayClass() {
+<span class="nc" id="L155">            return TeraDenseArray16Bit.class;</span>
+        }
+
+        @Override
+        public SerializationHandler createSerializationHandler() {
+<span class="nc" id="L160">            return new SerializationHandler();</span>
+        }
+
+        @Override
+        public TeraDenseArray16Bit create() {
+<span class="nc" id="L165">            return new TeraDenseArray16Bit();</span>
+        }
+
+        @Override
+        public TeraDenseArray16Bit create(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L170">            return new TeraDenseArray16Bit(sizeX, sizeY, sizeZ);</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

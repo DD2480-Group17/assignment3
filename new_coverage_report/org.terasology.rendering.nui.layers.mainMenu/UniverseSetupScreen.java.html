@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UniverseSetupScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layers.mainMenu</a> &gt; <span class="el_source">UniverseSetupScreen.java</span></div><h1>UniverseSetupScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layers.mainMenu;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.AssetFactory;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
+import org.terasology.config.Config;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.engine.bootstrap.EnvironmentSwitchHandler;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.entitySystem.prefab.Prefab;
+import org.terasology.entitySystem.prefab.PrefabData;
+import org.terasology.entitySystem.prefab.internal.PojoPrefab;
+import org.terasology.logic.behavior.asset.BehaviorTree;
+import org.terasology.logic.behavior.asset.BehaviorTreeData;
+import org.terasology.module.DependencyInfo;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.ResolutionResult;
+import org.terasology.naming.Name;
+import org.terasology.reflection.copy.CopyStrategyLibrary;
+import org.terasology.reflection.reflect.ReflectFactory;
+import org.terasology.reflection.reflect.ReflectionReflectFactory;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.registry.In;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.NUIManager;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.animation.MenuAnimationSystems;
+import org.terasology.rendering.nui.asset.UIData;
+import org.terasology.rendering.nui.asset.UIElement;
+import org.terasology.rendering.nui.databinding.Binding;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.itemRendering.StringTextRenderer;
+import org.terasology.rendering.nui.skin.UISkin;
+import org.terasology.rendering.nui.skin.UISkinData;
+import org.terasology.rendering.nui.widgets.UIDropdownScrollable;
+import org.terasology.rendering.world.WorldSetupWrapper;
+import org.terasology.world.block.family.BlockFamilyLibrary;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.loader.BlockFamilyDefinitionData;
+import org.terasology.world.block.loader.BlockFamilyDefinitionFormat;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.shapes.BlockShapeData;
+import org.terasology.world.block.shapes.BlockShapeImpl;
+import org.terasology.world.block.sounds.BlockSounds;
+import org.terasology.world.block.sounds.BlockSoundsData;
+import org.terasology.world.block.tiles.BlockTile;
+import org.terasology.world.block.tiles.TileData;
+import org.terasology.world.generator.UnresolvedWorldGeneratorException;
+import org.terasology.world.generator.internal.WorldGeneratorInfo;
+import org.terasology.world.generator.internal.WorldGeneratorManager;
+import org.terasology.world.generator.plugin.TempWorldGeneratorPluginLibrary;
+import org.terasology.world.generator.plugin.WorldGeneratorPluginLibrary;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * Sets up the Universe for a user. Displays a list of {@link org.terasology.world.generator.WorldGenerator}
+ * for a particular game template.
+ */
+<span class="nc" id="L85">public class UniverseSetupScreen extends CoreScreenLayer {</span>
+<span class="nc" id="L86">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:universeSetupScreen&quot;);</span>
+
+<span class="nc" id="L88">    private static final Logger logger = LoggerFactory.getLogger(UniverseSetupScreen.class);</span>
+
+    @In
+    private WorldGeneratorManager worldGeneratorManager;
+
+    @In
+    private ModuleManager moduleManager;
+
+    @In
+    private Config config;
+
+<span class="nc" id="L99">    private List&lt;WorldSetupWrapper&gt; worlds = Lists.newArrayList();</span>
+    private ModuleEnvironment environment;
+    private ModuleAwareAssetTypeManager assetTypeManager;
+    private Context context;
+    private int worldNumber;
+<span class="nc" id="L104">    private String selectedWorld = &quot;&quot;;</span>
+    private int indexOfSelectedWorld;
+    private WorldSetupWrapper copyOfSelectedWorld;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L110">        setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());</span>
+
+<span class="nc" id="L112">        final UIDropdownScrollable&lt;WorldGeneratorInfo&gt; worldGenerator = find(&quot;worldGenerators&quot;, UIDropdownScrollable.class);</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        if (worldGenerator != null) {</span>
+<span class="nc" id="L114">            worldGenerator.bindOptions(new ReadOnlyBinding&lt;List&lt;WorldGeneratorInfo&gt;&gt;() {</span>
+                @Override
+                public List&lt;WorldGeneratorInfo&gt; get() {
+                    // grab all the module names and their dependencies
+                    // This grabs modules from `config.getDefaultModSelection()` which is updated in AdvancedGameSetupScreen
+<span class="nc" id="L119">                    final Set&lt;Name&gt; enabledModuleNames = new HashSet&lt;&gt;(getAllEnabledModuleNames());</span>
+<span class="nc" id="L120">                    final List&lt;WorldGeneratorInfo&gt; result = Lists.newArrayList();</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                    for (WorldGeneratorInfo option : worldGeneratorManager.getWorldGenerators()) {</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                        if (enabledModuleNames.contains(option.getUri().getModuleName())) {</span>
+<span class="nc" id="L123">                            result.add(option);</span>
+                        }
+<span class="nc" id="L125">                    }</span>
+
+<span class="nc" id="L127">                    return result;</span>
+                }
+            });
+<span class="nc" id="L130">            worldGenerator.setVisibleOptions(3);</span>
+<span class="nc" id="L131">            worldGenerator.bindSelection(new Binding&lt;WorldGeneratorInfo&gt;() {</span>
+                @Override
+                public WorldGeneratorInfo get() {
+                    // get the default generator from the config. This is likely to have a user triggered selection.
+<span class="nc" id="L135">                    WorldGeneratorInfo info = worldGeneratorManager.getWorldGeneratorInfo(config.getWorldGeneration().getDefaultGenerator());</span>
+<span class="nc bnc" id="L136" title="All 4 branches missed.">                    if (info != null &amp;&amp; getAllEnabledModuleNames().contains(info.getUri().getModuleName())) {</span>
+<span class="nc" id="L137">                        return info;</span>
+                    }
+
+                    // just use the first available generator
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                    for (WorldGeneratorInfo worldGenInfo : worldGeneratorManager.getWorldGenerators()) {</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                        if (getAllEnabledModuleNames().contains(worldGenInfo.getUri().getModuleName())) {</span>
+<span class="nc" id="L143">                            set(worldGenInfo);</span>
+<span class="nc" id="L144">                            return worldGenInfo;</span>
+                        }
+<span class="nc" id="L146">                    }</span>
+
+<span class="nc" id="L148">                    return null;</span>
+                }
+
+                @Override
+                public void set(WorldGeneratorInfo value) {
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                    if (value != null) {</span>
+<span class="nc" id="L154">                        config.getWorldGeneration().setDefaultGenerator(value.getUri());</span>
+                    }
+<span class="nc" id="L156">                }</span>
+            });
+<span class="nc" id="L158">            worldGenerator.setOptionRenderer(new StringTextRenderer&lt;WorldGeneratorInfo&gt;() {</span>
+                @Override
+                public String getString(WorldGeneratorInfo value) {
+<span class="nc bnc" id="L161" title="All 2 branches missed.">                    if (value != null) {</span>
+<span class="nc" id="L162">                        return value.getDisplayName();</span>
+                    }
+<span class="nc" id="L164">                    return &quot;&quot;;</span>
+                }
+            });
+        }
+<span class="nc" id="L168">        final UIDropdownScrollable worldsDropdown = find(&quot;worlds&quot;, UIDropdownScrollable.class);</span>
+<span class="nc" id="L169">        worldsDropdown.bindSelection(new Binding&lt;String&gt;() {</span>
+            @Override
+            public String get() {
+<span class="nc" id="L172">                return selectedWorld;</span>
+            }
+
+            @Override
+            public void set(String value) {
+<span class="nc" id="L177">                selectedWorld = value;</span>
+<span class="nc" id="L178">                indexOfSelectedWorld = findIndex(worlds, selectedWorld);</span>
+<span class="nc" id="L179">            }</span>
+        });
+
+<span class="nc" id="L182">        WidgetUtil.trySubscribe(this, &quot;close&quot;, button -&gt;</span>
+<span class="nc" id="L183">                triggerBackAnimation()</span>
+        );
+
+<span class="nc" id="L186">        WidgetUtil.trySubscribe(this, &quot;worldConfig&quot;, button -&gt; {</span>
+<span class="nc" id="L187">            final WorldSetupScreen worldSetupScreen = getManager().createScreen(WorldSetupScreen.ASSET_URI, WorldSetupScreen.class);</span>
+            try {
+<span class="nc bnc" id="L189" title="All 4 branches missed.">                if (!worlds.isEmpty() || !selectedWorld.isEmpty()) {</span>
+<span class="nc" id="L190">                    worldSetupScreen.setWorld(context, findWorldByName(), worldsDropdown);</span>
+<span class="nc" id="L191">                    triggerForwardAnimation(worldSetupScreen);</span>
+                } else {
+<span class="nc" id="L193">                    getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Worlds List Empty!&quot;, &quot;No world found to configure.&quot;);</span>
+                }
+<span class="nc" id="L195">            } catch (UnresolvedWorldGeneratorException e) {</span>
+<span class="nc" id="L196">                logger.error(&quot;Can't configure the world! due to {}&quot;, e.getMessage());</span>
+<span class="nc" id="L197">            }</span>
+<span class="nc" id="L198">        });</span>
+
+<span class="nc" id="L200">        WidgetUtil.trySubscribe(this, &quot;addGenerator&quot;, button -&gt; {</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            if (worldGenerator.getSelection().getUri().toString().equals(&quot;Core:heightMap&quot;)) {</span>
+<span class="nc" id="L202">                getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(</span>
+                        &quot;HeightMap not supported&quot;, &quot;HeightMap is not supported for advanced setup right now, a game template will be introduced soon.&quot;);
+            } else {
+<span class="nc" id="L205">                addNewWorld(worldGenerator.getSelection());</span>
+<span class="nc" id="L206">                worldsDropdown.setOptions(worldNames());</span>
+            }
+<span class="nc" id="L208">        });</span>
+
+<span class="nc" id="L210">        WidgetUtil.trySubscribe(this, &quot;continue&quot;, button -&gt; {</span>
+<span class="nc" id="L211">            final WorldPreGenerationScreen worldPreGenerationScreen = getManager().createScreen(WorldPreGenerationScreen.ASSET_URI, WorldPreGenerationScreen.class);</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            if (!worlds.isEmpty()) {</span>
+<span class="nc" id="L213">                final WaitPopup&lt;Boolean&gt; loadPopup = getManager().pushScreen(WaitPopup.ASSET_URI, WaitPopup.class);</span>
+<span class="nc" id="L214">                loadPopup.setMessage(&quot;Loading&quot;, &quot;please wait ...&quot;);</span>
+<span class="nc" id="L215">                loadPopup.onSuccess(result -&gt; {</span>
+<span class="nc bnc" id="L216" title="All 4 branches missed.">                    if (result != null &amp;&amp; result) {</span>
+<span class="nc" id="L217">                        triggerForwardAnimation(worldPreGenerationScreen);</span>
+                    } else {
+<span class="nc" id="L219">                        getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(&quot;Error&quot;, &quot;Can't load world pre generation screen! Please, try again!&quot;);</span>
+                    }
+<span class="nc" id="L221">                });</span>
+<span class="nc" id="L222">                loadPopup.startOperation(() -&gt; {</span>
+                    try {
+<span class="nc" id="L224">                        worldPreGenerationScreen.setEnvironment(context);</span>
+<span class="nc" id="L225">                    } catch (UnresolvedWorldGeneratorException e) {</span>
+<span class="nc" id="L226">                        return false;</span>
+<span class="nc" id="L227">                    }</span>
+<span class="nc" id="L228">                    return true;</span>
+                }, true);
+<span class="nc" id="L230">            } else {</span>
+<span class="nc" id="L231">                getManager().pushScreen(MessagePopup.ASSET_URI, MessagePopup.class).setMessage(</span>
+                        &quot;Worlds List Empty!&quot;, &quot;Please select a world generator and add words to the dropdown!&quot;);
+            }
+<span class="nc" id="L234">        });</span>
+
+<span class="nc" id="L236">        WidgetUtil.trySubscribe(this, &quot;mainMenu&quot;, button -&gt; {</span>
+<span class="nc" id="L237">            getManager().pushScreen(&quot;engine:mainMenuScreen&quot;);</span>
+<span class="nc" id="L238">        });</span>
+<span class="nc" id="L239">    }</span>
+
+    @Override
+    public void onOpened() {
+<span class="nc" id="L243">        super.onOpened();</span>
+
+<span class="nc" id="L245">        worlds.clear();</span>
+<span class="nc" id="L246">        worldNumber = 0;</span>
+<span class="nc" id="L247">        final UIDropdownScrollable worldsDropdown = find(&quot;worlds&quot;, UIDropdownScrollable.class);</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        if (worldsDropdown != null) {</span>
+<span class="nc" id="L249">            worldsDropdown.setOptions(worldNames());</span>
+        }
+<span class="nc" id="L251">        selectedWorld = &quot;&quot;;</span>
+<span class="nc" id="L252">        indexOfSelectedWorld = findIndex(worlds, selectedWorld);</span>
+<span class="nc" id="L253">    }</span>
+
+    private Set&lt;Name&gt; getAllEnabledModuleNames() {
+<span class="nc" id="L256">        final Set&lt;Name&gt; enabledModules = Sets.newHashSet();</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        for (Name moduleName : config.getDefaultModSelection().listModules()) {</span>
+<span class="nc" id="L258">            enabledModules.add(moduleName);</span>
+<span class="nc" id="L259">            recursivelyAddModuleDependencies(enabledModules, moduleName);</span>
+<span class="nc" id="L260">        }</span>
+
+<span class="nc" id="L262">        return enabledModules;</span>
+    }
+
+
+    private void recursivelyAddModuleDependencies(Set&lt;Name&gt; modules, Name moduleName) {
+<span class="nc" id="L267">        Module module = moduleManager.getRegistry().getLatestModuleVersion(moduleName);</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">        if (module != null) {</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">            for (DependencyInfo dependencyInfo : module.getMetadata().getDependencies()) {</span>
+<span class="nc" id="L270">                modules.add(dependencyInfo.getId());</span>
+<span class="nc" id="L271">                recursivelyAddModuleDependencies(modules, dependencyInfo.getId());</span>
+<span class="nc" id="L272">            }</span>
+        }
+<span class="nc" id="L274">    }</span>
+
+    /**
+     * returns true if 'name' matches (case-insensitive) with another world already present
+     * @param name The world name to be checked
+     */
+    public boolean worldNameMatchesAnother(String name) {
+<span class="nc" id="L281">        boolean taken = false;</span>
+
+<span class="nc bnc" id="L283" title="All 2 branches missed.">        for (WorldSetupWrapper worldTaken: worlds) {</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">            if (worldTaken.getWorldName().toString().equalsIgnoreCase(name)) {</span>
+<span class="nc" id="L285">                taken = true;</span>
+<span class="nc" id="L286">                break;</span>
+            }
+<span class="nc" id="L288">        }</span>
+
+<span class="nc" id="L290">        return taken;</span>
+    }
+
+    /**
+     * Called whenever the user decides to add a new world.
+     * @param worldGeneratorInfo The {@link WorldGeneratorInfo} object for the new world.
+     */
+    private void addNewWorld(WorldGeneratorInfo worldGeneratorInfo) {
+<span class="nc" id="L298">        String selectedWorldName = worldGeneratorInfo.getDisplayName();</span>
+
+<span class="nc bnc" id="L300" title="All 2 branches missed.">        while (worldNameMatchesAnother(selectedWorldName + &quot;-&quot; + worldNumber)) {</span>
+<span class="nc" id="L301">            ++worldNumber;</span>
+        }
+
+<span class="nc" id="L304">        selectedWorld = worldGeneratorInfo.getDisplayName() + '-' + worldNumber;</span>
+<span class="nc" id="L305">        worlds.add(new WorldSetupWrapper(new Name(worldGeneratorInfo.getDisplayName() + '-' + worldNumber), worldGeneratorInfo));</span>
+<span class="nc" id="L306">        indexOfSelectedWorld = findIndex(worlds, selectedWorld);</span>
+<span class="nc" id="L307">        ++worldNumber;</span>
+<span class="nc" id="L308">    }</span>
+
+    /**
+     * This method refreshes the worlds drop-down menu when world name is changed and updates variable selectedWorld.
+     * @param worldsDropdown the drop-down to work on
+     */
+    public void refreshWorldDropdown(UIDropdownScrollable worldsDropdown) {
+<span class="nc" id="L315">        worldsDropdown.setOptions(worldNames());</span>
+<span class="nc" id="L316">        copyOfSelectedWorld = worlds.get(indexOfSelectedWorld);</span>
+<span class="nc" id="L317">        selectedWorld = copyOfSelectedWorld.getWorldName().toString();</span>
+<span class="nc" id="L318">    }</span>
+
+    /**
+     * This method switches the environment of the game to a temporary one needed for
+     * creating a game. It creates a new {@link Context} and only puts the minimum classes
+     * needed for successful game creation.
+     * @param wrapper takes the {@link org.terasology.rendering.nui.layers.mainMenu.advancedGameSetupScreen.AdvancedGameSetupScreen} and pushes it into the new context.
+     */
+    public void setEnvironment(UniverseWrapper wrapper) {
+<span class="nc" id="L327">        context = new ContextImpl();</span>
+<span class="nc" id="L328">        CoreRegistry.setContext(context);</span>
+<span class="nc" id="L329">        ReflectFactory reflectFactory = new ReflectionReflectFactory();</span>
+<span class="nc" id="L330">        context.put(ReflectFactory.class, reflectFactory);</span>
+<span class="nc" id="L331">        CopyStrategyLibrary copyStrategyLibrary = new CopyStrategyLibrary(reflectFactory);</span>
+<span class="nc" id="L332">        context.put(CopyStrategyLibrary.class, copyStrategyLibrary);</span>
+<span class="nc" id="L333">        context.put(NUIManager.class, getManager());</span>
+<span class="nc" id="L334">        context.put(UniverseSetupScreen.class, this);</span>
+<span class="nc" id="L335">        assetTypeManager = new ModuleAwareAssetTypeManager();</span>
+<span class="nc" id="L336">        context.put(AssetManager.class, assetTypeManager.getAssetManager());</span>
+<span class="nc" id="L337">        context.put(ModuleAwareAssetTypeManager.class, assetTypeManager);</span>
+<span class="nc" id="L338">        context.put(ModuleManager.class, moduleManager);</span>
+<span class="nc" id="L339">        context.put(UniverseWrapper.class, wrapper);</span>
+
+<span class="nc" id="L341">        DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());</span>
+<span class="nc" id="L342">        ResolutionResult result = resolver.resolve(config.getDefaultModSelection().listModules());</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">        if (result.isSuccess()) {</span>
+<span class="nc" id="L344">            environment = moduleManager.loadEnvironment(result.getModules(), false);</span>
+<span class="nc" id="L345">            context.put(ModuleEnvironment.class, environment);</span>
+<span class="nc" id="L346">            context.put(WorldGeneratorPluginLibrary.class, new TempWorldGeneratorPluginLibrary(environment, context));</span>
+<span class="nc" id="L347">            initAssets();</span>
+
+<span class="nc" id="L349">            EnvironmentSwitchHandler environmentSwitcher = new EnvironmentSwitchHandler();</span>
+<span class="nc" id="L350">            context.put(EnvironmentSwitchHandler.class, environmentSwitcher);</span>
+
+<span class="nc" id="L352">            environmentSwitcher.handleSwitchToPreviewEnvironment(context, environment);</span>
+        }
+<span class="nc" id="L354">    }</span>
+
+    /**
+     * Looks for the index of a selected world from the given list.
+     * @param worldsList the list to search
+     * @param worldName the name of the world to find
+     * @return the found index value or -1 if not found
+     */
+    private int findIndex(List&lt;WorldSetupWrapper&gt; worldsList, String worldName) {
+<span class="nc bnc" id="L363" title="All 2 branches missed.">        for (int i = 0; i &lt; worldsList.size(); i++) {</span>
+<span class="nc" id="L364">            WorldSetupWrapper currentWorldFromList = worldsList.get(i);</span>
+<span class="nc" id="L365">            Name customName = currentWorldFromList.getWorldName();</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">            if (customName.toString().equals(worldName)) {</span>
+<span class="nc" id="L367">                return i;</span>
+            }
+        }
+<span class="nc" id="L370">        return -1;</span>
+    }
+
+    private void initAssets() {
+
+<span class="nc" id="L375">        ModuleEnvironment environment = context.get(ModuleManager.class).getEnvironment();</span>
+<span class="nc" id="L376">        BlockFamilyLibrary library =  new BlockFamilyLibrary(environment, context);</span>
+
+        // cast lambdas explicitly to avoid inconsistent compiler behavior wrt. type inference
+<span class="nc" id="L379">        assetTypeManager.registerCoreAssetType(Prefab.class,</span>
+                (AssetFactory&lt;Prefab, PrefabData&gt;) PojoPrefab::new, false, &quot;prefabs&quot;);
+<span class="nc" id="L381">        assetTypeManager.registerCoreAssetType(BlockShape.class,</span>
+                (AssetFactory&lt;BlockShape, BlockShapeData&gt;) BlockShapeImpl::new, &quot;shapes&quot;);
+<span class="nc" id="L383">        assetTypeManager.registerCoreAssetType(BlockSounds.class,</span>
+                (AssetFactory&lt;BlockSounds, BlockSoundsData&gt;) BlockSounds::new, &quot;blockSounds&quot;);
+<span class="nc" id="L385">        assetTypeManager.registerCoreAssetType(BlockTile.class,</span>
+                (AssetFactory&lt;BlockTile, TileData&gt;) BlockTile::new, &quot;blockTiles&quot;);
+<span class="nc" id="L387">        assetTypeManager.registerCoreAssetType(BlockFamilyDefinition.class,</span>
+                (AssetFactory&lt;BlockFamilyDefinition, BlockFamilyDefinitionData&gt;) BlockFamilyDefinition::new, &quot;blocks&quot;);
+<span class="nc" id="L389">        assetTypeManager.registerCoreFormat(BlockFamilyDefinition.class,</span>
+<span class="nc" id="L390">                new BlockFamilyDefinitionFormat(assetTypeManager.getAssetManager()));</span>
+<span class="nc" id="L391">        assetTypeManager.registerCoreAssetType(UISkin.class,</span>
+                (AssetFactory&lt;UISkin, UISkinData&gt;) UISkin::new, &quot;skins&quot;);
+<span class="nc" id="L393">        assetTypeManager.registerCoreAssetType(BehaviorTree.class,</span>
+                (AssetFactory&lt;BehaviorTree, BehaviorTreeData&gt;) BehaviorTree::new, false, &quot;behaviors&quot;);
+<span class="nc" id="L395">        assetTypeManager.registerCoreAssetType(UIElement.class,</span>
+                (AssetFactory&lt;UIElement, UIData&gt;) UIElement::new, &quot;ui&quot;);
+<span class="nc" id="L397">    }</span>
+
+    /**
+     * Create a list of the names of the world, so that they can be displayed as simple String
+     * in the drop-down.
+     * @return A list of world names encoded as a String
+     */
+    public List&lt;String&gt; worldNames() {
+<span class="nc" id="L405">        final List&lt;String&gt; worldNamesList = Lists.newArrayList();</span>
+<span class="nc bnc" id="L406" title="All 2 branches missed.">        for (WorldSetupWrapper world : worlds) {</span>
+<span class="nc" id="L407">            worldNamesList.add(world.getWorldName().toString());</span>
+<span class="nc" id="L408">        }</span>
+<span class="nc" id="L409">        return worldNamesList;</span>
+    }
+
+    /**
+     * This method takes the name of the selected world as String and return the corresponding
+     * WorldSetupWrapper object.
+     * @return {@link WorldSetupWrapper} object.
+     */
+    public WorldSetupWrapper findWorldByName() {
+<span class="nc bnc" id="L418" title="All 2 branches missed.">        for (WorldSetupWrapper world : worlds) {</span>
+<span class="nc bnc" id="L419" title="All 2 branches missed.">            if (world.getWorldName().toString().equals(selectedWorld)) {</span>
+<span class="nc" id="L420">                return world;</span>
+            }
+<span class="nc" id="L422">        }</span>
+<span class="nc" id="L423">        return null;</span>
+    }
+
+    public List&lt;WorldSetupWrapper&gt; getWorldsList() {
+<span class="nc" id="L427">        return worlds;</span>
+    }
+
+    /**
+     * @return the selcted world in the drop-down.
+     */
+    public String getSelectedWorld() {
+<span class="nc" id="L434">        return selectedWorld;</span>
+    }
+
+    @Override
+    public boolean isLowerLayerVisible() {
+<span class="nc" id="L439">        return false;</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CopyStrategyLibrary.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.reflection.copy</a> &gt; <span class="el_source">CopyStrategyLibrary.java</span></div><h1>CopyStrategyLibrary.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.reflection.copy;
+
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.reflection.metadata.ClassMetadata;
+import org.terasology.reflection.metadata.DefaultClassMetadata;
+import org.terasology.reflection.MappedContainer;
+import org.terasology.reflection.copy.strategy.ListCopyStrategy;
+import org.terasology.reflection.copy.strategy.MapCopyStrategy;
+import org.terasology.reflection.copy.strategy.MappedContainerCopyStrategy;
+import org.terasology.reflection.copy.strategy.SetCopyStrategy;
+import org.terasology.reflection.reflect.ReflectFactory;
+import org.terasology.engine.SimpleUri;
+import org.terasology.utilities.ReflectionUtil;
+
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * A library of copy strategies.
+ * &lt;br&gt;&lt;br&gt;
+ * This library is should be initialised by registering strategies for a number of core types.  Then as strategies are requested for unknown types,
+ * new strategies are generated for those types.
+ * The library knows how to generate strategies for Lists, Sets, Maps and types marked with the MappedContainer annotation.
+ * If there is any trouble generating a strategy for a type, or it is unknown and generation is not appropriate for the type, a default strategy of returning the value
+ * to be copied unaltered is returned.
+ *
+ */
+public class CopyStrategyLibrary {
+<span class="fc" id="L49">    private static final Logger logger = LoggerFactory.getLogger(CopyStrategyLibrary.class);</span>
+
+<span class="fc" id="L51">    private Map&lt;Class&lt;?&gt;, CopyStrategy&lt;?&gt;&gt; strategies = Maps.newHashMap();</span>
+<span class="fc" id="L52">    private CopyStrategy&lt;?&gt; defaultStrategy = new ReturnAsIsStrategy&lt;&gt;();</span>
+    private ReflectFactory reflectFactory;
+
+<span class="fc" id="L55">    public CopyStrategyLibrary(ReflectFactory reflectFactory) {</span>
+<span class="fc" id="L56">        this.reflectFactory = reflectFactory;</span>
+<span class="fc" id="L57">    }</span>
+
+
+    /**
+     * This constructor is not public, as it allows the direct setting of an internal field without a save copy.
+     * @param strategies must not be used after it has been passed to this constructor.
+     */
+<span class="fc" id="L64">    private CopyStrategyLibrary(Map&lt;Class&lt;?&gt;, CopyStrategy&lt;?&gt;&gt; strategies, ReflectFactory reflectFactory) {</span>
+<span class="fc" id="L65">        this.strategies = strategies;</span>
+<span class="fc" id="L66">        this.reflectFactory = reflectFactory;</span>
+<span class="fc" id="L67">    }</span>
+
+
+    /**
+     * Registers a copy strategy for a base type.
+     *
+     * @param type     The type
+     * @param strategy The strategy for copying the type
+     * @param &lt;T&gt;      The type
+     */
+    public &lt;T&gt; void register(Class&lt;T&gt; type, CopyStrategy&lt;T&gt; strategy) {
+<span class="nc" id="L78">        strategies.put(type, strategy);</span>
+<span class="nc" id="L79">    }</span>
+
+    public void clear() {
+<span class="nc" id="L82">        strategies.clear();</span>
+<span class="nc" id="L83">    }</span>
+
+    // TODO: Consider CopyStrategyFactory system for Collections and similar
+    public CopyStrategy&lt;?&gt; getStrategy(Type genericType) {
+<span class="fc" id="L87">        Class&lt;?&gt; typeClass = ReflectionUtil.getRawType(genericType);</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (typeClass == null) {</span>
+<span class="nc" id="L89">            logger.error(&quot;Cannot obtain class for type {}, using default strategy&quot;, genericType);</span>
+<span class="nc" id="L90">            return defaultStrategy;</span>
+        }
+
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (List.class.isAssignableFrom(typeClass)) {</span>
+            // For lists, create the handler for the contained type and wrap in a list type handler
+<span class="fc" id="L95">            Type parameter = ReflectionUtil.getTypeParameter(genericType, 0);</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">            if (parameter != null) {</span>
+<span class="fc" id="L97">                CopyStrategy&lt;?&gt; contentStrategy = getStrategy(parameter);</span>
+<span class="fc" id="L98">                return new ListCopyStrategy&lt;&gt;(contentStrategy);</span>
+            }
+<span class="nc" id="L100">            logger.error(&quot;List field is not parametrized - using default strategy&quot;);</span>
+<span class="nc" id="L101">            return new ListCopyStrategy&lt;&gt;(defaultStrategy);</span>
+
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        } else if (Set.class.isAssignableFrom(typeClass)) {</span>
+            // For sets:
+<span class="fc" id="L105">            Type parameter = ReflectionUtil.getTypeParameter(genericType, 0);</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">            if (parameter != null) {</span>
+<span class="fc" id="L107">                CopyStrategy&lt;?&gt; contentStrategy = getStrategy(parameter);</span>
+<span class="fc" id="L108">                return new SetCopyStrategy&lt;&gt;(contentStrategy);</span>
+            }
+<span class="nc" id="L110">            logger.error(&quot;Set field is not parametrized - using default strategy&quot;);</span>
+<span class="nc" id="L111">            return new SetCopyStrategy&lt;&gt;(defaultStrategy);</span>
+
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        } else if (Map.class.isAssignableFrom(typeClass)) {</span>
+            // For Maps, create the handler for the value type
+<span class="fc" id="L115">            Type keyParameter = ReflectionUtil.getTypeParameter(genericType, 0);</span>
+            CopyStrategy&lt;?&gt; keyStrategy;
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">            if (keyParameter != null) {</span>
+<span class="fc" id="L118">                keyStrategy = getStrategy(keyParameter);</span>
+            } else {
+<span class="nc" id="L120">                logger.error(&quot;Map field is missing key parameter - using default strategy&quot;);</span>
+<span class="nc" id="L121">                keyStrategy = defaultStrategy;</span>
+            }
+
+<span class="fc" id="L124">            Type valueParameter = ReflectionUtil.getTypeParameter(genericType, 1);</span>
+            CopyStrategy&lt;?&gt; valueStrategy;
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">            if (valueParameter != null) {</span>
+<span class="fc" id="L127">                valueStrategy = getStrategy(valueParameter);</span>
+            } else {
+<span class="nc" id="L129">                logger.error(&quot;Map field is missing value parameter - using default strategy&quot;);</span>
+<span class="nc" id="L130">                valueStrategy = defaultStrategy;</span>
+            }
+<span class="fc" id="L132">            return new MapCopyStrategy&lt;&gt;(keyStrategy, valueStrategy);</span>
+
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        } else if (strategies.containsKey(typeClass)) {</span>
+            // For known types, just use the handler
+<span class="fc" id="L136">            return strategies.get(typeClass);</span>
+
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        } else if (typeClass.getAnnotation(MappedContainer.class) != null) {</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">            if (Modifier.isAbstract(typeClass.getModifiers())</span>
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">                    || typeClass.isLocalClass()</span>
+<span class="pc bpc" id="L141" title="2 of 4 branches missed.">                    || (typeClass.isMemberClass() &amp;&amp; !Modifier.isStatic(typeClass.getModifiers()))) {</span>
+<span class="nc" id="L142">                logger.error(&quot;Type {} is not a valid mapped class&quot;, typeClass);</span>
+<span class="nc" id="L143">                return defaultStrategy;</span>
+            }
+
+            try {
+<span class="fc" id="L147">                ClassMetadata&lt;?, ?&gt; classMetadata = new DefaultClassMetadata&lt;&gt;(new SimpleUri(), typeClass, reflectFactory, this);</span>
+<span class="fc" id="L148">                return new MappedContainerCopyStrategy&lt;&gt;(classMetadata);</span>
+<span class="nc" id="L149">            } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L150">                logger.error(&quot;Unable to create copy strategy for field of type {}: no publicly accessible default constructor&quot;, typeClass.getSimpleName());</span>
+<span class="nc" id="L151">                return defaultStrategy;</span>
+            }
+        } else {
+<span class="fc" id="L154">            logger.debug(&quot;Using default copy strategy for {}&quot;, typeClass);</span>
+<span class="fc" id="L155">            strategies.put(typeClass, defaultStrategy);</span>
+<span class="fc" id="L156">            return defaultStrategy;</span>
+        }
+    }
+
+    /**
+     * @return a copy of the this library that uses the specified stategy for the specified type.
+     */
+    public &lt;T&gt;  CopyStrategyLibrary createCopyOfLibraryWithStrategy(Class&lt;T&gt; type, CopyStrategy&lt;T&gt; strategy) {
+<span class="fc" id="L164">        Map&lt;Class&lt;?&gt;, CopyStrategy&lt;?&gt;&gt; newStrategies = Maps.newHashMap(strategies);</span>
+<span class="fc" id="L165">        newStrategies.put(type, strategy);</span>
+<span class="fc" id="L166">        return new CopyStrategyLibrary(newStrategies, this.reflectFactory);</span>
+    }
+
+    /**
+     * The default copy strategy - returns the original value.
+     *
+     * @param &lt;T&gt;
+     */
+    private static class ReturnAsIsStrategy&lt;T&gt; implements CopyStrategy&lt;T&gt; {
+
+        @Override
+        public T copy(T value) {
+<span class="fc" id="L178">            return value;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

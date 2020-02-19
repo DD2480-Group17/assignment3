@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Subtexture.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.assets.texture.subtexture</a> &gt; <span class="el_source">Subtexture.java</span></div><h1>Subtexture.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.assets.texture.subtexture;
+
+import org.terasology.assets.Asset;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Rect2f;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureRegionAsset;
+
+import java.util.Optional;
+
+/**
+ */
+public class Subtexture extends TextureRegionAsset&lt;SubtextureData&gt; {
+
+    private Texture texture;
+    private Rect2f subregion;
+    private Runnable disposalAction;
+
+    public Subtexture(ResourceUrn urn, AssetType&lt;?, SubtextureData&gt; assetType, SubtextureData data) {
+<span class="nc" id="L39">        super(urn, assetType);</span>
+<span class="nc" id="L40">        disposalAction = this::dispose;</span>
+<span class="nc" id="L41">        reload(data);</span>
+<span class="nc" id="L42">    }</span>
+
+    @Override
+    protected void doReload(SubtextureData data) {
+<span class="nc" id="L46">        data.getTexture().subscribeToDisposal(disposalAction);</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        if (texture != null) {</span>
+<span class="nc" id="L48">              texture.unsubscribeToDisposal(disposalAction);</span>
+        }
+<span class="nc" id="L50">        this.texture = data.getTexture();</span>
+<span class="nc" id="L51">        this.subregion = data.getRegion();</span>
+<span class="nc" id="L52">    }</span>
+
+    @Override
+    protected Optional&lt;? extends Asset&lt;SubtextureData&gt;&gt; doCreateCopy(ResourceUrn instanceUrn, AssetType&lt;?, SubtextureData&gt; parentAssetType) {
+<span class="nc" id="L56">        return Optional.of(new Subtexture(instanceUrn, parentAssetType, new SubtextureData(texture, subregion)));</span>
+    }
+
+    @Override
+    public Texture getTexture() {
+<span class="nc" id="L61">        return texture;</span>
+    }
+
+    @Override
+    public Rect2f getRegion() {
+<span class="nc" id="L66">        return subregion;</span>
+    }
+
+    @Override
+    public Rect2i getPixelRegion() {
+<span class="nc" id="L71">        return Rect2i.createFromMinAndSize(TeraMath.floorToInt(subregion.minX() * texture.getWidth()),</span>
+<span class="nc" id="L72">                TeraMath.floorToInt(subregion.minY() * texture.getHeight()), getWidth(), getHeight());</span>
+    }
+
+    @Override
+    public int getWidth() {
+<span class="nc" id="L77">        return TeraMath.ceilToInt(texture.getWidth() * subregion.width());</span>
+    }
+
+    @Override
+    public int getHeight() {
+<span class="nc" id="L82">        return TeraMath.ceilToInt(texture.getHeight() * subregion.height());</span>
+    }
+
+    @Override
+    public Vector2i size() {
+<span class="nc" id="L87">        return new Vector2i(getWidth(), getHeight());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

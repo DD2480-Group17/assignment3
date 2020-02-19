@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TeraArray.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.blockdata</a> &gt; <span class="el_source">TeraArray.java</span></div><h1>TeraArray.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.chunks.blockdata;
+
+import org.terasology.world.chunks.deflate.TeraVisitingDeflator;
+
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+
+
+/**
+ * TeraArray is the base class used to store block related data in Chunks.
+ *
+ */
+public abstract class TeraArray {
+
+    private int sizeX;
+    private int sizeY;
+    private int sizeZ;
+    private int sizeXZ;
+    private int sizeXZHalf;
+    private int sizeXYZ;
+    private int sizeXYZHalf;
+
+<span class="nc" id="L45">    protected TeraArray() {</span>
+<span class="nc" id="L46">    }</span>
+
+<span class="fc" id="L48">    protected TeraArray(int sizeX, int sizeY, int sizeZ, boolean initialize) {</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">        checkArgument(sizeX &gt; 0);</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">        checkArgument(sizeY &gt; 0);</span>
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        checkArgument(sizeZ &gt; 0);</span>
+<span class="fc" id="L52">        this.sizeX = sizeX;</span>
+<span class="fc" id="L53">        this.sizeY = sizeY;</span>
+<span class="fc" id="L54">        this.sizeZ = sizeZ;</span>
+<span class="fc" id="L55">        sizeXZ = sizeX * sizeZ;</span>
+<span class="fc" id="L56">        sizeXZHalf = sizeXZ / 2;</span>
+<span class="fc" id="L57">        sizeXYZ = sizeY * sizeXZ;</span>
+<span class="fc" id="L58">        sizeXYZHalf = sizeXYZ / 2;</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        checkArgument(getSizeXYZ() % 2 == 0, &quot;The product of the parameters 'sizeX', 'sizeY' and 'sizeZ' has to be a multiple of 2 (&quot; + getSizeXYZ() + &quot;)&quot;);</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        checkArgument(getSizeXZ() % 2 == 0, &quot;The product of the parameters 'sizeX' and 'sizeZ' has to be a multiple of 2 (&quot; + getSizeXZ() + &quot;)&quot;);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (initialize) {</span>
+<span class="fc" id="L62">            initialize();</span>
+        }
+<span class="fc" id="L64">    }</span>
+
+    protected final void writeExternalHeader(ObjectOutput out) throws IOException {
+<span class="nc" id="L67">        out.writeInt(sizeX);</span>
+<span class="nc" id="L68">        out.writeInt(sizeY);</span>
+<span class="nc" id="L69">        out.writeInt(sizeZ);</span>
+<span class="nc" id="L70">    }</span>
+
+    protected final void readExternalHeader(ObjectInput in) throws IOException {
+<span class="nc" id="L73">        sizeX = in.readInt();</span>
+<span class="nc" id="L74">        sizeY = in.readInt();</span>
+<span class="nc" id="L75">        sizeZ = in.readInt();</span>
+<span class="nc" id="L76">        sizeXZ = sizeX * sizeZ;</span>
+<span class="nc" id="L77">        sizeXZHalf = sizeXZ / 2;</span>
+<span class="nc" id="L78">        sizeXYZ = sizeY * sizeXZ;</span>
+<span class="nc" id="L79">        sizeXYZHalf = sizeXYZ / 2;</span>
+<span class="nc" id="L80">    }</span>
+
+    protected final int pos(int x, int y, int z) {
+<span class="fc" id="L83">        return y * getSizeXZ() + z * getSizeX() + x;</span>
+    }
+
+    protected final int pos(int x, int z) {
+<span class="nc" id="L87">        return z * getSizeX() + x;</span>
+    }
+
+    protected abstract void initialize();
+
+    public final int getSizeX() {
+<span class="fc" id="L93">        return sizeX;</span>
+    }
+
+    public final int getSizeY() {
+<span class="fc" id="L97">        return sizeY;</span>
+    }
+
+    public final int getSizeZ() {
+<span class="fc" id="L101">        return sizeZ;</span>
+    }
+
+    public final int getSizeXZ() {
+<span class="fc" id="L105">        return sizeXZ;</span>
+    }
+
+    public final int getSizeXZHalf() {
+<span class="nc" id="L109">        return sizeXZHalf;</span>
+    }
+
+    public final int getSizeXYZ() {
+<span class="fc" id="L113">        return sizeXYZ;</span>
+    }
+
+    public final int getSizeXYZHalf() {
+<span class="nc" id="L117">        return sizeXYZHalf;</span>
+    }
+
+    public final boolean contains(int x, int y, int z) {
+<span class="nc bnc" id="L121" title="All 12 branches missed.">        return (x &gt;= 0 &amp;&amp; x &lt; sizeX &amp;&amp; y &gt;= 0 &amp;&amp; y &lt; sizeY &amp;&amp; z &gt;= 0 &amp;&amp; z &lt; sizeZ);</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L126">        return getClass().getName() + &quot;(&quot; + getSizeX() + &quot;, &quot; + getSizeY() + &quot;, &quot; + getSizeZ() + &quot;, &quot;</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                + (isSparse() ? &quot;sparse&quot; : &quot;dense&quot;) + &quot;, &quot; + getElementSizeInBits() + &quot;bit, &quot; + getEstimatedMemoryConsumptionInBytes() + &quot;byte)&quot;;</span>
+    }
+
+    public abstract boolean isSparse();
+
+    public abstract TeraArray copy();
+
+    public abstract TeraArray deflate(TeraVisitingDeflator deflator);
+
+    public abstract int getEstimatedMemoryConsumptionInBytes();
+
+    public abstract int getElementSizeInBits();
+
+    public abstract int get(int x, int y, int z);
+
+    public abstract int set(int x, int y, int z, int value);
+
+    public abstract boolean set(int x, int y, int z, int value, int expected);
+
+    /**
+     * This is the interface for tera array factories. Every tera array is required to implement a factory.
+     * It should be implemented as a static subclass of the corresponding tera array class and it should be called Factory.
+     *
+     * @see org.terasology.world.chunks.blockdata.TeraDenseArray16Bit.Factory
+     */
+    public interface Factory&lt;T extends TeraArray&gt; {
+
+        Class&lt;T&gt; getArrayClass();
+
+        SerializationHandler&lt;T&gt; createSerializationHandler();
+
+        T create();
+
+        T create(int sizeX, int sizeY, int sizeZ);
+
+    }
+
+    /**
+     * This is the interface for serialization handlers for tera arrays. Every tera array is required to implement
+     * a serialization handler. It is recommended to subclass
+     * {@link org.terasology.world.chunks.blockdata.TeraArray.BasicSerializationHandler TeraArray.BasicSerializationHandler}
+     * instead of using this interface directly. It should be implemented as a static subclass of the corresponding tera array class.
+     *
+     * @see org.terasology.world.chunks.blockdata.TeraArray.BasicSerializationHandler
+     */
+    public interface SerializationHandler&lt;T extends TeraArray&gt; {
+
+        int computeMinimumBufferSize(T array);
+
+        ByteBuffer serialize(T array);
+
+        ByteBuffer serialize(T array, ByteBuffer toBuffer);
+
+        T deserialize(ByteBuffer buffer);
+
+        boolean canHandle(Class&lt;?&gt; clazz);
+    }
+
+    /**
+     * Extending this class is the recommended way to implement serialization handlers for tera arrays.
+     * Tera arrays should implement their serialization handlers as a static subclass called SerializationHandler.
+     *
+     * @see org.terasology.world.chunks.blockdata.TeraDenseArray16Bit.SerializationHandler
+     * @see org.terasology.world.chunks.blockdata.TeraDenseArray16Bit.Factory
+     */
+<span class="nc" id="L192">    protected abstract static class BasicSerializationHandler&lt;T extends TeraArray&gt; implements SerializationHandler&lt;T&gt; {</span>
+
+        protected abstract int internalComputeMinimumBufferSize(T array);
+
+        protected abstract void internalSerialize(T array, ByteBuffer buffer);
+
+        protected abstract T internalDeserialize(int sizeX, int sizeY, int sizeZ, ByteBuffer buffer);
+
+        @Override
+        public final int computeMinimumBufferSize(T array) {
+<span class="nc" id="L202">            checkNotNull(array, &quot;The parameter 'array' must not be null&quot;);</span>
+<span class="nc" id="L203">            return 16 + internalComputeMinimumBufferSize(array);</span>
+        }
+
+        @Override
+        public final ByteBuffer serialize(T array) {
+<span class="nc" id="L208">            checkNotNull(array, &quot;The parameter 'array' must not be null&quot;);</span>
+<span class="nc" id="L209">            return serialize(array, ByteBuffer.allocateDirect(computeMinimumBufferSize(array)));</span>
+        }
+
+        @Override
+        public final ByteBuffer serialize(T array, ByteBuffer toBuffer) {
+<span class="nc" id="L214">            checkNotNull(array, &quot;The parameter 'array' must not be null&quot;);</span>
+<span class="nc" id="L215">            checkNotNull(toBuffer, &quot;The parameter 'toBuffer' must not be null&quot;);</span>
+<span class="nc" id="L216">            checkArgument(canHandle(array.getClass()), &quot;Unable to handle the supplied array (&quot; + array.getClass().getName() + &quot;)&quot;);</span>
+<span class="nc" id="L217">            final int lengthPos = toBuffer.position();</span>
+<span class="nc" id="L218">            toBuffer.putInt(0);</span>
+<span class="nc" id="L219">            toBuffer.putInt(array.getSizeX());</span>
+<span class="nc" id="L220">            toBuffer.putInt(array.getSizeY());</span>
+<span class="nc" id="L221">            toBuffer.putInt(array.getSizeZ());</span>
+<span class="nc" id="L222">            internalSerialize(array, toBuffer);</span>
+<span class="nc" id="L223">            toBuffer.putInt(lengthPos, toBuffer.position() - lengthPos - 4);</span>
+<span class="nc" id="L224">            return toBuffer;</span>
+        }
+
+        @Override
+        public final T deserialize(ByteBuffer buffer) {
+<span class="nc" id="L229">            checkNotNull(buffer, &quot;The parameter 'buffer' must not be null&quot;);</span>
+<span class="nc" id="L230">            final int length = buffer.getInt();</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">            if (buffer.remaining() &lt; length) {</span>
+<span class="nc" id="L232">                throw new BufferUnderflowException();</span>
+            }
+<span class="nc" id="L234">            final int sizeX = buffer.getInt();</span>
+<span class="nc" id="L235">            final int sizeY = buffer.getInt();</span>
+<span class="nc" id="L236">            final int sizeZ = buffer.getInt();</span>
+<span class="nc" id="L237">            return internalDeserialize(sizeX, sizeY, sizeZ, buffer);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

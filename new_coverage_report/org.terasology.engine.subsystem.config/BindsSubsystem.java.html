@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BindsSubsystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.subsystem.config</a> &gt; <span class="el_source">BindsSubsystem.java</span></div><h1>BindsSubsystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.subsystem.config;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.config.BindsConfig;
+import org.terasology.config.Config;
+import org.terasology.config.facade.BindsConfiguration;
+import org.terasology.context.Context;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.subsystem.EngineSubsystem;
+import org.terasology.input.BindAxisEvent;
+import org.terasology.input.BindButtonEvent;
+import org.terasology.input.BindableAxis;
+import org.terasology.input.BindableButton;
+import org.terasology.input.ControllerInput;
+import org.terasology.input.DefaultBinding;
+import org.terasology.input.Input;
+import org.terasology.input.InputType;
+import org.terasology.input.MouseInput;
+import org.terasology.input.RegisterBindAxis;
+import org.terasology.input.RegisterBindButton;
+import org.terasology.input.RegisterRealBindAxis;
+import org.terasology.input.events.AxisEvent;
+import org.terasology.input.events.ButtonEvent;
+import org.terasology.input.internal.AbstractBindableAxis;
+import org.terasology.input.internal.BindableAxisImpl;
+import org.terasology.input.internal.BindableButtonImpl;
+import org.terasology.input.internal.BindableRealAxis;
+import org.terasology.module.DependencyResolver;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.module.ResolutionResult;
+import org.terasology.module.predicates.FromModule;
+import org.terasology.naming.Name;
+
+import java.lang.annotation.Annotation;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableCollection;
+
+<span class="fc" id="L60">public class BindsSubsystem implements EngineSubsystem, BindsManager {</span>
+
+<span class="fc" id="L62">    private static final Logger logger = LoggerFactory.getLogger(BindsSubsystem.class);</span>
+    private BindsConfiguration bindsConfiguration;
+<span class="fc" id="L64">    private BindsConfiguration defaultBindsConfig = new BindsConfigAdapter(new BindsConfig());</span>
+<span class="fc" id="L65">    private Map&lt;SimpleUri, BindableButton&gt; buttonLookup = Maps.newHashMap();</span>
+<span class="fc" id="L66">    private List&lt;BindableButton&gt; buttonBinds = Lists.newArrayList();</span>
+    private Context context;
+<span class="fc" id="L68">    private Map&lt;String, BindableRealAxis&gt; axisLookup = Maps.newHashMap();</span>
+<span class="fc" id="L69">    private List&lt;AbstractBindableAxis&gt; axisBinds = Lists.newArrayList();</span>
+
+    // Links between primitive inputs and bind buttons
+<span class="fc" id="L72">    private Map&lt;Integer, BindableButton&gt; keyBinds = Maps.newHashMap();</span>
+<span class="fc" id="L73">    private Map&lt;MouseInput, BindableButton&gt; mouseButtonBinds = Maps.newHashMap();</span>
+<span class="fc" id="L74">    private Map&lt;ControllerInput, BindableButton&gt; controllerBinds = Maps.newHashMap();</span>
+<span class="fc" id="L75">    private Map&lt;Input, BindableRealAxis&gt; controllerAxisBinds = Maps.newHashMap();</span>
+    private BindableButton mouseWheelUpBind;
+    private BindableButton mouseWheelDownBind;
+
+    @Override
+    public BindableButton getMouseWheelUpBind() {
+<span class="nc" id="L81">        return mouseWheelUpBind;</span>
+    }
+
+    @Override
+    public BindableButton getMouseWheelDownBind() {
+<span class="nc" id="L86">        return mouseWheelDownBind;</span>
+    }
+
+    @Override
+    public Map&lt;MouseInput, BindableButton&gt; getMouseButtonBinds() {
+<span class="nc" id="L91">        return mouseButtonBinds;</span>
+    }
+
+    @Override
+    public List&lt;AbstractBindableAxis&gt; getAxisBinds() {
+<span class="nc" id="L96">        return axisBinds;</span>
+    }
+
+    @Override
+    public Map&lt;Input, BindableRealAxis&gt; getControllerAxisBinds() {
+<span class="nc" id="L101">        return controllerAxisBinds;</span>
+    }
+
+    @Override
+    public Map&lt;ControllerInput, BindableButton&gt; getControllerBinds() {
+<span class="nc" id="L106">        return controllerBinds;</span>
+    }
+
+    @Override
+    public Map&lt;Integer, BindableButton&gt; getKeyBinds() {
+<span class="fc" id="L111">        return keyBinds;</span>
+    }
+
+    @Override
+    public String getName() {
+<span class="nc" id="L116">        return &quot;Binds&quot;;</span>
+    }
+
+    @Override
+    public List&lt;BindableButton&gt; getButtonBinds() {
+<span class="nc" id="L121">        return buttonBinds;</span>
+    }
+
+    @Override
+    public void preInitialise(Context passedContext) {
+<span class="fc" id="L126">        context = passedContext;</span>
+<span class="fc" id="L127">        bindsConfiguration = passedContext.get(BindsConfiguration.class);</span>
+<span class="fc" id="L128">        passedContext.put(BindsManager.class, this);</span>
+<span class="fc" id="L129">    }</span>
+
+    @Override
+    public BindsConfig getDefaultBindsConfig() {
+<span class="fc" id="L133">        BindsConfig copy = new BindsConfig();</span>
+        //SimpleUri and Input are immutable, no need for a deep copy
+<span class="fc" id="L135">        copy.setBinds(defaultBindsConfig.getBindsConfig());</span>
+<span class="fc" id="L136">        return copy;</span>
+    }
+
+    @Override
+    public void updateConfigWithDefaultBinds() {
+        //default bindings are overridden
+<span class="fc" id="L142">        defaultBindsConfig = new BindsConfigAdapter(new BindsConfig());</span>
+<span class="fc" id="L143">        updateDefaultBinds(context, defaultBindsConfig);</span>
+        //actual bindings may be actualized
+<span class="fc" id="L145">        updateDefaultBinds(context, bindsConfiguration);</span>
+<span class="fc" id="L146">    }</span>
+
+    private void updateDefaultBinds(Context passedContext, BindsConfiguration config) {
+<span class="fc" id="L149">        ModuleManager moduleManager = passedContext.get(ModuleManager.class);</span>
+<span class="fc" id="L150">        DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        for (Name moduleId : moduleManager.getRegistry().getModuleIds()) {</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">            if (moduleManager.getRegistry().getLatestModuleVersion(moduleId).isCodeModule()) {</span>
+<span class="fc" id="L153">                ResolutionResult result = resolver.resolve(moduleId);</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">                if (result.isSuccess()) {</span>
+<span class="fc" id="L155">                    try (ModuleEnvironment environment = moduleManager.loadEnvironment(result.getModules(), false)) {</span>
+<span class="fc" id="L156">                        FromModule filter = new FromModule(environment, moduleId);</span>
+<span class="fc" id="L157">                        Iterable&lt;Class&lt;?&gt;&gt; buttons = environment.getTypesAnnotatedWith(RegisterBindButton.class, filter);</span>
+<span class="fc" id="L158">                        Iterable&lt;Class&lt;?&gt;&gt; axes = environment.getTypesAnnotatedWith(RegisterRealBindAxis.class, filter);</span>
+<span class="fc" id="L159">                        addButtonDefaultsFor(moduleId, buttons, config);</span>
+<span class="fc" id="L160">                        addAxisDefaultsFor(moduleId, axes, config);</span>
+                    }
+                }
+            }
+<span class="fc" id="L164">        }</span>
+<span class="fc" id="L165">    }</span>
+
+    private void addButtonDefaultsFor(Name moduleId, Iterable&lt;Class&lt;?&gt;&gt; classes, BindsConfiguration config) {
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        for (Class&lt;?&gt; buttonEvent : classes) {</span>
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">            if (ButtonEvent.class.isAssignableFrom(buttonEvent)) {</span>
+<span class="fc" id="L170">                RegisterBindButton info = buttonEvent.getAnnotation(RegisterBindButton.class);</span>
+<span class="fc" id="L171">                SimpleUri bindUri = new SimpleUri(moduleId, info.id());</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">                if (!config.hasBinds(bindUri)) {</span>
+<span class="fc" id="L173">                    addDefaultBindings(bindUri, buttonEvent, config);</span>
+                }
+            }
+<span class="fc" id="L176">        }</span>
+<span class="fc" id="L177">    }</span>
+
+    private void addAxisDefaultsFor(Name moduleId, Iterable&lt;Class&lt;?&gt;&gt; classes, BindsConfiguration config) {
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">        for (Class&lt;?&gt; axisEvent : classes) {</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (AxisEvent.class.isAssignableFrom(axisEvent)) {</span>
+<span class="nc" id="L182">                RegisterRealBindAxis info = axisEvent.getAnnotation(RegisterRealBindAxis.class);</span>
+<span class="nc" id="L183">                SimpleUri bindUri = new SimpleUri(moduleId, info.id());</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                if (!config.hasBinds(bindUri)) {</span>
+<span class="nc" id="L185">                    addDefaultBindings(bindUri, axisEvent, config);</span>
+                }
+            }
+<span class="nc" id="L188">        }</span>
+<span class="fc" id="L189">    }</span>
+
+    private void addDefaultBindings(SimpleUri bindUri, Class&lt;?&gt; event, BindsConfiguration config) {
+<span class="fc" id="L192">        List&lt;Input&gt; defaultInputs = fetchDefaultBindings(event, config);</span>
+<span class="fc" id="L193">        config.setBinds(bindUri, defaultInputs);</span>
+<span class="fc" id="L194">    }</span>
+
+    private List&lt;Input&gt; fetchDefaultBindings(Class&lt;?&gt; event, BindsConfiguration config) {
+<span class="fc" id="L197">        List&lt;Input&gt; defaultInputs = Lists.newArrayList();</span>
+<span class="fc" id="L198">        Collection&lt;Input&gt; boundInputs = config.getBoundInputs();</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        for (Annotation annotation : event.getAnnotationsByType(DefaultBinding.class)) {</span>
+<span class="fc" id="L200">            DefaultBinding defaultBinding = (DefaultBinding) annotation;</span>
+<span class="fc" id="L201">            Input defaultInput = defaultBinding.type().getInput(defaultBinding.id());</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">            if (!boundInputs.contains(defaultInput)) {</span>
+<span class="fc" id="L203">                defaultInputs.add(defaultInput);</span>
+            } else {
+<span class="nc" id="L205">                logger.warn(&quot;Input {} is already registered, can not use it as default for event {}&quot;, defaultInput, event);</span>
+            }
+        }
+<span class="fc" id="L208">        return defaultInputs;</span>
+    }
+
+    @Override
+    public void registerBinds() {
+<span class="fc" id="L213">        ModuleManager moduleManager = context.get(ModuleManager.class);</span>
+<span class="fc" id="L214">        ModuleEnvironment environment = moduleManager.getEnvironment();</span>
+<span class="fc" id="L215">        clearBinds();</span>
+<span class="fc" id="L216">        registerButtonBinds(environment);</span>
+<span class="fc" id="L217">        registerAxisBinds(environment);</span>
+<span class="fc" id="L218">        registerRealAxisBinds(environment);</span>
+<span class="fc" id="L219">    }</span>
+
+    private void clearBinds() {
+<span class="fc" id="L222">        buttonLookup.clear();</span>
+<span class="fc" id="L223">        buttonBinds.clear();</span>
+<span class="fc" id="L224">        axisLookup.clear();</span>
+<span class="fc" id="L225">        axisBinds.clear();</span>
+<span class="fc" id="L226">        keyBinds.clear();</span>
+<span class="fc" id="L227">        controllerBinds.clear();</span>
+<span class="fc" id="L228">        controllerAxisBinds.clear();</span>
+<span class="fc" id="L229">        mouseButtonBinds.clear();</span>
+<span class="fc" id="L230">        mouseWheelUpBind = null;</span>
+<span class="fc" id="L231">        mouseWheelDownBind = null;</span>
+<span class="fc" id="L232">    }</span>
+
+    private void registerButtonBinds(ModuleEnvironment environment) {
+<span class="fc" id="L235">        Iterable&lt;Class&lt;?&gt;&gt; classes = environment.getTypesAnnotatedWith(RegisterBindButton.class);</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">        for (Class&lt;?&gt; registerBindClass : classes) {</span>
+<span class="fc" id="L237">            RegisterBindButton info = registerBindClass.getAnnotation(RegisterBindButton.class);</span>
+<span class="fc" id="L238">            SimpleUri bindUri = new SimpleUri(environment.getModuleProviding(registerBindClass), info.id());</span>
+<span class="pc bpc" id="L239" title="1 of 2 branches missed.">            if (BindButtonEvent.class.isAssignableFrom(registerBindClass)) {</span>
+                try {
+<span class="fc" id="L241">                    BindableButton bindButton = registerBindButton(bindUri, info.description(), (BindButtonEvent) registerBindClass.newInstance());</span>
+<span class="fc" id="L242">                    bindButton.setMode(info.mode());</span>
+<span class="fc" id="L243">                    bindButton.setRepeating(info.repeating());</span>
+
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">                    bindsConfiguration.getBinds(bindUri).stream().filter(input -&gt; input != null).forEach(input -&gt; linkBindButtonToInput(input, bindUri));</span>
+
+<span class="fc" id="L247">                    logger.debug(&quot;Registered button bind: {}&quot;, bindUri);</span>
+<span class="nc" id="L248">                } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L249">                    logger.error(&quot;Failed to register button bind \&quot;{}\&quot;&quot;, e);</span>
+<span class="pc" id="L250">                }</span>
+            } else {
+<span class="nc" id="L252">                logger.error(&quot;Failed to register button bind \&quot;{}\&quot;, does not extend BindButtonEvent&quot;, bindUri);</span>
+            }
+<span class="fc" id="L254">        }</span>
+<span class="fc" id="L255">    }</span>
+
+    private void registerAxisBinds(ModuleEnvironment environment) {
+<span class="fc" id="L258">        Iterable&lt;Class&lt;?&gt;&gt; classes = environment.getTypesAnnotatedWith(RegisterBindAxis.class);</span>
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">        for (Class&lt;?&gt; registerBindClass : classes) {</span>
+<span class="nc" id="L260">            RegisterBindAxis info = registerBindClass.getAnnotation(RegisterBindAxis.class);</span>
+<span class="nc" id="L261">            Name moduleId = environment.getModuleProviding(registerBindClass);</span>
+<span class="nc" id="L262">            SimpleUri id = new SimpleUri(moduleId, info.id());</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">            if (BindAxisEvent.class.isAssignableFrom(registerBindClass)) {</span>
+<span class="nc" id="L264">                BindableButton positiveButton = getBindButton(new SimpleUri(info.positiveButton()));</span>
+<span class="nc" id="L265">                BindableButton negativeButton = getBindButton(new SimpleUri(info.negativeButton()));</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">                if (positiveButton == null) {</span>
+<span class="nc" id="L267">                    logger.warn(&quot;Failed to register axis \&quot;{}\&quot;, missing positive button \&quot;{}\&quot;&quot;, id, info.positiveButton());</span>
+<span class="nc" id="L268">                    continue;</span>
+                }
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                if (negativeButton == null) {</span>
+<span class="nc" id="L271">                    logger.warn(&quot;Failed to register axis \&quot;{}\&quot;, missing negative button \&quot;{}\&quot;&quot;, id, info.negativeButton());</span>
+<span class="nc" id="L272">                    continue;</span>
+                }
+                try {
+<span class="nc" id="L275">                    BindableAxis bindAxis = registerBindAxis(id.toString(), (BindAxisEvent) registerBindClass.newInstance(), positiveButton, negativeButton);</span>
+<span class="nc" id="L276">                    bindAxis.setSendEventMode(info.eventMode());</span>
+<span class="nc" id="L277">                    logger.debug(&quot;Registered axis bind: {}&quot;, id);</span>
+<span class="nc" id="L278">                } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L279">                    logger.error(&quot;Failed to register axis bind \&quot;{}\&quot;&quot;, id, e);</span>
+<span class="nc" id="L280">                }</span>
+<span class="nc" id="L281">            } else {</span>
+<span class="nc" id="L282">                logger.error(&quot;Failed to register axis bind \&quot;{}\&quot;, does not extend BindAxisEvent&quot;, id);</span>
+            }
+<span class="nc" id="L284">        }</span>
+<span class="fc" id="L285">    }</span>
+
+    private void registerRealAxisBinds(ModuleEnvironment environment) {
+<span class="fc" id="L288">        Iterable&lt;Class&lt;?&gt;&gt; classes = environment.getTypesAnnotatedWith(RegisterRealBindAxis.class);</span>
+<span class="pc bpc" id="L289" title="1 of 2 branches missed.">        for (Class&lt;?&gt; registerBindClass : classes) {</span>
+<span class="nc" id="L290">            RegisterRealBindAxis info = registerBindClass.getAnnotation(RegisterRealBindAxis.class);</span>
+<span class="nc" id="L291">            Name moduleId = environment.getModuleProviding(registerBindClass);</span>
+<span class="nc" id="L292">            SimpleUri id = new SimpleUri(moduleId, info.id());</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">            if (BindAxisEvent.class.isAssignableFrom(registerBindClass)) {</span>
+                try {
+<span class="nc" id="L295">                    BindAxisEvent instance = (BindAxisEvent) registerBindClass.newInstance();</span>
+<span class="nc" id="L296">                    BindableAxis bindAxis = registerRealBindAxis(id.toString(), instance);</span>
+<span class="nc" id="L297">                    bindAxis.setSendEventMode(info.eventMode());</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">                    for (Input input : bindsConfiguration.getBinds(id)) {</span>
+<span class="nc" id="L299">                        linkAxisToInput(input, id);</span>
+<span class="nc" id="L300">                    }</span>
+<span class="nc" id="L301">                    logger.debug(&quot;Registered axis bind: {}&quot;, id);</span>
+<span class="nc" id="L302">                } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L303">                    logger.error(&quot;Failed to register axis bind \&quot;{}\&quot;&quot;, id, e);</span>
+<span class="nc" id="L304">                }</span>
+            } else {
+<span class="nc" id="L306">                logger.error(&quot;Failed to register axis bind \&quot;{}\&quot;, does not extend BindAxisEvent&quot;, id);</span>
+            }
+<span class="nc" id="L308">        }</span>
+<span class="fc" id="L309">    }</span>
+
+    private void linkAxisToInput(Input input, SimpleUri bindId) {
+<span class="nc" id="L312">        BindableRealAxis bindInfo = axisLookup.get(bindId.toString());</span>
+<span class="nc" id="L313">        controllerAxisBinds.put(input, bindInfo);</span>
+<span class="nc" id="L314">    }</span>
+
+    @Override
+    public void linkBindButtonToKey(int key, SimpleUri bindId) {
+<span class="fc" id="L318">        BindableButton bindInfo = buttonLookup.get(bindId);</span>
+<span class="fc" id="L319">        keyBinds.put(key, bindInfo);</span>
+<span class="fc" id="L320">    }</span>
+
+    private void linkBindButtonToMouse(MouseInput mouseButton, SimpleUri bindId) {
+<span class="nc" id="L323">        BindableButton bindInfo = buttonLookup.get(bindId);</span>
+<span class="nc" id="L324">        mouseButtonBinds.put(mouseButton, bindInfo);</span>
+<span class="nc" id="L325">    }</span>
+
+    private void linkBindButtonToMouseWheel(int direction, SimpleUri bindId) {
+<span class="nc bnc" id="L328" title="All 2 branches missed.">        if (direction &gt; 0) {</span>
+<span class="nc" id="L329">            mouseWheelDownBind = buttonLookup.get(bindId);</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        } else if (direction &lt; 0) {</span>
+<span class="nc" id="L331">            mouseWheelUpBind = buttonLookup.get(bindId);</span>
+        }
+<span class="nc" id="L333">    }</span>
+
+    private void linkBindButtonToController(ControllerInput button, SimpleUri bindId) {
+<span class="nc" id="L336">        BindableButton bindInfo = buttonLookup.get(bindId);</span>
+<span class="nc" id="L337">        controllerBinds.put(button, bindInfo);</span>
+<span class="nc" id="L338">    }</span>
+
+    private void linkBindButtonToInput(Input input, SimpleUri bindId) {
+<span class="pc bpc" id="L341" title="4 of 5 branches missed.">        switch (input.getType()) {</span>
+            case KEY:
+<span class="fc" id="L343">                linkBindButtonToKey(input.getId(), bindId);</span>
+<span class="fc" id="L344">                break;</span>
+            case MOUSE_BUTTON:
+<span class="nc" id="L346">                MouseInput button = MouseInput.find(input.getType(), input.getId());</span>
+<span class="nc" id="L347">                linkBindButtonToMouse(button, bindId);</span>
+<span class="nc" id="L348">                break;</span>
+            case MOUSE_WHEEL:
+<span class="nc" id="L350">                linkBindButtonToMouseWheel(input.getId(), bindId);</span>
+<span class="nc" id="L351">                break;</span>
+            case CONTROLLER_BUTTON:
+<span class="nc" id="L353">                linkBindButtonToController((ControllerInput) input, bindId);</span>
+<span class="nc" id="L354">                break;</span>
+            default:
+                break;
+        }
+<span class="fc" id="L358">    }</span>
+
+    private BindableButton getBindButton(SimpleUri bindId) {
+<span class="nc" id="L361">        return buttonLookup.get(bindId);</span>
+    }
+
+    private BindableAxis registerBindAxis(String id, BindAxisEvent event, BindableButton positiveButton, BindableButton negativeButton) {
+<span class="nc" id="L365">        BindableAxisImpl axis = new BindableAxisImpl(id, event, positiveButton, negativeButton);</span>
+<span class="nc" id="L366">        axisBinds.add(axis);</span>
+<span class="nc" id="L367">        return axis;</span>
+    }
+
+    private BindableAxis registerRealBindAxis(String id, BindAxisEvent event) {
+<span class="nc" id="L371">        BindableRealAxis axis = new BindableRealAxis(id.toString(), event);</span>
+<span class="nc" id="L372">        axisBinds.add(axis);</span>
+<span class="nc" id="L373">        axisLookup.put(id, axis);</span>
+<span class="nc" id="L374">        return axis;</span>
+    }
+
+    private BindableButton registerBindButton(SimpleUri bindId, String displayName, BindButtonEvent event) {
+<span class="fc" id="L378">        BindableButtonImpl bind = new BindableButtonImpl(bindId, displayName, event);</span>
+<span class="fc" id="L379">        buttonLookup.put(bindId, bind);</span>
+<span class="fc" id="L380">        buttonBinds.add(bind);</span>
+<span class="fc" id="L381">        return bind;</span>
+    }
+
+    @Override
+    public BindsConfig getBindsConfig() {
+<span class="fc" id="L386">        return bindsConfiguration.getBindsConfig();</span>
+    }
+
+    @Override
+    public void shutdown() {
+<span class="nc" id="L391">        saveBindsConfig();</span>
+<span class="nc" id="L392">    }</span>
+
+    @Override
+    public void saveBindsConfig() {
+        //TODO replace with flexible config when binds are no longer saved in the Config.
+<span class="nc" id="L397">        context.get(Config.class).save();</span>
+<span class="nc" id="L398">    }</span>
+
+    /**
+     * Enumerates all active input bindings for a given binding.
+     * TODO: Restored for API reasons, may be duplicating code elsewhere. Should be reviewed
+     * @param bindId the ID
+     * @return a list of keyboard/mouse inputs that trigger the binding.
+     */
+    public List&lt;Input&gt; getInputsForBindButton(SimpleUri bindId) {
+<span class="nc" id="L407">        List&lt;Input&gt; inputs = Lists.newArrayList();</span>
+<span class="nc bnc" id="L408" title="All 2 branches missed.">        for (Map.Entry&lt;Integer, BindableButton&gt; entry : keyBinds.entrySet()) {</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">            if (entry.getValue().getId().equals(bindId)) {</span>
+<span class="nc" id="L410">                inputs.add(InputType.KEY.getInput(entry.getKey()));</span>
+            }
+<span class="nc" id="L412">        }</span>
+
+<span class="nc bnc" id="L414" title="All 2 branches missed.">        for (Map.Entry&lt;MouseInput, BindableButton&gt; entry : mouseButtonBinds.entrySet()) {</span>
+<span class="nc bnc" id="L415" title="All 2 branches missed.">            if (entry.getValue().getId().equals(bindId)) {</span>
+<span class="nc" id="L416">                inputs.add(entry.getKey());</span>
+            }
+<span class="nc" id="L418">        }</span>
+
+<span class="nc bnc" id="L420" title="All 2 branches missed.">        if (mouseWheelUpBind.getId().equals(bindId)) {</span>
+<span class="nc" id="L421">            inputs.add(MouseInput.WHEEL_UP);</span>
+        }
+
+<span class="nc bnc" id="L424" title="All 2 branches missed.">        if (mouseWheelDownBind.getId().equals(bindId)) {</span>
+<span class="nc" id="L425">            inputs.add(MouseInput.WHEEL_DOWN);</span>
+        }
+
+<span class="nc" id="L428">        return inputs;</span>
+    }
+
+    protected static class BindsConfigAdapter implements BindsConfiguration {
+
+        private BindsConfig bindsConfig;
+
+<span class="fc" id="L435">        public BindsConfigAdapter(BindsConfig bindsConfig) {</span>
+<span class="fc" id="L436">            this.bindsConfig = bindsConfig;</span>
+<span class="fc" id="L437">        }</span>
+
+        @Override
+        public boolean isBound(Input newInput) {
+<span class="nc" id="L441">            return bindsConfig.isBound(newInput);</span>
+        }
+
+        @Override
+        public void setBinds(BindsConfig other) {
+<span class="nc" id="L446">            bindsConfig.setBinds(other);</span>
+<span class="nc" id="L447">        }</span>
+
+        @Override
+        public List&lt;Input&gt; getBinds(SimpleUri uri) {
+<span class="fc" id="L451">            return bindsConfig.getBinds(uri);</span>
+        }
+
+        @Override
+        public boolean hasBinds(SimpleUri uri) {
+<span class="fc" id="L456">            return bindsConfig.hasBinds(uri);</span>
+        }
+
+        @Override
+        public void setBinds(SimpleUri bindUri, Input... inputs) {
+<span class="nc" id="L461">            bindsConfig.setBinds(bindUri, inputs);</span>
+<span class="nc" id="L462">        }</span>
+
+        @Override
+        public void setBinds(SimpleUri bindUri, Iterable&lt;Input&gt; inputs) {
+<span class="fc" id="L466">            bindsConfig.setBinds(bindUri, inputs);</span>
+<span class="fc" id="L467">        }</span>
+
+        @Override
+        public BindsConfig getBindsConfig() {
+<span class="fc" id="L471">            return bindsConfig;</span>
+        }
+
+        @Override
+        public Collection&lt;Input&gt; getBoundInputs() {
+<span class="fc" id="L476">            return unmodifiableCollection(bindsConfig.getBoundInputs());</span>
+        }
+
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

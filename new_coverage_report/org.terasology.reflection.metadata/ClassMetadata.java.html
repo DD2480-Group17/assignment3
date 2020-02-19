@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClassMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.reflection.metadata</a> &gt; <span class="el_source">ClassMetadata.java</span></div><h1>ClassMetadata.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.reflection.metadata;
+
+import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
+import org.reflections.ReflectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.SimpleUri;
+import org.terasology.reflection.copy.CopyStrategy;
+import org.terasology.reflection.copy.CopyStrategyLibrary;
+import org.terasology.reflection.reflect.InaccessibleFieldException;
+import org.terasology.reflection.reflect.ObjectConstructor;
+import org.terasology.reflection.reflect.ReflectFactory;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.security.Permission;
+import java.util.Collection;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * Class Metadata provides information on a class and its fields, and the ability to create, copy or manipulate an instance of the class.
+ * &lt;br&gt;&lt;br&gt;
+ * Subclasses can be created to hold additional information for specific types of objects.  These may override createField()
+ * to change how fields are processed and possibly switch to a subtype of FieldMetadata that holds additional information.
+ * &lt;br&gt;&lt;br&gt;
+ * Consumed classes are required to have a default constructor (this may be private)
+ *
+ */
+public abstract class ClassMetadata&lt;T, FIELD extends FieldMetadata&lt;T, ?&gt;&gt; {
+
+<span class="fc" id="L53">    private static final Logger logger = LoggerFactory.getLogger(ClassMetadata.class);</span>
+<span class="fc" id="L54">    private static final Permission CREATE_CLASS_METADATA = new RuntimePermission(&quot;createClassMetadata&quot;);</span>
+
+    private final SimpleUri uri;
+    private final Class&lt;T&gt; clazz;
+    private final ObjectConstructor&lt;T&gt; constructor;
+<span class="fc" id="L59">    private Map&lt;String, FIELD&gt; fields = Maps.newHashMap();</span>
+<span class="fc" id="L60">    private TIntObjectMap&lt;FIELD&gt; fieldsById = new TIntObjectHashMap&lt;&gt;();</span>
+
+    /**
+     * Creates a class metatdata
+     *
+     * @param uri                 The uri that identifies this type
+     * @param type                The type to create the metadata for
+     * @param factory             A reflection library to provide class construction and field get/set functionality
+     * @param copyStrategyLibrary A copy strategy library
+     * @throws NoSuchMethodException If the class has no default constructor
+     */
+    public ClassMetadata(SimpleUri uri, Class&lt;T&gt; type, ReflectFactory factory, CopyStrategyLibrary copyStrategyLibrary, Predicate&lt;Field&gt; includedFieldPredicate)
+<span class="fc" id="L72">            throws NoSuchMethodException {</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (System.getSecurityManager() != null) {</span>
+<span class="fc" id="L74">            System.getSecurityManager().checkPermission(CREATE_CLASS_METADATA);</span>
+        }
+
+<span class="fc" id="L77">        this.uri = uri;</span>
+<span class="fc" id="L78">        this.clazz = type;</span>
+<span class="fc bfc" id="L79" title="All 4 branches covered.">        if (!type.isInterface() &amp;&amp; !Modifier.isAbstract(type.getModifiers())) {</span>
+<span class="fc" id="L80">            this.constructor = factory.createConstructor(type);</span>
+        } else {
+<span class="fc" id="L82">            this.constructor = null;</span>
+        }
+
+<span class="fc" id="L85">        addFields(copyStrategyLibrary, factory, includedFieldPredicate);</span>
+<span class="fc" id="L86">    }</span>
+
+    public final SimpleUri getUri() {
+<span class="fc" id="L89">        return uri;</span>
+    }
+
+    /**
+     * Scans the class this metadata describes, adding all fields to the class' metadata.
+     *
+     * @param copyStrategyLibrary The library of copy strategies
+     * @param factory             The reflection provider
+     */
+    private void addFields(CopyStrategyLibrary copyStrategyLibrary, ReflectFactory factory, Predicate&lt;Field&gt; includedFieldsPredicate) {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        for (Field field : ReflectionUtils.getAllFields(clazz, includedFieldsPredicate)) {</span>
+<span class="fc bfc" id="L100" title="All 4 branches covered.">            if (Modifier.isTransient(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) {</span>
+<span class="fc" id="L101">                continue;</span>
+            }
+<span class="fc" id="L103">            CopyStrategy&lt;?&gt; copyStrategy = copyStrategyLibrary.getStrategy(field.getGenericType());</span>
+
+            try {
+<span class="fc" id="L106">                FIELD metadata = createField(field, copyStrategy, factory);</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">                if (metadata != null) {</span>
+<span class="fc" id="L108">                    fields.put(metadata.getName().toLowerCase(Locale.ENGLISH), metadata);</span>
+                }
+<span class="nc" id="L110">            } catch (InaccessibleFieldException e) {</span>
+<span class="nc" id="L111">                logger.error(&quot;Could not create metadata for field '{}' of type '{}', may be private.'&quot;, field, clazz);</span>
+<span class="fc" id="L112">            }</span>
+
+<span class="fc" id="L114">        }</span>
+<span class="fc" id="L115">    }</span>
+
+    /**
+     * Creates the FieldMetadata describing a field
+     *
+     * @param field        The field to create metadata for
+     * @param copyStrategy The copy strategy library
+     * @param factory      The reflection provider
+     * @return A FieldMetadata describing the field, or null to ignore this field
+     */
+    protected abstract &lt;V&gt; FIELD createField(Field field, CopyStrategy&lt;V&gt; copyStrategy, ReflectFactory factory) throws InaccessibleFieldException;
+
+    /**
+     * @return The class described by this metadata
+     */
+    public Class&lt;T&gt; getType() {
+<span class="fc" id="L131">        return clazz;</span>
+    }
+
+    /**
+     * @param id The previously set id of the field
+     * @return The field identified by the given id, or null if there is no such field
+     */
+    public FIELD getField(int id) {
+<span class="nc" id="L139">        return fieldsById.get(id);</span>
+    }
+
+    /**
+     * @param fieldName The name of the field
+     * @return The field identified by the given name, or null if there is no such field
+     */
+    public FIELD getField(String fieldName) {
+<span class="fc" id="L147">        return fields.get(fieldName.toLowerCase(Locale.ENGLISH));</span>
+    }
+
+    /**
+     * @return The fields that this class has.
+     */
+    public Collection&lt;FIELD&gt; getFields() {
+<span class="fc" id="L154">        return ImmutableList.copyOf(fields.values());</span>
+    }
+
+    public boolean isConstructable() {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        return constructor != null;</span>
+    }
+
+    /**
+     * @return A new instance of this class.
+     */
+    public T newInstance() {
+<span class="fc" id="L165">        Preconditions.checkState(isConstructable(), &quot;Cannot construct '&quot; + this + &quot;' - no accessible default constructor&quot;);</span>
+<span class="fc" id="L166">        return constructor.construct();</span>
+    }
+
+    /**
+     * @param object The instance of this class to copy
+     * @return A copy of the given object
+     */
+    public T copy(T object) {
+<span class="fc" id="L174">        T result = constructor.construct();</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        if (result != null) {</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">            for (FIELD field : fields.values()) {</span>
+<span class="fc" id="L177">                field.setValue(result, field.getCopyOfValue(object));</span>
+<span class="fc" id="L178">            }</span>
+        }
+<span class="fc" id="L180">        return result;</span>
+    }
+
+    /**
+     * This method is for use in situations where metadata is being used generically and the actual type of the value cannot be
+     *
+     * @param object The instance of this class to copy
+     * @return A copy of the given object, or null if object is not of the type described by this metadata.
+     */
+    public T copyRaw(Object object) {
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">        if (getType().isInstance(object)) {</span>
+<span class="fc" id="L191">            return copy(getType().cast(object));</span>
+        }
+<span class="nc" id="L193">        return null;</span>
+    }
+
+    /**
+     * @return The number of fields this class has
+     */
+    public int getFieldCount() {
+<span class="fc" id="L200">        return fields.size();</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        if (obj == this) {</span>
+<span class="nc" id="L206">            return true;</span>
+        }
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        if (obj instanceof ClassMetadata) {</span>
+<span class="nc" id="L209">            ClassMetadata&lt;?, ?&gt; other = (ClassMetadata&lt;?, ?&gt;) obj;</span>
+<span class="nc" id="L210">            return Objects.equal(other.clazz, clazz);</span>
+        }
+<span class="nc" id="L212">        return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="fc" id="L217">        return clazz.hashCode();</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc bfc" id="L222" title="All 2 branches covered.">        if (uri.isValid()) {</span>
+<span class="fc" id="L223">            return uri.toString();</span>
+        }
+<span class="fc" id="L225">        return getType().toString();</span>
+    }
+
+    /**
+     * Used by FieldMetadata to update the id lookup table
+     *
+     * @param field The field to update the id for
+     * @param id    The new id of the field
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    void setFieldId(FieldMetadata&lt;T, ?&gt; field, byte id) {
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">        if (fields.containsValue(field)) {</span>
+<span class="fc" id="L237">            fieldsById.put(id, (FIELD) field);</span>
+        }
+<span class="fc" id="L239">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

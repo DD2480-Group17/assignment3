@@ -129,7 +129,7 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 * `NetData.ServerInfoMessage.Builder.ìsInitialized()` There is no explicit documentation for this function. However, the function is relatively clear anyway.
 * `normalForPlaneClosestToOrigin() ` The documentation is understandable, however it does not state that several normals can be returned.
 * `mergeFrom(NetData.NetMessage)` There is no documentation available, and since the function is ovver 300 LOC and consists of bitwise operations it is very difficult to comprehend.
-* `NetData.NetMessage.Builder.ìsInitialized()` There is no documentation available, but since the function only returns a boolean value it is yet quite
+* `NetData.NetMessage.Builder.ìsInitialized()` There is no documentation available, but since the function only returns a boolean value it is yet quite comprehensible.
 * `noise(float xin, float yin, float zin, float win)` There is some documentation available and the authors of the function have used Javadoc. However, they have not described the different possible outcomes induced by the different branches.
 
 ## Coverage
@@ -142,7 +142,6 @@ We decided to use Jacoco because it works well with the IDE Intellij which the p
 related to Jacoco because it was already integrated in IntelliJ. The only problem related to Jacoco was if the project was incorrectly installed on
 IntelliJ, then Jacoco could potentially miss branches or set all branch coverage to 0. However, we considered this to be an difficulty in getting the
 program running rather then it being hard to use Jacoco.
-
 
 ### DYI
 
@@ -241,12 +240,17 @@ git diff ...
 * `NetData.ServerInfoMessage.Builder.buildPartial()` consists of a lot of different if-statements, where some of them if-statements are nested and check if a certain builder object is null or not. If they are not, we will enter a new if-statements/branch. Those four if-statements could be moved into new functions called for instance buildComponent(), buildModule(), buildEvent() etc and be replaced by a function call (which takes the ServerInfoMessage object as a parameter that the buildPartial() function has created). We will probably need to use an if-statement to check the output of the function call. However, we will decrease the CC with 4 because we will get rid of one of the nested if-statements in buildPartial().
 
 
+* `NetData.ServerInfoMessage.Builder.buildPartial()` consists of a lot of different if-statements, where some of them if-statements are nested and check if a certain builder object is null or not. If they are not, we will enter a new if-statements/branch. Those four if-statements could be moved into new functions called for instance buildComponent(), buildModule(), buildEvent() etc and be replaced by a function call (which takes the ServerInfoMessage object as a parameter that the buildPartial() function has created). We will probably need to use an if-statement to check the output of the function call. However, we will decrease the CC with 4 because we will get rid of one of the nested if-statements in buildPartial().
+
+
 ### Estimated impact of refactoring (lower CC, but other drawbacks?).
 * `centerPointForNormal(Vector3f) ` The estimated impact of refactoring is M = B-D+1 = 12-6 +1 = 7. Original complexity where 19, which would result in a (19-7)/19 = 0.64 = 63% reduction of cyclomatic complexity.
 * `clear()` the estimated impact of refactoring is to reduce the cyclomatic omplexity to nearly 1 because it is mostly repeated patterns. So, the impact is nearly 100 % reduction of cyclomatic complexity.
 * `noise(4D)` estimated impact by grouping the if-statements in different functions could be to reduce the complexity to 1. The reason is that if there is a natural grouping of operations in the algorithm, it would be easy to create different functions that handle different parts of the calculations and results and accumulate the results in the main calling method.
 * `NetData.ServerInfoMessage.Builder.buildPartial()` The estimated impact of the refactoring above is pi = 22 - 4*2 + 4 (remove the nested if-statments and replace with a single one), s = 1, M = 18 - 1 = 19. Original complexity where 23, which would decrease the cyclomatic complexity with 4/23 = 0,17 = 17%
 * `mergeFrom(NetData.NetMessage)` This would cut the CC of the function to approximately 1/5 of what it is now, a reduction of 80 %.
+
+* `NetData.ServerInfoMessage.Builder.buildPartial()` The estimated impact of the refactoring above is pi = 22 - 4*2 + 4 (remove the nested if-statments and replace with a single one), s = 1, M = 18 - 1 = 19. Original complexity where 23, which would decrease the cyclomatic complexity with 4/23 = 0,17 = 17%
 
 ### Carried out refactoring (optional)
 * `centerPointForNormal(Vector3f) ` All chained if-statements where replaced by a function call. Example if(normal.x==1 && normal.y==0 && normal.z==0) where changed to if(normalPositiveX). After the changes jcoco calculated the cyclomatic complexity to 7 which is the same as the estimated reduction of complexity.
@@ -257,7 +261,7 @@ git diff ...
 What are your main take-aways from this project? What did you learn?
 
 * How to calculate and decide the cyclomatic complexity by using different formulas
-* Decide the approximately branch coverage of a function by creating a simple tool (ad hoc)
+* How branch coverage is calculated and measured 
 * Implement external tools and Open Source Projects for different OS
 
 Is there something special you want to mention here?

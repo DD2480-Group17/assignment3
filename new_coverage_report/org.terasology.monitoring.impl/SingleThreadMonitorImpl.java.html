@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SingleThreadMonitorImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.monitoring.impl</a> &gt; <span class="el_source">SingleThreadMonitorImpl.java</span></div><h1>SingleThreadMonitorImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.monitoring.impl;
+
+import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Queues;
+import com.google.common.collect.Sets;
+import gnu.trove.map.TObjectIntMap;
+import gnu.trove.map.hash.TObjectIntHashMap;
+
+import java.lang.ref.WeakReference;
+import java.util.Deque;
+import java.util.List;
+import java.util.Set;
+
+public class SingleThreadMonitorImpl implements SingleThreadMonitor {
+
+    private final String name;
+    private final WeakReference&lt;Thread&gt; ref;
+<span class="fc" id="L36">    private final TObjectIntMap&lt;String&gt; taskCounters = new TObjectIntHashMap&lt;&gt;();</span>
+<span class="fc" id="L37">    private final Set&lt;String&gt; tasks = Sets.newLinkedHashSet();</span>
+
+    private final long id;
+
+<span class="fc" id="L41">    private Deque&lt;Throwable&gt; errors = Queues.newArrayDeque();</span>
+
+    private boolean active;
+<span class="fc" id="L44">    private String lastTask = &quot;&quot;;</span>
+
+<span class="fc" id="L46">    public SingleThreadMonitorImpl(Thread thread) {</span>
+<span class="fc" id="L47">        Preconditions.checkNotNull(thread, &quot;The parameter 'thread' must not be null&quot;);</span>
+<span class="fc" id="L48">        this.name = thread.getName();</span>
+<span class="fc" id="L49">        this.ref = new WeakReference&lt;&gt;(thread);</span>
+<span class="fc" id="L50">        this.id = thread.getId();</span>
+<span class="fc" id="L51">    }</span>
+
+    @Override
+    public final boolean isAlive() {
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        return ref.get() != null;</span>
+    }
+
+    @Override
+    public final boolean isActive() {
+<span class="nc" id="L60">        return active;</span>
+    }
+
+    @Override
+    public final String getLastTask() {
+<span class="nc" id="L65">        return lastTask;</span>
+    }
+
+    @Override
+    public final String getName() {
+<span class="nc" id="L70">        return name;</span>
+    }
+
+    @Override
+    public final long getThreadId() {
+<span class="nc" id="L75">        return id;</span>
+    }
+
+    @Override
+    public final synchronized boolean hasErrors() {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        return !errors.isEmpty();</span>
+    }
+
+    @Override
+    public final synchronized int getNumErrors() {
+<span class="nc" id="L85">        return errors.size();</span>
+    }
+
+    @Override
+    public final synchronized Throwable getLastError() {
+<span class="nc" id="L90">        return errors.peekLast();</span>
+    }
+
+    @Override
+    public final synchronized List&lt;Throwable&gt; getErrors() {
+<span class="nc" id="L95">        return ImmutableList.copyOf(errors);</span>
+    }
+
+    @Override
+    public final synchronized void addError(Throwable error) {
+<span class="nc" id="L100">        errors.add(error);</span>
+<span class="nc" id="L101">    }</span>
+
+    @Override
+    public final synchronized Iterable&lt;String&gt; getTasks() {
+<span class="nc" id="L105">        return ImmutableSet.copyOf(tasks);</span>
+    }
+
+    @Override
+    public final synchronized long getCounter(String task) {
+<span class="nc" id="L110">        return taskCounters.get(task);</span>
+    }
+
+    @Override
+    public final synchronized void beginTask(String task) {
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if (taskCounters.adjustOrPutValue(task, 1, 1) == 1) {</span>
+<span class="fc" id="L116">            tasks.add(task);</span>
+        }
+<span class="fc" id="L118">        active = true;</span>
+<span class="fc" id="L119">        lastTask = task;</span>
+<span class="fc" id="L120">    }</span>
+
+    @Override
+    public final synchronized void endTask() {
+<span class="fc" id="L124">        active = false;</span>
+<span class="fc" id="L125">    }</span>
+
+    @Override
+    public String toString() {
+<span class="nc" id="L129">        final StringBuilder b = new StringBuilder(100);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        b.append(name).append(isAlive() ? &quot; [ALIVE]&quot; : &quot; [DEAD]&quot;).append(&quot; Id = &quot;).append(id);</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        for (String task : tasks) {</span>
+<span class="nc" id="L132">            b.append(&quot;, &quot;).append(task).append(&quot; = &quot;).append(taskCounters.get(task));</span>
+<span class="nc" id="L133">        }</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (hasErrors()) {</span>
+<span class="nc" id="L135">            b.append(&quot; [Errors = &quot;).append(getNumErrors()).append(&quot;, &quot;).append(getLastError().getClass().getSimpleName()).append(&quot;]&quot;);</span>
+        }
+<span class="nc" id="L137">        return b.toString();</span>
+    }
+
+    @Override
+    public int compareTo(SingleThreadMonitor other) {
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if (other == null) {</span>
+<span class="nc" id="L143">            return -1;</span>
+        }
+<span class="nc" id="L145">        final boolean alive1 = this.isAlive();</span>
+<span class="nc" id="L146">        final boolean alive2 = other.isAlive();</span>
+<span class="nc bnc" id="L147" title="All 6 branches missed.">        final int relAlive = alive1 ? (alive2 ? 0 : -1) : (alive2 ? 1 : 0);</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (relAlive == 0) {</span>
+<span class="nc" id="L149">            final boolean active1 = this.isActive();</span>
+<span class="nc" id="L150">            final boolean active2 = other.isActive();</span>
+<span class="nc bnc" id="L151" title="All 6 branches missed.">            final int relActive = active1 ? (active2 ? 0 : -1) : (active2 ? 1 : 0);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            if (relActive == 0) {</span>
+<span class="nc" id="L153">                final String name1 = this.getName();</span>
+<span class="nc" id="L154">                final String name2 = other.getName();</span>
+<span class="nc" id="L155">                final int relName = name1.compareTo(name2);</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                if (relName == 0) {</span>
+<span class="nc" id="L157">                    final long id1 = this.getThreadId();</span>
+<span class="nc" id="L158">                    final long id2 = other.getThreadId();</span>
+<span class="nc" id="L159">                    return (int) (id1 - id2);</span>
+                }
+<span class="nc" id="L161">                return relName;</span>
+            }
+<span class="nc" id="L163">            return relActive;</span>
+        }
+<span class="nc" id="L165">        return relAlive;</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (obj == this) {</span>
+<span class="nc" id="L171">            return true;</span>
+        }
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (obj instanceof SingleThreadMonitor) {</span>
+<span class="nc" id="L174">            SingleThreadMonitor other = (SingleThreadMonitor) obj;</span>
+<span class="nc bnc" id="L175" title="All 4 branches missed.">            return Objects.equal(isAlive(), other.isActive()) &amp;&amp; Objects.equal(isActive(), other.isActive())</span>
+<span class="nc bnc" id="L176" title="All 4 branches missed.">                    &amp;&amp; Objects.equal(name, other.getName()) &amp;&amp; Objects.equal(getThreadId(), other.getThreadId());</span>
+        }
+<span class="nc" id="L178">        return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L183">        return Objects.hashCode(isActive(), isActive(), name, getThreadId());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProtobufSerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">ProtobufSerializer.java</span></div><h1>ProtobufSerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.serializers;
+
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.SerializationException;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.protobuf.ProtobufPersistedData;
+import org.terasology.persistence.typeHandling.protobuf.ProtobufPersistedDataSerializer;
+import org.terasology.protobuf.EntityData;
+import org.terasology.reflection.TypeInfo;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Optional;
+
+/**
+ * {@link ProtobufSerializer} provides the ability to serialize and deserialize objects to and
+ * from a binary format using Protobuf.
+ */
+public class ProtobufSerializer extends AbstractSerializer {
+    /**
+     * Constructs a new {@link ProtobufSerializer} using the given {@link TypeHandlerLibrary}.
+     */
+    public ProtobufSerializer(TypeHandlerLibrary typeHandlerLibrary) {
+<span class="fc" id="L45">        super(typeHandlerLibrary, new ProtobufPersistedDataSerializer());</span>
+<span class="fc" id="L46">    }</span>
+
+    /**
+     * Serializes the given object to bytes and returns the serialized byte array.
+     *
+     * @param object   The object to be serialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type of the object to be serialized.
+     * @param &lt;T&gt;      The type of the object to be serialized.
+     * @return The serialized byte array.
+     * @throws SerializationException Thrown when serialization fails.
+     * @throws IOException            Thrown if there was an error creating the
+     *                                {@link ByteArrayOutputStream}.
+     * @see #writeBytes(Object, TypeInfo, OutputStream)
+     */
+    public &lt;T&gt; byte[] toBytes(T object, TypeInfo&lt;T&gt; typeInfo)
+            throws SerializationException, IOException {
+<span class="fc" id="L62">        try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {</span>
+<span class="fc" id="L63">            writeBytes(object, typeInfo, stream);</span>
+<span class="fc" id="L64">            return stream.toByteArray();</span>
+        }
+    }
+
+    /**
+     * Serializes the given object to bytes and writes the bytes to the file with the given name.
+     *
+     * @param object   The object to be serialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type of the object to be serialized.
+     * @param fileName The name of the file to write the serialized bytes to.
+     * @param &lt;T&gt;      The type of the object to be serialized.
+     * @throws SerializationException Thrown when serialization fails.
+     * @throws IOException            Thrown if there was an error writing the bytes to the file.
+     * @see #writeBytes(Object, TypeInfo, File)
+     */
+    public &lt;T&gt; void writeBytes(T object, TypeInfo&lt;T&gt; typeInfo, String fileName)
+            throws SerializationException, IOException {
+<span class="nc" id="L81">        writeBytes(object, typeInfo, new File(fileName));</span>
+<span class="nc" id="L82">    }</span>
+
+    /**
+     * Serializes the given object to bytes and writes the bytes to the {@link File}
+     *
+     * @param object   The object to be serialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type of the object to be serialized.
+     * @param file     The {@link File} to write the serialized bytes to.
+     * @param &lt;T&gt;      The type of the object to be serialized.
+     * @throws SerializationException Thrown when serialization fails.
+     * @throws IOException            Thrown if there was an error writing the bytes to the file.
+     * @see #writeBytes(Object, TypeInfo, File)
+     */
+    public &lt;T&gt; void writeBytes(T object, TypeInfo&lt;T&gt; typeInfo, File file)
+            throws SerializationException, IOException {
+<span class="nc" id="L97">        try (FileOutputStream stream = new FileOutputStream(file)) {</span>
+<span class="nc" id="L98">            writeBytes(object, typeInfo, stream);</span>
+        }
+<span class="nc" id="L100">    }</span>
+
+    /**
+     * Serializes the given object to bytes and writes the bytes to the {@link OutputStream}.
+     *
+     * @param object   The object to be serialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type of the object to be serialized.
+     * @param stream   The {@link OutputStream} to write the serialized bytes to.
+     * @param &lt;T&gt;      The type of the object to be serialized.
+     * @throws SerializationException Thrown when serialization fails.
+     * @see #writeBytes(Object, TypeInfo, File)
+     */
+    public &lt;T&gt; void writeBytes(T object, TypeInfo&lt;T&gt; typeInfo, OutputStream stream)
+            throws SerializationException {
+<span class="fc" id="L114">        Optional&lt;PersistedData&gt; serialized = this.serialize(object, typeInfo);</span>
+
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (!serialized.isPresent()) {</span>
+<span class="nc" id="L117">            throw new SerializationException(&quot;Could not find a TypeHandler for the type &quot; + typeInfo);</span>
+        }
+
+<span class="fc" id="L120">        ProtobufPersistedData persistedData = (ProtobufPersistedData) serialized.get();</span>
+
+        try {
+<span class="fc" id="L123">            persistedData.getValue().writeDelimitedTo(stream);</span>
+<span class="nc" id="L124">        } catch (IOException e) {</span>
+<span class="nc" id="L125">            throw new SerializationException(&quot;Could not write bytes to stream&quot;, e);</span>
+<span class="fc" id="L126">        }</span>
+<span class="fc" id="L127">    }</span>
+
+    /**
+     * Deserializes an object of type {@link T} from the bytes in the {@link InputStream}.
+     *
+     * @param stream   The {@link InputStream} that contains the bytes to be deserialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type to deserialize the object as.
+     * @param &lt;T&gt;      The type to deserialize the object as.
+     * @return The deserialized object of type {@link T}.
+     * @throws SerializationException Thrown if the deserialization fails.
+     */
+    public &lt;T&gt; T fromBytes(InputStream stream, TypeInfo&lt;T&gt; typeInfo) throws SerializationException {
+        EntityData.Value value;
+
+        try {
+<span class="fc" id="L142">            value = EntityData.Value.parseDelimitedFrom(stream);</span>
+<span class="nc" id="L143">        } catch (IOException e) {</span>
+<span class="nc" id="L144">            throw new SerializationException(&quot;Could not parse bytes from Stream&quot;, e);</span>
+<span class="fc" id="L145">        }</span>
+
+<span class="fc" id="L147">        Optional&lt;T&gt; deserialized = this.deserialize(new ProtobufPersistedData(value), typeInfo);</span>
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        if (!deserialized.isPresent()) {</span>
+<span class="nc" id="L150">            throw new SerializationException(&quot;Could not deserialize object of type &quot; + typeInfo);</span>
+        }
+
+<span class="fc" id="L153">        return deserialized.get();</span>
+    }
+
+    /**
+     * Deserializes an object of type {@link T} from the bytes in the {@link File}.
+     *
+     * @param file     The {@link File} that contains the bytes to be deserialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type to deserialize the object as.
+     * @param &lt;T&gt;      The type to deserialize the object as.
+     * @return The deserialized object of type {@link T}.
+     * @throws IOException            Thrown if there was an error reading from the file.
+     * @throws SerializationException Thrown if the deserialization fails.
+     * @see #fromBytes(InputStream, TypeInfo)
+     */
+    public &lt;T&gt; T fromBytes(File file, TypeInfo&lt;T&gt; typeInfo) throws IOException, SerializationException {
+<span class="nc" id="L168">        try (InputStream stream = new FileInputStream(file)) {</span>
+<span class="nc" id="L169">            return fromBytes(stream, typeInfo);</span>
+        }
+    }
+
+    /**
+     * Deserializes an object of type {@link T} from the given bytes.
+     *
+     * @param bytes    The bytes to be deserialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type to deserialize the object as.
+     * @param &lt;T&gt;      The type to deserialize the object as.
+     * @return The deserialized object of type {@link T}.
+     * @throws IOException            Thrown if there was an error creating a {@link ByteArrayInputStream}.
+     * @throws SerializationException Thrown if the deserialization fails.
+     * @see #fromBytes(InputStream, TypeInfo)
+     */
+    public &lt;T&gt; T fromBytes(byte[] bytes, TypeInfo&lt;T&gt; typeInfo) throws IOException, SerializationException {
+<span class="fc" id="L185">        try (InputStream reader = new ByteArrayInputStream(bytes)) {</span>
+<span class="fc" id="L186">            return fromBytes(reader, typeInfo);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

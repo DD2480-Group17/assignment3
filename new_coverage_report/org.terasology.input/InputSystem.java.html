@@ -1,0 +1,541 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InputSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.input</a> &gt; <span class="el_source">InputSystem.java</span></div><h1>InputSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.input;
+
+import com.google.common.collect.Queues;
+import org.terasology.config.ControllerConfig.ControllerInfo;
+import org.terasology.config.facade.InputDeviceConfiguration;
+import org.terasology.engine.SimpleUri;
+import org.terasology.engine.Time;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.engine.subsystem.config.BindsManager;
+import org.terasology.engine.subsystem.config.BindsSubsystem;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.input.cameraTarget.CameraTargetSystem;
+import org.terasology.input.device.ControllerAction;
+import org.terasology.input.device.KeyboardAction;
+import org.terasology.input.device.KeyboardDevice;
+import org.terasology.input.device.MouseAction;
+import org.terasology.input.device.MouseDevice;
+import org.terasology.input.device.nulldevices.NullControllerDevice;
+import org.terasology.input.device.nulldevices.NullKeyboardDevice;
+import org.terasology.input.device.nulldevices.NullMouseDevice;
+import org.terasology.input.events.InputEvent;
+import org.terasology.input.events.KeyDownEvent;
+import org.terasology.input.events.KeyEvent;
+import org.terasology.input.events.KeyRepeatEvent;
+import org.terasology.input.events.KeyUpEvent;
+import org.terasology.input.events.LeftMouseDownButtonEvent;
+import org.terasology.input.events.LeftMouseUpButtonEvent;
+import org.terasology.input.events.MouseAxisEvent;
+import org.terasology.input.events.MouseAxisEvent.MouseAxis;
+import org.terasology.input.events.MouseButtonEvent;
+import org.terasology.input.events.MouseDownButtonEvent;
+import org.terasology.input.events.MouseUpButtonEvent;
+import org.terasology.input.events.MouseWheelEvent;
+import org.terasology.input.events.RightMouseDownButtonEvent;
+import org.terasology.input.events.RightMouseUpButtonEvent;
+import org.terasology.input.internal.AbstractBindableAxis;
+import org.terasology.input.internal.BindableRealAxis;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.registry.In;
+
+import java.util.List;
+import java.util.Queue;
+
+/**
+ * This system processes input, sending it out as events against the LocalPlayer entity.
+ * &lt;br&gt;&lt;br&gt;
+ * In addition to raw keyboard and mouse input, the system handles Bind Buttons and Bind Axis, which can be mapped
+ * to one or more inputs.
+ */
+<span class="fc" id="L67">public class InputSystem extends BaseComponentSystem {</span>
+
+    @In
+    private InputDeviceConfiguration inputDeviceConfig;
+
+    @In
+    private BindsManager bindsManager;
+
+    @In
+    private Time time;
+
+    @In
+    private DisplayDevice display;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    @In
+    private CameraTargetSystem targetSystem;
+
+    @In
+    private BindsSubsystem bindsSubsystem;
+
+<span class="fc" id="L90">    private MouseDevice mouse = new NullMouseDevice();</span>
+<span class="fc" id="L91">    private KeyboardDevice keyboard = new NullKeyboardDevice();</span>
+<span class="fc" id="L92">    private ControllerDevice controllers = new NullControllerDevice();</span>
+
+<span class="fc" id="L94">    private Queue&lt;KeyboardAction&gt; simulatedKeys = Queues.newArrayDeque();</span>
+
+    private EntityRef[] inputEntities;
+
+    public void setMouseDevice(MouseDevice mouseDevice) {
+<span class="nc" id="L99">        this.mouse = mouseDevice;</span>
+<span class="nc" id="L100">    }</span>
+
+    public void setKeyboardDevice(KeyboardDevice keyboardDevice) {
+<span class="fc" id="L103">        this.keyboard = keyboardDevice;</span>
+<span class="fc" id="L104">    }</span>
+
+    public MouseDevice getMouseDevice() {
+<span class="fc" id="L107">        return mouse;</span>
+    }
+
+    public KeyboardDevice getKeyboard() {
+<span class="fc" id="L111">        return keyboard;</span>
+    }
+
+    public ControllerDevice getControllerDevice() {
+<span class="nc" id="L115">        return controllers;</span>
+    }
+
+    public void setControllerDevice(ControllerDevice controllerDevice) {
+<span class="nc" id="L119">        this.controllers = controllerDevice;</span>
+<span class="nc" id="L120">    }</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L124">        bindsManager.registerBinds();</span>
+<span class="nc" id="L125">    }</span>
+
+    /**
+     * Updates/processes user input across all of the players input devices.
+     *
+     * @param delta The length of the current frame.
+     */
+    public void update(float delta) {
+<span class="fc" id="L133">        updateInputEntities();</span>
+<span class="fc" id="L134">        processMouseInput(delta);</span>
+<span class="fc" id="L135">        processKeyboardInput(delta);</span>
+<span class="fc" id="L136">        processControllerInput(delta);</span>
+<span class="fc" id="L137">        processBindRepeats(delta);</span>
+<span class="fc" id="L138">        processBindAxis(delta);</span>
+<span class="fc" id="L139">    }</span>
+
+    /**
+     * Returns true if the game window currently has display focus, therefore mouse input is being captured.
+     *
+     * @return true if display currently has focus, else false.
+     */
+    public boolean isCapturingMouse() {
+<span class="fc" id="L147">        return display.hasFocus();</span>
+    }
+
+    /**
+     * Updates the client and input entities of the local player, to be used in input events against the local player.
+     */
+    private void updateInputEntities() {
+<span class="pc bpc" id="L154" title="7 of 8 branches missed.">        if (inputEntities == null</span>
+                || inputEntities.length != 2
+                || inputEntities[0] == null
+                || inputEntities[1] == null
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                || inputEntities[0] != localPlayer.getClientEntity()</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">                || inputEntities[1] != localPlayer.getCharacterEntity()) {</span>
+<span class="fc" id="L160">            inputEntities = new EntityRef[]{localPlayer.getClientEntity(), localPlayer.getCharacterEntity()};</span>
+        }
+<span class="fc" id="L162">    }</span>
+
+    /**
+     * Processes the current input state of the mouse, sends input events and updates bind buttons.
+     *
+     * Mouse position actions are handled here, while mouse button and mouse wheel actions are handled at
+     * {@link #processMouseButtonInput(float, MouseAction)} and {@link #processMouseWheelInput(float, MouseAction)}
+     * accordingly.
+     *
+     * @param delta The length of the current frame.
+     */
+    private void processMouseInput(float delta) {
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (!isCapturingMouse()) {</span>
+<span class="nc" id="L175">            return;</span>
+        }
+
+<span class="fc" id="L178">        Vector2i deltaMouse = mouse.getDelta();</span>
+        //process mouse movement x axis
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">        if (deltaMouse.x != 0) {</span>
+<span class="nc" id="L181">            float xValue = deltaMouse.x * inputDeviceConfig.getMouseSensitivity();</span>
+<span class="nc" id="L182">            MouseAxisEvent event = MouseAxisEvent.create(MouseAxis.X, xValue, delta);</span>
+<span class="nc" id="L183">            send(event);</span>
+        }
+
+        //process mouse movement y axis
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">        if (deltaMouse.y != 0) {</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            int yMovement = inputDeviceConfig.isMouseYAxisInverted() ? deltaMouse.y * -1 : deltaMouse.y;</span>
+<span class="nc" id="L189">            float yValue = yMovement * inputDeviceConfig.getMouseSensitivity();</span>
+<span class="nc" id="L190">            MouseAxisEvent event = MouseAxisEvent.create(MouseAxis.Y, yValue, delta);</span>
+<span class="nc" id="L191">            send(event);</span>
+        }
+
+        //process mouse clicks
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">        for (MouseAction action : mouse.getInputQueue()) {</span>
+<span class="nc bnc" id="L196" title="All 3 branches missed.">            switch (action.getInput().getType()) {</span>
+                case MOUSE_BUTTON:
+<span class="nc" id="L198">                    processMouseButtonInput(delta, action);</span>
+<span class="nc" id="L199">                    break;</span>
+                case MOUSE_WHEEL:
+<span class="nc" id="L201">                    processMouseWheelInput(delta, action);</span>
+<span class="nc" id="L202">                    break;</span>
+                default:
+                    break;
+            }
+<span class="nc" id="L206">        }</span>
+<span class="fc" id="L207">    }</span>
+
+    /**
+     * Processes input actions by the mouse buttons, sends input events and updates bind buttons accordingly.
+     *
+     * @param delta The length of the current frame.
+     * @param action The input action to be processed.
+     */
+    private void processMouseButtonInput(float delta, MouseAction action) {
+<span class="nc" id="L216">        int id = action.getInput().getId();</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        if (id != MouseInput.NONE.getId()) {</span>
+<span class="nc" id="L218">            MouseInput button = MouseInput.find(action.getInput().getType(), action.getInput().getId());</span>
+<span class="nc" id="L219">            boolean consumed = sendMouseEvent(button, action.getState().isDown(), action.getMousePosition(), delta);</span>
+<span class="nc" id="L220">            BindableButton bind = bindsManager.getMouseButtonBinds().get(button);</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">            if (bind != null) {</span>
+<span class="nc" id="L222">                updateBindState(bind, action.getInput(), action.getState().isDown(), delta, consumed);</span>
+            }
+        }
+<span class="nc" id="L225">    }</span>
+
+    /**
+     * Processes input actions by the mouse wheel, sends input events and updates bind buttons accordingly.
+     *
+     * @param delta The length of the current frame.
+     * @param action The input action to be processed.
+     */
+    private void processMouseWheelInput(float delta, MouseAction action) {
+<span class="nc" id="L234">        int dir = action.getInput().getId();</span>
+<span class="nc bnc" id="L235" title="All 4 branches missed.">        if (dir != 0 &amp;&amp; action.getTurns() != 0) {</span>
+<span class="nc" id="L236">            boolean consumed = sendMouseWheelEvent(action.getMousePosition(), dir * action.getTurns(), delta);</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">            BindableButton bind = (dir == 1) ? bindsManager.getMouseWheelUpBind() : bindsManager.getMouseWheelDownBind();</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">            if (bind != null) {</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">                for (int i = 0; i &lt; action.getTurns(); ++i) {</span>
+<span class="nc" id="L240">                    updateBindState(bind, action.getInput(), true, delta, consumed);</span>
+<span class="nc" id="L241">                    updateBindState(bind, action.getInput(), false, delta, consumed);</span>
+                }
+            }
+        }
+<span class="nc" id="L245">    }</span>
+
+    /**
+     * Processes the current input state of any connected controllers, and updates bind buttons.
+     *
+     * Controller button and axis events are both handled in
+     * {@link #processControllerButtonInput(float, ControllerAction, boolean, Input)} and
+     * {@link #processControllerAxisInput(ControllerAction, Input)} accordingly.
+     *
+     * @param delta The length of the current frame.
+     */
+    private void processControllerInput(float delta) {
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">        if (!isCapturingMouse()) {</span>
+<span class="nc" id="L258">            return;</span>
+        }
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">        for (ControllerAction action : controllers.getInputQueue()) {</span>
+            // TODO: send event to entity system
+<span class="nc" id="L262">            boolean consumed = false;</span>
+
+<span class="nc" id="L264">            Input input = action.getInput();</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">            if (input.getType() == InputType.CONTROLLER_BUTTON) {</span>
+<span class="nc" id="L266">                processControllerButtonInput(delta, action, consumed, input);</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            } else if (input.getType() == InputType.CONTROLLER_AXIS) {</span>
+<span class="nc" id="L268">                processControllerAxisInput(action, input);</span>
+            }
+<span class="nc" id="L270">        }</span>
+<span class="fc" id="L271">    }</span>
+
+    /**
+     * Processes input actions by controller buttons, and updates bind buttons accordingly.
+     *
+     * @param delta The length of the current frame.
+     * @param action The input action to be processed.
+     * @param consumed True if sent input event has been processed/consumed by an event receiver.
+     * @param input The specific input of the controller button.
+     */
+    private void processControllerButtonInput(float delta, ControllerAction action, boolean consumed, Input input) {
+<span class="nc" id="L282">        BindableButton bind = bindsManager.getControllerBinds().get(input);</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">        if (bind != null) {</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">            boolean pressed = action.getState() == ButtonState.DOWN;</span>
+<span class="nc" id="L285">            updateBindState(bind, input, pressed, delta, consumed);</span>
+        }
+<span class="nc" id="L287">    }</span>
+
+    /**
+     * Processes input actions by controller axis, and updates bind axis accordingly.
+     *
+     * @param action The input action to be processed.
+     * @param input The specific input of the controller axis.
+     */
+    private void processControllerAxisInput(ControllerAction action, Input input) {
+<span class="nc" id="L296">        BindableRealAxis axis = bindsManager.getControllerAxisBinds().get(input);</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        if (axis != null) {</span>
+<span class="nc" id="L298">            ControllerInfo info = inputDeviceConfig.getController(action.getController());</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">            boolean isX = action.getInput().getId() == ControllerId.X_AXIS;</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">            boolean isY = action.getInput().getId() == ControllerId.Y_AXIS;</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">            boolean isZ = action.getInput().getId() == ControllerId.Z_AXIS;</span>
+<span class="nc bnc" id="L302" title="All 12 branches missed.">            float f = (isX &amp;&amp; info.isInvertX() || isY &amp;&amp; info.isInvertY() || isZ &amp;&amp; info.isInvertZ()) ? -1 : 1;</span>
+<span class="nc" id="L303">            axis.setTargetValue(action.getAxisValue() * f);</span>
+        }
+<span class="nc" id="L305">    }</span>
+
+    /**
+     * Updates the bind state of a button bind based on provided input information.
+     *
+     * @param bind The button bind to be updated.
+     * @param input The specific input to be binded.
+     * @param pressed True if the button in the input is pressed, false if not.
+     * @param delta The length of the current frame.
+     * @param consumed True if the input event has been processed/consumed by an event receiver.
+     */
+    private void updateBindState(BindableButton bind, Input input, boolean pressed, float delta, boolean consumed) {
+<span class="fc" id="L317">        bind.updateBindState(</span>
+                input,
+                pressed,
+                delta, inputEntities,
+<span class="fc" id="L321">                targetSystem.getTarget(),</span>
+<span class="fc" id="L322">                targetSystem.getTargetBlockPosition(),</span>
+<span class="fc" id="L323">                targetSystem.getHitPosition(),</span>
+<span class="fc" id="L324">                targetSystem.getHitNormal(),</span>
+                consumed,
+<span class="fc" id="L326">                time.getGameTimeInMs());</span>
+<span class="fc" id="L327">    }</span>
+
+    /**
+     * Simulates a single key stroke from the keyboard.
+     *
+     * Simulated key strokes: To simulate input from a keyboard, we simply have to extract the Input associated to the
+     * action and this function adds it to the keyboard's input queue.
+     *
+     * @param key The key to be simulated.
+     */
+    public void simulateSingleKeyStroke(Input key) {
+        /* TODO: Perhaps there is a better way to extract the character.
+            All the simulate functions extract keyChar by getting the first character from it's display string.
+            While it works for normal character buttons, might not work for special buttons if required later.
+        */
+<span class="nc" id="L342">        char keyChar = key.getDisplayName().charAt(0);</span>
+<span class="nc" id="L343">        KeyboardAction action = new KeyboardAction(key, ButtonState.DOWN, keyChar);</span>
+<span class="nc" id="L344">        simulatedKeys.add(action);</span>
+<span class="nc" id="L345">    }</span>
+
+    /**
+     * Simulates a repeated key stroke from the keyboard.
+     *
+     * Simulated key strokes: To simulate input from a keyboard, we simply have to extract the Input associated to the
+     * action and this function adds it to the keyboard's input queue.
+     *
+     * @param key The key to be simulated.
+     */
+    public void simulateRepeatedKeyStroke(Input key) {
+<span class="nc" id="L356">        char keyChar = key.getDisplayName().charAt(0);</span>
+<span class="nc" id="L357">        KeyboardAction action = new KeyboardAction(key, ButtonState.REPEAT, keyChar);</span>
+<span class="nc" id="L358">        simulatedKeys.add(action);</span>
+<span class="nc" id="L359">    }</span>
+
+    /**
+     * Cancels the simulation of key strokes.
+     *
+     * @param key The key to cancel the simulation of.
+     */
+    public void cancelSimulatedKeyStroke(Input key) {
+<span class="nc" id="L367">        char keyChar = key.getDisplayName().charAt(0);</span>
+<span class="nc" id="L368">        KeyboardAction action = new KeyboardAction(key, ButtonState.UP, keyChar);</span>
+<span class="nc" id="L369">        simulatedKeys.add(action);</span>
+<span class="nc" id="L370">    }</span>
+
+    /**
+     * Processes input actions by keyboard buttons, sends key events and updates bind buttons accordingly.
+     *
+     * @param delta The length of the current frame.
+     */
+    private void processKeyboardInput(float delta) {
+<span class="fc" id="L378">        Queue&lt;KeyboardAction&gt; keyQueue = keyboard.getInputQueue();</span>
+<span class="fc" id="L379">        keyQueue.addAll(simulatedKeys);</span>
+<span class="fc" id="L380">        simulatedKeys.clear();</span>
+<span class="fc bfc" id="L381" title="All 2 branches covered.">        for (KeyboardAction action : keyQueue) {</span>
+<span class="fc" id="L382">            boolean consumed = sendKeyEvent(action.getInput(), action.getInputChar(), action.getState(), delta);</span>
+
+            // Update bind
+<span class="fc" id="L385">            BindableButton bind = bindsManager.getKeyBinds().get(action.getInput().getId());</span>
+<span class="pc bpc" id="L386" title="1 of 4 branches missed.">            if (bind != null &amp;&amp; action.getState() != ButtonState.REPEAT) {</span>
+<span class="pc bpc" id="L387" title="1 of 2 branches missed.">                boolean pressed = action.getState() == ButtonState.DOWN;</span>
+<span class="fc" id="L388">                updateBindState(bind, action.getInput(), pressed, delta, consumed);</span>
+            }
+<span class="fc" id="L390">        }</span>
+<span class="fc" id="L391">    }</span>
+
+    /**
+     * Processes/Updates all bind axis.
+     *
+     * @param delta The length of the current frame.
+     */
+    private void processBindAxis(float delta) {
+<span class="pc bpc" id="L399" title="1 of 2 branches missed.">        for (AbstractBindableAxis axis : bindsManager.getAxisBinds()) {</span>
+<span class="nc" id="L400">            axis.update(inputEntities, delta, targetSystem.getTarget(), targetSystem.getTargetBlockPosition(),</span>
+<span class="nc" id="L401">                    targetSystem.getHitPosition(), targetSystem.getHitNormal());</span>
+<span class="nc" id="L402">        }</span>
+<span class="fc" id="L403">    }</span>
+
+    /**
+     * Processes/Updates all bind buttons.
+     *
+     * @param delta The length of the current frame.
+     */
+    private void processBindRepeats(float delta) {
+<span class="pc bpc" id="L411" title="1 of 2 branches missed.">        for (BindableButton button : bindsManager.getButtonBinds()) {</span>
+<span class="nc" id="L412">            button.update(inputEntities,</span>
+                    delta,
+<span class="nc" id="L414">                    targetSystem.getTarget(),</span>
+<span class="nc" id="L415">                    targetSystem.getTargetBlockPosition(),</span>
+<span class="nc" id="L416">                    targetSystem.getHitPosition(),</span>
+<span class="nc" id="L417">                    targetSystem.getHitNormal(),</span>
+<span class="nc" id="L418">                    time.getGameTimeInMs());</span>
+<span class="nc" id="L419">        }</span>
+<span class="fc" id="L420">    }</span>
+
+    /**
+     * Creates and sends an input event based on a provided keyboard input.
+     *
+     * @param key The specific input to be sent.
+     * @param keyChar The character of the input key.
+     * @param state The state of the input key.
+     * @param delta The length of the current frame.
+     * @return true if the event has been consumed by an event listener, false otherwise.
+     */
+    private boolean sendKeyEvent(Input key, char keyChar, ButtonState state, float delta) {
+        KeyEvent event;
+<span class="pc bpc" id="L433" title="2 of 4 branches missed.">        switch (state) {</span>
+            case UP:
+<span class="fc" id="L435">                event = KeyUpEvent.create(key, keyChar, delta);</span>
+<span class="fc" id="L436">                break;</span>
+            case DOWN:
+<span class="fc" id="L438">                event = KeyDownEvent.create(key, keyChar, delta);</span>
+<span class="fc" id="L439">                break;</span>
+            case REPEAT:
+<span class="nc" id="L441">                event = KeyRepeatEvent.create(key, keyChar, delta);</span>
+<span class="nc" id="L442">                break;</span>
+            default:
+<span class="nc" id="L444">                return false;</span>
+        }
+
+<span class="fc" id="L447">        boolean consumed = send(event);</span>
+<span class="fc" id="L448">        event.reset();</span>
+<span class="fc" id="L449">        return consumed;</span>
+    }
+
+    /**
+     * Creates and sends an input event based on a provided mouse action.
+     *
+     * @param button The specific input to be sent.
+     * @param buttonDown True if the button is pressed, false if not.
+     * @param position The position of the mouse.
+     * @param delta The length of the current frame.
+     * @return True if the event has been consumed by an event listener, false otherwise.
+     */
+    private boolean sendMouseEvent(MouseInput button, boolean buttonDown, Vector2i position, float delta) {
+        MouseButtonEvent event;
+<span class="nc bnc" id="L463" title="All 4 branches missed.">        switch (button) {</span>
+            case NONE:
+<span class="nc" id="L465">                return false;</span>
+            case MOUSE_LEFT:
+<span class="nc bnc" id="L467" title="All 2 branches missed.">                event = (buttonDown) ? LeftMouseDownButtonEvent.create(position, delta) : LeftMouseUpButtonEvent.create(position, delta);</span>
+<span class="nc" id="L468">                break;</span>
+            case MOUSE_RIGHT:
+<span class="nc bnc" id="L470" title="All 2 branches missed.">                event = (buttonDown) ? RightMouseDownButtonEvent.create(position, delta) : RightMouseUpButtonEvent.create(position, delta);</span>
+<span class="nc" id="L471">                break;</span>
+            default:
+<span class="nc bnc" id="L473" title="All 2 branches missed.">                event = (buttonDown) ? MouseDownButtonEvent.create(button, position, delta) : MouseUpButtonEvent.create(button, position, delta);</span>
+                break;
+        }
+<span class="nc" id="L476">        boolean consumed = send(event);</span>
+<span class="nc" id="L477">        event.reset();</span>
+<span class="nc" id="L478">        return consumed;</span>
+    }
+
+    /**
+     * Creates and sends an input event based on a provided mouse wheel action.
+     *
+     * @param pos The position of the mouse.
+     * @param wheelTurns The number of times the scroll wheel has turned.
+     * @param delta The length of the current frame.
+     * @return True if the event has been consumed by an event listener, false otherwise.
+     */
+    private boolean sendMouseWheelEvent(Vector2i pos, int wheelTurns, float delta) {
+<span class="nc" id="L490">        MouseWheelEvent mouseWheelEvent = new MouseWheelEvent(pos, wheelTurns, delta);</span>
+<span class="nc" id="L491">        return send(mouseWheelEvent);</span>
+    }
+
+    /**
+     * Sends a provided input event to the local player's input entities.
+     *
+     * @param event The input event to be sent.
+     * @return True if the event has been consumed by an event listener, false otherwise.
+     */
+    private boolean send(InputEvent event) {
+<span class="fc" id="L501">        setupTarget(event);</span>
+<span class="fc bfc" id="L502" title="All 2 branches covered.">        for (EntityRef entity : inputEntities) {</span>
+<span class="fc" id="L503">            entity.send(event);</span>
+<span class="pc bpc" id="L504" title="1 of 2 branches missed.">            if (event.isConsumed()) {</span>
+<span class="nc" id="L505">                break;</span>
+            }
+        }
+<span class="fc" id="L508">        return event.isConsumed();</span>
+    }
+
+    /**
+     * Sets up the target info for a specified input event.
+     *
+     * @param event The specified input event.
+     */
+    private void setupTarget(InputEvent event) {
+<span class="pc bpc" id="L517" title="1 of 2 branches missed.">        if (targetSystem.isTargetAvailable()) {</span>
+<span class="nc" id="L518">            event.setTargetInfo(targetSystem.getTarget(), targetSystem.getTargetBlockPosition(), targetSystem.getHitPosition(), targetSystem.getHitNormal());</span>
+        }
+<span class="fc" id="L520">    }</span>
+
+    /**
+     * Drop all pending/unprocessed input events.
+     */
+    public void drainQueues() {
+<span class="nc" id="L526">        mouse.getInputQueue();</span>
+<span class="nc" id="L527">        keyboard.getInputQueue();</span>
+<span class="nc" id="L528">        controllers.getInputQueue();</span>
+<span class="nc" id="L529">    }</span>
+
+    /**
+     * API-exposed caller to {@link BindsSubsystem#getInputsForBindButton(SimpleUri)}.
+     * TODO: Restored for API reasons, may be duplicating code elsewhere. Should be reviewed.
+     * @param bindId the ID.
+     * @return a list of keyboard/mouse inputs that trigger the binding.
+     */
+    public List&lt;Input&gt; getInputsForBindButton(SimpleUri bindId) {
+<span class="nc" id="L538">        return bindsSubsystem.getInputsForBindButton((bindId));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

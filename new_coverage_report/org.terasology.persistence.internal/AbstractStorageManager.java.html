@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractStorageManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.internal</a> &gt; <span class="el_source">AbstractStorageManager.java</span></div><h1>AbstractStorageManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.persistence.internal;
+
+import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.entity.internal.OwnershipHelper;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.AABB;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.network.ClientComponent;
+import org.terasology.persistence.ChunkStore;
+import org.terasology.persistence.PlayerStore;
+import org.terasology.persistence.StorageManager;
+import org.terasology.persistence.serializers.PrefabSerializer;
+import org.terasology.protobuf.EntityData;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.List;
+import java.util.zip.GZIPInputStream;
+
+/**
+ * An abstract implementation of {@link StorageManager} that is able
+ * to read from a data store.
+ *
+ */
+public abstract class AbstractStorageManager implements StorageManager {
+
+<span class="fc" id="L58">    private static final Logger logger = LoggerFactory.getLogger(AbstractStorageManager.class);</span>
+
+    private final StoragePathProvider storagePathProvider;
+    private final BlockManager blockManager;
+    private final ExtraBlockDataManager extraDataManager;
+
+    private final ModuleEnvironment environment;
+    private final EngineEntityManager entityManager;
+    private final PrefabSerializer prefabSerializer;
+    private final OwnershipHelper helper;
+
+<span class="fc" id="L69">    private boolean storeChunksInZips = true;</span>
+
+    public AbstractStorageManager(Path savePath, ModuleEnvironment environment, EngineEntityManager entityManager,
+<span class="fc" id="L72">                                  BlockManager blockManager, ExtraBlockDataManager extraDataManager, boolean storeChunksInZips) {</span>
+<span class="fc" id="L73">        this.entityManager = entityManager;</span>
+<span class="fc" id="L74">        this.environment = environment;</span>
+<span class="fc" id="L75">        this.storeChunksInZips = storeChunksInZips;</span>
+<span class="fc" id="L76">        this.prefabSerializer = new PrefabSerializer(entityManager.getComponentLibrary(), entityManager.getTypeSerializerLibrary());</span>
+<span class="fc" id="L77">        this.blockManager = blockManager;</span>
+<span class="fc" id="L78">        this.extraDataManager = extraDataManager;</span>
+
+<span class="fc" id="L80">        this.storagePathProvider = new StoragePathProvider(savePath);</span>
+<span class="fc" id="L81">        this.helper = new OwnershipHelper(entityManager.getComponentLibrary());</span>
+<span class="fc" id="L82">    }</span>
+
+    @Override
+    public void loadGlobalStore() throws IOException {
+<span class="fc" id="L86">        Path globalDataFile = storagePathProvider.getGlobalEntityStorePath();</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        if (Files.isRegularFile(globalDataFile)) {</span>
+<span class="fc" id="L88">            try (InputStream in = new BufferedInputStream(Files.newInputStream(globalDataFile))) {</span>
+<span class="fc" id="L89">                EntityData.GlobalStore store = EntityData.GlobalStore.parseFrom(in);</span>
+<span class="fc" id="L90">                GlobalStoreLoader loader = new GlobalStoreLoader(environment, entityManager, prefabSerializer);</span>
+<span class="fc" id="L91">                loader.load(store);</span>
+            }
+        }
+<span class="fc" id="L94">    }</span>
+
+    @Override
+    public PlayerStore loadPlayerStore(String playerId) {
+<span class="fc" id="L98">        EntityData.PlayerStore store = loadPlayerStoreData(playerId);</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        if (store != null) {</span>
+<span class="fc" id="L100">            return new PlayerStoreInternal(playerId, store, entityManager);</span>
+        }
+<span class="fc" id="L102">        return new PlayerStoreInternal(playerId, entityManager);</span>
+    }
+
+    @Override
+    public ChunkStore loadChunkStore(Vector3i chunkPos) {
+<span class="fc" id="L107">        byte[] chunkData = loadCompressedChunk(chunkPos);</span>
+<span class="fc" id="L108">        ChunkStore store = null;</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (chunkData != null) {</span>
+<span class="fc" id="L110">            ByteArrayInputStream bais = new ByteArrayInputStream(chunkData);</span>
+<span class="fc" id="L111">            try (GZIPInputStream gzipIn = new GZIPInputStream(bais)) {</span>
+<span class="fc" id="L112">                EntityData.ChunkStore storeData = EntityData.ChunkStore.parseFrom(gzipIn);</span>
+<span class="fc" id="L113">                store = new ChunkStoreInternal(storeData, entityManager, blockManager, extraDataManager);</span>
+<span class="nc" id="L114">            } catch (IOException e) {</span>
+<span class="nc" id="L115">                logger.error(&quot;Failed to read existing saved chunk {}&quot;, chunkPos);</span>
+<span class="fc" id="L116">            }</span>
+        }
+<span class="fc" id="L118">        return store;</span>
+    }
+
+    protected byte[] loadChunkZip(Vector3i chunkPos) {
+<span class="fc" id="L122">        byte[] chunkData = null;</span>
+<span class="fc" id="L123">        Vector3i chunkZipPos = storagePathProvider.getChunkZipPosition(chunkPos);</span>
+<span class="fc" id="L124">        Path chunkPath = storagePathProvider.getChunkZipPath(chunkZipPos);</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (Files.isRegularFile(chunkPath)) {</span>
+<span class="fc" id="L126">            try (FileSystem chunkZip = FileSystems.newFileSystem(chunkPath, null)) {</span>
+<span class="fc" id="L127">                Path targetChunk = chunkZip.getPath(storagePathProvider.getChunkFilename(chunkPos));</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">                if (Files.isRegularFile(targetChunk)) {</span>
+<span class="fc" id="L129">                    chunkData = Files.readAllBytes(targetChunk);</span>
+                }
+<span class="nc" id="L131">            } catch (IOException e) {</span>
+<span class="nc" id="L132">                logger.error(&quot;Failed to load chunk zip {}&quot;, chunkPath, e);</span>
+<span class="fc" id="L133">            }</span>
+        }
+<span class="fc" id="L135">        return chunkData;</span>
+    }
+
+    @Override
+    public void update() {
+<span class="nc" id="L140">    }</span>
+
+    public boolean isStoreChunksInZips() {
+<span class="fc" id="L143">        return storeChunksInZips;</span>
+    }
+
+    /**
+     * For tests only
+     */
+    void setStoreChunksInZips(boolean storeChunksInZips) {
+<span class="fc" id="L150">        this.storeChunksInZips = storeChunksInZips;</span>
+<span class="fc" id="L151">    }</span>
+
+    protected byte[] loadCompressedChunk(Vector3i chunkPos) {
+<span class="fc bfc" id="L154" title="All 2 branches covered.">        if (isStoreChunksInZips()) {</span>
+<span class="fc" id="L155">            return loadChunkZip(chunkPos);</span>
+        } else {
+<span class="fc" id="L157">            Path chunkPath = storagePathProvider.getChunkPath(chunkPos);</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">            if (Files.isRegularFile(chunkPath)) {</span>
+                try {
+<span class="fc" id="L160">                    return Files.readAllBytes(chunkPath);</span>
+<span class="nc" id="L161">                } catch (IOException e) {</span>
+<span class="nc" id="L162">                    logger.error(&quot;Failed to load chunk {}&quot;, chunkPos, e);</span>
+                }
+            }
+        }
+
+<span class="fc" id="L167">        return null;</span>
+    }
+
+    protected EntityData.PlayerStore loadPlayerStoreData(String playerId) {
+<span class="fc" id="L171">        Path storePath = storagePathProvider.getPlayerFilePath(playerId);</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">        if (Files.isRegularFile(storePath)) {</span>
+<span class="fc" id="L173">            try (InputStream inputStream = new BufferedInputStream(Files.newInputStream(storePath))) {</span>
+<span class="fc" id="L174">                return EntityData.PlayerStore.parseFrom(inputStream);</span>
+<span class="nc" id="L175">            } catch (IOException e) {</span>
+<span class="nc" id="L176">                logger.error(&quot;Failed to load player data for {}&quot;, playerId, e);</span>
+            }
+        }
+
+<span class="fc" id="L180">        return null;</span>
+    }
+
+    protected Collection&lt;EntityRef&gt; getEntitiesOfChunk(Chunk chunk) {
+<span class="nc" id="L184">        List&lt;EntityRef&gt; entitiesToStore = Lists.newArrayList();</span>
+
+<span class="nc" id="L186">        AABB aabb = chunk.getAABB();</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">        for (EntityRef entity : getEntityManager().getEntitiesWith(LocationComponent.class)) {</span>
+<span class="nc bnc" id="L188" title="All 6 branches missed.">            if (!entity.getOwner().exists() &amp;&amp; !entity.isAlwaysRelevant() &amp;&amp; !entity.hasComponent(ClientComponent.class)) {</span>
+<span class="nc" id="L189">                LocationComponent loc = entity.getComponent(LocationComponent.class);</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">                if (loc != null) {</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">                    if (aabb.contains(loc.getWorldPosition())) {</span>
+<span class="nc" id="L192">                        entitiesToStore.add(entity);</span>
+                    }
+                }
+            }
+<span class="nc" id="L196">        }</span>
+<span class="nc" id="L197">        return entitiesToStore;</span>
+    }
+
+    protected void deactivateOrDestroyEntityRecursive(EntityRef entity) {
+<span class="nc bnc" id="L201" title="All 2 branches missed.">        if (entity.isActive()) {</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">            for (EntityRef ownedEntity : helper.listOwnedEntities(entity)) {</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">                if (!ownedEntity.isAlwaysRelevant()) {</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">                    if (!ownedEntity.isPersistent()) {</span>
+                        // TODO check if destroy is recursive
+<span class="nc" id="L206">                        ownedEntity.destroy();</span>
+                    } else {
+<span class="nc" id="L208">                        deactivateOrDestroyEntityRecursive(ownedEntity);</span>
+                    }
+                }
+<span class="nc" id="L211">            }</span>
+<span class="nc" id="L212">            getEntityManager().deactivateForStorage(entity);</span>
+        }
+<span class="nc" id="L214">    }</span>
+
+    protected StoragePathProvider getStoragePathProvider() {
+<span class="fc" id="L217">        return storagePathProvider;</span>
+    }
+
+    protected ModuleEnvironment getEnvironment() {
+<span class="nc" id="L221">        return environment;</span>
+    }
+
+    protected EngineEntityManager getEntityManager() {
+<span class="fc" id="L225">        return entityManager;</span>
+    }
+
+    protected PrefabSerializer getPrefabSerializer() {
+<span class="fc" id="L229">        return prefabSerializer;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

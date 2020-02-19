@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConstructorLibrary.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.reflection.reflect</a> &gt; <span class="el_source">ConstructorLibrary.java</span></div><h1>ConstructorLibrary.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ * Copyright (C) 2011 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Based on Gson v2.6.2 com.google.gson.internal.ConstructorConstructor
+ */
+package org.terasology.reflection.reflect;
+
+import org.terasology.persistence.typeHandling.InstanceCreator;
+import org.terasology.persistence.typeHandling.SerializationException;
+import org.terasology.reflection.TypeInfo;
+import org.terasology.reflection.reflect.internal.UnsafeAllocator;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+
+public class ConstructorLibrary {
+    private final Map&lt;Type, InstanceCreator&lt;?&gt;&gt; instanceCreators;
+
+<span class="fc" id="L54">    public ConstructorLibrary(Map&lt;Type, InstanceCreator&lt;?&gt;&gt; instanceCreators) {</span>
+<span class="fc" id="L55">        this.instanceCreators = instanceCreators;</span>
+<span class="fc" id="L56">    }</span>
+
+    public &lt;T&gt; ObjectConstructor&lt;T&gt; get(TypeInfo&lt;T&gt; typeInfo) {
+<span class="fc" id="L59">        final Type type = typeInfo.getType();</span>
+<span class="fc" id="L60">        final Class&lt;? super T&gt; rawType = typeInfo.getRawType();</span>
+
+        // first try an instance creator
+
+        @SuppressWarnings(&quot;unchecked&quot;) // types must agree
+<span class="fc" id="L65">        final InstanceCreator&lt;T&gt; typeCreator = (InstanceCreator&lt;T&gt;) instanceCreators.get(type);</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (typeCreator != null) {</span>
+<span class="nc" id="L67">            return () -&gt; typeCreator.createInstance(type);</span>
+        }
+
+        // Next try raw type match for instance creators
+        @SuppressWarnings(&quot;unchecked&quot;) // types must agree
+<span class="fc" id="L72">        final InstanceCreator&lt;T&gt; rawTypeCreator =</span>
+<span class="fc" id="L73">            (InstanceCreator&lt;T&gt;) instanceCreators.get(rawType);</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (rawTypeCreator != null) {</span>
+<span class="nc" id="L75">            return () -&gt; rawTypeCreator.createInstance(type);</span>
+        }
+
+<span class="fc" id="L78">        ObjectConstructor&lt;T&gt; defaultConstructor = newDefaultConstructor(rawType);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (defaultConstructor != null) {</span>
+<span class="fc" id="L80">            return defaultConstructor;</span>
+        }
+
+<span class="fc" id="L83">        ObjectConstructor&lt;T&gt; defaultImplementation = newDefaultImplementationConstructor(type, rawType);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        if (defaultImplementation != null) {</span>
+<span class="fc" id="L85">            return defaultImplementation;</span>
+        }
+
+<span class="fc" id="L88">        return newUnsafeAllocator(typeInfo);</span>
+    }
+
+    private &lt;T&gt; ObjectConstructor&lt;T&gt; newUnsafeAllocator(TypeInfo&lt;T&gt; typeInfo) {
+<span class="fc" id="L92">        return new ObjectConstructor&lt;T&gt;() {</span>
+<span class="fc" id="L93">            private final UnsafeAllocator unsafeAllocator = UnsafeAllocator.create();</span>
+
+            @SuppressWarnings(&quot;unchecked&quot;)
+            @Override
+            public T construct() {
+                try {
+<span class="fc" id="L99">                    Object newInstance = unsafeAllocator.newInstance(typeInfo.getRawType());</span>
+<span class="fc" id="L100">                    return (T) newInstance;</span>
+<span class="nc" id="L101">                } catch (Exception e) {</span>
+<span class="nc" id="L102">                    throw new RuntimeException(&quot;Unable to create an instance of &quot; + typeInfo.getType() +</span>
+                                                   &quot;. Registering an InstanceCreator for this type may fix this problem.&quot;, e);
+                }
+            }
+        };
+    }
+
+    private &lt;T&gt; ObjectConstructor&lt;T&gt; newDefaultConstructor(Class&lt;? super T&gt; rawType) {
+<span class="fc bfc" id="L110" title="All 4 branches covered.">        if (rawType.isInterface() || Modifier.isAbstract(rawType.getModifiers())) {</span>
+<span class="fc" id="L111">            return null;</span>
+        }
+
+        @SuppressWarnings(&quot;unchecked&quot;)
+        // T is the same raw type as is requested
+<span class="fc" id="L116">            Constructor&lt;T&gt; constructor =</span>
+<span class="fc" id="L117">            (Constructor&lt;T&gt;) Arrays.stream(rawType.getDeclaredConstructors())</span>
+<span class="fc" id="L118">                                 .min(Comparator.comparingInt(c -&gt; c.getParameterTypes().length))</span>
+<span class="fc" id="L119">                                 .orElse(null);</span>
+
+<span class="pc bpc" id="L121" title="1 of 4 branches missed.">        if (constructor == null || constructor.getParameterTypes().length != 0) {</span>
+<span class="fc" id="L122">            return null;</span>
+        }
+
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (!constructor.isAccessible()) {</span>
+<span class="fc" id="L126">            constructor.setAccessible(true);</span>
+        }
+<span class="fc" id="L128">        return () -&gt; {</span>
+            try {
+<span class="fc" id="L130">                return constructor.newInstance();</span>
+<span class="nc" id="L131">            } catch (InstantiationException e) {</span>
+<span class="nc" id="L132">                throw new RuntimeException(&quot;Failed to invoke &quot; + constructor + &quot; with no args&quot;, e);</span>
+<span class="nc" id="L133">            } catch (InvocationTargetException e) {</span>
+<span class="nc" id="L134">                throw new RuntimeException(&quot;Failed to invoke &quot; + constructor + &quot; with no args&quot;,</span>
+<span class="nc" id="L135">                    e.getTargetException());</span>
+<span class="nc" id="L136">            } catch (IllegalAccessException e) {</span>
+<span class="nc" id="L137">                throw new AssertionError(e);</span>
+            }
+        };
+    }
+
+    /**
+     * Constructors for common interface types like Map and List and their
+     * subtypes.
+     */
+    @SuppressWarnings(&quot;unchecked&quot;) // use runtime checks to guarantee that 'T' is what it is
+    private &lt;T&gt; ObjectConstructor&lt;T&gt; newDefaultImplementationConstructor(
+        final Type type, Class&lt;? super T&gt; rawType) {
+<span class="fc bfc" id="L149" title="All 2 branches covered.">        if (Collection.class.isAssignableFrom(rawType)) {</span>
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">            if (SortedSet.class.isAssignableFrom(rawType)) {</span>
+<span class="nc" id="L151">                return new ObjectConstructor&lt;T&gt;() {</span>
+                    @Override
+                    public T construct() {
+<span class="nc" id="L154">                        return (T) new TreeSet&lt;Object&gt;();</span>
+                    }
+                };
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">            } else if (EnumSet.class.isAssignableFrom(rawType)) {</span>
+<span class="nc" id="L158">                return new ObjectConstructor&lt;T&gt;() {</span>
+                    @SuppressWarnings(&quot;rawtypes&quot;)
+                    @Override
+                    public T construct() {
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                        if (type instanceof ParameterizedType) {</span>
+<span class="nc" id="L163">                            Type elementType = ((ParameterizedType) type).getActualTypeArguments()[0];</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                            if (elementType instanceof Class) {</span>
+<span class="nc" id="L165">                                return (T) EnumSet.noneOf((Class) elementType);</span>
+                            } else {
+<span class="nc" id="L167">                                throw new SerializationException(&quot;Invalid EnumSet type: &quot; + type.toString());</span>
+                            }
+                        } else {
+<span class="nc" id="L170">                            throw new SerializationException(&quot;Invalid EnumSet type: &quot; + type.toString());</span>
+                        }
+                    }
+                };
+<span class="fc bfc" id="L174" title="All 2 branches covered.">            } else if (Set.class.isAssignableFrom(rawType)) {</span>
+<span class="fc" id="L175">                return new ObjectConstructor&lt;T&gt;() {</span>
+                    @Override
+                    public T construct() {
+<span class="fc" id="L178">                        return (T) new LinkedHashSet&lt;Object&gt;();</span>
+                    }
+                };
+<span class="fc bfc" id="L181" title="All 2 branches covered.">            } else if (Queue.class.isAssignableFrom(rawType)) {</span>
+<span class="fc" id="L182">                return new ObjectConstructor&lt;T&gt;() {</span>
+                    @Override
+                    public T construct() {
+<span class="nc" id="L185">                        return (T) new LinkedList&lt;Object&gt;();</span>
+                    }
+                };
+            } else {
+<span class="fc" id="L189">                return new ObjectConstructor&lt;T&gt;() {</span>
+                    @Override
+                    public T construct() {
+<span class="fc" id="L192">                        return (T) new ArrayList&lt;Object&gt;();</span>
+                    }
+                };
+            }
+        }
+
+<span class="pc bpc" id="L198" title="1 of 2 branches missed.">        if (Map.class.isAssignableFrom(rawType)) {</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            if (ConcurrentNavigableMap.class.isAssignableFrom(rawType)) {</span>
+<span class="nc" id="L200">                return new ObjectConstructor&lt;T&gt;() {</span>
+                    @Override
+                    public T construct() {
+<span class="nc" id="L203">                        return (T) new ConcurrentSkipListMap&lt;Object, Object&gt;();</span>
+                    }
+                };
+<span class="nc bnc" id="L206" title="All 2 branches missed.">            } else if (ConcurrentMap.class.isAssignableFrom(rawType)) {</span>
+<span class="nc" id="L207">                return new ObjectConstructor&lt;T&gt;() {</span>
+                    @Override
+                    public T construct() {
+<span class="nc" id="L210">                        return (T) new ConcurrentHashMap&lt;Object, Object&gt;();</span>
+                    }
+                };
+<span class="nc bnc" id="L213" title="All 2 branches missed.">            } else if (SortedMap.class.isAssignableFrom(rawType)) {</span>
+<span class="nc" id="L214">                return new ObjectConstructor&lt;T&gt;() {</span>
+                    @Override
+                    public T construct() {
+<span class="nc" id="L217">                        return (T) new TreeMap&lt;Object, Object&gt;();</span>
+                    }
+                };
+<span class="nc bnc" id="L220" title="All 4 branches missed.">            } else if (type instanceof ParameterizedType &amp;&amp; !(String.class.isAssignableFrom(</span>
+<span class="nc" id="L221">                TypeInfo.of(((ParameterizedType) type).getActualTypeArguments()[0]).getRawType()))) {</span>
+<span class="nc" id="L222">                return new ObjectConstructor&lt;T&gt;() {</span>
+                    @Override
+                    public T construct() {
+<span class="nc" id="L225">                        return (T) new LinkedHashMap&lt;Object, Object&gt;();</span>
+                    }
+                };
+            }
+        }
+
+<span class="fc" id="L231">        return null;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L236">        return instanceCreators.toString();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

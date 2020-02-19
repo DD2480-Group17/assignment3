@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LwjglGraphics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.subsystem.lwjgl</a> &gt; <span class="el_source">LwjglGraphics.java</span></div><h1>LwjglGraphics.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.subsystem.lwjgl;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Queues;
+import org.lwjgl.LWJGLException;
+import org.lwjgl.opengl.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.AssetFactory;
+import org.terasology.assets.module.ModuleAssetDataProducer;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.GameEngine;
+import org.terasology.engine.GameThread;
+import org.terasology.engine.modes.GameState;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.engine.subsystem.RenderingSubsystemFactory;
+import org.terasology.rendering.ShaderManager;
+import org.terasology.rendering.ShaderManagerLwjgl;
+import org.terasology.rendering.assets.animation.MeshAnimation;
+import org.terasology.rendering.assets.animation.MeshAnimationData;
+import org.terasology.rendering.assets.animation.MeshAnimationImpl;
+import org.terasology.rendering.assets.atlas.Atlas;
+import org.terasology.rendering.assets.atlas.AtlasData;
+import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.font.FontData;
+import org.terasology.rendering.assets.font.FontImpl;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.material.MaterialData;
+import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.rendering.assets.mesh.MeshData;
+import org.terasology.rendering.assets.shader.Shader;
+import org.terasology.rendering.assets.shader.ShaderData;
+import org.terasology.rendering.assets.skeletalmesh.SkeletalMesh;
+import org.terasology.rendering.assets.skeletalmesh.SkeletalMeshData;
+import org.terasology.rendering.assets.texture.PNGTextureFormat;
+import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureData;
+import org.terasology.rendering.assets.texture.TextureUtil;
+import org.terasology.rendering.assets.texture.subtexture.Subtexture;
+import org.terasology.rendering.assets.texture.subtexture.SubtextureData;
+import org.terasology.rendering.nui.internal.CanvasRenderer;
+import org.terasology.rendering.nui.internal.LwjglCanvasRenderer;
+import org.terasology.rendering.opengl.*;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.BlockingDeque;
+import java.util.function.Consumer;
+
+import static org.lwjgl.opengl.GL11.*;
+
+<span class="nc" id="L73">public class LwjglGraphics extends BaseLwjglSubsystem {</span>
+<span class="nc" id="L74">    private static final Logger logger = LoggerFactory.getLogger(LwjglGraphics.class);</span>
+
+<span class="nc" id="L76">    private GLBufferPool bufferPool = new GLBufferPool(false);</span>
+
+<span class="nc" id="L78">    private BlockingDeque&lt;Runnable&gt; displayThreadActions = Queues.newLinkedBlockingDeque();</span>
+
+    private Context context;
+    private RenderingConfig config;
+
+    private GameEngine engine;
+    private LwjglDisplayDevice lwjglDisplay;
+
+    @Override
+    public String getName() {
+<span class="nc" id="L88">        return &quot;Graphics&quot;;</span>
+    }
+
+    @Override
+    public void initialise(GameEngine gameEngine, Context rootContext) {
+<span class="nc" id="L93">        logger.info(&quot;Starting initialization of LWJGL&quot;);</span>
+<span class="nc" id="L94">        this.engine = gameEngine;</span>
+<span class="nc" id="L95">        this.context = rootContext;</span>
+<span class="nc" id="L96">        this.config = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L97">        lwjglDisplay = new LwjglDisplayDevice(context);</span>
+<span class="nc" id="L98">        context.put(DisplayDevice.class, lwjglDisplay);</span>
+<span class="nc" id="L99">        logger.info(&quot;Initial initialization complete&quot;);</span>
+<span class="nc" id="L100">    }</span>
+
+    @Override
+    public void registerCoreAssetTypes(ModuleAwareAssetTypeManager assetTypeManager) {
+
+        // cast lambdas explicitly to avoid inconsistent compiler behavior wrt. type inference
+<span class="nc" id="L106">        assetTypeManager.registerCoreAssetType(Font.class,</span>
+                (AssetFactory&lt;Font, FontData&gt;) FontImpl::new, &quot;fonts&quot;);
+<span class="nc" id="L108">        assetTypeManager.registerCoreAssetType(Texture.class, (AssetFactory&lt;Texture, TextureData&gt;)</span>
+<span class="nc" id="L109">                (urn, assetType, data) -&gt; (new OpenGLTexture(urn, assetType, data, this)), &quot;textures&quot;, &quot;fonts&quot;);</span>
+<span class="nc" id="L110">        assetTypeManager.registerCoreFormat(Texture.class,</span>
+                new PNGTextureFormat(Texture.FilterMode.NEAREST, path -&gt; {
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                    if (path.getName(1).toString().equals(ModuleAssetDataProducer.OVERRIDE_FOLDER)) {</span>
+<span class="nc" id="L113">                        return path.getName(3).toString().equals(&quot;textures&quot;);</span>
+                    } else {
+<span class="nc" id="L115">                        return path.getName(2).toString().equals(&quot;textures&quot;);</span>
+                    }
+                    }));
+<span class="nc" id="L118">        assetTypeManager.registerCoreFormat(Texture.class,</span>
+                new PNGTextureFormat(Texture.FilterMode.LINEAR, path -&gt; {
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                    if (path.getName(1).toString().equals(ModuleAssetDataProducer.OVERRIDE_FOLDER)) {</span>
+<span class="nc" id="L121">                        return path.getName(3).toString().equals(&quot;fonts&quot;);</span>
+                    } else {
+<span class="nc" id="L123">                        return path.getName(2).toString().equals(&quot;fonts&quot;);</span>
+                    }
+                }));
+<span class="nc" id="L126">        assetTypeManager.registerCoreAssetType(Shader.class,</span>
+                (AssetFactory&lt;Shader, ShaderData&gt;) GLSLShader::new, &quot;shaders&quot;);
+<span class="nc" id="L128">        assetTypeManager.registerCoreAssetType(Material.class,</span>
+                (AssetFactory&lt;Material, MaterialData&gt;) GLSLMaterial::new, &quot;materials&quot;);
+<span class="nc" id="L130">        assetTypeManager.registerCoreAssetType(Mesh.class, (AssetFactory&lt;Mesh, MeshData&gt;)</span>
+<span class="nc" id="L131">                (urn, assetType, data) -&gt; new OpenGLMesh(urn, assetType, bufferPool, data), &quot;mesh&quot;);</span>
+<span class="nc" id="L132">        assetTypeManager.registerCoreAssetType(SkeletalMesh.class, (AssetFactory&lt;SkeletalMesh, SkeletalMeshData&gt;)</span>
+<span class="nc" id="L133">                (urn, assetType, data) -&gt; new OpenGLSkeletalMesh(urn, assetType, data, bufferPool), &quot;skeletalMesh&quot;);</span>
+<span class="nc" id="L134">        assetTypeManager.registerCoreAssetType(MeshAnimation.class,</span>
+                (AssetFactory&lt;MeshAnimation, MeshAnimationData&gt;) MeshAnimationImpl::new, &quot;animations&quot;);
+<span class="nc" id="L136">        assetTypeManager.registerCoreAssetType(Atlas.class,</span>
+                (AssetFactory&lt;Atlas, AtlasData&gt;) Atlas::new, &quot;atlas&quot;);
+<span class="nc" id="L138">        assetTypeManager.registerCoreAssetType(Subtexture.class,</span>
+                (AssetFactory&lt;Subtexture, SubtextureData&gt;) Subtexture::new);
+<span class="nc" id="L140">    }</span>
+
+    @Override
+    public void postInitialise(Context rootContext) {
+<span class="nc" id="L144">        context.put(RenderingSubsystemFactory.class, new LwjglRenderingSubsystemFactory(bufferPool));</span>
+
+<span class="nc" id="L146">        initDisplay();</span>
+<span class="nc" id="L147">        initOpenGL(context);</span>
+
+<span class="nc" id="L149">        context.put(CanvasRenderer.class, new LwjglCanvasRenderer(context));</span>
+<span class="nc" id="L150">    }</span>
+
+    @Override
+    public void postUpdate(GameState currentState, float delta) {
+<span class="nc" id="L154">        Display.update();</span>
+
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        if (!displayThreadActions.isEmpty()) {</span>
+<span class="nc" id="L157">            List&lt;Runnable&gt; actions = Lists.newArrayListWithExpectedSize(displayThreadActions.size());</span>
+<span class="nc" id="L158">            displayThreadActions.drainTo(actions);</span>
+<span class="nc" id="L159">            actions.forEach(Runnable::run);</span>
+        }
+
+<span class="nc" id="L162">        int frameLimit = context.get(Config.class).getRendering().getFrameLimit();</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        if (frameLimit &gt; 0) {</span>
+<span class="nc" id="L164">            Display.sync(frameLimit);</span>
+        }
+<span class="nc" id="L166">        currentState.render();</span>
+
+<span class="nc" id="L168">        lwjglDisplay.update();</span>
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (lwjglDisplay.isCloseRequested()) {</span>
+<span class="nc" id="L171">            engine.shutdown();</span>
+        }
+<span class="nc" id="L173">    }</span>
+
+    @Override
+    public void preShutdown() {
+<span class="nc bnc" id="L177" title="All 6 branches missed.">        if (Display.isCreated() &amp;&amp; !Display.isFullscreen() &amp;&amp; Display.isVisible()) {</span>
+<span class="nc" id="L178">            config.setWindowPosX(Display.getX());</span>
+<span class="nc" id="L179">            config.setWindowPosY(Display.getY());</span>
+
+<span class="nc" id="L181">            config.setWindowWidth(Display.getWidth());</span>
+<span class="nc" id="L182">            config.setWindowHeight(Display.getHeight());</span>
+
+        }
+<span class="nc" id="L185">    }</span>
+
+    @Override
+    public void shutdown() {
+<span class="nc" id="L189">        Display.destroy();</span>
+<span class="nc" id="L190">    }</span>
+
+    private void initDisplay() {
+<span class="nc" id="L193">        logger.info(&quot;Initializing display (if last line in log then likely the game crashed from an issue with your video card)&quot;);</span>
+
+        try {
+
+<span class="nc" id="L197">            lwjglDisplay.setDisplayModeSetting(config.getDisplayModeSetting(), false);</span>
+
+<span class="nc" id="L199">            Display.setTitle(&quot;Terasology&quot; + &quot; | &quot; + &quot;Alpha&quot;);</span>
+            try {
+
+<span class="nc" id="L202">                String root = &quot;org/terasology/icons/&quot;;</span>
+<span class="nc" id="L203">                ClassLoader classLoader = getClass().getClassLoader();</span>
+
+<span class="nc" id="L205">                BufferedImage icon16 = ImageIO.read(classLoader.getResourceAsStream(root + &quot;gooey_sweet_16.png&quot;));</span>
+<span class="nc" id="L206">                BufferedImage icon32 = ImageIO.read(classLoader.getResourceAsStream(root + &quot;gooey_sweet_32.png&quot;));</span>
+<span class="nc" id="L207">                BufferedImage icon64 = ImageIO.read(classLoader.getResourceAsStream(root + &quot;gooey_sweet_64.png&quot;));</span>
+<span class="nc" id="L208">                BufferedImage icon128 = ImageIO.read(classLoader.getResourceAsStream(root + &quot;gooey_sweet_128.png&quot;));</span>
+
+<span class="nc" id="L210">                Display.setIcon(new ByteBuffer[]{</span>
+<span class="nc" id="L211">                        TextureUtil.convertToByteBuffer(icon16),</span>
+<span class="nc" id="L212">                        TextureUtil.convertToByteBuffer(icon32),</span>
+<span class="nc" id="L213">                        TextureUtil.convertToByteBuffer(icon64),</span>
+<span class="nc" id="L214">                        TextureUtil.convertToByteBuffer(icon128)</span>
+                });
+
+<span class="nc" id="L217">            } catch (IOException | IllegalArgumentException e) {</span>
+<span class="nc" id="L218">                logger.warn(&quot;Could not set icon&quot;, e);</span>
+<span class="nc" id="L219">            }</span>
+
+<span class="nc bnc" id="L221" title="All 2 branches missed.">            if (config.getDebug().isEnabled()) {</span>
+                try {
+<span class="nc" id="L223">                    ContextAttribs ctxAttribs = new ContextAttribs().withDebug(true);</span>
+<span class="nc" id="L224">                    Display.create(config.getPixelFormat(), ctxAttribs);</span>
+
+                    try {
+<span class="nc" id="L227">                        GL43.glDebugMessageCallback(new KHRDebugCallback(new DebugCallback()));</span>
+<span class="nc" id="L228">                    } catch (IllegalStateException e) {</span>
+<span class="nc" id="L229">                        logger.warn(&quot;Unable to specify DebugCallback to receive debugging messages from the GL.&quot;);</span>
+<span class="nc" id="L230">                    }</span>
+
+<span class="nc" id="L232">                } catch (LWJGLException e) {</span>
+<span class="nc" id="L233">                    logger.warn(&quot;Unable to create an OpenGL debug context. Maybe your graphics card does not support it.&quot;, e);</span>
+<span class="nc" id="L234">                    Display.create(config.getPixelFormat()); // Create a normal context instead</span>
+<span class="nc" id="L235">                }</span>
+
+            } else {
+<span class="nc" id="L238">                Display.create(config.getPixelFormat());</span>
+            }
+
+<span class="nc" id="L241">            Display.setVSyncEnabled(config.isVSync());</span>
+<span class="nc" id="L242">        } catch (LWJGLException e) {</span>
+<span class="nc" id="L243">            throw new RuntimeException(&quot;Can not initialize graphics device.&quot;, e);</span>
+<span class="nc" id="L244">        }</span>
+<span class="nc" id="L245">    }</span>
+
+    private void initOpenGL(Context currentContext) {
+<span class="nc" id="L248">        logger.info(&quot;Initializing OpenGL&quot;);</span>
+<span class="nc" id="L249">        checkOpenGL();</span>
+<span class="nc" id="L250">        glViewport(0, 0, Display.getWidth(), Display.getHeight());</span>
+<span class="nc" id="L251">        initOpenGLParams();</span>
+<span class="nc" id="L252">        currentContext.put(ShaderManager.class, new ShaderManagerLwjgl());</span>
+<span class="nc" id="L253">    }</span>
+
+    private void checkOpenGL() {
+<span class="nc" id="L256">        boolean[] requiredCapabilities = {</span>
+<span class="nc" id="L257">                GLContext.getCapabilities().OpenGL12,</span>
+<span class="nc" id="L258">                GLContext.getCapabilities().OpenGL14,</span>
+<span class="nc" id="L259">                GLContext.getCapabilities().OpenGL15,</span>
+<span class="nc" id="L260">                GLContext.getCapabilities().OpenGL20,</span>
+<span class="nc" id="L261">                GLContext.getCapabilities().OpenGL21,   // needed as we use GLSL 1.20</span>
+
+<span class="nc" id="L263">                GLContext.getCapabilities().GL_ARB_framebuffer_object,  // Extensions eventually included in</span>
+<span class="nc" id="L264">                GLContext.getCapabilities().GL_ARB_texture_float,       // OpenGl 3.0 according to</span>
+<span class="nc" id="L265">                GLContext.getCapabilities().GL_ARB_half_float_pixel};   // http://en.wikipedia.org/wiki/OpenGL#OpenGL_3.0</span>
+
+<span class="nc" id="L267">        String[] capabilityNames = {&quot;OpenGL12&quot;,</span>
+                &quot;OpenGL14&quot;,
+                &quot;OpenGL15&quot;,
+                &quot;OpenGL20&quot;,
+                &quot;OpenGL21&quot;,
+                &quot;GL_ARB_framebuffer_object&quot;,
+                &quot;GL_ARB_texture_float&quot;,
+                &quot;GL_ARB_half_float_pixel&quot;};
+
+<span class="nc" id="L276">        boolean canRunTheGame = true;</span>
+<span class="nc" id="L277">        String missingCapabilitiesMessage = &quot;&quot;;</span>
+
+<span class="nc bnc" id="L279" title="All 2 branches missed.">        for (int index = 0; index &lt; requiredCapabilities.length; index++) {</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">            if (!requiredCapabilities[index]) {</span>
+<span class="nc" id="L281">                missingCapabilitiesMessage += &quot;    - &quot; + capabilityNames[index] + &quot;\n&quot;;</span>
+<span class="nc" id="L282">                canRunTheGame = false;</span>
+            }
+        }
+
+<span class="nc bnc" id="L286" title="All 2 branches missed.">        if (!canRunTheGame) {</span>
+<span class="nc" id="L287">            String completeErrorMessage = completeErrorMessage(missingCapabilitiesMessage);</span>
+<span class="nc" id="L288">            throw new IllegalStateException(completeErrorMessage);</span>
+        }
+<span class="nc" id="L290">    }</span>
+
+    private String completeErrorMessage(String errorMessage) {
+<span class="nc" id="L293">        return &quot;\n&quot; +</span>
+                &quot;\nThe following OpenGL versions/extensions are required but are not supported by your GPU driver:\n&quot; +
+                &quot;\n&quot; +
+                errorMessage +
+                &quot;\n&quot; +
+                &quot;GPU Information:\n&quot; +
+                &quot;\n&quot; +
+<span class="nc" id="L300">                &quot;    Vendor:  &quot; + GL11.glGetString(GL11.GL_VENDOR) + &quot;\n&quot; +</span>
+<span class="nc" id="L301">                &quot;    Model:   &quot; + GL11.glGetString(GL11.GL_RENDERER) + &quot;\n&quot; +</span>
+<span class="nc" id="L302">                &quot;    Driver:  &quot; + GL11.glGetString(GL11.GL_VERSION) + &quot;\n&quot; +</span>
+                &quot;\n&quot; +
+                &quot;Try updating the driver to the latest version available.\n&quot; +
+                &quot;If that fails you might need to use a different GPU (graphics card). Sorry!\n&quot;;
+    }
+
+    public static void initOpenGLParams() {
+<span class="nc" id="L309">        glEnable(GL_CULL_FACE);</span>
+<span class="nc" id="L310">        glEnable(GL_DEPTH_TEST);</span>
+<span class="nc" id="L311">        glEnable(GL_NORMALIZE);</span>
+<span class="nc" id="L312">        glDepthFunc(GL_LEQUAL);</span>
+<span class="nc" id="L313">    }</span>
+
+    public void asynchToDisplayThread(Runnable action) {
+<span class="nc bnc" id="L316" title="All 2 branches missed.">        if (GameThread.isCurrentThread()) {</span>
+<span class="nc" id="L317">            action.run();</span>
+        } else {
+<span class="nc" id="L319">            displayThreadActions.add(action);</span>
+        }
+<span class="nc" id="L321">    }</span>
+
+    public void createTexture3D(ByteBuffer alignedBuffer, Texture.WrapMode wrapMode, Texture.FilterMode filterMode,
+                                int size, Consumer&lt;Integer&gt; idConsumer) {
+<span class="nc" id="L325">        asynchToDisplayThread(() -&gt; {</span>
+<span class="nc" id="L326">            int id = glGenTextures();</span>
+<span class="nc" id="L327">            reloadTexture3D(id, alignedBuffer, wrapMode, filterMode, size);</span>
+<span class="nc" id="L328">            idConsumer.accept(id);</span>
+<span class="nc" id="L329">        });</span>
+<span class="nc" id="L330">    }</span>
+
+    public void reloadTexture3D(int id, ByteBuffer alignedBuffer, Texture.WrapMode wrapMode, Texture.FilterMode filterMode, int size) {
+<span class="nc" id="L333">        asynchToDisplayThread(() -&gt; {</span>
+<span class="nc" id="L334">            glBindTexture(GL12.GL_TEXTURE_3D, id);</span>
+
+<span class="nc" id="L336">            glTexParameterf(GL12.GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, LwjglGraphicsUtil.getGLMode(wrapMode));</span>
+<span class="nc" id="L337">            glTexParameterf(GL12.GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, LwjglGraphicsUtil.getGLMode(wrapMode));</span>
+<span class="nc" id="L338">            glTexParameterf(GL12.GL_TEXTURE_3D, GL12.GL_TEXTURE_WRAP_R, LwjglGraphicsUtil.getGLMode(wrapMode));</span>
+
+<span class="nc" id="L340">            GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL11.GL_TEXTURE_MIN_FILTER, LwjglGraphicsUtil.getGlMinFilter(filterMode));</span>
+<span class="nc" id="L341">            GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL11.GL_TEXTURE_MAG_FILTER, LwjglGraphicsUtil.getGlMagFilter(filterMode));</span>
+
+<span class="nc" id="L343">            GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 4);</span>
+<span class="nc" id="L344">            GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL12.GL_TEXTURE_MAX_LEVEL, 0);</span>
+
+<span class="nc" id="L346">            GL12.glTexImage3D(GL12.GL_TEXTURE_3D, 0, GL11.GL_RGBA, size, size, size, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, alignedBuffer);</span>
+<span class="nc" id="L347">        });</span>
+<span class="nc" id="L348">    }</span>
+
+    public void createTexture2D(ByteBuffer[] buffers, Texture.WrapMode wrapMode, Texture.FilterMode filterMode, int width, int height, Consumer&lt;Integer&gt; idConsumer) {
+<span class="nc" id="L351">        asynchToDisplayThread(() -&gt; {</span>
+<span class="nc" id="L352">            int id = glGenTextures();</span>
+<span class="nc" id="L353">            reloadTexture2D(id, buffers, wrapMode, filterMode, width, height);</span>
+<span class="nc" id="L354">            idConsumer.accept(id);</span>
+<span class="nc" id="L355">        });</span>
+<span class="nc" id="L356">    }</span>
+
+    public void reloadTexture2D(int id, ByteBuffer[] buffers, Texture.WrapMode wrapMode, Texture.FilterMode filterMode, int width, int height) {
+<span class="nc" id="L359">        asynchToDisplayThread(() -&gt; {</span>
+<span class="nc" id="L360">            glBindTexture(GL11.GL_TEXTURE_2D, id);</span>
+
+<span class="nc" id="L362">            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, LwjglGraphicsUtil.getGLMode(wrapMode));</span>
+<span class="nc" id="L363">            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, LwjglGraphicsUtil.getGLMode(wrapMode));</span>
+<span class="nc" id="L364">            GL11.glTexParameteri(GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, LwjglGraphicsUtil.getGlMinFilter(filterMode));</span>
+<span class="nc" id="L365">            GL11.glTexParameteri(GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, LwjglGraphicsUtil.getGlMagFilter(filterMode));</span>
+<span class="nc" id="L366">            GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 4);</span>
+<span class="nc" id="L367">            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, buffers.length - 1);</span>
+
+<span class="nc bnc" id="L369" title="All 2 branches missed.">            if (buffers.length &gt; 0) {</span>
+<span class="nc bnc" id="L370" title="All 2 branches missed.">                for (int i = 0; i &lt; buffers.length; i++) {</span>
+<span class="nc" id="L371">                    GL11.glTexImage2D(GL11.GL_TEXTURE_2D, i, GL11.GL_RGBA, width &gt;&gt; i, height &gt;&gt; i, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffers[i]);</span>
+                }
+            } else {
+<span class="nc" id="L374">                GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null);</span>
+            }
+<span class="nc" id="L376">        });</span>
+<span class="nc" id="L377">    }</span>
+
+    public void disposeTexture(int id) {
+<span class="nc" id="L380">        asynchToDisplayThread(() -&gt; glDeleteTextures(id));</span>
+<span class="nc" id="L381">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

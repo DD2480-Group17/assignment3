@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GsonSerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.serializers</a> &gt; <span class="el_source">GsonSerializer.java</span></div><h1>GsonSerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.serializers;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonIOException;
+import com.google.gson.JsonSyntaxException;
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.SerializationException;
+import org.terasology.persistence.typeHandling.TypeHandlerLibrary;
+import org.terasology.persistence.typeHandling.gson.GsonPersistedData;
+import org.terasology.persistence.typeHandling.gson.GsonPersistedDataSerializer;
+import org.terasology.reflection.TypeInfo;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.util.Optional;
+
+/**
+ * {@link GsonSerializer} provides the ability to serialize and deserialize objects to and from JSON.
+ */
+public class GsonSerializer extends AbstractSerializer {
+    private Gson gson;
+
+    /**
+     * Constructs a new {@link GsonSerializer} object with the given {@link TypeHandlerLibrary}.
+     */
+    public GsonSerializer(TypeHandlerLibrary typeHandlerLibrary) {
+<span class="fc" id="L54">        super(typeHandlerLibrary, new GsonPersistedDataSerializer());</span>
+
+<span class="fc" id="L56">        this.gson = new Gson();</span>
+<span class="fc" id="L57">    }</span>
+
+    /**
+     * Serializes the given object to JSON and returns the serialized JSON as a {@link String}.
+     *
+     * @param object   The object to be serialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type of the object to be serialized.
+     * @param &lt;T&gt;      The type of the object to be serialized.
+     * @return The serialized JSON as a {@link String}.
+     * @throws SerializationException Thrown when serialization fails.
+     * @see #writeJson(Object, TypeInfo, Writer)
+     */
+    public &lt;T&gt; String toJson(T object, TypeInfo&lt;T&gt; typeInfo) throws SerializationException {
+<span class="fc" id="L70">        StringWriter writer = new StringWriter();</span>
+
+<span class="fc" id="L72">        writeJson(object, typeInfo, writer);</span>
+
+<span class="fc" id="L74">        return writer.toString();</span>
+    }
+
+    /**
+     * Serializes the given object to JSON and writes the serialized JSON object to the
+     * {@link Writer}.
+     *
+     * @param object   The object to be serialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type of the object to be serialized.
+     * @param writer   The {@link Writer} to which the JSON will be written.
+     * @param &lt;T&gt;      The type of the object to be serialized.
+     * @throws SerializationException Thrown when serialization fails.
+     */
+    public &lt;T&gt; void writeJson(T object, TypeInfo&lt;T&gt; typeInfo, Writer writer) throws SerializationException {
+<span class="fc" id="L88">        Optional&lt;PersistedData&gt; serialized = this.serialize(object, typeInfo);</span>
+
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">        if (!serialized.isPresent()) {</span>
+<span class="nc" id="L91">            throw new SerializationException(&quot;Could not find a TypeHandler for the type &quot; + typeInfo);</span>
+        }
+
+<span class="fc" id="L94">        GsonPersistedData persistedData = (GsonPersistedData) serialized.get();</span>
+
+        try {
+<span class="fc" id="L97">            gson.toJson(persistedData.getElement(), writer);</span>
+<span class="nc" id="L98">        } catch (JsonIOException e) {</span>
+<span class="nc" id="L99">            throw new SerializationException(&quot;Could not write JSON to writer&quot;, e);</span>
+<span class="fc" id="L100">        }</span>
+<span class="fc" id="L101">    }</span>
+
+    /**
+     * Serializes the given object to JSON and writes the serialized JSON object to the
+     * {@link OutputStream}.
+     *
+     * @param object   The object to be serialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type of the object to be serialized.
+     * @param stream   The {@link OutputStream} to which the JSON will be written.
+     * @param &lt;T&gt;      The type of the object to be serialized.
+     * @throws SerializationException Thrown when serialization fails.
+     * @throws IOException            Thrown if there is an error in writing to the
+     *                                {@link OutputStream}.
+     * @see #writeJson(Object, TypeInfo, Writer)
+     */
+    public &lt;T&gt; void writeJson(T object, TypeInfo&lt;T&gt; typeInfo, OutputStream stream)
+            throws IOException, SerializationException {
+<span class="nc" id="L118">        try (Writer writer = new BufferedWriter(new OutputStreamWriter(stream))) {</span>
+<span class="nc" id="L119">            writeJson(object, typeInfo, writer);</span>
+        }
+<span class="nc" id="L121">    }</span>
+
+    /**
+     * Serializes the given object to JSON and writes the serialized JSON object to the
+     * {@link File}.
+     *
+     * @param object   The object to be serialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type of the object to be serialized.
+     * @param file     The {@link File} that the JSON will be written to.
+     * @param &lt;T&gt;      The type of the object to be serialized.
+     * @throws IOException            Thrown if there is an issue writing to the file.
+     * @throws SerializationException Thrown when serialization fails.
+     * @see #writeJson(Object, TypeInfo, Writer)
+     */
+    public &lt;T&gt; void writeJson(T object, TypeInfo&lt;T&gt; typeInfo, File file)
+            throws IOException, SerializationException {
+<span class="nc" id="L137">        try (Writer writer = new BufferedWriter(new FileWriter(file))) {</span>
+<span class="nc" id="L138">            writeJson(object, typeInfo, writer);</span>
+        }
+<span class="nc" id="L140">    }</span>
+
+    /**
+     * Serializes the given object to JSON and writes the serialized JSON object to the
+     * file with the given file name.
+     *
+     * @param object   The object to be serialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type of the object to be serialized.
+     * @param fileName The name of the file that the JSON will be written to.
+     * @param &lt;T&gt;      The type of the object to be serialized.
+     * @throws IOException            Thrown if there is an issue writing to the file.
+     * @throws SerializationException Thrown when serialization fails.
+     * @see #writeJson(Object, TypeInfo, File)
+     */
+    public &lt;T&gt; void writeJson(T object, TypeInfo&lt;T&gt; typeInfo, String fileName)
+            throws IOException, SerializationException {
+<span class="nc" id="L156">        writeJson(object, typeInfo, new File(fileName));</span>
+<span class="nc" id="L157">    }</span>
+
+    /**
+     * Deserializes an object of type {@link T} from the JSON in the {@link Reader}.
+     *
+     * @param reader   The {@link Reader} that contains the JSON to be deserialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type to deserialize the object as.
+     * @param &lt;T&gt;      The type to deserialize the object as.
+     * @return The deserialized object of type {@link T}.
+     * @throws SerializationException Thrown if the deserialization fails.
+     */
+    public &lt;T&gt; T fromJson(Reader reader, TypeInfo&lt;T&gt; typeInfo) throws SerializationException {
+        JsonElement jsonElement;
+
+        try {
+<span class="fc" id="L172">            jsonElement = gson.fromJson(reader, JsonElement.class);</span>
+<span class="nc" id="L173">        } catch (JsonIOException | JsonSyntaxException e) {</span>
+<span class="nc" id="L174">            throw new SerializationException(&quot;Could not read JSON from reader&quot;, e);</span>
+<span class="fc" id="L175">        }</span>
+
+<span class="fc" id="L177">        Optional&lt;T&gt; deserialized = deserialize(new GsonPersistedData(jsonElement), typeInfo);</span>
+
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">        if (!deserialized.isPresent()) {</span>
+<span class="nc" id="L180">            throw new SerializationException(&quot;Could not deserialize object of type &quot; + typeInfo);</span>
+        }
+
+<span class="fc" id="L183">        return deserialized.get();</span>
+    }
+
+    /**
+     * Deserializes an object of type {@link T} from the JSON in the {@link InputStream}.
+     *
+     * @param stream   The {@link InputStream} containing the serialized JSON.
+     * @param typeInfo The {@link TypeInfo} specifying the type to deserialize the object as.
+     * @param &lt;T&gt;      The type to deserialize the object as.
+     * @return The deserialized object of type {@link T}.
+     * @throws IOException            Thrown if there is an issue reading from the {@link InputStream}.
+     * @throws SerializationException Thrown if the deserialization fails.
+     * @see #fromJson(Reader, TypeInfo)
+     */
+    public &lt;T&gt; T fromJson(InputStream stream, TypeInfo&lt;T&gt; typeInfo) throws IOException, SerializationException {
+<span class="nc" id="L198">        try (Reader reader = new InputStreamReader(stream)) {</span>
+<span class="nc" id="L199">            return fromJson(reader, typeInfo);</span>
+        }
+    }
+
+    /**
+     * Deserializes an object of type {@link T} from the JSON in the {@link File}.
+     *
+     * @param file     The file containing the JSON to be deserialized.
+     * @param typeInfo The {@link TypeInfo} specifying the type to deserialize the object as.
+     * @param &lt;T&gt;      The type to deserialize the object as.
+     * @return The deserialized object of type {@link T}.
+     * @throws IOException            Thrown if there is an issue reading from the {@link File}.
+     * @throws SerializationException Thrown if the deserialization fails.
+     * @see #fromJson(Reader, TypeInfo)
+     */
+    public &lt;T&gt; T fromJson(File file, TypeInfo&lt;T&gt; typeInfo) throws IOException, SerializationException {
+<span class="nc" id="L215">        try (Reader reader = new FileReader(file)) {</span>
+<span class="nc" id="L216">            return fromJson(reader, typeInfo);</span>
+        }
+    }
+
+    /**
+     * Deserializes an object of type {@link T} from the JSON in the {@link File}.
+     *
+     * @param json     The JSON to be deserialized
+     * @param typeInfo The {@link TypeInfo} specifying the type to deserialize the object as.
+     * @param &lt;T&gt;      The type to deserialize the object as.
+     * @return The deserialized object of type {@link T}.
+     * @throws SerializationException Thrown if the deserialization fails.
+     * @see #fromJson(Reader, TypeInfo)
+     */
+    public &lt;T&gt; T fromJson(String json, TypeInfo&lt;T&gt; typeInfo) throws SerializationException {
+<span class="fc" id="L231">        try (StringReader reader = new StringReader(json)) {</span>
+<span class="fc" id="L232">            return fromJson(reader, typeInfo);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

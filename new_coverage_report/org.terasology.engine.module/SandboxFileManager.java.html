@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SandboxFileManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.module</a> &gt; <span class="el_source">SandboxFileManager.java</span></div><h1>SandboxFileManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.engine.module;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.paths.PathManager;
+import org.terasology.module.sandbox.API;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.function.Consumer;
+
+/**
+ * This class wrap common file operations so they're only allowed to happen
+ * within Terasology/sandbox directory.
+ * &lt;p&gt;
+ * It gives modules the ability to read and write to the file system in a safe way.
+ */
+@API
+public class SandboxFileManager {
+
+<span class="nc" id="L41">    private static final Logger logger = LoggerFactory.getLogger(SandboxFileManager.class);</span>
+
+    private PathManager pathManager;
+
+<span class="nc" id="L45">    public SandboxFileManager() {</span>
+<span class="nc" id="L46">        this.pathManager = PathManager.getInstance();</span>
+<span class="nc" id="L47">    }</span>
+
+    /**
+     * Reads the file that matches the passed filename.
+     * &lt;p&gt;
+     * How to use:
+     * &lt;ul&gt;
+     * &lt;li&gt;First of all, we need to create a file read consumer, for example:
+     * &lt;pre&gt;{@code
+     * Consumer&lt;InputStream&gt; consumer = inputStream -&gt; {
+     *      try {
+     *          int value = inputStream.read();
+     *
+     *          while (value != -1) {
+     *              doSomething(value);
+     *              value = inputStream.read();
+     *          }
+     *      } catch (IOException e) {
+     *          logger.error(&quot;Cannot read file.&quot;);
+     *      }
+     * };
+     * }&lt;/pre&gt;&lt;/li&gt;
+     * &lt;li&gt;Call {@code readFile} passing in the filename and the consumer as parameter.&lt;/li&gt;
+     * &lt;li&gt;When the execution is completed the {@code InputStream} is automatically closed.&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @param filename Filename.
+     * @param consumer Consumer to read the file.
+     */
+    public void readFile(String filename, Consumer&lt;InputStream&gt; consumer) {
+<span class="nc" id="L77">        String sandboxPath = pathManager.getSandboxPath(filename).toString();</span>
+
+<span class="nc" id="L79">        AccessController.doPrivileged((PrivilegedAction&lt;Void&gt;) () -&gt; {</span>
+<span class="nc" id="L80">            try (InputStream inputStream = new FileInputStream(sandboxPath)) {</span>
+<span class="nc" id="L81">                ModuleInputStream moduleInputStream = new ModuleInputStream(inputStream);</span>
+
+                // consumer to read the file, if it exists
+<span class="nc" id="L84">                consumer.accept(moduleInputStream);</span>
+<span class="nc" id="L85">            } catch (IOException e) {</span>
+<span class="nc" id="L86">                logger.error(&quot;Could not read the file: &quot; + filename, e);</span>
+<span class="nc" id="L87">            }</span>
+
+<span class="nc" id="L89">            return null;</span>
+        });
+<span class="nc" id="L91">    }</span>
+
+    /**
+     * Write a new file.
+     * &lt;p&gt;
+     * How to use:
+     * &lt;ul&gt;
+     * &lt;li&gt;First of all, we need to create a file writer consumer, for example:
+     * &lt;pre&gt;{@code
+     * Consumer&lt;OutputStream&gt; consumer = outputStream -&gt; {
+     *      try {
+     *          outputStream.write(someBytes);
+     *      } catch (IOException e) {
+     *          logger.error(&quot;error&quot;, e);
+     *      }
+     * };
+     * }&lt;/pre&gt;&lt;/li&gt;
+     * &lt;li&gt;Call {@code writeFile} passing in the filename and the consumer as parameter.&lt;/li&gt;
+     * &lt;li&gt;When the execution is completed the {@code OutputStream} is automatically closed.&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @param filename Filename.
+     * @param consumer Consumer to write the file.
+     */
+    public void writeFile(String filename, Consumer&lt;OutputStream&gt; consumer) {
+<span class="nc" id="L116">        String sandboxPath = pathManager.getSandboxPath(filename).toString();</span>
+
+<span class="nc" id="L118">        AccessController.doPrivileged((PrivilegedAction&lt;Void&gt;) () -&gt; {</span>
+<span class="nc" id="L119">            try (OutputStream outputStream = new FileOutputStream(sandboxPath)) {</span>
+<span class="nc" id="L120">                ModuleOutputStream moduleInputStream = new ModuleOutputStream(outputStream);</span>
+
+                // consumer to write the file
+<span class="nc" id="L123">                consumer.accept(moduleInputStream);</span>
+<span class="nc" id="L124">            } catch (IOException e) {</span>
+<span class="nc" id="L125">                logger.error(&quot;Could not write the file: &quot; + filename, e);</span>
+<span class="nc" id="L126">            }</span>
+
+<span class="nc" id="L128">            return null;</span>
+        });
+<span class="nc" id="L130">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

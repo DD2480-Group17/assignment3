@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TeraDenseArray8Bit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.blockdata</a> &gt; <span class="el_source">TeraDenseArray8Bit.java</span></div><h1>TeraDenseArray8Bit.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.chunks.blockdata;
+
+import com.google.common.base.Preconditions;
+import org.terasology.world.chunks.deflate.TeraVisitingDeflator;
+
+
+/**
+ * TeraDenseArray8Bit implements a dense array with elements of 8 bit size.
+ * Its elements are in the range -128 through +127 and it stores one element per byte.
+ *
+ */
+public final class TeraDenseArray8Bit extends TeraDenseArrayByte {
+
+    public TeraDenseArray8Bit() {
+<span class="nc" id="L31">        super();</span>
+<span class="nc" id="L32">    }</span>
+
+    public TeraDenseArray8Bit(int sizeX, int sizeY, int sizeZ) {
+<span class="fc" id="L35">        super(sizeX, sizeY, sizeZ);</span>
+<span class="fc" id="L36">    }</span>
+
+    public TeraDenseArray8Bit(int sizeX, int sizeY, int sizeZ, byte[] data) {
+<span class="nc" id="L39">        super(sizeX, sizeY, sizeZ, data);</span>
+<span class="nc" id="L40">    }</span>
+
+    public TeraDenseArray8Bit(TeraArray in) {
+<span class="nc" id="L43">        super(in);</span>
+<span class="nc" id="L44">    }</span>
+
+    @Override
+    protected TeraArray createDense(byte[] arrayData) {
+<span class="nc" id="L48">        return new TeraDenseArray8Bit(getSizeX(), getSizeY(), getSizeZ(), arrayData);</span>
+    }
+
+    @Override
+    protected int rowSize() {
+<span class="fc" id="L53">        return getSizeXZ();</span>
+    }
+
+    @Override
+    public TeraArray deflate(TeraVisitingDeflator deflator) {
+<span class="nc" id="L58">        return Preconditions.checkNotNull(deflator).deflateDenseArray8Bit(data, rowSize(), getSizeX(), getSizeY(), getSizeZ());</span>
+    }
+
+    @Override
+    public int getElementSizeInBits() {
+<span class="nc" id="L63">        return 8;</span>
+    }
+
+    @Override
+    public int get(int x, int y, int z) {
+<span class="fc" id="L68">        int pos = pos(x, y, z);</span>
+<span class="fc" id="L69">        return data[pos];</span>
+    }
+
+    @Override
+    public int set(int x, int y, int z, int value) {
+<span class="fc" id="L74">        int pos = pos(x, y, z);</span>
+<span class="fc" id="L75">        int old = data[pos];</span>
+<span class="fc" id="L76">        data[pos] = (byte) value;</span>
+<span class="fc" id="L77">        return old;</span>
+    }
+
+    @Override
+    public boolean set(int x, int y, int z, int value, int expected) {
+<span class="nc" id="L82">        int pos = pos(x, y, z);</span>
+<span class="nc" id="L83">        int old = data[pos];</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (old == expected) {</span>
+<span class="nc" id="L85">            data[pos] = (byte) value;</span>
+<span class="nc" id="L86">            return true;</span>
+        }
+<span class="nc" id="L88">        return false;</span>
+    }
+
+<span class="nc" id="L91">    public static class SerializationHandler extends TeraDenseArrayByte.SerializationHandler&lt;TeraDenseArray8Bit&gt; {</span>
+
+        @Override
+        public boolean canHandle(Class&lt;?&gt; clazz) {
+<span class="nc" id="L95">            return TeraDenseArray8Bit.class.equals(clazz);</span>
+        }
+
+        @Override
+        protected TeraDenseArray8Bit createArray(int sizeX, int sizeY, int sizeZ, byte[] data) {
+<span class="nc bnc" id="L100" title="All 2 branches missed.">            if (data == null) {</span>
+<span class="nc" id="L101">                return new TeraDenseArray8Bit(sizeX, sizeY, sizeZ);</span>
+            } else {
+<span class="nc" id="L103">                return new TeraDenseArray8Bit(sizeX, sizeY, sizeZ, data);</span>
+            }
+        }
+    }
+
+<span class="nc" id="L108">    public static class Factory implements TeraArray.Factory&lt;TeraDenseArray8Bit&gt; {</span>
+
+        @Override
+        public Class&lt;TeraDenseArray8Bit&gt; getArrayClass() {
+<span class="nc" id="L112">            return TeraDenseArray8Bit.class;</span>
+        }
+
+        @Override
+        public SerializationHandler createSerializationHandler() {
+<span class="nc" id="L117">            return new SerializationHandler();</span>
+        }
+
+        @Override
+        public TeraDenseArray8Bit create() {
+<span class="nc" id="L122">            return new TeraDenseArray8Bit();</span>
+        }
+
+        @Override
+        public TeraDenseArray8Bit create(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L127">            return new TeraDenseArray8Bit(sizeX, sizeY, sizeZ);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

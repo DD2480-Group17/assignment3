@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SequenceNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.behavior.core</a> &gt; <span class="el_source">SequenceNode.java</span></div><h1>SequenceNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.behavior.core;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Iterator;
+
+/**
+ * Runs all children until one finishes with FAILURE
+ */
+<span class="fc" id="L26">public class SequenceNode extends CompositeNode {</span>
+<span class="fc" id="L27">    private static final Logger logger = LoggerFactory.getLogger(SequenceNode.class);</span>
+    private Iterator&lt;BehaviorNode&gt; iterator;
+    private BehaviorNode current;
+    private String reentry;
+
+    @Override
+    public String getName() {
+<span class="fc" id="L34">        return &quot;sequence&quot;;</span>
+    }
+
+    @Override
+    public BehaviorNode deepCopy() {
+<span class="fc" id="L39">        SequenceNode result = new SequenceNode();</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        for (BehaviorNode child : children) {</span>
+<span class="fc" id="L41">            result.children.add(child.deepCopy());</span>
+<span class="fc" id="L42">        }</span>
+<span class="fc" id="L43">        return result;</span>
+    }
+
+    @Override
+    public void construct(Actor actor) {
+<span class="fc" id="L48">        iterator = children.iterator();</span>
+<span class="fc" id="L49">        nextChild(actor);</span>
+<span class="fc" id="L50">    }</span>
+
+    @Override
+    public BehaviorState execute(Actor actor) {
+        BehaviorState result;
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        while (current != null) {</span>
+<span class="fc" id="L56">            result = current.execute(actor);</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">            if (result == BehaviorState.RUNNING) {</span>
+<span class="fc" id="L58">                return BehaviorState.RUNNING;</span>
+            }
+<span class="fc" id="L60">            current.destruct(actor);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            if (result == BehaviorState.FAILURE) {</span>
+<span class="fc" id="L62">                return BehaviorState.FAILURE;</span>
+            } else {
+<span class="fc" id="L64">                nextChild(actor);</span>
+            }
+        }
+<span class="fc" id="L67">        return BehaviorState.SUCCESS;</span>
+    }
+
+    private void nextChild(Actor actor) {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (iterator.hasNext()) {</span>
+<span class="fc" id="L72">            current = iterator.next();</span>
+<span class="fc" id="L73">            current.construct(actor);</span>
+        } else {
+<span class="fc" id="L75">            current = null;</span>
+        }
+<span class="fc" id="L77">    }</span>
+
+    @Override
+    public void destruct(Actor actor) {
+<span class="fc" id="L81">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

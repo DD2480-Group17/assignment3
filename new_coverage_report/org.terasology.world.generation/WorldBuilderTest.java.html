@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldBuilderTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.generation</a> &gt; <span class="el_source">WorldBuilderTest.java</span></div><h1>WorldBuilderTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.generation;
+
+import org.junit.jupiter.api.Test;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.generation.facets.base.BaseFacet3D;
+import org.terasology.world.generator.plugin.WorldGeneratorPluginLibrary;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+<span class="fc" id="L30">public class WorldBuilderTest {</span>
+
+<span class="fc" id="L32">    private Context context = new ContextImpl();</span>
+
+    @Test
+    public void testBorderCalculation() {
+<span class="fc" id="L36">        WorldBuilder worldBuilder = new WorldBuilder(context.get(WorldGeneratorPluginLibrary.class));</span>
+<span class="fc" id="L37">        worldBuilder.setSeed(12);</span>
+<span class="fc" id="L38">        worldBuilder.addProvider(new Facet1Provider());</span>
+<span class="fc" id="L39">        worldBuilder.addProvider(new Facet2Provider());</span>
+
+<span class="fc" id="L41">        World world = worldBuilder.build();</span>
+<span class="fc" id="L42">        Region3i regionToGenerate = Region3i.createFromCenterExtents(new Vector3i(), 1);</span>
+<span class="fc" id="L43">        Region regionData = world.getWorldData(regionToGenerate);</span>
+
+<span class="fc" id="L45">        Facet1 facet1 = regionData.getFacet(Facet1.class);</span>
+<span class="fc" id="L46">        assertEquals(regionToGenerate, facet1.getWorldRegion());</span>
+
+<span class="fc" id="L48">        Facet2 facet2 = regionData.getFacet(Facet2.class);</span>
+<span class="fc" id="L49">        assertEquals(Region3i.createFromMinAndSize(new Vector3i(-3, -1, -3), new Vector3i(7, 3, 7)), facet2.getWorldRegion());</span>
+<span class="fc" id="L50">    }</span>
+
+    @Test
+    public void testCumulativeBorderCalculation() {
+<span class="fc" id="L54">        WorldBuilder worldBuilder = new WorldBuilder(context.get(WorldGeneratorPluginLibrary.class));</span>
+<span class="fc" id="L55">        worldBuilder.setSeed(12);</span>
+<span class="fc" id="L56">        worldBuilder.addProvider(new Facet1Provider());</span>
+<span class="fc" id="L57">        worldBuilder.addProvider(new Facet2Provider());</span>
+<span class="fc" id="L58">        worldBuilder.addProvider(new Facet3Provider());</span>
+
+<span class="fc" id="L60">        World world = worldBuilder.build();</span>
+<span class="fc" id="L61">        Region3i regionToGenerate = Region3i.createFromCenterExtents(new Vector3i(), 1);</span>
+<span class="fc" id="L62">        Region regionData = world.getWorldData(regionToGenerate);</span>
+
+<span class="fc" id="L64">        Facet3 facet3 = regionData.getFacet(Facet3.class);</span>
+<span class="fc" id="L65">        assertEquals(regionToGenerate, facet3.getWorldRegion());</span>
+
+<span class="fc" id="L67">        Facet1 facet1 = regionData.getFacet(Facet1.class);</span>
+<span class="fc" id="L68">        assertEquals(Region3i.createFromMinAndSize(new Vector3i(-2, -1, -2), new Vector3i(5, 3, 5)), facet1.getWorldRegion());</span>
+
+<span class="fc" id="L70">        Facet2 facet2 = regionData.getFacet(Facet2.class);</span>
+<span class="fc" id="L71">        assertEquals(Region3i.createFromMinAndSize(new Vector3i(-4, -1, -4), new Vector3i(9, 3, 9)), facet2.getWorldRegion());</span>
+<span class="fc" id="L72">    }</span>
+
+    @Test
+    public void testMultiplePathsBorderCalculation() {
+<span class="fc" id="L76">        WorldBuilder worldBuilder = new WorldBuilder(context.get(WorldGeneratorPluginLibrary.class));</span>
+<span class="fc" id="L77">        worldBuilder.setSeed(12);</span>
+<span class="fc" id="L78">        worldBuilder.addProvider(new Facet1Provider());</span>
+<span class="fc" id="L79">        worldBuilder.addProvider(new Facet2Provider());</span>
+<span class="fc" id="L80">        worldBuilder.addProvider(new Facet4Provider());</span>
+
+<span class="fc" id="L82">        World world = worldBuilder.build();</span>
+<span class="fc" id="L83">        Region3i regionToGenerate = Region3i.createFromCenterExtents(new Vector3i(), 1);</span>
+<span class="fc" id="L84">        Region regionData = world.getWorldData(regionToGenerate);</span>
+
+<span class="fc" id="L86">        Facet1 facet1 = regionData.getFacet(Facet1.class);</span>
+<span class="fc" id="L87">        assertEquals(regionToGenerate, facet1.getWorldRegion());</span>
+
+<span class="fc" id="L89">        Facet4 facet4 = regionData.getFacet(Facet4.class);</span>
+<span class="fc" id="L90">        assertEquals(regionToGenerate, facet4.getWorldRegion());</span>
+
+<span class="fc" id="L92">        Facet2 facet2 = regionData.getFacet(Facet2.class);</span>
+<span class="fc" id="L93">        assertEquals(Region3i.createFromMinAndSize(new Vector3i(-4, -1, -4), new Vector3i(9, 3, 9)), facet2.getWorldRegion());</span>
+<span class="fc" id="L94">    }</span>
+
+
+    @Test
+    public void testUpdating() {
+<span class="fc" id="L99">        WorldBuilder worldBuilder = new WorldBuilder(context.get(WorldGeneratorPluginLibrary.class));</span>
+<span class="fc" id="L100">        worldBuilder.setSeed(12);</span>
+<span class="fc" id="L101">        worldBuilder.addProvider(new Facet1Provider());</span>
+<span class="fc" id="L102">        worldBuilder.addProvider(new Facet2Provider());</span>
+<span class="fc" id="L103">        worldBuilder.addProvider(new Facet3Provider());</span>
+<span class="fc" id="L104">        worldBuilder.addProvider(new Facet4Provider());</span>
+<span class="fc" id="L105">        worldBuilder.addProvider(new FacetUpdater());</span>
+
+<span class="fc" id="L107">        Region3i regionToGenerate = Region3i.createFromCenterExtents(new Vector3i(), 1);</span>
+
+        World world;
+        Region regionData;
+
+        // try checking updated facet
+<span class="fc" id="L113">        world = worldBuilder.build();</span>
+<span class="fc" id="L114">        regionData = world.getWorldData(regionToGenerate);</span>
+<span class="fc" id="L115">        assertTrue(regionData.getFacet(Facet1.class).updated);</span>
+<span class="fc" id="L116">        assertTrue(regionData.getFacet(Facet4.class).updated);</span>
+
+        // try checking generated facet
+<span class="fc" id="L119">        world = worldBuilder.build();</span>
+<span class="fc" id="L120">        regionData = world.getWorldData(regionToGenerate);</span>
+<span class="fc" id="L121">        assertNotNull(regionData.getFacet(Facet3.class));</span>
+<span class="fc" id="L122">        assertTrue(regionData.getFacet(Facet4.class).updated);</span>
+<span class="fc" id="L123">    }</span>
+
+    public static class Facet1 extends BaseFacet3D {
+        public boolean updated;
+
+        public Facet1(Region3i targetRegion, Border3D border) {
+<span class="fc" id="L129">            super(targetRegion, border);</span>
+<span class="fc" id="L130">        }</span>
+    }
+
+    public static class Facet2 extends BaseFacet3D {
+        public Facet2(Region3i targetRegion, Border3D border) {
+<span class="fc" id="L135">            super(targetRegion, border);</span>
+<span class="fc" id="L136">        }</span>
+    }
+
+    public static class Facet3 extends BaseFacet3D {
+        public Facet3(Region3i targetRegion, Border3D border) {
+<span class="fc" id="L141">            super(targetRegion, border);</span>
+<span class="fc" id="L142">        }</span>
+    }
+
+    public static class Facet4 extends BaseFacet3D {
+        public boolean updated;
+
+        public Facet4(Region3i targetRegion, Border3D border) {
+<span class="fc" id="L149">            super(targetRegion, border);</span>
+
+<span class="fc" id="L151">        }</span>
+    }
+
+    @Produces(Facet1.class)
+    @Requires(@Facet(value = Facet2.class, border = @FacetBorder(sides = 2)))
+<span class="fc" id="L156">    public static class Facet1Provider implements FacetProvider {</span>
+
+        @Override
+        public void process(GeneratingRegion region) {
+<span class="fc" id="L160">            Facet1 facet = new Facet1(region.getRegion(), region.getBorderForFacet(Facet1.class));</span>
+<span class="fc" id="L161">            region.setRegionFacet(Facet1.class, facet);</span>
+<span class="fc" id="L162">        }</span>
+    }
+
+    @Produces(Facet2.class)
+<span class="fc" id="L166">    public static class Facet2Provider implements FacetProvider {</span>
+
+        @Override
+        public void process(GeneratingRegion region) {
+<span class="fc" id="L170">            Facet2 facet = new Facet2(region.getRegion(), region.getBorderForFacet(Facet2.class));</span>
+<span class="fc" id="L171">            region.setRegionFacet(Facet2.class, facet);</span>
+<span class="fc" id="L172">        }</span>
+    }
+
+    @Produces(Facet3.class)
+    @Requires(@Facet(value = Facet1.class, border = @FacetBorder(sides = 1)))
+<span class="fc" id="L177">    public static class Facet3Provider implements FacetProvider {</span>
+
+        @Override
+        public void process(GeneratingRegion region) {
+<span class="fc" id="L181">            Facet3 facet = new Facet3(region.getRegion(), region.getBorderForFacet(Facet3.class));</span>
+<span class="fc" id="L182">            region.setRegionFacet(Facet3.class, facet);</span>
+<span class="fc" id="L183">        }</span>
+    }
+
+    @Produces(Facet4.class)
+    @Requires(@Facet(value = Facet2.class, border = @FacetBorder(sides = 3)))
+<span class="fc" id="L188">    public static class Facet4Provider implements FacetProvider {</span>
+
+        @Override
+        public void process(GeneratingRegion region) {
+<span class="fc" id="L192">            Facet4 facet = new Facet4(region.getRegion(), region.getBorderForFacet(Facet4.class));</span>
+<span class="fc" id="L193">            region.setRegionFacet(Facet4.class, facet);</span>
+<span class="fc" id="L194">        }</span>
+    }
+
+    @Requires(@Facet(Facet2.class))
+    @Produces(Facet3.class)
+    @Updates({@Facet(Facet1.class), @Facet(Facet4.class)})
+<span class="fc" id="L200">    public static class FacetUpdater implements FacetProvider {</span>
+
+        @Override
+        public void process(GeneratingRegion region) {
+<span class="fc" id="L204">            Facet3 facet = new Facet3(region.getRegion(), region.getBorderForFacet(Facet3.class));</span>
+<span class="fc" id="L205">            Facet1 facet1 = region.getRegionFacet(Facet1.class);</span>
+<span class="fc" id="L206">            Facet4 facet4 = region.getRegionFacet(Facet4.class);</span>
+<span class="fc" id="L207">            facet1.updated = true;</span>
+<span class="fc" id="L208">            facet4.updated = true;</span>
+<span class="fc" id="L209">            region.setRegionFacet(Facet3.class, facet);</span>
+<span class="fc" id="L210">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

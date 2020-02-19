@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArrayTypeHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.persistence.typeHandling.coreTypes</a> &gt; <span class="el_source">ArrayTypeHandler.java</span></div><h1>ArrayTypeHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.persistence.typeHandling.coreTypes;
+
+import com.google.common.collect.Lists;
+import org.terasology.persistence.typeHandling.PersistedData;
+import org.terasology.persistence.typeHandling.PersistedDataSerializer;
+import org.terasology.persistence.typeHandling.TypeHandler;
+import org.terasology.reflection.TypeInfo;
+
+import java.lang.reflect.Array;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+/**
+ * Serializes arrays of type {@code E[]}.
+ *
+ * {@link ArrayTypeHandler} extends {@link TypeHandler&lt;Object&gt;} because the type parameter {@link E}
+ * supports only wrapper types, and primitive array to wrapper type array (and vice versa) casts are
+ * unsupported. The array is accessed via the {@link Array} utility class as an {@link Object} so that
+ * the cast can be avoided.
+ *
+ * @param &lt;E&gt; The type of an element in the array to serialize.
+ */
+public class ArrayTypeHandler&lt;E&gt; extends TypeHandler&lt;Object&gt; {
+    private TypeHandler&lt;E&gt; elementTypeHandler;
+    private TypeInfo&lt;E&gt; elementType;
+
+<span class="fc" id="L43">    public ArrayTypeHandler(TypeHandler&lt;E&gt; elementTypeHandler, TypeInfo&lt;E&gt; elementType) {</span>
+<span class="fc" id="L44">        this.elementTypeHandler = elementTypeHandler;</span>
+<span class="fc" id="L45">        this.elementType = elementType;</span>
+<span class="fc" id="L46">    }</span>
+
+    @Override
+    protected PersistedData serializeNonNull(Object value, PersistedDataSerializer serializer) {
+<span class="fc" id="L50">        List&lt;PersistedData&gt; items = Lists.newArrayList();</span>
+
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        for (int i = 0; i &lt; Array.getLength(value); i++) {</span>
+<span class="fc" id="L53">            E element = (E) Array.get(value, i);</span>
+<span class="fc" id="L54">            items.add(elementTypeHandler.serialize(element, serializer));</span>
+        }
+
+<span class="fc" id="L57">        return serializer.serialize(items);</span>
+    }
+
+    @Override
+    public Optional&lt;Object&gt; deserialize(PersistedData data) {
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">        if (!data.isArray()) {</span>
+<span class="nc" id="L63">            return Optional.empty();</span>
+        }
+
+        @SuppressWarnings({&quot;unchecked&quot;})
+<span class="fc" id="L67">        List&lt;E&gt; items = data.getAsArray().getAsValueArray().stream()</span>
+<span class="fc" id="L68">                .map(itemData -&gt; elementTypeHandler.deserialize(itemData))</span>
+<span class="fc" id="L69">                .filter(Optional::isPresent)</span>
+<span class="fc" id="L70">                .map(Optional::get).collect(Collectors.toList());</span>
+
+<span class="fc" id="L72">        Object array = Array.newInstance(elementType.getRawType(), items.size());</span>
+
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        for (int i = 0; i &lt; items.size(); i++) {</span>
+<span class="nc" id="L75">            Array.set(array, i, items.get(i));</span>
+        }
+
+<span class="fc" id="L78">        return Optional.of(array);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

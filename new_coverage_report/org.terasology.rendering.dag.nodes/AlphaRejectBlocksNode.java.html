@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AlphaRejectBlocksNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.dag.nodes</a> &gt; <span class="el_source">AlphaRejectBlocksNode.java</span></div><h1>AlphaRejectBlocksNode.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.dag.nodes;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.config.RenderingDebugConfig;
+import org.terasology.context.Context;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.monitoring.PerformanceMonitor;
+import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.cameras.SubmersibleCamera;
+import org.terasology.rendering.dag.AbstractNode;
+import org.terasology.rendering.dag.StateChange;
+import org.terasology.rendering.dag.WireframeCapable;
+import org.terasology.rendering.dag.WireframeTrigger;
+import org.terasology.rendering.dag.stateChanges.BindFbo;
+import org.terasology.rendering.dag.stateChanges.EnableMaterial;
+import org.terasology.rendering.dag.stateChanges.LookThrough;
+import org.terasology.rendering.dag.stateChanges.SetInputTexture2D;
+import org.terasology.rendering.dag.stateChanges.SetWireframe;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.fbms.DisplayResolutionDependentFBOs;
+import org.terasology.rendering.primitives.ChunkMesh;
+import org.terasology.rendering.world.RenderQueuesHelper;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.chunks.RenderableChunk;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+
+import static org.terasology.rendering.primitives.ChunkMesh.RenderPhase.ALPHA_REJECT;
+
+/**
+ * This node uses alpha-rejection to render semi-transparent blocks (i.e. tree foliage) and
+ * semi-transparent billboards (i.e. plants on the ground).
+ *
+ * Alpha-rejection is the idea that if a fragment has an alpha value lower than some threshold
+ * it gets discarded, leaving the color already stored in the frame buffer untouched.
+ *
+ * This is a less expensive way to render semi-transparent objects compared to alpha-blending.
+ * In alpha-blending the color of a semi-transparent fragment is combined with
+ * the color stored in the frame buffer and the resulting color overwrites the previously stored one.
+ */
+public class AlphaRejectBlocksNode extends AbstractNode implements WireframeCapable, PropertyChangeListener {
+<span class="nc" id="L62">    private static final ResourceUrn CHUNK_MATERIAL_URN = new ResourceUrn(&quot;engine:prog.chunk&quot;);</span>
+
+    private WorldRenderer worldRenderer;
+    private RenderQueuesHelper renderQueues;
+    private RenderingConfig renderingConfig;
+    private WorldProvider worldProvider;
+
+    private Material chunkMaterial;
+    private SetWireframe wireframeStateChange;
+
+    private SubmersibleCamera activeCamera;
+
+    private boolean normalMappingIsEnabled;
+    private boolean parallaxMappingIsEnabled;
+
+    private StateChange setTerrainNormalsInputTexture;
+    private StateChange setTerrainHeightInputTexture;
+
+<span class="nc" id="L80">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.5f)
+    private float parallaxBias = 0.25f;
+<span class="nc" id="L83">    @SuppressWarnings(&quot;FieldCanBeLocal&quot;)</span>
+    @Range(min = 0.0f, max = 0.50f)
+    private float parallaxScale = 0.5f;
+
+    public AlphaRejectBlocksNode(String nodeUri, Context context) {
+<span class="nc" id="L88">        super(nodeUri, context);</span>
+
+<span class="nc" id="L90">        renderQueues = context.get(RenderQueuesHelper.class);</span>
+<span class="nc" id="L91">        worldProvider = context.get(WorldProvider.class);</span>
+
+<span class="nc" id="L93">        worldRenderer = context.get(WorldRenderer.class);</span>
+<span class="nc" id="L94">        activeCamera = worldRenderer.getActiveCamera();</span>
+<span class="nc" id="L95">        addDesiredStateChange(new LookThrough(activeCamera));</span>
+
+<span class="nc" id="L97">        wireframeStateChange = new SetWireframe(true);</span>
+<span class="nc" id="L98">        RenderingDebugConfig renderingDebugConfig =  context.get(Config.class).getRendering().getDebug();</span>
+<span class="nc" id="L99">        new WireframeTrigger(renderingDebugConfig, this);</span>
+
+<span class="nc" id="L101">        addDesiredStateChange(new BindFbo(context.get(DisplayResolutionDependentFBOs.class).getGBufferPair().getLastUpdatedFbo()));</span>
+
+<span class="nc" id="L103">        addDesiredStateChange(new EnableMaterial(CHUNK_MATERIAL_URN));</span>
+
+<span class="nc" id="L105">        chunkMaterial = getMaterial(CHUNK_MATERIAL_URN);</span>
+
+<span class="nc" id="L107">        renderingConfig = context.get(Config.class).getRendering();</span>
+<span class="nc" id="L108">        normalMappingIsEnabled = renderingConfig.isNormalMapping();</span>
+<span class="nc" id="L109">        renderingConfig.subscribe(RenderingConfig.NORMAL_MAPPING, this);</span>
+<span class="nc" id="L110">        parallaxMappingIsEnabled = renderingConfig.isParallaxMapping();</span>
+<span class="nc" id="L111">        renderingConfig.subscribe(RenderingConfig.PARALLAX_MAPPING, this);</span>
+
+<span class="nc" id="L113">        int textureSlot = 0;</span>
+<span class="nc" id="L114">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:terrain&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlas&quot;));</span>
+<span class="nc" id="L115">        addDesiredStateChange(new SetInputTexture2D(textureSlot++, &quot;engine:effects&quot;, CHUNK_MATERIAL_URN, &quot;textureEffects&quot;));</span>
+<span class="nc" id="L116">        setTerrainNormalsInputTexture = new SetInputTexture2D(textureSlot++, &quot;engine:terrainNormal&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlasNormal&quot;);</span>
+<span class="nc" id="L117">        setTerrainHeightInputTexture = new SetInputTexture2D(textureSlot, &quot;engine:terrainHeight&quot;, CHUNK_MATERIAL_URN, &quot;textureAtlasHeight&quot;);</span>
+
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (normalMappingIsEnabled) {</span>
+<span class="nc" id="L120">            addDesiredStateChange(setTerrainNormalsInputTexture);</span>
+        }
+
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (parallaxMappingIsEnabled) {</span>
+<span class="nc" id="L124">            addDesiredStateChange(setTerrainHeightInputTexture);</span>
+        }
+<span class="nc" id="L126">    }</span>
+
+    public void enableWireframe() {
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        if (!getDesiredStateChanges().contains(wireframeStateChange)) {</span>
+<span class="nc" id="L130">            addDesiredStateChange(wireframeStateChange);</span>
+<span class="nc" id="L131">            worldRenderer.requestTaskListRefresh();</span>
+        }
+<span class="nc" id="L133">    }</span>
+
+    public void disableWireframe() {
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        if (getDesiredStateChanges().contains(wireframeStateChange)) {</span>
+<span class="nc" id="L137">            removeDesiredStateChange(wireframeStateChange);</span>
+<span class="nc" id="L138">            worldRenderer.requestTaskListRefresh();</span>
+        }
+<span class="nc" id="L140">    }</span>
+
+    /**
+     * Renders the world's semi-transparent blocks, i.e. tree foliage and terrain plants.
+     * Does not render fully opaque blocks, i.e. the typical landscape blocks.
+     *
+     * Takes advantage of the two methods
+     *
+     * - WorldRenderer.increaseTrianglesCount(int)
+     * - WorldRenderer.increaseNotReadyChunkCount(int)
+     *
+     * to publish some statistics over its own activity.
+     */
+    @Override
+    public void process() {
+<span class="nc" id="L155">        PerformanceMonitor.startActivity(&quot;rendering/&quot; + getUri());</span>
+
+<span class="nc" id="L157">        chunkMaterial.activateFeature(ShaderProgramFeature.FEATURE_ALPHA_REJECT);</span>
+
+        // Common Shader Parameters
+
+<span class="nc" id="L161">        chunkMaterial.setFloat(&quot;time&quot;, worldProvider.getTime().getDays(), true);</span>
+
+        // Specific Shader Parameters
+
+        // TODO: This is necessary right now because activateFeature removes all material parameters.
+        // TODO: Remove this explicit binding once we get rid of activateFeature, or find a way to retain parameters through it.
+<span class="nc" id="L167">        chunkMaterial.setInt(&quot;textureAtlas&quot;, 0, true);</span>
+<span class="nc" id="L168">        chunkMaterial.setInt(&quot;textureEffects&quot;, 1, true);</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        if (normalMappingIsEnabled) {</span>
+<span class="nc" id="L170">            chunkMaterial.setInt(&quot;textureAtlasNormal&quot;, 2, true);</span>
+        }
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        if (parallaxMappingIsEnabled) {</span>
+<span class="nc" id="L173">            chunkMaterial.setInt(&quot;textureAtlasHeight&quot;, 3, true);</span>
+<span class="nc" id="L174">            chunkMaterial.setFloat4(&quot;parallaxProperties&quot;, parallaxBias, parallaxScale, 0.0f, 0.0f, true);</span>
+        }
+
+<span class="nc" id="L177">        chunkMaterial.setFloat(&quot;clip&quot;, 0.0f, true);</span>
+
+        // Actual Node Processing
+
+<span class="nc" id="L181">        final Vector3f cameraPosition = activeCamera.getPosition();</span>
+
+<span class="nc" id="L183">        int numberOfRenderedTriangles = 0;</span>
+<span class="nc" id="L184">        int numberOfChunksThatAreNotReadyYet = 0;</span>
+
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        while (renderQueues.chunksAlphaReject.size() &gt; 0) {</span>
+<span class="nc" id="L187">            RenderableChunk chunk = renderQueues.chunksAlphaReject.poll();</span>
+
+<span class="nc bnc" id="L189" title="All 2 branches missed.">            if (chunk.hasMesh()) {</span>
+<span class="nc" id="L190">                final ChunkMesh chunkMesh = chunk.getMesh();</span>
+<span class="nc" id="L191">                final Vector3f chunkPosition = chunk.getPosition().toVector3f();</span>
+
+<span class="nc" id="L193">                chunkMesh.updateMaterial(chunkMaterial, chunkPosition, chunk.isAnimated());</span>
+<span class="nc" id="L194">                numberOfRenderedTriangles += chunkMesh.render(ALPHA_REJECT, chunkPosition, cameraPosition);</span>
+
+<span class="nc" id="L196">            } else {</span>
+<span class="nc" id="L197">                numberOfChunksThatAreNotReadyYet++; // TODO: verify - should we count them only in ChunksOpaqueNode?</span>
+            }
+<span class="nc" id="L199">        }</span>
+
+<span class="nc" id="L201">        worldRenderer.increaseTrianglesCount(numberOfRenderedTriangles);</span>
+<span class="nc" id="L202">        worldRenderer.increaseNotReadyChunkCount(numberOfChunksThatAreNotReadyYet);</span>
+
+<span class="nc" id="L204">        chunkMaterial.deactivateFeature(ShaderProgramFeature.FEATURE_ALPHA_REJECT);</span>
+
+<span class="nc" id="L206">        PerformanceMonitor.endActivity();</span>
+<span class="nc" id="L207">    }</span>
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+<span class="nc" id="L211">        String propertyName = event.getPropertyName();</span>
+
+<span class="nc bnc" id="L213" title="All 3 branches missed.">        switch (propertyName) {</span>
+            case RenderingConfig.NORMAL_MAPPING:
+<span class="nc" id="L215">                normalMappingIsEnabled = renderingConfig.isNormalMapping();</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">                if (normalMappingIsEnabled) {</span>
+<span class="nc" id="L217">                    addDesiredStateChange(setTerrainNormalsInputTexture);</span>
+                } else {
+<span class="nc" id="L219">                    removeDesiredStateChange(setTerrainNormalsInputTexture);</span>
+                }
+<span class="nc" id="L221">                break;</span>
+            case RenderingConfig.PARALLAX_MAPPING:
+<span class="nc" id="L223">                parallaxMappingIsEnabled = renderingConfig.isParallaxMapping();</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">                if (parallaxMappingIsEnabled) {</span>
+<span class="nc" id="L225">                    addDesiredStateChange(setTerrainHeightInputTexture);</span>
+                } else {
+<span class="nc" id="L227">                    removeDesiredStateChange(setTerrainHeightInputTexture);</span>
+                }
+                break;
+
+            // default: no other cases are possible - see subscribe operations in initialize().
+        }
+
+<span class="nc" id="L234">        worldRenderer.requestTaskListRefresh();</span>
+<span class="nc" id="L235">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

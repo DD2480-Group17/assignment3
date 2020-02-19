@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TranslationFormatTests.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.i18n</a> &gt; <span class="el_source">TranslationFormatTests.java</span></div><h1>TranslationFormatTests.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.i18n;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.exceptions.InvalidAssetFilenameException;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.format.FileFormat;
+import org.terasology.engine.SimpleUri;
+import org.terasology.i18n.assets.TranslationData;
+import org.terasology.i18n.assets.TranslationFormat;
+import org.terasology.naming.Name;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.Locale;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * Tests for the {@link TranslationFormat} class.
+ */
+<span class="fc" id="L47">public class TranslationFormatTests {</span>
+
+    private TranslationFormat format;
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L53">        format = new TranslationFormat();</span>
+<span class="fc" id="L54">    }</span>
+
+    @Test
+    public void testGetAssetName() throws InvalidAssetFilenameException {
+<span class="fc" id="L58">        assertEquals(new Name(&quot;menu&quot;),  format.getAssetName(&quot;menu.lang&quot;));</span>
+<span class="fc" id="L59">        assertEquals(new Name(&quot;menu_pl&quot;),  format.getAssetName(&quot;menu_pl.lang&quot;));</span>
+<span class="fc" id="L60">    }</span>
+
+    @Test
+    public void testPathMatcher() {
+<span class="fc" id="L64">        assertFalse(format.getFileMatcher().matches(Paths.get(&quot;menu.json&quot;)));</span>
+<span class="fc" id="L65">        assertFalse(format.getFileMatcher().matches(Paths.get(&quot;menu.prefab&quot;)));</span>
+
+<span class="fc" id="L67">        assertTrue(format.getFileMatcher().matches(Paths.get(&quot;menu.lang&quot;)));</span>
+<span class="fc" id="L68">        assertTrue(format.getFileMatcher().matches(Paths.get(&quot;menu_pl.lang&quot;)));</span>
+<span class="fc" id="L69">        assertTrue(format.getFileMatcher().matches(Paths.get(&quot;menu_en-US-x-lvariant-POSIX.lang&quot;)));</span>
+<span class="fc" id="L70">    }</span>
+
+    @Test
+    public void testEmptyDataGenRoot() throws IOException, InvalidAssetFilenameException {
+<span class="fc" id="L74">        AssetDataFile assetDataFile = mockAssetDataFile(&quot;menu.lang&quot;, &quot;{}&quot;.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L75">        ResourceUrn urn = createUrnFromFile(format, assetDataFile);</span>
+
+<span class="fc" id="L77">        TranslationData data = format.load(urn, Collections.singletonList(assetDataFile));</span>
+<span class="fc" id="L78">        assertEquals(new SimpleUri(&quot;engine:menu&quot;), data.getProjectUri());</span>
+<span class="fc" id="L79">        assertEquals(Locale.ROOT, data.getLocale());</span>
+<span class="fc" id="L80">    }</span>
+
+    @Test
+    public void testEmptyDataGenGermany() throws IOException, InvalidAssetFilenameException {
+<span class="fc" id="L84">        AssetDataFile assetDataFile = mockAssetDataFile(&quot;menu_de-DE.lang&quot;, &quot;{}&quot;.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L85">        ResourceUrn urn = createUrnFromFile(format, assetDataFile);</span>
+
+<span class="fc" id="L87">        TranslationData data = format.load(urn, Collections.singletonList(assetDataFile));</span>
+<span class="fc" id="L88">        assertEquals(Locale.GERMANY, data.getLocale());</span>
+<span class="fc" id="L89">        assertTrue(data.getTranslations().isEmpty());</span>
+<span class="fc" id="L90">    }</span>
+
+    @Test
+    public void testDataGenGerman() throws IOException, InvalidAssetFilenameException {
+<span class="fc" id="L94">        byte[] resource = createSimpleTranslationFile().getBytes(StandardCharsets.UTF_8);</span>
+<span class="fc" id="L95">        AssetDataFile assetDataFile = mockAssetDataFile(&quot;menu_de-DE.lang&quot;, resource);</span>
+<span class="fc" id="L96">        ResourceUrn urn = createUrnFromFile(format, assetDataFile);</span>
+
+<span class="fc" id="L98">        TranslationData data = format.load(urn, Collections.singletonList(assetDataFile));</span>
+<span class="fc" id="L99">        assertEquals(&quot;Einzelspieler&quot;, data.getTranslations().get(&quot;engine:mainMenuScreen#singleplayer#text&quot;));</span>
+<span class="fc" id="L100">    }</span>
+
+    @Test
+    public void testMultiLine() throws IOException, InvalidAssetFilenameException{
+<span class="fc" id="L104">        byte[] resource = createSimpleMultiLineTranslationFile().getBytes(StandardCharsets.UTF_8);</span>
+<span class="fc" id="L105">        AssetDataFile assetDataFile = mockAssetDataFile(&quot;game.lang&quot;, resource);</span>
+<span class="fc" id="L106">        ResourceUrn urn = createUrnFromFile(format, assetDataFile);</span>
+
+<span class="fc" id="L108">        TranslationData data = format.load(urn, Collections.singletonList(assetDataFile));</span>
+<span class="fc" id="L109">        assertEquals(&quot;line 1 \n line 2 \n line 3&quot;, data.getTranslations().get(&quot;multi-line&quot;));</span>
+<span class="fc" id="L110">        assertEquals(&quot;line 1 \n line 2 \n line 3&quot;, data.getTranslations().get(&quot;single-line&quot;));</span>
+<span class="fc" id="L111">    }</span>
+
+    // TODO: consider making this available to other test classes
+    private static AssetDataFile mockAssetDataFile(String fname, byte[] resource) throws IOException {
+<span class="fc" id="L115">        AssetDataFile assetDataFile = mock(AssetDataFile.class);</span>
+<span class="fc" id="L116">        when(assetDataFile.openStream()).thenReturn(new BufferedInputStream(new ByteArrayInputStream(resource)));</span>
+<span class="fc" id="L117">        when(assetDataFile.getFilename()).thenReturn(fname);</span>
+<span class="fc" id="L118">        return assetDataFile;</span>
+    }
+
+    private static ResourceUrn createUrnFromFile(FileFormat format, AssetDataFile file) throws InvalidAssetFilenameException {
+<span class="fc" id="L122">        Name assetName = format.getAssetName(file.getFilename());</span>
+<span class="fc" id="L123">        return new ResourceUrn(&quot;engine:&quot; + assetName.toString());</span>
+    }
+
+    private static String createSimpleMultiLineTranslationFile(){
+<span class="fc" id="L127">        StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L128">        sb.append(&quot;{&quot;);</span>
+<span class="fc" id="L129">        sb.append(&quot;\&quot;multi-line\&quot;: [\&quot;line 1 \n \&quot;,\&quot;line 2 \n \&quot;,\&quot;line 3\&quot;],&quot;);</span>
+<span class="fc" id="L130">        sb.append(&quot;\&quot;single-line\&quot;: \&quot;line 1 \n line 2 \n line 3\&quot;&quot;);</span>
+<span class="fc" id="L131">        sb.append(&quot;}&quot;);</span>
+<span class="fc" id="L132">        return sb.toString();</span>
+    }
+
+
+    private static String createSimpleTranslationFile() {
+<span class="fc" id="L137">        StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L138">        sb.append(&quot;{&quot;);</span>
+<span class="fc" id="L139">        sb.append(&quot;\&quot;engine:mainMenuScreen#singleplayer#text\&quot;: \&quot;Einzelspieler\&quot;,&quot;);</span>
+<span class="fc" id="L140">        sb.append(&quot;\&quot;engine:mainMenuScreen#exit#text\&quot;: \&quot;Beenden\&quot;&quot;);</span>
+<span class="fc" id="L141">        sb.append(&quot;}&quot;);</span>
+<span class="fc" id="L142">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

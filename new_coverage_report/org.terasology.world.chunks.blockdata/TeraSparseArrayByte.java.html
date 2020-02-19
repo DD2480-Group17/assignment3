@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TeraSparseArrayByte.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.chunks.blockdata</a> &gt; <span class="el_source">TeraSparseArrayByte.java</span></div><h1>TeraSparseArrayByte.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.world.chunks.blockdata;
+
+import com.google.common.base.Preconditions;
+
+import java.nio.ByteBuffer;
+
+
+/**
+ * TeraSparseArrayByte is the base class used to implement sparse arrays with elements of size 4 bit or 8 bit.
+ *
+ */
+public abstract class TeraSparseArrayByte extends TeraSparseArray {
+
+    protected byte[][] inflated;
+    protected byte[] deflated;
+    protected byte fill;
+
+    protected TeraSparseArrayByte() {
+<span class="nc" id="L35">        super();</span>
+<span class="nc" id="L36">    }</span>
+
+    protected TeraSparseArrayByte(int sizeX, int sizeY, int sizeZ) {
+<span class="nc" id="L39">        super(sizeX, sizeY, sizeZ, false);</span>
+<span class="nc" id="L40">    }</span>
+
+    protected TeraSparseArrayByte(int sizeX, int sizeY, int sizeZ, byte[][] inflated, byte[] deflated) {
+<span class="nc" id="L43">        super(sizeX, sizeY, sizeZ, false);</span>
+<span class="nc" id="L44">        this.inflated = Preconditions.checkNotNull(inflated);</span>
+<span class="nc" id="L45">        this.deflated = Preconditions.checkNotNull(deflated);</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">        Preconditions.checkArgument(inflated.length == sizeY, &quot;The length of parameter 'inflated' has to be &quot; + sizeY + &quot; but is &quot; + inflated.length);</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        Preconditions.checkArgument(deflated.length == sizeY, &quot;The length of parameter 'deflated' has to be &quot; + sizeY + &quot; but is &quot; + deflated.length);</span>
+<span class="nc" id="L48">    }</span>
+
+    protected TeraSparseArrayByte(int sizeX, int sizeY, int sizeZ, byte fill) {
+<span class="nc" id="L51">        super(sizeX, sizeY, sizeZ, false);</span>
+<span class="nc" id="L52">        this.fill = fill;</span>
+<span class="nc" id="L53">    }</span>
+
+    protected abstract TeraArray createSparse(byte defaultFill);
+
+    protected abstract TeraArray createSparse(byte[][] inflatedData, byte[] deflatedData);
+
+    protected abstract int rowSize();
+
+    @Override
+    protected void initialize() {
+<span class="nc" id="L63">    }</span>
+
+    @Override
+    public final int getEstimatedMemoryConsumptionInBytes() {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L68">            return 9;</span>
+        }
+<span class="nc" id="L70">        int result = 9 + getSizeY() + (getSizeY() * 4);</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        for (int i = 0; i &lt; getSizeY(); i++) {</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            if (inflated[i] != null) {</span>
+<span class="nc" id="L73">                result += 12 + rowSize();</span>
+            }
+        }
+<span class="nc" id="L76">        return result;</span>
+    }
+
+    @Override
+    public final TeraArray copy() {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (inflated == null) {</span>
+<span class="nc" id="L82">            return createSparse(fill);</span>
+        }
+<span class="nc" id="L84">        byte[][] inf = new byte[getSizeY()][];</span>
+<span class="nc" id="L85">        byte[] def = new byte[getSizeY()];</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        for (int y = 0; y &lt; getSizeY(); y++) {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            if (inflated[y] != null) {</span>
+<span class="nc" id="L88">                inf[y] = new byte[rowSize()];</span>
+<span class="nc" id="L89">                System.arraycopy(inflated[y], 0, inf[y], 0, rowSize());</span>
+            }
+        }
+<span class="nc" id="L92">        System.arraycopy(deflated, 0, def, 0, getSizeY());</span>
+<span class="nc" id="L93">        return createSparse(inf, def);</span>
+    }
+
+<span class="nc" id="L96">    protected abstract static class SerializationHandler&lt;T extends TeraSparseArrayByte&gt; extends TeraArray.BasicSerializationHandler&lt;T&gt; {</span>
+
+        protected abstract T createArray(int sizeX, int sizeY, int sizeZ);
+
+        @Override
+        protected int internalComputeMinimumBufferSize(T array) {
+<span class="nc" id="L102">            final byte[][] inf = array.inflated;</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            if (inf == null) {</span>
+<span class="nc" id="L104">                return 2;</span>
+            } else {
+<span class="nc" id="L106">                int sizeY = array.getSizeY();</span>
+<span class="nc" id="L107">                int rowSize = array.rowSize();</span>
+<span class="nc" id="L108">                int result = 1;</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">                for (int y = 0; y &lt; sizeY; y++) {</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                    if (inf[y] == null) {</span>
+<span class="nc" id="L111">                        result += 2;</span>
+                    } else {
+<span class="nc" id="L113">                        result += 1 + rowSize;</span>
+                    }
+                }
+<span class="nc" id="L116">                return result;</span>
+            }
+        }
+
+        @Override
+        protected void internalSerialize(T array, ByteBuffer buffer) {
+<span class="nc" id="L122">            final byte[][] inf = array.inflated;</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">            if (inf == null) {</span>
+<span class="nc" id="L124">                buffer.put((byte) 0);</span>
+<span class="nc" id="L125">                buffer.put(array.fill);</span>
+            } else {
+<span class="nc" id="L127">                buffer.put((byte) 1);</span>
+<span class="nc" id="L128">                int sizeY = array.getSizeY();</span>
+<span class="nc" id="L129">                int rowSize = array.rowSize();</span>
+<span class="nc" id="L130">                final byte[] def = array.deflated;</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">                for (int y = 0; y &lt; sizeY; y++) {</span>
+<span class="nc" id="L132">                    final byte[] row = inf[y];</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                    if (row == null) {</span>
+<span class="nc" id="L134">                        buffer.put((byte) 0);</span>
+<span class="nc" id="L135">                        buffer.put(def[y]);</span>
+                    } else {
+<span class="nc" id="L137">                        buffer.put((byte) 1);</span>
+<span class="nc" id="L138">                        buffer.put(row, 0, rowSize);</span>
+                    }
+                }
+            }
+<span class="nc" id="L142">        }</span>
+
+        @Override
+        protected T internalDeserialize(int sizeX, int sizeY, int sizeZ, ByteBuffer buffer) {
+<span class="nc" id="L146">            final byte hasData = buffer.get();</span>
+<span class="nc" id="L147">            final T array = createArray(sizeX, sizeY, sizeZ);</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">            if (hasData == 0) {</span>
+<span class="nc" id="L149">                array.fill = buffer.get();</span>
+<span class="nc" id="L150">                return array;</span>
+            }
+<span class="nc" id="L152">            int rowSize = array.rowSize();</span>
+<span class="nc" id="L153">            array.inflated = new byte[sizeY][];</span>
+<span class="nc" id="L154">            array.deflated = new byte[sizeY];</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            for (int y = 0; y &lt; sizeY; y++) {</span>
+<span class="nc" id="L156">                final byte hasRow = buffer.get();</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                if (hasRow == 0) {</span>
+<span class="nc" id="L158">                    array.deflated[y] = buffer.get();</span>
+                } else {
+<span class="nc" id="L160">                    array.inflated[y] = new byte[rowSize];</span>
+<span class="nc" id="L161">                    buffer.get(array.inflated[y], 0, rowSize);</span>
+                }
+            }
+<span class="nc" id="L164">            return array;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

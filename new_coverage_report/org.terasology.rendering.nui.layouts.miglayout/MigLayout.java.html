@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MigLayout.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.layouts.miglayout</a> &gt; <span class="el_source">MigLayout.java</span></div><h1>MigLayout.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.layouts.miglayout;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import net.miginfocom.layout.AC;
+import net.miginfocom.layout.CC;
+import net.miginfocom.layout.ComponentWrapper;
+import net.miginfocom.layout.ConstraintParser;
+import net.miginfocom.layout.ContainerWrapper;
+import net.miginfocom.layout.Grid;
+import net.miginfocom.layout.LC;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.Canvas;
+import org.terasology.rendering.nui.Color;
+import org.terasology.rendering.nui.CoreLayout;
+import org.terasology.rendering.nui.LayoutConfig;
+import org.terasology.rendering.nui.LayoutHint;
+import org.terasology.rendering.nui.UIWidget;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * MigLayout Binding
+ * &lt;br&gt;&lt;br&gt;
+ * see: http://www.miglayout.com/
+ * &lt;br&gt;&lt;br&gt;
+ */
+public class MigLayout extends CoreLayout&lt;MigLayout.CCHint&gt; implements ContainerWrapper {
+<span class="nc" id="L50">    private Map&lt;ComponentWrapper, CC&gt; ccMap = Maps.newHashMap();</span>
+<span class="nc" id="L51">    private Map&lt;UIWidget, ComponentWrapper&gt; wrappers = Maps.newHashMap();</span>
+<span class="nc" id="L52">    private List&lt;ComponentWrapper&gt; children = Lists.newArrayList();</span>
+
+    @LayoutConfig
+    private String layoutConstraints;
+    @LayoutConfig
+    private String rowConstraints;
+    @LayoutConfig
+    private String colConstraints;
+
+    private LC lc;
+    private AC rc;
+    private AC cc;
+
+    private Grid grid;
+    private boolean dirty;
+<span class="nc" id="L67">    private MigComponent delegate = new MigComponent(null, null);</span>
+<span class="nc" id="L68">    private List&lt;Rect2i&gt; debugRects = Lists.newArrayList();</span>
+    @LayoutConfig
+    private boolean debug;
+
+<span class="nc" id="L72">    public MigLayout() {</span>
+<span class="nc" id="L73">        setLayoutConstraints(&quot;&quot;);</span>
+<span class="nc" id="L74">        setRowConstraints(&quot;&quot;);</span>
+<span class="nc" id="L75">        setColConstraints(&quot;&quot;);</span>
+<span class="nc" id="L76">    }</span>
+
+    public MigLayout(String id) {
+<span class="nc" id="L79">        super(id);</span>
+<span class="nc" id="L80">        setLayoutConstraints(&quot;&quot;);</span>
+<span class="nc" id="L81">        setRowConstraints(&quot;&quot;);</span>
+<span class="nc" id="L82">        setColConstraints(&quot;&quot;);</span>
+<span class="nc" id="L83">    }</span>
+
+    public void setLc(LC lc) {
+<span class="nc" id="L86">        this.lc = lc;</span>
+<span class="nc" id="L87">        dirty = true;</span>
+<span class="nc" id="L88">    }</span>
+
+    public void setLayoutConstraints(String constraint) {
+<span class="nc" id="L91">        layoutConstraints = constraint;</span>
+<span class="nc" id="L92">        setLc(ConstraintParser.parseLayoutConstraint(ConstraintParser.prepare(constraint)));</span>
+<span class="nc" id="L93">    }</span>
+
+    public void setCC(AC columnConstraint) {
+<span class="nc" id="L96">        this.cc = columnConstraint;</span>
+<span class="nc" id="L97">        dirty = true;</span>
+<span class="nc" id="L98">    }</span>
+
+    public void setColConstraints(String constraint) {
+<span class="nc" id="L101">        colConstraints = constraint;</span>
+<span class="nc" id="L102">        setCC(ConstraintParser.parseColumnConstraints(ConstraintParser.prepare(constraint)));</span>
+<span class="nc" id="L103">    }</span>
+
+    public void setDebug(boolean debug) {
+<span class="nc" id="L106">        this.debug = debug;</span>
+<span class="nc" id="L107">    }</span>
+
+    public void setRc(AC rc) {
+<span class="nc" id="L110">        this.rc = rc;</span>
+<span class="nc" id="L111">        dirty = true;</span>
+<span class="nc" id="L112">    }</span>
+
+    public void setRowConstraints(String constraint) {
+<span class="nc" id="L115">        rowConstraints = constraint;</span>
+<span class="nc" id="L116">        setRc(ConstraintParser.parseColumnConstraints(ConstraintParser.prepare(constraint)));</span>
+<span class="nc" id="L117">    }</span>
+
+    @Override
+    public void onDraw(Canvas canvas) {
+<span class="nc" id="L121">        int[] bounds = {0, 0, canvas.size().x, canvas.size().y};</span>
+
+<span class="nc" id="L123">        layoutContainer(canvas, bounds);</span>
+
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        for (ComponentWrapper wrapper : wrappers.values()) {</span>
+<span class="nc" id="L126">            UIWidget component = (UIWidget) wrapper.getComponent();</span>
+<span class="nc" id="L127">            Rect2i region = Rect2i.createFromMinAndSize(wrapper.getX(), wrapper.getY(), wrapper.getWidth(), wrapper.getHeight());</span>
+<span class="nc" id="L128">            canvas.drawWidget(component, region);</span>
+<span class="nc" id="L129">        }</span>
+
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (debug) {</span>
+<span class="nc" id="L132">            grid.paintDebug();</span>
+        }
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        for (Rect2i region : debugRects) {</span>
+<span class="nc" id="L135">            canvas.drawLine(region.minX(), region.minY(), region.maxX(), region.minY(), Color.WHITE);</span>
+<span class="nc" id="L136">            canvas.drawLine(region.maxX(), region.minY(), region.maxX(), region.maxY(), Color.WHITE);</span>
+<span class="nc" id="L137">            canvas.drawLine(region.maxX(), region.maxY(), region.minX(), region.maxY(), Color.WHITE);</span>
+<span class="nc" id="L138">            canvas.drawLine(region.minX(), region.maxY(), region.minX(), region.minY(), Color.WHITE);</span>
+<span class="nc" id="L139">        }</span>
+<span class="nc" id="L140">    }</span>
+
+    @Override
+    public void addWidget(UIWidget element, CCHint hint) {
+<span class="nc" id="L144">        final ComponentWrapper cw = getWrapper(element);</span>
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        final String cStr = ConstraintParser.prepare(hint != null ? hint.cc : &quot;&quot;);</span>
+<span class="nc" id="L147">        CC constraint = AccessController.doPrivileged((PrivilegedAction&lt;CC&gt;) () -&gt; ConstraintParser.parseComponentConstraint(cStr));</span>
+
+<span class="nc" id="L149">        ccMap.put(cw, constraint);</span>
+<span class="nc" id="L150">        wrappers.put(element, cw);</span>
+<span class="nc" id="L151">        children.add(cw);</span>
+<span class="nc" id="L152">        dirty = true;</span>
+<span class="nc" id="L153">    }</span>
+
+    @Override
+    public void removeWidget(UIWidget element) {
+<span class="nc" id="L157">        ComponentWrapper cw = wrappers.remove(element);</span>
+<span class="nc" id="L158">        ccMap.remove(cw);</span>
+<span class="nc" id="L159">        children.remove(cw);</span>
+<span class="nc" id="L160">        invalidate();</span>
+<span class="nc" id="L161">    }</span>
+
+    @Override
+    public void removeAllWidgets() {
+<span class="nc" id="L165">        clear();</span>
+<span class="nc" id="L166">    }</span>
+
+    public void clear() {
+<span class="nc" id="L169">        wrappers.clear();</span>
+<span class="nc" id="L170">        ccMap.clear();</span>
+<span class="nc" id="L171">        children.clear();</span>
+<span class="nc" id="L172">        invalidate();</span>
+<span class="nc" id="L173">    }</span>
+
+    public void invalidate() {
+<span class="nc" id="L176">        dirty = true;</span>
+<span class="nc" id="L177">    }</span>
+
+    @Override
+    public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
+<span class="nc" id="L181">        int[] bounds = {0, 0, canvas.size().x, canvas.size().y};</span>
+<span class="nc" id="L182">        layoutContainer(canvas, bounds);</span>
+<span class="nc" id="L183">        return new Vector2i(grid.getWidth()[1], grid.getHeight()[1]);</span>
+    }
+
+    @Override
+    public Vector2i getMaxContentSize(Canvas canvas) {
+<span class="nc" id="L188">        return getPreferredContentSize(canvas, Vector2i.zero());</span>
+    }
+
+    private ComponentWrapper getWrapper(UIWidget comp) {
+        ComponentWrapper cw;
+<span class="nc bnc" id="L193" title="All 2 branches missed.">        if (comp instanceof MigLayout) {</span>
+<span class="nc" id="L194">            MigLayout migLayout = (MigLayout) comp;</span>
+<span class="nc" id="L195">            migLayout.setParent(this);</span>
+<span class="nc" id="L196">            cw = migLayout;</span>
+<span class="nc" id="L197">        } else {</span>
+<span class="nc" id="L198">            cw = new MigComponent(this, comp);</span>
+        }
+<span class="nc" id="L200">        return cw;</span>
+    }
+
+    private void checkCache() {
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        if (dirty) {</span>
+<span class="nc" id="L205">            grid = null;</span>
+        }
+
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        if (grid == null) {</span>
+<span class="nc" id="L209">            grid = new Grid(this, lc, rc, cc, ccMap, new ArrayList&lt;&gt;());</span>
+        }
+<span class="nc" id="L211">        debugRects.clear();</span>
+
+<span class="nc" id="L213">        dirty = false;</span>
+<span class="nc" id="L214">    }</span>
+
+    public void layoutContainer(Canvas canvas, int[] bounds) {
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        for (ComponentWrapper wrapper : children) {</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">            if (wrapper instanceof MigLayout) {</span>
+<span class="nc" id="L219">                MigLayout layout = (MigLayout) wrapper;</span>
+<span class="nc" id="L220">                layout.layoutContainer(canvas, bounds);</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">            } else if (wrapper instanceof MigComponent) {</span>
+<span class="nc" id="L222">                MigComponent migComponent = (MigComponent) wrapper;</span>
+<span class="nc" id="L223">                migComponent.calculatePreferredSize(canvas, canvas.size());</span>
+            }
+<span class="nc" id="L225">        }</span>
+<span class="nc" id="L226">        checkCache();</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">        if (grid.layout(bounds, lc.getAlignX(), lc.getAlignY(), debug, true)) {</span>
+<span class="nc" id="L228">            grid = null;</span>
+<span class="nc" id="L229">            checkCache();</span>
+<span class="nc" id="L230">            grid.layout(bounds, lc.getAlignX(), lc.getAlignY(), debug, false);</span>
+        }
+<span class="nc" id="L232">    }</span>
+
+    @Override
+    public ComponentWrapper[] getComponents() {
+<span class="nc" id="L236">        return children.toArray(new ComponentWrapper[children.size()]);</span>
+    }
+
+    @Override
+    public int getComponentCount() {
+<span class="nc" id="L241">        return children.size();</span>
+    }
+
+    @Override
+    public Object getLayout() {
+<span class="nc" id="L246">        return this;</span>
+    }
+
+    @Override
+    public boolean isLeftToRight() {
+<span class="nc" id="L251">        return true;</span>
+    }
+
+    @Override
+    public void paintDebugCell(int x, int y, int width, int height) {
+<span class="nc" id="L256">        debugRects.add(Rect2i.createFromMinAndSize(x, y, width, height));</span>
+<span class="nc" id="L257">    }</span>
+
+    @Override
+    public Object getComponent() {
+<span class="nc" id="L261">        return this;</span>
+    }
+
+    @Override
+    public int getX() {
+<span class="nc" id="L266">        return delegate.getX();</span>
+    }
+
+    @Override
+    public int getY() {
+<span class="nc" id="L271">        return delegate.getY();</span>
+    }
+
+    @Override
+    public int getWidth() {
+<span class="nc" id="L276">        return delegate.getWidth();</span>
+    }
+
+    @Override
+    public int getHeight() {
+<span class="nc" id="L281">        return delegate.getHeight();</span>
+    }
+
+    @Override
+    public int getScreenLocationX() {
+<span class="nc" id="L286">        return delegate.getScreenLocationX();</span>
+    }
+
+    @Override
+    public int getScreenLocationY() {
+<span class="nc" id="L291">        return delegate.getScreenLocationY();</span>
+    }
+
+    @Override
+    public int getMinimumWidth(int hHint) {
+<span class="nc" id="L296">        return grid.getWidth()[0];</span>
+    }
+
+    @Override
+    public int getMinimumHeight(int wHint) {
+<span class="nc" id="L301">        return grid.getHeight()[0];</span>
+    }
+
+    @Override
+    public int getPreferredWidth(int hHint) {
+<span class="nc" id="L306">        return grid.getWidth()[1];</span>
+    }
+
+    @Override
+    public int getPreferredHeight(int wHint) {
+<span class="nc" id="L311">        return grid.getHeight()[1];</span>
+    }
+
+    @Override
+    public int getMaximumWidth(int hHint) {
+<span class="nc" id="L316">        return grid.getWidth()[2];</span>
+    }
+
+    @Override
+    public int getMaximumHeight(int wHint) {
+<span class="nc" id="L321">        return grid.getHeight()[2];</span>
+    }
+
+    @Override
+    public void setBounds(int x, int y, int width, int height) {
+<span class="nc" id="L326">        delegate.setBounds(x, y, width, height);</span>
+<span class="nc" id="L327">    }</span>
+
+    @Override
+    public boolean isVisible() {
+<span class="nc" id="L331">        return delegate.isVisible();</span>
+    }
+
+    @Override
+    public int getBaseline(int width, int height) {
+<span class="nc" id="L336">        return delegate.getBaseline(width, height);</span>
+    }
+
+    @Override
+    public boolean hasBaseline() {
+<span class="nc" id="L341">        return delegate.hasBaseline();</span>
+    }
+
+    @Override
+    public ContainerWrapper getParent() {
+<span class="nc" id="L346">        return delegate.getParent();</span>
+    }
+
+    public void setParent(MigLayout parent) {
+<span class="nc" id="L350">        delegate.setParent(parent);</span>
+<span class="nc" id="L351">    }</span>
+
+    @Override
+    public float getPixelUnitFactor(boolean isHor) {
+<span class="nc" id="L355">        return delegate.getPixelUnitFactor(isHor);</span>
+    }
+
+    @Override
+    public int getHorizontalScreenDPI() {
+<span class="nc" id="L360">        return delegate.getHorizontalScreenDPI();</span>
+    }
+
+    @Override
+    public int getVerticalScreenDPI() {
+<span class="nc" id="L365">        return delegate.getVerticalScreenDPI();</span>
+    }
+
+    @Override
+    public int getScreenWidth() {
+<span class="nc" id="L370">        throw new IllegalAccessError(&quot;Not supported!&quot;);</span>
+    }
+
+    @Override
+    public int getScreenHeight() {
+<span class="nc" id="L375">        throw new IllegalAccessError(&quot;Not supported!&quot;);</span>
+    }
+
+    @Override
+    public String getLinkId() {
+<span class="nc" id="L380">        return null;</span>
+    }
+
+    @Override
+    public int getLayoutHashCode() {
+<span class="nc" id="L385">        return delegate.getLayoutHashCode();</span>
+    }
+
+    @Override
+    public int[] getVisualPadding() {
+<span class="nc" id="L390">        return delegate.getVisualPadding();</span>
+    }
+
+    @Override
+    public void paintDebugOutline(boolean showVisualPadding) {
+<span class="nc" id="L395">    }</span>
+
+    @Override
+    public int getComponentType(boolean disregardScrollPane) {
+<span class="nc" id="L399">        return 0;</span>
+    }
+
+    @Override
+    public int getContentBias() {
+<span class="nc" id="L404">        return -1;</span>
+    }
+
+    @Override
+    public Iterator&lt;UIWidget&gt; iterator() {
+<span class="nc" id="L409">        return new Iterator&lt;UIWidget&gt;() {</span>
+<span class="nc" id="L410">            private Iterator&lt;ComponentWrapper&gt; it = children.iterator();</span>
+
+            @Override
+            public boolean hasNext() {
+<span class="nc" id="L414">                return it.hasNext();</span>
+            }
+
+            @Override
+            public UIWidget next() {
+<span class="nc" id="L419">                return (UIWidget) it.next().getComponent();</span>
+            }
+
+            @Override
+            public void remove() {
+<span class="nc" id="L424">                it.remove();</span>
+<span class="nc" id="L425">            }</span>
+        };
+    }
+
+    public static class CCHint implements LayoutHint {
+<span class="nc" id="L430">        private String cc = &quot;&quot;;</span>
+
+<span class="nc" id="L432">        public CCHint() {</span>
+<span class="nc" id="L433">        }</span>
+
+<span class="nc" id="L435">        public CCHint(String cc) {</span>
+<span class="nc" id="L436">            this.cc = cc;</span>
+<span class="nc" id="L437">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

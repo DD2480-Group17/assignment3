@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InitialiseRemoteWorld.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine.modes.loadProcesses</a> &gt; <span class="el_source">InitialiseRemoteWorld.java</span></div><h1>InitialiseRemoteWorld.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.engine.modes.loadProcesses;
+
+import org.terasology.context.Context;
+import org.terasology.engine.ComponentSystemManager;
+import org.terasology.engine.TerasologyConstants;
+import org.terasology.engine.modes.SingleStepLoadProcess;
+import org.terasology.engine.subsystem.RenderingSubsystemFactory;
+import org.terasology.game.GameManifest;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.network.NetworkSystem;
+import org.terasology.recording.DirectionAndOriginPosRecorderList;
+import org.terasology.recording.RecordAndReplayCurrentStatus;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.backdrop.BackdropRenderer;
+import org.terasology.rendering.backdrop.Skysphere;
+import org.terasology.rendering.cameras.Camera;
+import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.world.BlockEntityRegistry;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.chunks.remoteChunkProvider.RemoteChunkProvider;
+import org.terasology.world.chunks.blockdata.ExtraBlockDataManager;
+import org.terasology.world.internal.EntityAwareWorldProvider;
+import org.terasology.world.internal.WorldProviderCoreImpl;
+import org.terasology.world.internal.WorldProviderWrapper;
+import org.terasology.world.sun.BasicCelestialModel;
+import org.terasology.world.sun.CelestialSystem;
+import org.terasology.world.sun.DefaultCelestialSystem;
+
+public class InitialiseRemoteWorld extends SingleStepLoadProcess {
+    private final Context context;
+    private final GameManifest gameManifest;
+
+
+<span class="nc" id="L51">    public InitialiseRemoteWorld(Context context, GameManifest gameManifest) {</span>
+<span class="nc" id="L52">        this.context = context;</span>
+<span class="nc" id="L53">        this.gameManifest = gameManifest;</span>
+<span class="nc" id="L54">    }</span>
+
+    @Override
+    public String getMessage() {
+<span class="nc" id="L58">        return &quot;Setting up remote world...&quot;;</span>
+    }
+
+    @Override
+    public boolean step() {
+
+        // TODO: These shouldn't be done here, nor so strongly tied to the world renderer
+<span class="nc" id="L65">        LocalPlayer localPlayer = new LocalPlayer();</span>
+<span class="nc" id="L66">        localPlayer.setRecordAndReplayClasses(context.get(DirectionAndOriginPosRecorderList.class), context.get(RecordAndReplayCurrentStatus.class));</span>
+<span class="nc" id="L67">        context.put(LocalPlayer.class, localPlayer);</span>
+<span class="nc" id="L68">        BlockManager blockManager = context.get(BlockManager.class);</span>
+<span class="nc" id="L69">        ExtraBlockDataManager extraDataManager = context.get(ExtraBlockDataManager.class);</span>
+
+<span class="nc" id="L71">        RemoteChunkProvider chunkProvider = new RemoteChunkProvider(blockManager, localPlayer);</span>
+
+<span class="nc" id="L73">        WorldProviderCoreImpl worldProviderCore = new WorldProviderCoreImpl(gameManifest.getWorldInfo(TerasologyConstants.MAIN_WORLD), chunkProvider,</span>
+<span class="nc" id="L74">                blockManager.getBlock(BlockManager.UNLOADED_ID), context);</span>
+<span class="nc" id="L75">        EntityAwareWorldProvider entityWorldProvider = new EntityAwareWorldProvider(worldProviderCore, context);</span>
+<span class="nc" id="L76">        WorldProvider worldProvider = new WorldProviderWrapper(entityWorldProvider, extraDataManager);</span>
+<span class="nc" id="L77">        context.put(WorldProvider.class, worldProvider);</span>
+<span class="nc" id="L78">        context.put(BlockEntityRegistry.class, entityWorldProvider);</span>
+<span class="nc" id="L79">        context.get(ComponentSystemManager.class).register(entityWorldProvider, &quot;engine:BlockEntityRegistry&quot;);</span>
+
+<span class="nc" id="L81">        DefaultCelestialSystem celestialSystem = new DefaultCelestialSystem(new BasicCelestialModel(), context);</span>
+<span class="nc" id="L82">        context.put(CelestialSystem.class, celestialSystem);</span>
+<span class="nc" id="L83">        context.get(ComponentSystemManager.class).register(celestialSystem);</span>
+
+        // Init. a new world
+<span class="nc" id="L86">        Skysphere skysphere = new Skysphere(context);</span>
+<span class="nc" id="L87">        BackdropProvider backdropProvider = skysphere;</span>
+<span class="nc" id="L88">        BackdropRenderer backdropRenderer = skysphere;</span>
+<span class="nc" id="L89">        context.put(BackdropProvider.class, backdropProvider);</span>
+<span class="nc" id="L90">        context.put(BackdropRenderer.class, backdropRenderer);</span>
+
+<span class="nc" id="L92">        RenderingSubsystemFactory engineSubsystemFactory = context.get(RenderingSubsystemFactory.class);</span>
+<span class="nc" id="L93">        WorldRenderer worldRenderer = engineSubsystemFactory.createWorldRenderer(context);</span>
+<span class="nc" id="L94">        float reflectionHeight = context.get(NetworkSystem.class).getServer().getInfo().getReflectionHeight();</span>
+<span class="nc" id="L95">        worldRenderer.getActiveCamera().setReflectionHeight(reflectionHeight);</span>
+<span class="nc" id="L96">        context.put(WorldRenderer.class, worldRenderer);</span>
+        // TODO: These shouldn't be done here, nor so strongly tied to the world renderer
+<span class="nc" id="L98">        context.put(Camera.class, worldRenderer.getActiveCamera());</span>
+<span class="nc" id="L99">        context.get(NetworkSystem.class).setRemoteWorldProvider(chunkProvider);</span>
+
+<span class="nc" id="L101">        return true;</span>
+    }
+
+    @Override
+    public int getExpectedCost() {
+<span class="nc" id="L106">        return 1;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

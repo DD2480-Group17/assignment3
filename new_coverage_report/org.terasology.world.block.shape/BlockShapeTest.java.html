@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockShapeTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.block.shape</a> &gt; <span class="el_source">BlockShapeTest.java</span></div><h1>BlockShapeTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.block.shape;
+
+import com.bulletphysics.util.ObjectArrayList;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.math.Rotation;
+import org.terasology.math.VecMath;
+import org.terasology.math.Yaw;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.physics.bullet.shapes.BulletConvexHullShape;
+import org.terasology.physics.shapes.CollisionShape;
+import org.terasology.physics.shapes.ConvexHullShape;
+import org.terasology.registry.CoreRegistry;
+import org.terasology.world.block.BlockManager;
+import org.terasology.world.block.internal.BlockManagerImpl;
+import org.terasology.world.block.shapes.BlockShape;
+import org.terasology.world.block.tiles.NullWorldAtlas;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+<span class="fc" id="L39">public class BlockShapeTest extends TerasologyTestingEnvironment {</span>
+    private BlockManagerImpl blockManager;
+    private AssetManager assetManager;
+
+    @BeforeEach
+    public void setup() throws Exception {
+<span class="fc" id="L45">        super.setup();</span>
+
+<span class="fc" id="L47">        AssetManager assetManager = CoreRegistry.get(AssetManager.class);</span>
+<span class="fc" id="L48">        blockManager = new BlockManagerImpl(new NullWorldAtlas(), assetManager);</span>
+<span class="fc" id="L49">        CoreRegistry.put(BlockManager.class, blockManager);</span>
+<span class="fc" id="L50">        this.assetManager = assetManager;</span>
+
+<span class="fc" id="L52">    }</span>
+
+    @Test
+    public void testConvexHull() {
+<span class="fc" id="L56">        BlockShape blockShape =  assetManager.getAsset(&quot;engine:halfSlope&quot;, BlockShape.class).get();</span>
+<span class="fc" id="L57">        CollisionShape shape = blockShape.getCollisionShape(Rotation.rotate(Yaw.CLOCKWISE_90));</span>
+
+<span class="fc" id="L59">        assertTrue(shape instanceof ConvexHullShape);</span>
+<span class="fc" id="L60">        Vector3f[] test = new Vector3f[]{new Vector3f(0.49999997f, 0.0f, 0.49999997f),</span>
+                new Vector3f(-0.49999997f, -0.49999997f, 0.49999997f),
+                new Vector3f(0.49999997f, -0.49999997f, 0.49999997f),
+                new Vector3f(0.49999997f, 0.0f, -0.49999997f),
+                new Vector3f(0.49999997f, -0.49999997f, -0.49999997f),
+                new Vector3f(-0.49999997f, -0.49999997f, -0.49999997f),
+                new Vector3f(0.49999997f, -0.49999997f, 0.49999997f),
+                new Vector3f(0.49999997f, -0.49999997f, -0.49999997f),
+                new Vector3f(0.49999997f, 0.0f, -0.49999997f),
+                new Vector3f(0.49999997f, 0.0f, 0.49999997f),
+                new Vector3f(0.49999997f, -0.49999997f, 0.49999997f),
+                new Vector3f(-0.49999997f, -0.49999997f, 0.49999997f),
+                new Vector3f(-0.49999997f, -0.49999997f, -0.49999997f),
+                new Vector3f(0.49999997f, -0.49999997f, -0.49999997f),
+                new Vector3f(0.49999997f, 0.0f, -0.49999997f),
+                new Vector3f(-0.49999997f, -0.49999997f, -0.49999997f),
+                new Vector3f(-0.49999997f, -0.49999997f, 0.49999997f),
+                new Vector3f(0.49999997f, 0.0f, 0.49999997f)};
+
+<span class="fc" id="L79">        BulletConvexHullShape bulletConvexHullShape = (BulletConvexHullShape) shape;</span>
+
+<span class="fc" id="L81">        ObjectArrayList&lt;javax.vecmath.Vector3f&gt; points = ((com.bulletphysics.collision.shapes.ConvexHullShape) bulletConvexHullShape.underlyingShape).getPoints();</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        for (int x = 0; x &lt; points.size(); x++) {</span>
+<span class="fc" id="L83">            fuzzVectorTest(test[x], VecMath.from(points.get(x)));</span>
+
+        }
+
+<span class="fc" id="L87">    }</span>
+
+    private void fuzzVectorTest(Vector3f test, Vector3f actual) {
+<span class="fc" id="L90">        assertEquals(test.x, actual.x, .1f);</span>
+<span class="fc" id="L91">        assertEquals(test.y, actual.y, .1f);</span>
+<span class="fc" id="L92">        assertEquals(test.z, actual.z, .1f);</span>
+<span class="fc" id="L93">    }</span>
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

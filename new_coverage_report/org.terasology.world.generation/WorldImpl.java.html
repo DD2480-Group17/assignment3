@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WorldImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.generation</a> &gt; <span class="el_source">WorldImpl.java</span></div><h1>WorldImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.generation;
+
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Sets;
+import org.terasology.math.Region3i;
+import org.terasology.world.chunks.CoreChunk;
+
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ */
+public class WorldImpl implements World {
+    private final ListMultimap&lt;Class&lt;? extends WorldFacet&gt;, FacetProvider&gt; facetProviderChains;
+    private final List&lt;WorldRasterizer&gt; worldRasterizers;
+    private final List&lt;EntityProvider&gt; entityProviders;
+    private final Map&lt;Class&lt;? extends WorldFacet&gt;, Border3D&gt; borders;
+    private final int seaLevel;
+
+    public WorldImpl(ListMultimap&lt;Class&lt;? extends WorldFacet&gt;, FacetProvider&gt; facetProviderChains,
+                     List&lt;WorldRasterizer&gt; worldRasterizers,
+                     List&lt;EntityProvider&gt; entityProviders,
+                     Map&lt;Class&lt;? extends WorldFacet&gt;, Border3D&gt; borders,
+<span class="fc" id="L42">                     int seaLevel) {</span>
+<span class="fc" id="L43">        this.facetProviderChains = facetProviderChains;</span>
+<span class="fc" id="L44">        this.worldRasterizers = worldRasterizers;</span>
+<span class="fc" id="L45">        this.entityProviders = entityProviders;</span>
+<span class="fc" id="L46">        this.borders = borders;</span>
+<span class="fc" id="L47">        this.seaLevel = seaLevel;</span>
+<span class="fc" id="L48">    }</span>
+
+    @Override
+    public Region getWorldData(Region3i region) {
+<span class="fc" id="L52">        return new RegionImpl(region, facetProviderChains, borders);</span>
+    }
+
+    @Override
+    public int getSeaLevel() {
+<span class="nc" id="L57">        return seaLevel;</span>
+    }
+
+    @Override
+    public void rasterizeChunk(CoreChunk chunk, EntityBuffer buffer) {
+<span class="nc" id="L62">        Region chunkRegion = getWorldData(chunk.getRegion());</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        for (WorldRasterizer rasterizer : worldRasterizers) {</span>
+<span class="nc" id="L64">            rasterizer.generateChunk(chunk, chunkRegion);</span>
+<span class="nc" id="L65">        }</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        for (EntityProvider entityProvider : entityProviders) {</span>
+<span class="nc" id="L67">            entityProvider.process(chunkRegion, buffer);</span>
+<span class="nc" id="L68">        }</span>
+<span class="nc" id="L69">    }</span>
+
+    @Override
+    public Set&lt;Class&lt;? extends WorldFacet&gt;&gt; getAllFacets() {
+<span class="nc" id="L73">        return Sets.newHashSet(facetProviderChains.keySet());</span>
+    }
+
+    @Override
+    public void initialize() {
+        // throw them all in a set to remove duplicates
+<span class="nc" id="L79">        Collection&lt;FacetProvider&gt; facetProviders = new LinkedHashSet&lt;&gt;(facetProviderChains.values());</span>
+
+<span class="nc" id="L81">        facetProviders.forEach(FacetProvider::initialize);</span>
+
+<span class="nc" id="L83">        worldRasterizers.forEach(WorldRasterizer::initialize);</span>
+
+<span class="nc" id="L85">        entityProviders.forEach(EntityProvider::initialize);</span>
+<span class="nc" id="L86">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

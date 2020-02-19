@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoggingContext.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.engine</a> &gt; <span class="el_source">LoggingContext.java</span></div><h1>LoggingContext.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.engine;
+
+import org.slf4j.MDC;
+import org.terasology.engine.modes.GameState;
+import org.terasology.version.TerasologyVersion;
+
+import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
+
+/**
+ * Configures the underlying logback logging framework.
+ */
+public final class LoggingContext {
+
+    /**
+     * The identifier for the initialization phase
+     */
+    public static final String INIT_PHASE = &quot;init&quot;;
+
+    /**
+     * The identifier for the menu phase
+     */
+    public static final String MENU = &quot;menu&quot;;
+
+    /**
+     * The variable name for the discriminator in the sifting appender
+     */
+    private static final String PHASE_KEY = &quot;phase&quot;;
+
+    /**
+     * The variable name for the log file root folder as defined in logback.xml
+     */
+    private static final String LOG_FILE_FOLDER = &quot;logFileFolder&quot;;
+
+    /**
+     * The format of the log folder timestamps
+     */
+<span class="nc" id="L66">    private static final DateFormat TIMESTAMP_FORMAT = new SimpleDateFormat(&quot;yyyy-MM-dd_HH-mm-ss&quot;);</span>
+
+<span class="nc" id="L68">    private static Path loggingPath = Paths.get(&quot;.&quot;);</span>
+
+    private LoggingContext() {
+        // no instances
+    }
+
+    public static void initialize(Path logFileFolder) {
+<span class="nc" id="L75">        TerasologyVersion terasologyVersion = TerasologyVersion.getInstance();</span>
+<span class="nc" id="L76">        String logFileDir = TIMESTAMP_FORMAT.format(new Date());</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if (!terasologyVersion.getengineVersion().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L78">            logFileDir += &quot;_&quot; + terasologyVersion.getengineVersion();</span>
+        }
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (!terasologyVersion.getBuildNumber().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L81">            logFileDir += &quot;_&quot; + terasologyVersion.getBuildNumber();</span>
+        }
+<span class="nc" id="L83">        loggingPath = logFileFolder.resolve(logFileDir).normalize();</span>
+<span class="nc" id="L84">        String pathString = loggingPath.toString();</span>
+<span class="nc" id="L85">        System.setProperty(LOG_FILE_FOLDER, pathString);</span>
+
+        try {
+<span class="nc" id="L88">            deleteLogFiles(logFileFolder, Duration.ofDays(5).getSeconds());</span>
+<span class="nc" id="L89">        } catch (IOException e) {</span>
+<span class="nc" id="L90">            e.printStackTrace();</span>
+<span class="nc" id="L91">        }</span>
+
+        // Unfortunately, setting context-based variables works only after initialization
+        // has completed. Manual initialization will work but is overriden by the first
+        // (static) access to slf4j's StaticLoggerBinder.
+        // This default initialization will attempt to create a folder &quot;logFileFolder_IS_UNDEFINED&quot; though.
+        // TODO: file a report at logback/slf4j
+
+//        LoggerContext context = new LoggerContext();
+//        context.setName(CoreConstants.DEFAULT_CONTEXT_NAME);
+//        context.putProperty(&quot;targetFolder&quot;, pathString);
+//        JoranConfigurator configurator = new JoranConfigurator();
+//        configurator.setContext(context);
+//
+//        try {
+//            ContextInitializer ci = new ContextInitializer(context);
+//            ci.autoConfig();
+//        } catch (JoranException e) {
+//            e.printStackTrace();
+//        }
+<span class="nc" id="L111">    }</span>
+
+    public static Path getLoggingPath() {
+<span class="nc" id="L114">        return loggingPath;</span>
+    }
+
+    private static void deleteLogFiles(final Path rootPath, final long maxAgeInSecs) throws IOException {
+<span class="nc" id="L118">        Files.walkFileTree(rootPath, new SimpleFileVisitor&lt;Path&gt;() {</span>
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attrs) {
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                if (path.equals(rootPath)) {</span>
+<span class="nc" id="L123">                    return FileVisitResult.CONTINUE;</span>
+                }
+
+                // compare only the first subfolder
+<span class="nc" id="L127">                String relPath = rootPath.relativize(path).getName(0).toString();</span>
+
+                try {
+<span class="nc" id="L130">                    Date folderDate = TIMESTAMP_FORMAT.parse(relPath);</span>
+<span class="nc" id="L131">                    long ageInSecs = folderDate.toInstant().until(Instant.now(), ChronoUnit.SECONDS);</span>
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                    return ageInSecs &gt; maxAgeInSecs ? FileVisitResult.CONTINUE : FileVisitResult.SKIP_SUBTREE;</span>
+<span class="nc" id="L134">                } catch (ParseException e) {</span>
+<span class="nc" id="L135">                    return FileVisitResult.SKIP_SUBTREE;</span>
+                }
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                if (file.toString().endsWith(&quot;.log&quot;)) {</span>
+                    try {
+<span class="nc" id="L144">                        Files.delete(file);</span>
+<span class="nc" id="L145">                    } catch (IOException e) {</span>
+                        // we explicitly catch the exception so that other files
+                        // will be removed even if this one fails
+<span class="nc" id="L148">                        System.err.println(&quot;Could not delete log file: &quot; + file);</span>
+<span class="nc" id="L149">                    }</span>
+                }
+
+<span class="nc" id="L152">                return FileVisitResult.CONTINUE;</span>
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path path, IOException exc) {
+
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                if (path.toFile().list().length == 0) {</span>
+                    try {
+<span class="nc" id="L160">                        Files.delete(path);</span>
+<span class="nc" id="L161">                    } catch (IOException e) {</span>
+                        // we explicitly catch the exception so that other folders
+                        // will be removed even if this one fails
+<span class="nc" id="L164">                        System.err.println(&quot;Could not delete empty folder: &quot; + path);</span>
+<span class="nc" id="L165">                    }</span>
+                }
+
+<span class="nc" id="L168">                return FileVisitResult.CONTINUE;</span>
+            }
+        });
+<span class="nc" id="L171">    }</span>
+
+    public static void setGameState(GameState state) {
+<span class="nc" id="L174">        String phase = state.getLoggingPhase();</span>
+<span class="nc" id="L175">        phase = phase.replaceAll(&quot;\\s&quot;, &quot;_&quot;);</span>
+<span class="nc" id="L176">        MDC.put(PHASE_KEY, phase);</span>
+<span class="nc" id="L177">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

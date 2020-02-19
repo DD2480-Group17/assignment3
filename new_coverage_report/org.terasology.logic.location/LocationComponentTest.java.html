@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LocationComponentTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.location</a> &gt; <span class="el_source">LocationComponentTest.java</span></div><h1>LocationComponentTest.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.logic.location;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.terasology.TerasologyTestingEnvironment;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeRemoveComponent;
+import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.testUtil.TeraAssert;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ */
+<span class="fc" id="L34">public class LocationComponentTest extends TerasologyTestingEnvironment {</span>
+
+    LocationComponent loc;
+    EntityRef entity;
+<span class="fc" id="L38">    Vector3f pos1 = new Vector3f(1, 2, 3);</span>
+<span class="fc" id="L39">    Vector3f pos2 = new Vector3f(2, 3, 4);</span>
+<span class="fc" id="L40">    Vector3f pos1plus2 = new Vector3f(3, 5, 7);</span>
+    Quat4f yawRotation;
+    Quat4f pitchRotation;
+    Quat4f yawPitch;
+<span class="fc" id="L44">    long nextFakeEntityId = 1;</span>
+
+    @BeforeEach
+    public void setup() {
+<span class="fc" id="L48">        loc = new LocationComponent();</span>
+<span class="fc" id="L49">        entity = createFakeEntityWith(loc);</span>
+
+<span class="fc" id="L51">        yawRotation = new Quat4f(TeraMath.DEG_TO_RAD * 90, 0, 0);</span>
+<span class="fc" id="L52">        pitchRotation = new Quat4f(0, TeraMath.DEG_TO_RAD * 45, 0);</span>
+<span class="fc" id="L53">        yawPitch = new Quat4f(TeraMath.DEG_TO_RAD * 90, TeraMath.DEG_TO_RAD * 45, 0);</span>
+<span class="fc" id="L54">    }</span>
+
+    private EntityRef createFakeEntityWith(LocationComponent locationComponent) {
+<span class="fc" id="L57">        EntityRef entRef = mock(EntityRef.class);</span>
+<span class="fc" id="L58">        when(entRef.getComponent(LocationComponent.class)).thenReturn(locationComponent);</span>
+<span class="fc" id="L59">        when(entRef.exists()).thenReturn(true);</span>
+<span class="fc" id="L60">        when(entRef.getId()).thenReturn(nextFakeEntityId++);</span>
+<span class="fc" id="L61">        return entRef;</span>
+    }
+
+    @Test
+    public void testSetLocalPosition() {
+<span class="fc" id="L66">        loc.setLocalPosition(pos1);</span>
+<span class="fc" id="L67">        assertEquals(pos1, loc.getLocalPosition());</span>
+<span class="fc" id="L68">    }</span>
+
+    @Test
+    public void testSetLocalRotation() {
+<span class="fc" id="L72">        loc.setLocalRotation(yawRotation);</span>
+<span class="fc" id="L73">        assertEquals(yawRotation, loc.getLocalRotation());</span>
+<span class="fc" id="L74">    }</span>
+
+    @Test
+    public void testUnparentedWorldLocationSameAsLocal() {
+<span class="fc" id="L78">        loc.setLocalPosition(pos1);</span>
+<span class="fc" id="L79">        assertEquals(loc.getLocalPosition(), loc.getWorldPosition());</span>
+<span class="fc" id="L80">    }</span>
+
+    @Test
+    public void testOffsetParentAddsToWorldLocation() {
+<span class="fc" id="L84">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L85">        loc.setLocalPosition(pos1);</span>
+<span class="fc" id="L86">        parent.setLocalPosition(pos2);</span>
+<span class="fc" id="L87">        assertEquals(pos1plus2, loc.getWorldPosition());</span>
+<span class="fc" id="L88">    }</span>
+
+    @Test
+    public void testParentRotatesWorldLocation() {
+<span class="fc" id="L92">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L93">        loc.setLocalPosition(pos1);</span>
+<span class="fc" id="L94">        parent.setLocalRotation(yawRotation);</span>
+<span class="fc" id="L95">        TeraAssert.assertEquals(new Vector3f(pos1.z, pos1.y, -pos1.x), loc.getWorldPosition(), 0.00001f);</span>
+<span class="fc" id="L96">    }</span>
+
+    @Test
+    public void testParentScalesWorldLocation() {
+<span class="fc" id="L100">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L101">        loc.setLocalPosition(pos1);</span>
+<span class="fc" id="L102">        parent.setLocalScale(2.0f);</span>
+
+<span class="fc" id="L104">        assertEquals(new Vector3f(2, 4, 6), loc.getWorldPosition());</span>
+<span class="fc" id="L105">    }</span>
+
+    @Test
+    public void testScaleRotateAndOffsetCombineCorrectlyForWorldPosition() {
+<span class="fc" id="L109">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L110">        loc.setLocalPosition(pos1);</span>
+<span class="fc" id="L111">        parent.setLocalScale(2.0f);</span>
+<span class="fc" id="L112">        parent.setLocalPosition(pos2);</span>
+<span class="fc" id="L113">        parent.setLocalRotation(yawRotation);</span>
+
+<span class="fc" id="L115">        TeraAssert.assertEquals(new Vector3f(8, 7, 2), loc.getWorldPosition(), 0.00001f);</span>
+<span class="fc" id="L116">    }</span>
+
+    @Test
+    public void testWorldRotationSameAsLocalRotationWhenNoParent() {
+<span class="fc" id="L120">        loc.setLocalRotation(yawRotation);</span>
+<span class="fc" id="L121">        assertEquals(loc.getLocalRotation(), loc.getWorldRotation());</span>
+<span class="fc" id="L122">    }</span>
+
+    @Test
+    public void testWorldRotationCombinedWithParent() {
+<span class="fc" id="L126">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L127">        loc.setLocalRotation(pitchRotation);</span>
+<span class="fc" id="L128">        parent.setLocalRotation(yawRotation);</span>
+<span class="fc" id="L129">        assertEquals(yawPitch, loc.getWorldRotation());</span>
+<span class="fc" id="L130">    }</span>
+
+    @Test
+    public void testWorldScaleSameAsLocalWhenNoParent() {
+<span class="fc" id="L134">        loc.setLocalScale(2.0f);</span>
+<span class="fc" id="L135">        assertEquals(loc.getLocalScale(), loc.getWorldScale(), 0.00001f);</span>
+<span class="fc" id="L136">    }</span>
+
+    @Test
+    public void testWorldScaleStacksWithParent() {
+<span class="fc" id="L140">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L141">        loc.setLocalScale(2.f);</span>
+<span class="fc" id="L142">        parent.setLocalScale(2.f);</span>
+<span class="fc" id="L143">        assertEquals(4.f, loc.getWorldScale(), 0.000001f);</span>
+<span class="fc" id="L144">    }</span>
+
+    @Test
+    public void testSetWorldPositionWorksWithNoParent() {
+<span class="fc" id="L148">        loc.setWorldPosition(pos1);</span>
+<span class="fc" id="L149">        assertEquals(pos1, loc.getWorldPosition());</span>
+<span class="fc" id="L150">    }</span>
+
+    @Test
+    public void testSetWorldPositionWorksWithOffsetParent() {
+<span class="fc" id="L154">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L155">        parent.setLocalPosition(pos1);</span>
+<span class="fc" id="L156">        loc.setWorldPosition(pos1plus2);</span>
+<span class="fc" id="L157">        assertEquals(pos2, loc.getLocalPosition());</span>
+<span class="fc" id="L158">        assertEquals(pos1plus2, loc.getWorldPosition());</span>
+<span class="fc" id="L159">    }</span>
+
+    @Test
+    public void testSetWorldPositionWorksWithScaledParent() {
+<span class="fc" id="L163">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L164">        parent.setLocalScale(2.0f);</span>
+<span class="fc" id="L165">        loc.setWorldPosition(pos1);</span>
+<span class="fc" id="L166">        assertEquals(pos1, loc.getWorldPosition());</span>
+<span class="fc" id="L167">    }</span>
+
+    @Test
+    public void testSetWorldPositionWorksWithRotatedParent() {
+<span class="fc" id="L171">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L172">        parent.setLocalRotation(yawRotation);</span>
+<span class="fc" id="L173">        loc.setWorldPosition(pos1);</span>
+<span class="fc" id="L174">        TeraAssert.assertEquals(pos1, loc.getWorldPosition(), 0.000001f);</span>
+<span class="fc" id="L175">    }</span>
+
+    @Test
+    public void testSetWorldPositionWorksWithNestedRotatedParent() {
+<span class="fc" id="L179">        LocationComponent first = new LocationComponent();</span>
+<span class="fc" id="L180">        EntityRef firstEntity = createFakeEntityWith(first);</span>
+
+<span class="fc" id="L182">        LocationComponent second = new LocationComponent();</span>
+<span class="fc" id="L183">        EntityRef secondEntity = createFakeEntityWith(second);</span>
+
+<span class="fc" id="L185">        LocationComponent third = new LocationComponent();</span>
+<span class="fc" id="L186">        EntityRef thirdEntity = createFakeEntityWith(third);</span>
+
+<span class="fc" id="L188">        Location.attachChild(firstEntity, secondEntity);</span>
+<span class="fc" id="L189">        second.setLocalPosition(new Vector3f(1, 0, 0));</span>
+<span class="fc" id="L190">        first.setLocalRotation(yawRotation);</span>
+<span class="fc" id="L191">        TeraAssert.assertEquals(new Vector3f(0, 0, -1), second.getWorldPosition(), 0.000001f);</span>
+<span class="fc" id="L192">        Location.attachChild(secondEntity, thirdEntity);</span>
+<span class="fc" id="L193">        second.setLocalRotation(pitchRotation);</span>
+<span class="fc" id="L194">        third.setLocalPosition(new Vector3f(0, 0, 0));</span>
+<span class="fc" id="L195">        TeraAssert.assertEquals(new Vector3f(0, 0, -1), third.getWorldPosition(), 0.000001f);</span>
+<span class="fc" id="L196">        third.setLocalPosition(new Vector3f(0, 0, 1));</span>
+<span class="fc" id="L197">        TeraAssert.assertEquals(new Vector3f(0.5f * (float) Math.sqrt(2), -0.5f * (float) Math.sqrt(2), -1), third.getWorldPosition(), 0.000001f);</span>
+
+<span class="fc" id="L199">    }</span>
+
+    @Test
+    public void testSetWorldPositionWorksWithComplexParent() {
+<span class="fc" id="L203">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L204">        parent.setLocalRotation(yawRotation);</span>
+<span class="fc" id="L205">        parent.setLocalScale(2.0f);</span>
+<span class="fc" id="L206">        parent.setLocalPosition(pos2);</span>
+<span class="fc" id="L207">        loc.setWorldPosition(pos1);</span>
+<span class="fc" id="L208">        TeraAssert.assertEquals(pos1, loc.getWorldPosition(), 0.000001f);</span>
+<span class="fc" id="L209">    }</span>
+
+    @Test
+    public void testSetWorldScaleWorksWithNoParent() {
+<span class="fc" id="L213">        loc.setWorldScale(4.0f);</span>
+<span class="fc" id="L214">        assertEquals(4.0f, loc.getWorldScale(), 0.000001f);</span>
+<span class="fc" id="L215">        assertEquals(4.0f, loc.getLocalScale(), 0.000001f);</span>
+<span class="fc" id="L216">    }</span>
+
+    @Test
+    public void testSetWorldScaleWorksWithScaledParent() {
+<span class="fc" id="L220">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L221">        parent.setLocalScale(4.0f);</span>
+<span class="fc" id="L222">        loc.setWorldScale(2.0f);</span>
+<span class="fc" id="L223">        assertEquals(2.0f, loc.getWorldScale(), 0.000001f);</span>
+<span class="fc" id="L224">    }</span>
+
+    @Test
+    public void testSetWorldRotationWorksWithNoParent() {
+<span class="fc" id="L228">        loc.setWorldRotation(yawRotation);</span>
+<span class="fc" id="L229">        assertEquals(yawRotation, loc.getWorldRotation());</span>
+<span class="fc" id="L230">        assertEquals(yawRotation, loc.getLocalRotation());</span>
+<span class="fc" id="L231">    }</span>
+
+    @Test
+    public void testSetWorldRotationWithRotatedParent() {
+<span class="fc" id="L235">        LocationComponent parent = giveParent();</span>
+<span class="fc" id="L236">        parent.setLocalRotation(yawRotation);</span>
+<span class="fc" id="L237">        loc.setWorldRotation(yawPitch);</span>
+<span class="fc" id="L238">        TeraAssert.assertEquals(yawPitch, loc.getWorldRotation(), 0.0000001f);</span>
+<span class="fc" id="L239">    }</span>
+
+    @Test
+    public void testPositionMaintainedWhenAttachedToParent() {
+<span class="fc" id="L243">        LocationComponent parent = new LocationComponent();</span>
+<span class="fc" id="L244">        EntityRef parentEntity = createFakeEntityWith(parent);</span>
+<span class="fc" id="L245">        parent.setWorldPosition(new Vector3f(1, 0, 0));</span>
+
+<span class="fc" id="L247">        loc.setWorldPosition(new Vector3f(2, 0, 0));</span>
+<span class="fc" id="L248">        Location.attachChild(parentEntity, entity);</span>
+
+<span class="fc" id="L250">        TeraAssert.assertEquals(new Vector3f(2, 0, 0), loc.getWorldPosition(), 0.000001f);</span>
+<span class="fc" id="L251">    }</span>
+
+    @Test
+    public void testPositionMaintainedWhenRemovedFromParent() {
+<span class="fc" id="L255">        LocationComponent parent = new LocationComponent();</span>
+<span class="fc" id="L256">        EntityRef parentEntity = createFakeEntityWith(parent);</span>
+<span class="fc" id="L257">        parent.setWorldPosition(new Vector3f(1, 0, 0));</span>
+
+<span class="fc" id="L259">        loc.setWorldPosition(new Vector3f(2, 0, 0));</span>
+<span class="fc" id="L260">        Location.attachChild(parentEntity, entity);</span>
+<span class="fc" id="L261">        Location.removeChild(parentEntity, entity);</span>
+
+<span class="fc" id="L263">        TeraAssert.assertEquals(new Vector3f(2, 0, 0), loc.getWorldPosition(), 0.000001f);</span>
+<span class="fc" id="L264">    }</span>
+
+    @Test
+    public void testPositionMaintainedWhenParentDestroyed() {
+<span class="fc" id="L268">        LocationComponent parent = new LocationComponent();</span>
+<span class="fc" id="L269">        EntityRef parentEntity = createFakeEntityWith(parent);</span>
+<span class="fc" id="L270">        parent.setWorldPosition(new Vector3f(1, 0, 0));</span>
+
+<span class="fc" id="L272">        loc.setWorldPosition(new Vector3f(2, 0, 0));</span>
+<span class="fc" id="L273">        Location.attachChild(parentEntity, entity);</span>
+<span class="fc" id="L274">        Location locationSystem = new Location();</span>
+<span class="fc" id="L275">        locationSystem.onDestroyed(BeforeRemoveComponent.newInstance(), parentEntity, parent);</span>
+<span class="fc" id="L276">        when(parentEntity.getComponent(LocationComponent.class)).thenReturn(null);</span>
+<span class="fc" id="L277">        when(parentEntity.exists()).thenReturn(false);</span>
+
+<span class="fc" id="L279">        TeraAssert.assertEquals(new Vector3f(2, 0, 0), loc.getWorldPosition(), 0.000001f);</span>
+<span class="fc" id="L280">    }</span>
+
+
+    private LocationComponent giveParent() {
+<span class="fc" id="L284">        LocationComponent parent = new LocationComponent();</span>
+<span class="fc" id="L285">        EntityRef parentEntity = createFakeEntityWith(parent);</span>
+<span class="fc" id="L286">        Location.attachChild(parentEntity, entity);</span>
+<span class="fc" id="L287">        return parent;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

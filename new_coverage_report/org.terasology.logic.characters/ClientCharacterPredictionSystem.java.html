@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClientCharacterPredictionSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.logic.characters</a> &gt; <span class="el_source">ClientCharacterPredictionSystem.java</span></div><h1>ClientCharacterPredictionSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.logic.characters;
+
+import com.google.common.collect.Maps;
+import com.google.common.collect.Queues;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.engine.Time;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeDeactivateComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
+import org.terasology.entitySystem.event.ReceiveEvent;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.registry.In;
+import org.terasology.entitySystem.systems.RegisterMode;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.location.LocationComponent;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.network.ClientComponent;
+import org.terasology.physics.engine.PhysicsEngine;
+import org.terasology.utilities.collection.CircularBuffer;
+import org.terasology.world.WorldProvider;
+
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.Map;
+
+/**
+ */
+@RegisterSystem(RegisterMode.REMOTE_CLIENT)
+<span class="nc" id="L49">public class ClientCharacterPredictionSystem extends BaseComponentSystem implements UpdateSubscriberSystem {</span>
+<span class="nc" id="L50">    private static final Logger logger = LoggerFactory.getLogger(ClientCharacterPredictionSystem.class);</span>
+    private static final int BUFFER_SIZE = 128;
+
+    @In
+    private Time time;
+
+    @In
+    private PhysicsEngine physics;
+
+    @In
+    private WorldProvider worldProvider;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    private CharacterMover characterMover;
+<span class="nc" id="L66">    private Map&lt;EntityRef, CircularBuffer&lt;CharacterStateEvent&gt;&gt; playerStates = Maps.newHashMap();</span>
+<span class="nc" id="L67">    private Deque&lt;CharacterMoveInputEvent&gt; inputs = Queues.newArrayDeque();</span>
+    private CharacterStateEvent predictedState;
+    private CharacterStateEvent authoritiveState;
+    private CharacterMovementSystemUtility characterMovementSystemUtility;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L74">        characterMover = new KinematicCharacterMover(worldProvider, physics);</span>
+<span class="nc" id="L75">        characterMovementSystemUtility = new CharacterMovementSystemUtility(physics);</span>
+<span class="nc" id="L76">    }</span>
+
+    @ReceiveEvent(components = {CharacterMovementComponent.class, LocationComponent.class, AliveCharacterComponent.class})
+    public void onCreate(final OnActivatedComponent event, final EntityRef entity) {
+<span class="nc" id="L80">        physics.getCharacterCollider(entity);</span>
+<span class="nc" id="L81">        CircularBuffer&lt;CharacterStateEvent&gt; stateBuffer = CircularBuffer.create(BUFFER_SIZE);</span>
+<span class="nc" id="L82">        stateBuffer.add(createInitialState(entity));</span>
+<span class="nc" id="L83">        playerStates.put(entity, stateBuffer);</span>
+<span class="nc" id="L84">    }</span>
+
+    @ReceiveEvent(components = {CharacterComponent.class, CharacterMovementComponent.class, LocationComponent.class, AliveCharacterComponent.class})
+    public void onDestroy(final BeforeDeactivateComponent event, final EntityRef entity) {
+<span class="nc" id="L88">        CharacterComponent character = entity.getComponent(CharacterComponent.class);</span>
+<span class="nc" id="L89">        ClientComponent controller = character.controller.getComponent(ClientComponent.class);</span>
+<span class="nc bnc" id="L90" title="All 4 branches missed.">        if (controller != null &amp;&amp; controller.local) {</span>
+<span class="nc" id="L91">            predictedState = null;</span>
+<span class="nc" id="L92">            authoritiveState = null;</span>
+<span class="nc" id="L93">            inputs.clear();</span>
+        }
+<span class="nc" id="L95">        physics.removeCharacterCollider(entity);</span>
+<span class="nc" id="L96">        playerStates.remove(entity);</span>
+<span class="nc" id="L97">    }</span>
+
+    @ReceiveEvent(components = {CharacterMovementComponent.class, LocationComponent.class, AliveCharacterComponent.class})
+    public void onCharacterStateReceived(CharacterStateEvent state, EntityRef entity) {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (entity.equals(localPlayer.getCharacterEntity())) {</span>
+<span class="nc" id="L102">            logger.trace(&quot;Received new state, sequence number: {}, buffered input size {}&quot;, state.getSequenceNumber(), inputs.size());</span>
+
+<span class="nc" id="L104">            playerStates.remove(entity);</span>
+<span class="nc" id="L105">            authoritiveState = state;</span>
+<span class="nc" id="L106">            Iterator&lt;CharacterMoveInputEvent&gt; inputIterator = inputs.iterator();</span>
+<span class="nc" id="L107">            CharacterStateEvent newState = authoritiveState;</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">            while (inputIterator.hasNext()) {</span>
+<span class="nc" id="L109">                CharacterMoveInputEvent input = inputIterator.next();</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                if (input.getSequenceNumber() &lt;= state.getSequenceNumber()) {</span>
+<span class="nc" id="L111">                    inputIterator.remove();</span>
+                } else {
+<span class="nc" id="L113">                    newState = stepState(input, newState, entity);</span>
+                }
+<span class="nc" id="L115">            }</span>
+<span class="nc" id="L116">            logger.trace(&quot;Resultant input size {}&quot;, inputs.size());</span>
+<span class="nc" id="L117">            characterMovementSystemUtility.setToState(entity, newState);</span>
+            // TODO: soft correct predicted state
+<span class="nc" id="L119">            predictedState = newState;</span>
+<span class="nc" id="L120">        } else {</span>
+<span class="nc" id="L121">            playerStates.get(entity).add(state);</span>
+        }
+<span class="nc" id="L123">    }</span>
+
+
+    @ReceiveEvent(components = {CharacterMovementComponent.class, LocationComponent.class, AliveCharacterComponent.class})
+    public void onPlayerInput(CharacterMoveInputEvent input, EntityRef entity) {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if (predictedState == null) {</span>
+<span class="nc" id="L129">            predictedState = createInitialState(entity);</span>
+<span class="nc" id="L130">            authoritiveState = predictedState;</span>
+<span class="nc" id="L131">            playerStates.remove(entity);</span>
+        }
+
+<span class="nc" id="L134">        inputs.add(input);</span>
+<span class="nc" id="L135">        CharacterStateEvent newState = stepState(input, predictedState, entity);</span>
+<span class="nc" id="L136">        predictedState = newState;</span>
+
+<span class="nc" id="L138">        characterMovementSystemUtility.setToState(entity, newState);</span>
+<span class="nc" id="L139">    }</span>
+
+    private CharacterStateEvent createInitialState(EntityRef entity) {
+<span class="nc" id="L142">        LocationComponent location = entity.getComponent(LocationComponent.class);</span>
+<span class="nc" id="L143">        return new CharacterStateEvent(time.getGameTimeInMs(), 0, location.getWorldPosition(), location.getWorldRotation(), new Vector3f(), 0, 0, MovementMode.WALKING, false);</span>
+    }
+
+    private CharacterStateEvent stepState(CharacterMoveInputEvent input, CharacterStateEvent lastState, EntityRef entity) {
+<span class="nc" id="L147">        return characterMover.step(lastState, input, entity);</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L152">        long renderTime = time.getGameTimeInMs() - ServerCharacterPredictionSystem.RENDER_DELAY;</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        for (Map.Entry&lt;EntityRef, CircularBuffer&lt;CharacterStateEvent&gt;&gt; entry : playerStates.entrySet()) {</span>
+<span class="nc" id="L154">            CharacterStateEvent previous = null;</span>
+<span class="nc" id="L155">            CharacterStateEvent next = null;</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">            for (CharacterStateEvent state : entry.getValue()) {</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                if (state.getTime() &lt;= renderTime) {</span>
+<span class="nc" id="L158">                    previous = state;</span>
+                } else {
+<span class="nc" id="L160">                    next = state;</span>
+<span class="nc" id="L161">                    break;</span>
+                }
+<span class="nc" id="L163">            }</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">            if (previous != null) {</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                if (next != null) {</span>
+<span class="nc" id="L166">                    characterMovementSystemUtility.setToInterpolateState(entry.getKey(), previous, next, renderTime);</span>
+                } else {
+<span class="nc" id="L168">                    characterMovementSystemUtility.setToExtrapolateState(entry.getKey(), previous, renderTime);</span>
+                }
+            }
+<span class="nc" id="L171">        }</span>
+<span class="nc" id="L172">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

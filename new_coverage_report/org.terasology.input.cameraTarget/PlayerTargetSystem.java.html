@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlayerTargetSystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.input.cameraTarget</a> &gt; <span class="el_source">PlayerTargetSystem.java</span></div><h1>PlayerTargetSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.terasology.input.cameraTarget;
+
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterSystem;
+import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
+import org.terasology.logic.characters.CharacterComponent;
+import org.terasology.logic.players.FirstPersonHeldItemMountPointComponent;
+import org.terasology.logic.players.LocalPlayer;
+import org.terasology.logic.players.PlayerTargetChangedEvent;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.physics.Physics;
+import org.terasology.registry.In;
+import org.terasology.registry.Share;
+import org.terasology.world.BlockEntityRegistry;
+
+/**
+ * Tracks the targeted entity (within interaction range) of the local player.
+ */
+@RegisterSystem
+@Share(PlayerTargetSystem.class)
+<span class="nc" id="L39">public class PlayerTargetSystem extends BaseComponentSystem implements UpdateSubscriberSystem {</span>
+
+    private TargetSystem targetSystem;
+
+    @In
+    private Physics physics;
+
+    @In
+    private BlockEntityRegistry blockRegistry;
+
+    @In
+    private LocalPlayer player;
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L54">        targetSystem = new TargetSystem(blockRegistry, physics);</span>
+<span class="nc" id="L55">    }</span>
+
+    public EntityRef getTarget() {
+<span class="nc" id="L58">        return targetSystem.getTarget();</span>
+    }
+
+    /**
+     * Get the position of the block that is currently targeted.
+     * @return the position of the block, as a Vector3i
+     */
+    public Vector3i getTargetBlockPosition() {
+<span class="nc" id="L66">        return targetSystem.getTargetBlockPosition();</span>
+    }
+
+    @Override
+    public void update(float delta) {
+<span class="nc" id="L71">        EntityRef charEntity = player.getCharacterEntity();</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        if (charEntity.exists()) {</span>
+<span class="nc" id="L73">            Vector3f cameraPos = player.getViewPosition();</span>
+<span class="nc" id="L74">            CharacterComponent charComp = charEntity.getComponent(CharacterComponent.class);</span>
+
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            if (charComp != null) {</span>
+<span class="nc" id="L77">                Vector3f dir = player.getViewDirection();</span>
+<span class="nc" id="L78">                float maxDist = charComp.interactionRange;</span>
+<span class="nc" id="L79">                FirstPersonHeldItemMountPointComponent heldItemMountPoint = player.getCameraEntity().getComponent(FirstPersonHeldItemMountPointComponent.class);</span>
+<span class="nc bnc" id="L80" title="All 4 branches missed.">                if (heldItemMountPoint != null &amp;&amp; heldItemMountPoint.isTracked()) {</span>
+<span class="nc" id="L81">                    maxDist = heldItemMountPoint.translate.length() + 0.25f;</span>
+<span class="nc" id="L82">                    dir = heldItemMountPoint.translate.normalize();</span>
+                }
+<span class="nc bnc" id="L84" title="All 2 branches missed.">                if (targetSystem.updateTarget(cameraPos, dir, maxDist)) {</span>
+<span class="nc" id="L85">                    EntityRef oldTarget = targetSystem.getPreviousTarget();</span>
+<span class="nc" id="L86">                    EntityRef newTarget = targetSystem.getTarget();</span>
+<span class="nc" id="L87">                    charEntity.send(new PlayerTargetChangedEvent(oldTarget, newTarget));</span>
+                }
+            }
+        }
+<span class="nc" id="L91">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

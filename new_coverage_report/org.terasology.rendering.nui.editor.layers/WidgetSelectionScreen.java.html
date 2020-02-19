@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetSelectionScreen.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.nui.editor.layers</a> &gt; <span class="el_source">WidgetSelectionScreen.java</span></div><h1>WidgetSelectionScreen.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.nui.editor.layers;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.reflection.metadata.ClassLibrary;
+import org.terasology.reflection.metadata.ClassMetadata;
+import org.terasology.rendering.nui.CoreScreenLayer;
+import org.terasology.rendering.nui.UILayout;
+import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.WidgetUtil;
+import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.editor.utils.NUIEditorNodeUtils;
+import org.terasology.rendering.nui.widgets.UIButton;
+import org.terasology.rendering.nui.widgets.UIDropdownScrollable;
+import org.terasology.rendering.nui.widgets.UpdateListener;
+import org.terasology.rendering.nui.widgets.treeView.JsonTree;
+import org.terasology.rendering.nui.widgets.treeView.JsonTreeValue;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * A screen to select a widget from the list of available widgets
+ * and add it as a child of a specified {@link JsonTree}.
+ */
+@SuppressWarnings(&quot;unchecked&quot;)
+<span class="nc" id="L45">public class WidgetSelectionScreen extends CoreScreenLayer {</span>
+<span class="nc" id="L46">    public static final ResourceUrn ASSET_URI = new ResourceUrn(&quot;engine:widgetSelectionScreen&quot;);</span>
+
+    /**
+     * The dropdown containing the values of {@code widgets}.
+     */
+    private UIDropdownScrollable&lt;String&gt; availableWidgets;
+    /**
+     * The {@link JsonTree} a selected widget is to be added to.
+     */
+    private JsonTree node;
+    /**
+     * The list of available UIWidget instances, excluding CoreScreenLayer overrides.
+     */
+<span class="nc" id="L59">    private Map&lt;String, ClassMetadata&gt; widgets = Maps.newHashMap();</span>
+    /**
+     * Listeners fired when the screen is closed (without selecting a widget).
+     */
+<span class="nc" id="L63">    private List&lt;UpdateListener&gt; closeListeners = Lists.newArrayList();</span>
+
+    @Override
+    public void initialise() {
+<span class="nc" id="L67">        availableWidgets = find(&quot;availableWidgets&quot;, UIDropdownScrollable.class);</span>
+
+        // Populate the widget list.
+<span class="nc" id="L70">        ClassLibrary&lt;UIWidget&gt; metadataLibrary = getManager().getWidgetMetadataLibrary();</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        for (ClassMetadata metadata : metadataLibrary) {</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            if (!CoreScreenLayer.class.isAssignableFrom(metadata.getType())) {</span>
+<span class="nc" id="L73">                widgets.put(metadata.toString(), metadata);</span>
+            }
+<span class="nc" id="L75">        }</span>
+
+<span class="nc" id="L77">        List&lt;String&gt; options = Lists.newArrayList(widgets.keySet());</span>
+<span class="nc" id="L78">        Collections.sort(options);</span>
+<span class="nc" id="L79">        availableWidgets.setOptions(options);</span>
+
+        // Add the widget as a child of the node.
+<span class="nc" id="L82">        WidgetUtil.trySubscribe(this, &quot;ok&quot;, button -&gt; {</span>
+<span class="nc" id="L83">            String selection = availableWidgets.getSelection();</span>
+            JsonTree childNode;
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            if (node.getValue().getType() == JsonTreeValue.Type.ARRAY) {</span>
+<span class="nc" id="L86">                ClassMetadata metadata = widgets.get(selection);</span>
+
+                // Get the widget tree from a utility method.
+<span class="nc" id="L89">                childNode = NUIEditorNodeUtils.createNewWidget(selection, &quot;newWidget&quot;, false);</span>
+
+                // If the widget is an UILayout override, also add a &quot;contents&quot; array node to the tree.
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                if (UILayout.class.isAssignableFrom(metadata.getType())) {</span>
+<span class="nc" id="L93">                    childNode.addChild(new JsonTreeValue(&quot;contents&quot;, null, JsonTreeValue.Type.ARRAY));</span>
+                }
+<span class="nc" id="L95">            } else {</span>
+<span class="nc" id="L96">                childNode = new JsonTree(new JsonTreeValue(selection, null, JsonTreeValue.Type.OBJECT));</span>
+<span class="nc" id="L97">                childNode.setExpanded(true);</span>
+            }
+<span class="nc" id="L99">            node.addChild(childNode);</span>
+
+<span class="nc" id="L101">            closeListeners.forEach(UpdateListener::onAction);</span>
+<span class="nc" id="L102">            getManager().closeScreen(ASSET_URI);</span>
+<span class="nc" id="L103">        });</span>
+
+<span class="nc" id="L105">        find(&quot;ok&quot;, UIButton.class).bindEnabled(new ReadOnlyBinding&lt;Boolean&gt;() {</span>
+            @Override
+            public Boolean get() {
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                return availableWidgets.getSelection() != null;</span>
+            }
+        });
+
+<span class="nc" id="L112">        WidgetUtil.trySubscribe(this, &quot;cancel&quot;, button -&gt; getManager().closeScreen(ASSET_URI));</span>
+<span class="nc" id="L113">    }</span>
+
+    public void setNode(JsonTree node) {
+<span class="nc" id="L116">        this.node = node;</span>
+<span class="nc" id="L117">    }</span>
+
+    public void subscribeClose(UpdateListener listener) {
+<span class="nc" id="L120">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L121">        closeListeners.add(listener);</span>
+<span class="nc" id="L122">    }</span>
+
+    public void unsubscribeClose(UpdateListener listener) {
+<span class="nc" id="L125">        Preconditions.checkNotNull(listener);</span>
+<span class="nc" id="L126">        closeListeners.remove(listener);</span>
+<span class="nc" id="L127">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

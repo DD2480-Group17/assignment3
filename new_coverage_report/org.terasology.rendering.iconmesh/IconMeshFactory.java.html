@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IconMeshFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.rendering.iconmesh</a> &gt; <span class="el_source">IconMeshFactory.java</span></div><h1>IconMeshFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.rendering.iconmesh;
+
+import org.terasology.utilities.Assets;
+import org.terasology.assets.Asset;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.module.sandbox.API;
+import org.terasology.naming.Name;
+import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.rendering.assets.mesh.MeshData;
+import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.primitives.Tessellator;
+import org.terasology.rendering.primitives.TessellatorHelper;
+
+import java.nio.ByteBuffer;
+
+@API
+public final class IconMeshFactory {
+
+    private IconMeshFactory() {
+    }
+
+    public static Mesh getIconMesh(TextureRegion region) {
+<span class="nc bnc" id="L40" title="All 2 branches missed.">        if (region instanceof Asset) {</span>
+<span class="nc" id="L41">            ResourceUrn urn = ((Asset&lt;?&gt;) region).getUrn();</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">            if (urn.getFragmentName().isEmpty()) {</span>
+<span class="nc" id="L43">                return Assets.get(new ResourceUrn(urn.getModuleName(), IconMeshDataProducer.ICON_DISCRIMINATOR, urn.getResourceName()), Mesh.class).get();</span>
+            } else {
+<span class="nc" id="L45">                Name fragName = new Name(urn.getResourceName().toString() + ResourceUrn.FRAGMENT_SEPARATOR + urn.getFragmentName().toString());</span>
+<span class="nc" id="L46">                return Assets.get(new ResourceUrn(urn.getModuleName(), IconMeshDataProducer.ICON_DISCRIMINATOR, fragName), Mesh.class).get();</span>
+            }
+        } else {
+<span class="nc" id="L49">            return generateIconMesh(region);</span>
+        }
+    }
+
+    public static Mesh generateIconMesh(TextureRegion tex) {
+<span class="nc" id="L54">        return generateIconMesh(null, tex, 0, false, null);</span>
+    }
+
+    public static Mesh generateIconMesh(ResourceUrn urn, TextureRegion tex) {
+<span class="nc" id="L58">        return generateIconMesh(urn, tex, 0, false, null);</span>
+    }
+
+    public static MeshData generateIconMeshData(TextureRegion tex) {
+<span class="nc" id="L62">        return generateIconMeshData(tex, 0, false, null);</span>
+    }
+
+    public static Mesh generateIconMesh(ResourceUrn urn, TextureRegion tex, int alphaLimit, boolean withContour, Vector4f colorContour) {
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        if (urn == null) {</span>
+<span class="nc" id="L67">            return Assets.generateAsset(generateIconMeshData(tex, alphaLimit, withContour, colorContour), Mesh.class);</span>
+        } else {
+<span class="nc" id="L69">            return Assets.generateAsset(urn, generateIconMeshData(tex, alphaLimit, withContour, colorContour), Mesh.class);</span>
+        }
+    }
+
+    public static MeshData generateIconMeshData(TextureRegion tex, int alphaLimit, boolean withContour, Vector4f colorContour) {
+<span class="nc" id="L74">        ByteBuffer buffer = tex.getTexture().getData().getBuffers()[0];</span>
+
+<span class="nc" id="L76">        Rect2i pixelRegion = tex.getPixelRegion();</span>
+<span class="nc" id="L77">        int posX = pixelRegion.minX();</span>
+<span class="nc" id="L78">        int posY = pixelRegion.minY();</span>
+
+<span class="nc" id="L80">        int stride = tex.getTexture().getWidth() * 4;</span>
+
+<span class="nc" id="L82">        float textureSize = Math.max(tex.getWidth(), tex.getHeight());</span>
+
+<span class="nc" id="L84">        Tessellator tessellator = new Tessellator();</span>
+
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        for (int y = 0; y &lt; tex.getHeight(); y++) {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            for (int x = 0; x &lt; tex.getWidth(); x++) {</span>
+<span class="nc" id="L88">                int r = buffer.get((posY + y) * stride + (posX + x) * 4) &amp; 255;</span>
+<span class="nc" id="L89">                int g = buffer.get((posY + y) * stride + (posX + x) * 4 + 1) &amp; 255;</span>
+<span class="nc" id="L90">                int b = buffer.get((posY + y) * stride + (posX + x) * 4 + 2) &amp; 255;</span>
+<span class="nc" id="L91">                int a = buffer.get((posY + y) * stride + (posX + x) * 4 + 3) &amp; 255;</span>
+
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                if (a &gt; alphaLimit) {</span>
+<span class="nc" id="L94">                    Vector4f color = new Vector4f(r / 255f, g / 255f, b / 255f, a / 255f);</span>
+<span class="nc" id="L95">                    TessellatorHelper.addBlockMesh(tessellator, color, 2f / textureSize, 1.0f, 0.5f,</span>
+<span class="nc" id="L96">                            2f / textureSize * x - 1f, 2f / textureSize * (tex.getHeight() - y - 1) - 1f, 0f);</span>
+
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                    if (withContour) {</span>
+<span class="nc" id="L99">                        int newX = 0;</span>
+<span class="nc" id="L100">                        int newY = 0;</span>
+<span class="nc" id="L101">                        int newA = 0;</span>
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                        for (int i = 0; i &lt; 4; i++) {</span>
+<span class="nc" id="L104">                            newA = alphaLimit + 1;</span>
+<span class="nc bnc" id="L105" title="All 5 branches missed.">                            switch (i) {</span>
+                                case 0:
+                                    //check left
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                                    if (x &gt; 0) {</span>
+<span class="nc" id="L109">                                        newX = x - 1;</span>
+<span class="nc" id="L110">                                        newY = y;</span>
+<span class="nc" id="L111">                                        newA = buffer.get((posY + newY) * stride + (posX + newX) * 4 + 3) &amp; 255;</span>
+                                    }
+                                    break;
+                                case 1:
+                                    //check top
+<span class="nc bnc" id="L116" title="All 2 branches missed.">                                    if (y &gt; 0) {</span>
+<span class="nc" id="L117">                                        newX = x;</span>
+<span class="nc" id="L118">                                        newY = y - 1;</span>
+<span class="nc" id="L119">                                        newA = buffer.get((posY + newY) * stride + (posX + newX) * 4 + 3) &amp; 255;</span>
+                                    }
+                                    break;
+                                case 2:
+                                    //check right
+<span class="nc bnc" id="L124" title="All 2 branches missed.">                                    if (x &lt; 16) {</span>
+<span class="nc" id="L125">                                        newX = x + 1;</span>
+<span class="nc" id="L126">                                        newY = y;</span>
+<span class="nc" id="L127">                                        newA = buffer.get((posY + newY) * stride + (posX + newX) * 4 + 3) &amp; 255;</span>
+                                    }
+                                    break;
+                                case 3:
+                                    //check bottom
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                                    if (y &lt; 16) {</span>
+<span class="nc" id="L133">                                        newX = x;</span>
+<span class="nc" id="L134">                                        newY = y + 1;</span>
+<span class="nc" id="L135">                                        newA = buffer.get((posY + newY) * stride + (posX + newX) * 4 + 3) &amp; 255;</span>
+                                    }
+                                    break;
+                                default:
+                                    break;
+                            }
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                            if (newA &lt; alphaLimit) {</span>
+<span class="nc" id="L143">                                Vector4f cColor = new Vector4f(colorContour.x / 255f, colorContour.y / 255f, colorContour.z / 255f, colorContour.w);</span>
+<span class="nc" id="L144">                                TessellatorHelper.addBlockMesh(tessellator, cColor, 0.125f, 1.0f, 0.5f, 2f * 0.0625f * newX - 0.5f, 0.125f * (15 - newY) - 1f, 0f);</span>
+                            }
+                        }
+                    }
+                }
+            }
+        }
+<span class="nc" id="L151">        return tessellator.generateMeshData();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

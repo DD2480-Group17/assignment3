@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LocalChunkView.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Terasology$engine_tests_with_JaCoCo.exec</a> &gt; <a href="index.source.html" class="el_package">org.terasology.world.propagation</a> &gt; <span class="el_source">LocalChunkView.java</span></div><h1>LocalChunkView.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 MovingBlocks
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.terasology.world.propagation;
+
+import org.terasology.math.ChunkMath;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.block.Block;
+import org.terasology.world.chunks.Chunk;
+import org.terasology.world.chunks.ChunkConstants;
+
+/**
+ * Provides a simple view over some chunks using a propagation rule.
+ */
+public class LocalChunkView implements PropagatorWorldView {
+    private PropagationRules rules;
+    private Chunk[] chunks;
+
+<span class="nc" id="L31">    private Vector3i topLeft = new Vector3i();</span>
+
+<span class="nc" id="L33">    public LocalChunkView(Chunk[] chunks, PropagationRules rules) {</span>
+<span class="nc" id="L34">        this.chunks = chunks;</span>
+<span class="nc" id="L35">        this.rules = rules;</span>
+        //TODO fix this to not hardcode 13. This is a ugly smell
+<span class="nc" id="L37">        topLeft.set(chunks[13].getPosition().x - 1, chunks[13].getPosition().y - 1, chunks[13].getPosition().z - 1);</span>
+<span class="nc" id="L38">    }</span>
+
+    /**
+     * Gets the index of the chunk in {@link #chunks}
+     *
+     * @param blockPos The position of the block in world coordinates
+     * @return The index of the chunk in the array
+     */
+    private int chunkIndexOf(Vector3i blockPos) {
+<span class="nc" id="L47">        return ChunkMath.calcChunkPosX(blockPos.x, ChunkConstants.POWER_X) - topLeft.x</span>
+<span class="nc" id="L48">                + 3 * (ChunkMath.calcChunkPosY(blockPos.y, ChunkConstants.POWER_Y) - topLeft.y</span>
+<span class="nc" id="L49">                + 3 * (ChunkMath.calcChunkPosZ(blockPos.z, ChunkConstants.POWER_Z) - topLeft.z));</span>
+    }
+
+    @Override
+    public byte getValueAt(Vector3i pos) {
+<span class="nc" id="L54">        Chunk chunk = chunks[chunkIndexOf(pos)];</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if (chunk != null) {</span>
+<span class="nc" id="L56">            return rules.getValue(chunk, ChunkMath.calcBlockPos(pos));</span>
+        }
+<span class="nc" id="L58">        return UNAVAILABLE;</span>
+    }
+
+    @Override
+    public void setValueAt(Vector3i pos, byte value) {
+<span class="nc" id="L63">        Chunk chunk = chunks[chunkIndexOf(pos)];</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        if (chunk != null) {</span>
+<span class="nc" id="L65">            rules.setValue(chunk, ChunkMath.calcBlockPos(pos), value);</span>
+        }
+<span class="nc" id="L67">    }</span>
+
+    @Override
+    public Block getBlockAt(Vector3i pos) {
+<span class="nc" id="L71">        int index = chunkIndexOf(pos);</span>
+<span class="nc" id="L72">        Chunk chunk = chunks[index];</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if (chunk != null) {</span>
+<span class="nc" id="L74">            return chunk.getBlock(ChunkMath.calcBlockPos(pos));</span>
+        }
+<span class="nc" id="L76">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>
