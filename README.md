@@ -206,6 +206,7 @@ Report of new coverage: [link](https://github.com/DD2480-Group17/assignment3/tre
 * `testNormalForPlaneClosestToOriginWithSameZ`
 * `testCenterPointForNormalPositivZ`
 
+
 ##### Tests related to the class to the `noise(4D)` method of `SimplexNoise.java` class
 * `testNoiseFourParametersAllZeros()`
 * `testNoiseFourParametersOne()`
