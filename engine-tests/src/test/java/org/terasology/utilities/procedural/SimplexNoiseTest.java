@@ -163,6 +163,7 @@ class SimplexNoiseTest {
         }
     }
 
+
     /**
      * Tests that the result of calling noise 4D is in
      * interval [-1,1] when all four parameters are zeros.
@@ -189,6 +190,7 @@ class SimplexNoiseTest {
         float result = sn.noise(n1, n2, n3, n4);
         assertTrue(result >= -1.0f && result <= 1.0f);
     }
+
 
     /**
      * Tests that the result of calling noise 4D is in
@@ -219,6 +221,7 @@ class SimplexNoiseTest {
         float result = sn.noise(n1, n2, n3, n4);
         assertTrue(result >= -1.0f && result <= 1.0f);
     }
+
 
     /**
      * Method using for printing results of ad-hoc coverage tool.

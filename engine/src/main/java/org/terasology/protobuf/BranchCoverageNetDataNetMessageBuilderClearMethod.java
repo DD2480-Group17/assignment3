@@ -37,6 +37,9 @@ public class BranchCoverageNetDataNetMessageBuilderClearMethod {
      * Method for printing branch coverage percentage.
      */
     public static void printBranchCoveragePercentage() {
+        for (int i = 0; i < branchCovered.length; i++){
+            System.out.println("clear(): branch " + i + ": " + branchCovered[i]);
+        }
         System.out.println("Branch coverage of NetData.NetMessage.Builder.clear(): " + calcBranchCoveragePercentage() + " %");
     }
 }

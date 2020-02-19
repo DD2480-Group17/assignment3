@@ -18,6 +18,7 @@ package org.terasology.protobuf;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocBuildPartial;
+import org.terasology.AdHoc.AdHoc.AdHocServerInfoMessageIsInitialized;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.protobuf.ByteString;
@@ -33,18 +34,20 @@ class NetDataTest {
         AdHocNetData.NetMessage.Builder.MergeFrom.printRes();
         AdHocNetData.NetMessage.Builder.IsInitialized.printRes();
         BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();
+        AdHocBuildPartial.getCoverage();
+        AdHocServerInfoMessageIsInitialized.getCoverage();
     }
 
     /**
      * Test that some of the attributes for the ServerInfoMessage's object returned by buildPartial() are as
      * expected and that the adhoc tool works.
-     *
+     * <p>
      * Test case 1:
      * Expected value: An empty list because we haven't added any modules, but not null
-     *
+     * <p>
      * Test case 2:
      * Expected value: playersAmount_ = 0
-     *
+     * <p>
      * Test case 3:
      * Expected value: reflectionHeight_ = 0
      */
@@ -60,11 +63,6 @@ class NetDataTest {
         assertEquals(0, serverinfo2.getOnlinePlayersAmount());
         // gets the correct value for reflectionHeight
         assertEquals(0.0, serverinfo2.getReflectionHeight());
-
-        boolean[] result = AdHocBuildPartial.getAdHoc();
-        for (int i = 0; i < result.length; i++){
-            System.out.println("Visited branch " + (i+1) + " " + result[i]);
-        }
     }
 
     /**
@@ -217,5 +215,23 @@ class NetDataTest {
         assertListCountsEqualToSize(builder, 1);
         builder.clear();
         assertListCountsEqualToSize(builder, 0);
+    }
+
+    /**
+     * Test that the playersAmount and reflectionHeight are correct
+     * Test that the ServerInfoMessage's Builder is initialized
+     */
+    @Test
+    void testIsInitialized() {
+        NetData.ServerInfoMessage serverinfo1 = NetData.ServerInfoMessage.getDefaultInstance();
+        NetData.ServerInfoMessage.Builder builder = serverinfo1.newBuilder(serverinfo1);
+        NetData.ServerInfoMessage serverinfo2 = builder.buildPartial();
+
+        // gets the correct value for playersAmount
+        assertEquals(0, serverinfo2.getOnlinePlayersAmount());
+        // gets the correct value for reflectionHeight
+        assertEquals(0.0, serverinfo2.getReflectionHeight());
+        // Assertion should be true even if we haven't added any components to object
+        assertTrue(builder.isInitialized());
     }
 }
