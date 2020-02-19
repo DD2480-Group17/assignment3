@@ -148,6 +148,10 @@ We decided to use Jcoco because it works well with the IDE Itellij which the pro
 related to Jcoco because it was already integrated in IntelliJ. The only problem related to Jcoco was if the project was incorrectly installed on
 IntelliJ, then Jcoco could potentially miss braches or set all branch coverage to 0. However, we considered this to be an difficulty in getting the
 program running rather then it being hard to use Jcoco.
+<<<<<<< HEAD
+=======
+
+>>>>>>> 8f33ca6b88faae755202301dca96e21cb9fe729c
 
 
 ### DYI
