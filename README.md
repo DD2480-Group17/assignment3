@@ -189,6 +189,17 @@ We decided to split the adhoc tool to be specific for every class. The adhoc cla
 * `AdHocNetData` Yes, but only after translating ternary operations to if statements.
 * `AdHocServerInfoMessageIsInitialized` JaCoCo got the branch coverage at 27%, which was almost the same as the AdHocServerInfoMessageIsInitialized result (27,7%)
 
+| Method                                  | AdHoc coverage (%) |  JaCoCo coverage (%) |
+|-----------------------------------------|--------------------|----------------------|
+| centerPointForNormal                    | 100                | 100                  |
+| normalForPlaneClosestToOrigin           | 75                 | 64                   |
+| NetMessage.Builder.mergeFrom            | 24                 |  24                  |
+| NetMessage.Builder.isInitialized        | 25                 |  25                  |
+| ServerInfoMessage.Builder.buildPartial  | 50                 | 50                   |
+| ServerInfoMessage.Builder.isInitialized |  27                | 27                   |
+| noise                                   | 72                 | 78                   |
+| clear                                   | 76                 | 76                   |
+
 ### Coverage improvement
 
 Show the comments that describe the requirements for the coverage.
