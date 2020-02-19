@@ -136,7 +136,7 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 * `normalForPlaneClosestToOrigin() ` The documentation is understandable, however it does not state that several normals can be returned.
 * `mergeFrom(NetData.NetMessage)` There is no documentation available, and since the function is ovver 300 LOC and consists of bitwise operations it is very difficult to comprehend.
 * `NetData.NetMessage.Builder.ìsInitialized()` There is no documentation available, but since the function only returns a boolean value it is yet quite comprehensible.
-* `noise(float x, float y, float z)` There is some documentation available and the authors of the function have used Javadoc. However, they have not described the different possible outcomes induced by the different branches. 
+* `noise(float x, float y, float z)` There is some documentation available and the authors of the function have used Javadoc. However, they have not described the different possible outcomes induced by the different branches.
 
 ## Coverage
 
@@ -146,8 +146,8 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 
 We decided to use Jcoco because it works well with the IDE Itellij which the product where developed in. In general no one in the group had larger issues
 related to Jcoco because it was already integrated in IntelliJ. The only problem related to Jcoco was if the project was incorrectly installed on
-IntelliJ, then Jcoco could potentially miss braches or set all branch coverage to 0. However, we considered this to be an difficulty in getting the 
-program running rather then it being hard to use Jcoco. 
+IntelliJ, then Jcoco could potentially miss braches or set all branch coverage to 0. However, we considered this to be an difficulty in getting the
+program running rather then it being hard to use Jcoco.
 
 
 
@@ -170,20 +170,25 @@ We decided to split the adhoc tool to be specific for every class. The adhoc cla
 1. How detailed is your coverage measurement?
 * `AdHocAABB` The coverage is limited to check if the method enters a if statement or loop. If the if-statement is chained (if(a && b && c)) the adhoc tool
 counts this as one branch and not three. This is because we did not want to alter the structure of the code.
+* `AdHocServerInfoMessageIsInitialized` The ad-hoc is limited to only check those if statements that are not chained or use logical operators, and loops (for/while). If the ad hoc integrates with a chained if-statment, it will only increase the CC with one (and not two even if we have a&b). The reason for that is that we did not want to alter the structure of the code.
 
 2. What are the limitations of your own tool?
 * `AdHocAABB` It counts all chained if-statement as one if-statement.
+* `AdHocServerInfoMessageIsInitialized` It counts all chained if-statement as one if-statement.
 
 3. Are the results of your tool consistent with existing coverage tools?
-* `AdHocAABB` No, because Jcoco looks at the assembler code to be able to see chained if-statements.
+* `AdHocAABB` No, because JaCoCo looks at the assembler code to be able to see chained if-statements.
+* `AdHocBuildPartial` JaCoCo got the branch coverage at 50%, which was the same as the AdHocBuildPartial result (50.0).
+* `AdHocServerInfoMessageIsInitialized` JaCoCo got the branch coverage at 27%, which was almost the same as the AdHocServerInfoMessageIsInitialized result (27,7%)
+
 
 ### Coverage improvement
 
 Show the comments that describe the requirements for the coverage.
 
-Report of old coverage: [link]
+Report of old coverage: [link](https://github.com/DD2480-Group17/assignment3/tree/master/coverage_report)
 
-Report of new coverage: [link]
+Report of new coverage: [link](https://github.com/DD2480-Group17/assignment3/tree/master/new_coverage_report)
 
 Test cases added:
 
@@ -195,6 +200,11 @@ Tests related to the class AABB.java
 * `testCenterPointForNormalNotUnitvectorNomal `
 
 * `testNormalForPlaneClosestToOrigin `
+
+Tests related to the class NetData.ServerInfoMessage
+* `testBuildPartial`
+
+* `testIsInitialized`
 
 
 git diff ...
@@ -219,7 +229,7 @@ which would result in a (19-7)/19 = 0.64 = 63% reduction of cyclomatic complexit
 
 ### Carried out refactoring (optional)
 
-* `centerPointForNormal(Vector3f) ` All chained if-statements where replaced by a function call. Example if(normal.x==1 && normal.y==0 && normal.z==0) 
+* `centerPointForNormal(Vector3f) ` All chained if-statements where replaced by a function call. Example if(normal.x==1 && normal.y==0 && normal.z==0)
 where changed to if(normalPositiveX). After the changes jcoco calculated the cyclomatic complexity to 7 which is the same as the
 estimated reduction of complexity.
 
