@@ -144,13 +144,10 @@ We used the formula π - s + 1 to calculate the cyclomatic complexity, where π 
 ### Tools
 
 #### Document your experience in using a "new"/different coverage tool. How well was the tool documented? Was it possible/easy/difficult to integrate it with your build environment?
-
 We decided to use Jacoco because it works well with the IDE Intellij which the product where developed in. In general no one in the group had larger issues
 related to Jacoco because it was already integrated in IntelliJ. The only problem related to Jacoco was if the project was incorrectly installed on
 IntelliJ, then Jacoco could potentially miss branches or set all branch coverage to 0. However, we considered this to be an difficulty in getting the
 program running rather then it being hard to use Jacoco.
-
-
 
 ### DYI
 
@@ -178,24 +175,28 @@ We decided to split the adhoc tool to be specific for every class. The adhoc cla
 * `AdHocAABB` The coverage is limited to check if the method enters a if statement or loop. If the if-statement is chained (if(a && b && c)) the adhoc tool counts this as one branch and not three. This is because we did not want to alter the structure of the code.
 * `BranchCoverageSimplesNoiseNoiseMethod` It only takes into accounts the if statements that exist in the noise function (with 4D).
 * `BranchCoverageNetDataNetMessageBuilderClearMethod` It only takes into accounts the if statements that exist in the noise function (with 4D).
+* `AdHocServerInfoMessageIsInitialized` The ad-hoc is limited to only check those if statements that are not chained or use logical operators, and loops (for/while). If the ad hoc integrates with a chained if-statment, it will only increase the CC with one (and not two even if we have a&b). The reason for that is that we did not want to alter the structure of the code.
 
 2. What are the limitations of your own tool?
 * `AdHocAABB` It counts all chained if-statement as one if-statement.
 * `BranchCoverageSimplesNoiseNoiseMethod` is limited in that it does not take into account ternary operators `x ? y : z`. That is why it underestimates the coverage a little bit.
 * `BranchCoverageNetDataNetMessageBuilderClearMethod` is limited in that it does not take into account ternary operators `x ? y : z`. However, no underestimation happened in the calculations because there were only normal if-statements without ternary operators or exception handling.
+* `AdHocServerInfoMessageIsInitialized` It counts all chained if-statement as one if-statement.
 
 3. Are the results of your tool consistent with existing coverage tools?
-* `AdHocAABB` No, because Jcoco looks at the assembler code to be able to see chained if-statements.
+* `AdHocAABB` No, because JaCoCo looks at the assembler code to be able to see chained if-statements.
 * `BranchCoverageSimplesNoiseNoiseMethod` No, because Jacoco works on byte code level. That is why it can take into account ternary operators.
 * `BranchCoverageNetDataNetMessageBuilderClearMethod` Yes, because there were only normal if-statements without ternary operators or exception handling.
+* `AdHocBuildPartial` JaCoCo got the branch coverage at 50%, which was the same as the AdHocBuildPartial result (50.0).
+* `AdHocServerInfoMessageIsInitialized` JaCoCo got the branch coverage at 27%, which was almost the same as the AdHocServerInfoMessageIsInitialized result (27,7%)
 
 ### Coverage improvement
 
 Show the comments that describe the requirements for the coverage.
 
-Report of old coverage: [link]
+Report of old coverage: [link](https://github.com/DD2480-Group17/assignment3/tree/master/coverage_report)
 
-Report of new coverage: [link]
+Report of new coverage: [link](https://github.com/DD2480-Group17/assignment3/tree/master/new_coverage_report)
 
 #### Test cases added:
 Tests related to the class AABB.java
@@ -218,33 +219,27 @@ Tests related to the class to the `clear` method of `NetData.NetMessage.Builder.
 * private helper method `addNewBuilders(NetData.NetMessage.Builder builder)`
 * private helper method `addNewObjects(NetData.NetMessage.Builder builder)`
 
+Tests related to the class NetData.ServerInfoMessage
+* `testBuildPartial`
+* `testIsInitialized`
+
 git diff ...
 
 ## Refactoring
 
 ### Plan for refactoring complex code:
 * `centerPointForNormal(Vector3f) ` The function has a complexity of 19 and are dependent chained if statemants. To lower the complexity the chained if statements could be moved to a function. This should reduce the number of branches by 4 for each statement which would result in 6*4 = 24 less branches.
-
 * `mergeFrom(NetData.NetMessage)` has a complexity of 79, and consists of the same block of code duplicated 11 times, in addition to 11 smaller if statements. The larger block consists of doing bitwise operations with different values and calling functions on its 11 containing objects that extend com.google.protobuf.GeneratedMessage.ExtendableMessage. Since all of these 11 objects are extensions of this class, the code block could be be put into the super class, or an extension of the super class, to avoid code duplication. This would cut the CC of the function to approximately 1/5 of what it is now, a reduction of 80 %.
-
 * `clear()` The function consist of 22 blocks with similar patterns again and again. Functional programming paradigm was used to decrease the complexity from 22 to 1 by passing the different part in each pattern to two different helper functions that were created. This different part in each pattern can not be changed without referring to the fields of the object. That is why functional programming paradigm was used.
-
 `noise(4D)` what makes this function is a lot of if-statements. Most of the function seems to be essential complexity because it seems that they are just calculations essential to get a specific result. An easy way to refactor this function is to refactor the function by grouping the if-statements in different functions to give a better overview of what the algorithm does and reduce the cyclomatic complexity.
 
 ### Estimated impact of refactoring (lower CC, but other drawbacks?).
-* `centerPointForNormal(Vector3f) ` The estimated impact of refactoring is M = B-D+1 = 12-6 +1 = 7. Original complexity where 19,
-which would result in a (19-7)/19 = 0.64 = 63% reduction of cyclomatic complexity.
-
+* `centerPointForNormal(Vector3f) ` The estimated impact of refactoring is M = B-D+1 = 12-6 +1 = 7. Original complexity where 19, which would result in a (19-7)/19 = 0.64 = 63% reduction of cyclomatic complexity.
 * `clear()` the estimated impact of refactoring is to reduce the cyclomatic omplexity to nearly 1 because it is mostly repeated patterns. So, the impact is nearly 100 % reduction of cyclomatic complexity.
-
-`noise(4D)` estimated impact by grouping the if-statements in different functions could be to reduce the complexity to 1. The reason is that if there is a natural grouping of operations in the algorithm, it would be easy to create different functions that handle different parts of the calculations and results and accumulate the results in the main calling method.
+* `noise(4D)` estimated impact by grouping the if-statements in different functions could be to reduce the complexity to 1. The reason is that if there is a natural grouping of operations in the algorithm, it would be easy to create different functions that handle different parts of the calculations and results and accumulate the results in the main calling method.
 
 ### Carried out refactoring (optional)
-
-* `centerPointForNormal(Vector3f) ` All chained if-statements where replaced by a function call. Example if(normal.x==1 && normal.y==0 && normal.z==0)
-where changed to if(normalPositiveX). After the changes jcoco calculated the cyclomatic complexity to 7 which is the same as the
-estimated reduction of complexity.
-
+* `centerPointForNormal(Vector3f) ` All chained if-statements where replaced by a function call. Example if(normal.x==1 && normal.y==0 && normal.z==0) where changed to if(normalPositiveX). After the changes jcoco calculated the cyclomatic complexity to 7 which is the same as the estimated reduction of complexity.
 * `clear()` The function consist of 22 blocks with similar patterns again and again. Functional programming paradigm was used to decrease the complexity from 22 to 1 by passing the different part in each pattern to two different helper functions that were created. This different part in each pattern can not be changed without referring to the fields of the object. That is why functional programming paradigm was used.
 
 ## Overall experience
