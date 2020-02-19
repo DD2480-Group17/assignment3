@@ -18,13 +18,17 @@ package org.terasology.protobuf;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocBuildPartial;
-import org.terasology.AdHoc.AdHoc.AdHocServerInfoMessageIsInitialized;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import org.terasology.AdHoc.AdHocServerInfoMessageIsInitialized;
 
 class NetDataTest {
+
+    /**
+     * Method using for printing results of ad-hoc coverage tool.
+     */
     @AfterAll
     static void printCoverage() {
         AdHocNetData.NetMessage.Builder.MergeFrom.printRes();
@@ -118,6 +122,11 @@ class NetDataTest {
         assertEquals(1, defaultInstance.getBiomeChange(0).getNewBiome());
     }
 
+    /**
+     * Helper functions for asserting that counts are equal to a specific size
+     * @param builder builder under test
+     * @param size size that is used in the assertion
+     */
     private void assertListCountsEqualToSize(NetData.NetMessage.Builder builder, int size) {
         assertEquals(size, builder.getChunkInfoCount());
         assertEquals(size, builder.getBlockChangeCount());
@@ -131,6 +140,10 @@ class NetDataTest {
         assertEquals(size, builder.getModuleRequestCount());
     }
 
+    /**
+     * Helper method for adding objects using Builder methods.
+     * @param builder object under test.
+     */
     private void addNewBuilders(NetData.NetMessage.Builder builder) {
         builder.addChunkInfoBuilder();
         builder.addInvalidateChunkBuilder();
@@ -145,6 +158,10 @@ class NetDataTest {
         builder.addModuleRequestBuilder();
     }
 
+    /**
+     * Helper method for adding objects.
+     * @param builder object under test
+     */
     private void addNewObjects(NetData.NetMessage.Builder builder) {
         builder.addChunkInfo(EntityData.ChunkStore.newBuilder().build());
         builder.addInvalidateChunk(NetData.InvalidateChunkMessage.newBuilder().build());
@@ -159,6 +176,9 @@ class NetDataTest {
         builder.addModuleRequest(NetData.ModuleRequest.newBuilder().build());
     }
 
+    /**
+     * Tests that clear works even without adding any objects.
+     */
     @Test
     void testClearWithoutAddingNewObjects(){
         NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();
@@ -167,6 +187,11 @@ class NetDataTest {
         assertListCountsEqualToSize(builder, 0);
     }
 
+    /**
+     * Tests that clear works by adding one object of some kinds using Builder
+     * functions, check the counts, clears everything and then checks the counts
+     * again.
+     */
     @Test
     void testClearAddBuilders(){
         NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();
@@ -177,6 +202,11 @@ class NetDataTest {
         assertListCountsEqualToSize(builder, 0);
     }
 
+    /**
+     * Tests that clear works by adding one object of some kinds,
+     * check the counts, clears everything and then checks the counts
+     * again.
+     */
     @Test
     void testClearAddBuildersCreatedManually(){
         NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();

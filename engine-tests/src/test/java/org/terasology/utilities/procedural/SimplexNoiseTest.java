@@ -164,6 +164,10 @@ class SimplexNoiseTest {
     }
 
 
+    /**
+     * Tests that the result of calling noise 4D is in
+     * interval [-1,1] when all four parameters are zeros.
+     */
     @Test
     void testNoiseFourParametersAllZeros() {
         SimplexNoise sn = new SimplexNoise(7);
@@ -172,6 +176,10 @@ class SimplexNoiseTest {
         assertEquals(0.0f, result);
     }
 
+    /**
+     * Tests that the result of calling noise 4D is in
+     * interval [-1,1] when all four parameters non-zero parameters.
+     */
     @Test
     void testNoiseFourParametersOne() {
         SimplexNoise sn = new SimplexNoise(7);
@@ -183,6 +191,11 @@ class SimplexNoiseTest {
         assertTrue(result >= -1.0f && result <= 1.0f);
     }
 
+
+    /**
+     * Tests that the result of calling noise 4D is in
+     * interval [-1,1] when all four parameters non-zero parameters.
+     */
     @Test
     void testNoiseFourParametersTwo() {
         SimplexNoise sn = new SimplexNoise(7);
@@ -194,6 +207,10 @@ class SimplexNoiseTest {
         assertTrue(result >= -1.0f && result <= 1.0f);
     }
 
+    /**
+     * Tests that the result of calling noise 4D is in
+     * interval [-1,1] when all four parameters non-zero parameters.
+     */
     @Test
     void testNoiseFourParametersThree() {
         SimplexNoise sn = new SimplexNoise(7);
@@ -205,6 +222,10 @@ class SimplexNoiseTest {
         assertTrue(result >= -1.0f && result <= 1.0f);
     }
 
+
+    /**
+     * Method using for printing results of ad-hoc coverage tool.
+     */
     @AfterAll
     static void printCoverage() {
         BranchCoverageSimplesNoiseNoiseMethod.printBranchCoveragePercentage();

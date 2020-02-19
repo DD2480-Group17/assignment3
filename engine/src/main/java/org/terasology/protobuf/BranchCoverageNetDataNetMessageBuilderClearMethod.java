@@ -20,6 +20,10 @@ public class BranchCoverageNetDataNetMessageBuilderClearMethod {
     // total 22 branches
     public static final boolean branchCovered[] = new boolean[42];
 
+    /**
+     * Method for calculating branch coverage percentage
+     * @return branch coverage percentage
+     */
     private static double calcBranchCoveragePercentage() {
         double counter = 0;
         for(boolean b : branchCovered){
@@ -29,6 +33,9 @@ public class BranchCoverageNetDataNetMessageBuilderClearMethod {
         return counter / branchCovered.length * 100.0d;
     }
 
+    /**
+     * Method for printing branch coverage percentage.
+     */
     public static void printBranchCoveragePercentage() {
         for (int i = 0; i < branchCovered.length; i++){
             System.out.println("clear(): branch " + i + ": " + branchCovered[i]);

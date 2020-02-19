@@ -20,6 +20,10 @@ public class BranchCoverageSimplesNoiseNoiseMethod {
     // total 22 branches
     public static final boolean branchCovered[] = new boolean[22];
 
+    /**
+     * Method for calculating branch coverage percentage
+     * @return branch coverage percentage
+     */
     public static double calcBranchCoveragePercentage() {
         double counter = 0;
         for(boolean b : branchCovered){
@@ -28,7 +32,10 @@ public class BranchCoverageSimplesNoiseNoiseMethod {
 
         return counter / branchCovered.length * 100.0d;
     }
-	
+
+    /**
+     * Method for printing branch coverage percentage.
+     */
     public static void printBranchCoveragePercentage() {
         for (int i = 0; i < branchCovered.length; i++){
             System.out.println("noise(): branch " + i + ": " + branchCovered[i]);
