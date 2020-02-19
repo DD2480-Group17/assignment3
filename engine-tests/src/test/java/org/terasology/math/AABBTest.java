@@ -137,5 +137,45 @@ class AABBTest {
         assertEquals(results, wanted);
     }
 
+    /**
+     * The test testNormalForPlaneClosestToOriginWithSameZ, test if the function normalForPlaneClosestToOrigin returns the normal (0,0,-1) if
+     * the input is the point (0,0,1), min = (0,0,1) and max = (0,0,1) (enters the first two branches because z-coordinates is the same for all vectors).
+     * <p>
+     * Test case 1:
+     * Expected_output: A vector with coordinates (0,0,-1)
+     */
+    @Test
+    void testNormalForPlaneClosestToOriginWithSameZ() {
+        Vector3f pointOnAABB = new Vector3f(0, 0, 1);
+        Vector3f max = new Vector3f(0, 0, 1);
+        Vector3f min = new Vector3f(0, 0, 1);
+        Vector3f origin = new Vector3f(0, 0, 0);
+        Vector3f wanted = new Vector3f(0, 0, -1);
 
+        AABB aabb = AABB.createMinMax(min, max);
+
+        Vector3f results = aabb.normalForPlaneClosestToOrigin(pointOnAABB, origin, true, true, true);
+        assertEquals(results, wanted);
+    }
+
+    /**
+     * the test testCenterPointForNormalPositiveZ, test if the function centerPointForNormal returns the vector 0,0,1 if
+     * the normal is (0,0,1), min (0,0,1) and max (0,0,1)
+     * <p>
+     * Test case 1:
+     * Expected_output: A vector with coordinates (0,0,1)
+     */
+    @Test
+    void testCenterPointForNormalPositivZ() {
+        Vector3f normal = new Vector3f(0, 0, 1);
+        Vector3f max = new Vector3f(0, 0, 1);
+        Vector3f min = new Vector3f(0, 0, 1);
+        Vector3f answer = new Vector3f(0, 0, 1);
+
+        AABB aabb = AABB.createMinMax(min, max);
+
+        Vector3f result = aabb.centerPointForNormal(normal);
+
+        assertEquals(result, answer);
+    }
 }
