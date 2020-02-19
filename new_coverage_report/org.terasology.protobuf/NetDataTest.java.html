@@ -18,21 +18,25 @@ package org.terasology.protobuf;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.terasology.AdHoc.AdHocBuildPartial;
-import org.terasology.AdHoc.AdHocServerInfoMessageIsInitialized;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import org.terasology.AdHoc.AdHocServerInfoMessageIsInitialized;
 
 <span class="fc" id="L27">class NetDataTest {</span>
+
+    /**
+     * Method using for printing results of ad-hoc coverage tool.
+     */
     @AfterAll
     static void printCoverage() {
-<span class="fc" id="L30">        AdHocNetData.NetMessage.Builder.MergeFrom.printRes();</span>
-<span class="fc" id="L31">        AdHocNetData.NetMessage.Builder.IsInitialized.printRes();</span>
-<span class="fc" id="L32">        BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();</span>
-<span class="fc" id="L33">        AdHocBuildPartial.getCoverage();</span>
-<span class="fc" id="L34">        AdHocServerInfoMessageIsInitialized.getCoverage();</span>
-<span class="fc" id="L35">    }</span>
+<span class="fc" id="L34">        AdHocNetData.NetMessage.Builder.MergeFrom.printRes();</span>
+<span class="fc" id="L35">        AdHocNetData.NetMessage.Builder.IsInitialized.printRes();</span>
+<span class="fc" id="L36">        BranchCoverageNetDataNetMessageBuilderClearMethod.printBranchCoveragePercentage();</span>
+<span class="fc" id="L37">        AdHocBuildPartial.getCoverage();</span>
+<span class="fc" id="L38">        AdHocServerInfoMessageIsInitialized.getCoverage();</span>
+<span class="fc" id="L39">    }</span>
 
     /**
      * Test that some of the attributes for the ServerInfoMessage's object returned by buildPartial() are as
@@ -49,143 +53,169 @@ import com.google.protobuf.InvalidProtocolBufferException;
      */
     @Test
     void testBuildPartial() {
-<span class="fc" id="L52">        NetData.ServerInfoMessage serverinfo1 = NetData.ServerInfoMessage.getDefaultInstance();</span>
-<span class="fc" id="L53">        NetData.ServerInfoMessage.Builder builder = serverinfo1.newBuilder(serverinfo1);</span>
-<span class="fc" id="L54">        NetData.ServerInfoMessage serverinfo2 = builder.buildPartial();</span>
+<span class="fc" id="L56">        NetData.ServerInfoMessage serverinfo1 = NetData.ServerInfoMessage.getDefaultInstance();</span>
+<span class="fc" id="L57">        NetData.ServerInfoMessage.Builder builder = serverinfo1.newBuilder(serverinfo1);</span>
+<span class="fc" id="L58">        NetData.ServerInfoMessage serverinfo2 = builder.buildPartial();</span>
 
         // returns an empty list
-<span class="fc" id="L57">        assertNotNull(serverinfo2.getModuleList());</span>
+<span class="fc" id="L61">        assertNotNull(serverinfo2.getModuleList());</span>
         // gets the correct value for playersAmount
-<span class="fc" id="L59">        assertEquals(0, serverinfo2.getOnlinePlayersAmount());</span>
+<span class="fc" id="L63">        assertEquals(0, serverinfo2.getOnlinePlayersAmount());</span>
         // gets the correct value for reflectionHeight
-<span class="fc" id="L61">        assertEquals(0.0, serverinfo2.getReflectionHeight());</span>
-<span class="fc" id="L62">    }</span>
+<span class="fc" id="L65">        assertEquals(0.0, serverinfo2.getReflectionHeight());</span>
+<span class="fc" id="L66">    }</span>
 
     /**
      * Test that mergeFrom an empty ByteString message is initialized
      */
     @Test
     public void mergeFromEmptyNetMessage() throws InvalidProtocolBufferException {
-<span class="fc" id="L69">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
-<span class="fc" id="L70">        NetData.NetMessage empty = NetData.NetMessage.parseFrom(ByteString.EMPTY);</span>
-<span class="fc" id="L71">        builder.mergeFrom(empty);</span>
-<span class="fc" id="L72">        assertTrue(builder.isInitialized());</span>
-<span class="fc" id="L73">    }</span>
+<span class="fc" id="L73">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
+<span class="fc" id="L74">        NetData.NetMessage empty = NetData.NetMessage.parseFrom(ByteString.EMPTY);</span>
+<span class="fc" id="L75">        builder.mergeFrom(empty);</span>
+<span class="fc" id="L76">        assertTrue(builder.isInitialized());</span>
+<span class="fc" id="L77">    }</span>
 
     /**
      * Test that mergeFrom the same NetMessage is initalized
      */
     @Test
     public void mergeFromSameNetMessage() {
-<span class="fc" id="L80">        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();</span>
-<span class="fc" id="L81">        NetData.NetMessage.Builder builder = defaultInstance.toBuilder();</span>
-<span class="fc" id="L82">        builder.mergeFrom(defaultInstance);</span>
-<span class="fc" id="L83">        assertTrue(builder.isInitialized());</span>
-<span class="fc" id="L84">    }</span>
+<span class="fc" id="L84">        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();</span>
+<span class="fc" id="L85">        NetData.NetMessage.Builder builder = defaultInstance.toBuilder();</span>
+<span class="fc" id="L86">        builder.mergeFrom(defaultInstance);</span>
+<span class="fc" id="L87">        assertTrue(builder.isInitialized());</span>
+<span class="fc" id="L88">    }</span>
 
     /**
      * Test that mergeFrom merges a JoinMessage
      */
     @Test
     public void mergeFromWithJoinMessage() {
-<span class="fc" id="L91">        NetData.JoinMessage.Builder joinMessageBuilder = NetData.JoinMessage.newBuilder();</span>
-<span class="fc" id="L92">        joinMessageBuilder.setName(&quot;test&quot;);</span>
+<span class="fc" id="L95">        NetData.JoinMessage.Builder joinMessageBuilder = NetData.JoinMessage.newBuilder();</span>
+<span class="fc" id="L96">        joinMessageBuilder.setName(&quot;test&quot;);</span>
 
-<span class="fc" id="L94">        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();</span>
-<span class="fc" id="L95">        NetData.NetMessage.Builder netMessageBuilder = defaultInstance.toBuilder();</span>
+<span class="fc" id="L98">        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();</span>
+<span class="fc" id="L99">        NetData.NetMessage.Builder netMessageBuilder = defaultInstance.toBuilder();</span>
 
-<span class="fc" id="L97">        netMessageBuilder.setJoin(joinMessageBuilder);</span>
-<span class="fc" id="L98">        defaultInstance = defaultInstance.toBuilder().mergeFrom(netMessageBuilder.build()).build();</span>
+<span class="fc" id="L101">        netMessageBuilder.setJoin(joinMessageBuilder);</span>
+<span class="fc" id="L102">        defaultInstance = defaultInstance.toBuilder().mergeFrom(netMessageBuilder.build()).build();</span>
 
-<span class="fc" id="L100">        assertEquals(&quot;test&quot;, defaultInstance.getJoin().getName());</span>
-<span class="fc" id="L101">    }</span>
+<span class="fc" id="L104">        assertEquals(&quot;test&quot;, defaultInstance.getJoin().getName());</span>
+<span class="fc" id="L105">    }</span>
 
     /**
      * Test that mergeFrom merges a BiomeChangeMessage
      */
     @Test
     public void mergeFromWithBiomeChange() {
-<span class="fc" id="L108">        NetData.BiomeChangeMessage.Builder biomeChangeMessageBuilder = NetData.BiomeChangeMessage.newBuilder();</span>
-<span class="fc" id="L109">        biomeChangeMessageBuilder.setNewBiome(1);</span>
+<span class="fc" id="L112">        NetData.BiomeChangeMessage.Builder biomeChangeMessageBuilder = NetData.BiomeChangeMessage.newBuilder();</span>
+<span class="fc" id="L113">        biomeChangeMessageBuilder.setNewBiome(1);</span>
 
-<span class="fc" id="L111">        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();</span>
-<span class="fc" id="L112">        NetData.NetMessage.Builder netMessageBuilder = defaultInstance.toBuilder();</span>
+<span class="fc" id="L115">        NetData.NetMessage defaultInstance = NetData.NetMessage.getDefaultInstance();</span>
+<span class="fc" id="L116">        NetData.NetMessage.Builder netMessageBuilder = defaultInstance.toBuilder();</span>
 
-<span class="fc" id="L114">        netMessageBuilder.addBiomeChange(biomeChangeMessageBuilder);</span>
-<span class="fc" id="L115">        defaultInstance = defaultInstance.toBuilder().mergeFrom(netMessageBuilder.build()).build();</span>
+<span class="fc" id="L118">        netMessageBuilder.addBiomeChange(biomeChangeMessageBuilder);</span>
+<span class="fc" id="L119">        defaultInstance = defaultInstance.toBuilder().mergeFrom(netMessageBuilder.build()).build();</span>
 
 
-<span class="fc" id="L118">        assertEquals(1, defaultInstance.getBiomeChange(0).getNewBiome());</span>
-<span class="fc" id="L119">    }</span>
+<span class="fc" id="L122">        assertEquals(1, defaultInstance.getBiomeChange(0).getNewBiome());</span>
+<span class="fc" id="L123">    }</span>
 
+    /**
+     * Helper functions for asserting that counts are equal to a specific size
+     * @param builder builder under test
+     * @param size size that is used in the assertion
+     */
     private void assertListCountsEqualToSize(NetData.NetMessage.Builder builder, int size) {
-<span class="fc" id="L122">        assertEquals(size, builder.getChunkInfoCount());</span>
-<span class="fc" id="L123">        assertEquals(size, builder.getBlockChangeCount());</span>
-<span class="fc" id="L124">        assertEquals(size, builder.getCreateEntityCount());</span>
-<span class="fc" id="L125">        assertEquals(size, builder.getRemoveEntityCount());</span>
-<span class="fc" id="L126">        assertEquals(size, builder.getUpdateEntityCount());</span>
-<span class="fc" id="L127">        assertEquals(size, builder.getEventCount());</span>
-<span class="fc" id="L128">        assertEquals(size, builder.getBiomeChangeCount());</span>
-<span class="fc" id="L129">        assertEquals(size, builder.getExtraDataChangeCount());</span>
-<span class="fc" id="L130">        assertEquals(size, builder.getBlockFamilyRegisteredCount());</span>
-<span class="fc" id="L131">        assertEquals(size, builder.getModuleRequestCount());</span>
-<span class="fc" id="L132">    }</span>
+<span class="fc" id="L131">        assertEquals(size, builder.getChunkInfoCount());</span>
+<span class="fc" id="L132">        assertEquals(size, builder.getBlockChangeCount());</span>
+<span class="fc" id="L133">        assertEquals(size, builder.getCreateEntityCount());</span>
+<span class="fc" id="L134">        assertEquals(size, builder.getRemoveEntityCount());</span>
+<span class="fc" id="L135">        assertEquals(size, builder.getUpdateEntityCount());</span>
+<span class="fc" id="L136">        assertEquals(size, builder.getEventCount());</span>
+<span class="fc" id="L137">        assertEquals(size, builder.getBiomeChangeCount());</span>
+<span class="fc" id="L138">        assertEquals(size, builder.getExtraDataChangeCount());</span>
+<span class="fc" id="L139">        assertEquals(size, builder.getBlockFamilyRegisteredCount());</span>
+<span class="fc" id="L140">        assertEquals(size, builder.getModuleRequestCount());</span>
+<span class="fc" id="L141">    }</span>
 
+    /**
+     * Helper method for adding objects using Builder methods.
+     * @param builder object under test.
+     */
     private void addNewBuilders(NetData.NetMessage.Builder builder) {
-<span class="fc" id="L135">        builder.addChunkInfoBuilder();</span>
-<span class="fc" id="L136">        builder.addInvalidateChunkBuilder();</span>
-<span class="fc" id="L137">        builder.addBlockChangeBuilder();</span>
-<span class="fc" id="L138">        builder.addCreateEntityBuilder();</span>
-<span class="fc" id="L139">        builder.addRemoveEntityBuilder();</span>
-<span class="fc" id="L140">        builder.addUpdateEntityBuilder();</span>
-<span class="fc" id="L141">        builder.addEventBuilder();</span>
-<span class="fc" id="L142">        builder.addBiomeChangeBuilder();</span>
-<span class="fc" id="L143">        builder.addExtraDataChangeBuilder();</span>
-<span class="fc" id="L144">        builder.addBlockFamilyRegisteredBuilder();</span>
-<span class="fc" id="L145">        builder.addModuleRequestBuilder();</span>
-<span class="fc" id="L146">    }</span>
+<span class="fc" id="L148">        builder.addChunkInfoBuilder();</span>
+<span class="fc" id="L149">        builder.addInvalidateChunkBuilder();</span>
+<span class="fc" id="L150">        builder.addBlockChangeBuilder();</span>
+<span class="fc" id="L151">        builder.addCreateEntityBuilder();</span>
+<span class="fc" id="L152">        builder.addRemoveEntityBuilder();</span>
+<span class="fc" id="L153">        builder.addUpdateEntityBuilder();</span>
+<span class="fc" id="L154">        builder.addEventBuilder();</span>
+<span class="fc" id="L155">        builder.addBiomeChangeBuilder();</span>
+<span class="fc" id="L156">        builder.addExtraDataChangeBuilder();</span>
+<span class="fc" id="L157">        builder.addBlockFamilyRegisteredBuilder();</span>
+<span class="fc" id="L158">        builder.addModuleRequestBuilder();</span>
+<span class="fc" id="L159">    }</span>
 
+    /**
+     * Helper method for adding objects.
+     * @param builder object under test
+     */
     private void addNewObjects(NetData.NetMessage.Builder builder) {
-<span class="fc" id="L149">        builder.addChunkInfo(EntityData.ChunkStore.newBuilder().build());</span>
-<span class="fc" id="L150">        builder.addInvalidateChunk(NetData.InvalidateChunkMessage.newBuilder().build());</span>
-<span class="fc" id="L151">        builder.addBlockChange(NetData.BlockChangeMessage.newBuilder().build());</span>
-<span class="fc" id="L152">        builder.addCreateEntity(NetData.CreateEntityMessage.newBuilder().build());</span>
-<span class="fc" id="L153">        builder.addRemoveEntity(NetData.RemoveEntityMessage.newBuilder().build());</span>
-<span class="fc" id="L154">        builder.addUpdateEntity(NetData.UpdateEntityMessage.newBuilder().build());</span>
-<span class="fc" id="L155">        builder.addEvent(NetData.EventMessage.newBuilder().build());</span>
-<span class="fc" id="L156">        builder.addBiomeChange(NetData.BiomeChangeMessage.newBuilder().build());</span>
-<span class="fc" id="L157">        builder.addExtraDataChange(NetData.ExtraDataChangeMessage.newBuilder().build());</span>
-<span class="fc" id="L158">        builder.addBlockFamilyRegistered(NetData.BlockFamilyRegisteredMessage.newBuilder().build());</span>
-<span class="fc" id="L159">        builder.addModuleRequest(NetData.ModuleRequest.newBuilder().build());</span>
-<span class="fc" id="L160">    }</span>
+<span class="fc" id="L166">        builder.addChunkInfo(EntityData.ChunkStore.newBuilder().build());</span>
+<span class="fc" id="L167">        builder.addInvalidateChunk(NetData.InvalidateChunkMessage.newBuilder().build());</span>
+<span class="fc" id="L168">        builder.addBlockChange(NetData.BlockChangeMessage.newBuilder().build());</span>
+<span class="fc" id="L169">        builder.addCreateEntity(NetData.CreateEntityMessage.newBuilder().build());</span>
+<span class="fc" id="L170">        builder.addRemoveEntity(NetData.RemoveEntityMessage.newBuilder().build());</span>
+<span class="fc" id="L171">        builder.addUpdateEntity(NetData.UpdateEntityMessage.newBuilder().build());</span>
+<span class="fc" id="L172">        builder.addEvent(NetData.EventMessage.newBuilder().build());</span>
+<span class="fc" id="L173">        builder.addBiomeChange(NetData.BiomeChangeMessage.newBuilder().build());</span>
+<span class="fc" id="L174">        builder.addExtraDataChange(NetData.ExtraDataChangeMessage.newBuilder().build());</span>
+<span class="fc" id="L175">        builder.addBlockFamilyRegistered(NetData.BlockFamilyRegisteredMessage.newBuilder().build());</span>
+<span class="fc" id="L176">        builder.addModuleRequest(NetData.ModuleRequest.newBuilder().build());</span>
+<span class="fc" id="L177">    }</span>
 
+    /**
+     * Tests that clear works even without adding any objects.
+     */
     @Test
     void testClearWithoutAddingNewObjects(){
-<span class="fc" id="L164">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
-<span class="fc" id="L165">        assertListCountsEqualToSize(builder, 0);</span>
-<span class="fc" id="L166">        builder.clear();</span>
-<span class="fc" id="L167">        assertListCountsEqualToSize(builder, 0);</span>
-<span class="fc" id="L168">    }</span>
-
-    @Test
-    void testClearAddBuilders(){
-<span class="fc" id="L172">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
-<span class="fc" id="L173">        assertListCountsEqualToSize(builder, 0);</span>
-<span class="fc" id="L174">        addNewBuilders(builder);</span>
-<span class="fc" id="L175">        assertListCountsEqualToSize(builder, 1);</span>
-<span class="fc" id="L176">        builder.clear();</span>
-<span class="fc" id="L177">        assertListCountsEqualToSize(builder, 0);</span>
-<span class="fc" id="L178">    }</span>
-
-    @Test
-    void testClearAddBuildersCreatedManually(){
-<span class="fc" id="L182">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
-<span class="fc" id="L183">        assertListCountsEqualToSize(builder, 0);</span>
-<span class="fc" id="L184">        addNewObjects(builder);</span>
-<span class="fc" id="L185">        assertListCountsEqualToSize(builder, 1);</span>
+<span class="fc" id="L184">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
+<span class="fc" id="L185">        assertListCountsEqualToSize(builder, 0);</span>
 <span class="fc" id="L186">        builder.clear();</span>
 <span class="fc" id="L187">        assertListCountsEqualToSize(builder, 0);</span>
 <span class="fc" id="L188">    }</span>
+
+    /**
+     * Tests that clear works by adding one object of some kinds using Builder
+     * functions, check the counts, clears everything and then checks the counts
+     * again.
+     */
+    @Test
+    void testClearAddBuilders(){
+<span class="fc" id="L197">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
+<span class="fc" id="L198">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L199">        addNewBuilders(builder);</span>
+<span class="fc" id="L200">        assertListCountsEqualToSize(builder, 1);</span>
+<span class="fc" id="L201">        builder.clear();</span>
+<span class="fc" id="L202">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L203">    }</span>
+
+    /**
+     * Tests that clear works by adding one object of some kinds,
+     * check the counts, clears everything and then checks the counts
+     * again.
+     */
+    @Test
+    void testClearAddBuildersCreatedManually(){
+<span class="fc" id="L212">        NetData.NetMessage.Builder builder = NetData.NetMessage.newBuilder();</span>
+<span class="fc" id="L213">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L214">        addNewObjects(builder);</span>
+<span class="fc" id="L215">        assertListCountsEqualToSize(builder, 1);</span>
+<span class="fc" id="L216">        builder.clear();</span>
+<span class="fc" id="L217">        assertListCountsEqualToSize(builder, 0);</span>
+<span class="fc" id="L218">    }</span>
 
     /**
      * Test that the playersAmount and reflectionHeight are correct
@@ -193,16 +223,16 @@ import com.google.protobuf.InvalidProtocolBufferException;
      */
     @Test
     void testIsInitialized() {
-<span class="fc" id="L196">        NetData.ServerInfoMessage serverinfo1 = NetData.ServerInfoMessage.getDefaultInstance();</span>
-<span class="fc" id="L197">        NetData.ServerInfoMessage.Builder builder = serverinfo1.newBuilder(serverinfo1);</span>
-<span class="fc" id="L198">        NetData.ServerInfoMessage serverinfo2 = builder.buildPartial();</span>
+<span class="fc" id="L226">        NetData.ServerInfoMessage serverinfo1 = NetData.ServerInfoMessage.getDefaultInstance();</span>
+<span class="fc" id="L227">        NetData.ServerInfoMessage.Builder builder = serverinfo1.newBuilder(serverinfo1);</span>
+<span class="fc" id="L228">        NetData.ServerInfoMessage serverinfo2 = builder.buildPartial();</span>
 
         // gets the correct value for playersAmount
-<span class="fc" id="L201">        assertEquals(0, serverinfo2.getOnlinePlayersAmount());</span>
+<span class="fc" id="L231">        assertEquals(0, serverinfo2.getOnlinePlayersAmount());</span>
         // gets the correct value for reflectionHeight
-<span class="fc" id="L203">        assertEquals(0.0, serverinfo2.getReflectionHeight());</span>
+<span class="fc" id="L233">        assertEquals(0.0, serverinfo2.getReflectionHeight());</span>
         // Assertion should be true even if we haven't added any components to object
-<span class="fc" id="L205">        assertTrue(builder.isInitialized());</span>
-<span class="fc" id="L206">    }</span>
+<span class="fc" id="L235">        assertTrue(builder.isInitialized());</span>
+<span class="fc" id="L236">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>
