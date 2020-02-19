@@ -164,25 +164,30 @@ its output?
 
 ### Evaluation
 
-We decided to split the adhoc tool to be specific for every class. The adhoc classes used are `AdHocAABB`, `AdHocBuildPartial`, `AdHocSimplexNoise`, `BranchCoverageSimplesNoiseNoiseMethod` ([here](engine/src/main/java/org/terasology/utilities/procedural/BranchCoverageSimplesNoiseNoiseMethod.java) and [here](engine/src/main/java/org/terasology/utilities/procedural/SimplexNoise.java)) and `BranchCoverageNetDataNetMessageBuilderClearMethod` ([here](engine/src/main/java/org/terasology/protobuf/BranchCoverageNetDataNetMessageBuilderClearMethod.java) and [here](engine/src/main/java/org/terasology/protobuf/NetData.java)).
+We decided to split the adhoc tool to be specific for every class. The adhoc classes used are `AdHocServerInfoMessageIsInitialized`, `AdHocNetData`, `AdHocAABB`, `AdHocBuildPartial`, `AdHocSimplexNoise`, `BranchCoverageSimplesNoiseNoiseMethod` ([here](engine/src/main/java/org/terasology/utilities/procedural/BranchCoverageSimplesNoiseNoiseMethod.java) and [here](engine/src/main/java/org/terasology/utilities/procedural/SimplexNoise.java)) and `BranchCoverageNetDataNetMessageBuilderClearMethod` ([here](engine/src/main/java/org/terasology/protobuf/BranchCoverageNetDataNetMessageBuilderClearMethod.java) and [here](engine/src/main/java/org/terasology/protobuf/NetData.java)).
 
 1. How detailed is your coverage measurement?
 * `AdHocAABB` The coverage is limited to check if the method enters a if statement or loop. If the if-statement is chained (if(a && b && c)) the adhoc tool counts this as one branch and not three. This is because we did not want to alter the structure of the code.
 * `BranchCoverageSimplesNoiseNoiseMethod` It only takes into accounts the if statements that exist in the noise function (with 4D).
 * `BranchCoverageNetDataNetMessageBuilderClearMethod` It only takes into accounts the if statements that exist in the noise function (with 4D).
 * `AdHocServerInfoMessageIsInitialized` The ad-hoc is limited to only check those if statements that are not chained or use logical operators, and loops (for/while). If the ad hoc integrates with a chained if-statment, it will only increase the CC with one (and not two even if we have a&b). The reason for that is that we did not want to alter the structure of the code.
+* `AdHocNetData` This coverage tool is capable of checking if, for and while clauses.
+* `AdHocBuildPartial` The ad-hoc is limited to only check those if statements that are not chained or use logical operators. If the ad hoc integrates with a chained if-statment, it will only increase the CC with one (and not two even if we have a&b). The reason for that is that we did not want to alter the structure of the code.
 
 2. What are the limitations of your own tool?
 * `AdHocAABB` It counts all chained if-statement as one if-statement.
 * `BranchCoverageSimplesNoiseNoiseMethod` is limited in that it does not take into account ternary operators `x ? y : z`. That is why it underestimates the coverage a little bit.
 * `BranchCoverageNetDataNetMessageBuilderClearMethod` is limited in that it does not take into account ternary operators `x ? y : z`. However, no underestimation happened in the calculations because there were only normal if-statements without ternary operators or exception handling.
-* `AdHocServerInfoMessageIsInitialized` It counts all chained if-statement as one if-statement.
+* `AdHocServerInfoMessageIsInitialized` It counts all chained if-statements as one if-statement.
+* `AdHocNetData` It counts all chained if-statements as one if-statement.
+* `AdHocBuildPartial` It counts all chained if-statements as one if-statement.
 
 3. Are the results of your tool consistent with existing coverage tools?
 * `AdHocAABB` No, because JaCoCo looks at the assembler code to be able to see chained if-statements.
 * `BranchCoverageSimplesNoiseNoiseMethod` No, because Jacoco works on byte code level. That is why it can take into account ternary operators.
 * `BranchCoverageNetDataNetMessageBuilderClearMethod` Yes, because there were only normal if-statements without ternary operators or exception handling.
 * `AdHocBuildPartial` JaCoCo got the branch coverage at 50%, which was the same as the AdHocBuildPartial result (50.0).
+* `AdHocNetData` Yes, but only after translating ternary operations to if statements.
 * `AdHocServerInfoMessageIsInitialized` JaCoCo got the branch coverage at 27%, which was almost the same as the AdHocServerInfoMessageIsInitialized result (27,7%)
 
 ### Coverage improvement
@@ -194,19 +199,19 @@ Report of old coverage: [link](https://github.com/DD2480-Group17/assignment3/tre
 Report of new coverage: [link](https://github.com/DD2480-Group17/assignment3/tree/master/new_coverage_report)
 
 #### Test cases added:
-Tests related to the class AABB.java
+##### Tests related to the class AABB.java
 * `testCenterPointForNormalInXDirection `
 * `testCenterPointForNormalMovedXAngledInYDirection `
 * `testCenterPointForNormalNotUnitvectorNomal `
 * `testNormalForPlaneClosestToOrigin `
 
-Tests related to the class to the `noise(4D)` method of `SimplexNoise.java` class
+##### Tests related to the class to the `noise(4D)` method of `SimplexNoise.java` class
 * `testNoiseFourParametersAllZeros()`
 * `testNoiseFourParametersOne()`
 * `testNoiseFourParametersTwo()`
 * `testNoiseFourParametersThree()`
 
-Tests related to the class to the `clear` method of `NetData.NetMessage.Builder.java` class
+##### Tests related to the class to the `clear` method of `NetData.NetMessage.Builder.java` class
 * `testClearWithoutAddingNewObjects()`
 * `testClearAddBuilders()`
 * `testClearAddBuildersCreatedManually()`
@@ -214,7 +219,13 @@ Tests related to the class to the `clear` method of `NetData.NetMessage.Builder.
 * private helper method `addNewBuilders(NetData.NetMessage.Builder builder)`
 * private helper method `addNewObjects(NetData.NetMessage.Builder builder)`
 
-Tests related to the class NetData.ServerInfoMessage
+##### Tests related to `isInitalized` and `mergeFrom` of `NetData.NetMessage.Builder`
+* `mergeFromEmptyNetMessage`
+* `mergeFromSameNetMessage`
+* `mergeFromWithJoinMessage`
+* `mergeFromWithBiomeChange`
+
+##### Tests related to the class NetData.ServerInfoMessage
 * `testBuildPartial`
 * `testIsInitialized`
 
@@ -235,6 +246,7 @@ git diff ...
 * `clear()` the estimated impact of refactoring is to reduce the cyclomatic omplexity to nearly 1 because it is mostly repeated patterns. So, the impact is nearly 100 % reduction of cyclomatic complexity.
 * `noise(4D)` estimated impact by grouping the if-statements in different functions could be to reduce the complexity to 1. The reason is that if there is a natural grouping of operations in the algorithm, it would be easy to create different functions that handle different parts of the calculations and results and accumulate the results in the main calling method.
 * `NetData.ServerInfoMessage.Builder.buildPartial()` The estimated impact of the refactoring above is pi = 22 - 4*2 + 4 (remove the nested if-statments and replace with a single one), s = 1, M = 18 - 1 = 19. Original complexity where 23, which would decrease the cyclomatic complexity with 4/23 = 0,17 = 17%
+* `mergeFrom(NetData.NetMessage)` This would cut the CC of the function to approximately 1/5 of what it is now, a reduction of 80 %.
 
 ### Carried out refactoring (optional)
 * `centerPointForNormal(Vector3f) ` All chained if-statements where replaced by a function call. Example if(normal.x==1 && normal.y==0 && normal.z==0) where changed to if(normalPositiveX). After the changes jcoco calculated the cyclomatic complexity to 7 which is the same as the estimated reduction of complexity.
